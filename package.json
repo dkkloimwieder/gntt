@@ -1,0 +1,60 @@
+{
+    "name": "frappe-gantt",
+    "version": "1.0.3",
+    "description": "A simple, modern, interactive gantt library for the web",
+    "main": "src/index.js",
+    "type": "module",
+    "scripts": {
+        "dev": "vite",
+        "build-dev": "vite build --watch",
+        "build": "vite build",
+        "lint": "eslint src/**/*.js",
+        "prettier": "prettier --write \"{src/*,tests/*,rollup.config}.js\"",
+        "prettier-check": "prettier --check \"{src/*,tests/*,rollup.config}.js\""
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/frappe/gantt.git"
+    },
+    "files": [
+        "src",
+        "dist",
+        "README.md"
+    ],
+    "exports": {
+        ".": {
+            "require": "./dist/frappe-gantt.umd.js",
+            "import": "./dist/frappe-gantt.es.js",
+            "style": "./dist/frappe-gantt.css"
+        }
+    },
+    "keywords": [
+        "gantt",
+        "svg",
+        "simple gantt",
+        "project timeline",
+        "interactive gantt",
+        "project management"
+    ],
+    "author": "Faris Ansari",
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/frappe/gantt/issues"
+    },
+    "homepage": "https://github.com/frappe/gantt",
+    "devDependencies": {
+        "eslint": "^9.15.0",
+        "eslint-config-prettier": "^2.9.0",
+        "eslint-plugin-prettier": "^2.6.0",
+        "postcss-nesting": "^12.1.2",
+        "prettier": "3.2.5",
+        "vite": "^5.2.10"
+    },
+    "eslintIgnore": [
+        "dist"
+    ],
+    "sideEffects": [
+        "*.css"
+    ],
+    "packageManager": "pnpm@10.12.1+sha512.f0dda8580f0ee9481c5c79a1d927b9164f2c478e90992ad268bbb2465a736984391d6333d2c327913578b2804af33474ca554ba29c04a8b13060a717675ae3ac"
+}
