@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arc Debug</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+        }
+        svg {
+            border: 1px solid #ccc;
+            margin: 20px 0;
+        }
+        .path-code {
+            background: #f5f5f5;
+            padding: 10px;
+            margin: 10px 0;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h2>Backward Arrow Arc Debug</h2>
+
+    <h3>Backward-Same (loop above)</h3>
+    <div class="path-code">
+        <pre>M 100 100
+H 110 a 5 5 0 0 0 5 -5
+V 85 a 5 5 0 0 1 -5 -5
+H 55 a 5 5 0 0 1 -5 5
+V 95 a 5 5 0 0 0 5 5
+H 50</pre>
+    </div>
+    <svg width="200" height="150">
+        <path d="M 100 100 H 110 a 5 5 0 0 0 5 -5 V 85 a 5 5 0 0 1 -5 -5 H 55 a 5 5 0 0 1 -5 5 V 95 a 5 5 0 0 0 5 5 H 50"
+              fill="none" stroke="red" stroke-width="2"/>
+        <circle cx="100" cy="100" r="3" fill="green"/>
+        <circle cx="50" cy="100" r="3" fill="blue"/>
+    </svg>
+
+    <h3>Test all 4 sweep combinations for a single 90-degree arc</h3>
+    <p>Arc from (50, 50) with radius 10, dx=10, dy=-10 (going right and up)</p>
+
+    <svg width="300" height="300">
+        <!-- sweep 0 0 -->
+        <path d="M 50 50 a 10 10 0 0 0 10 -10" fill="none" stroke="red" stroke-width="2"/>
+        <text x="60" y="35" fill="red">0,0</text>
+
+        <!-- sweep 0 1 -->
+        <path d="M 100 50 a 10 10 0 0 1 10 -10" fill="none" stroke="blue" stroke-width="2"/>
+        <text x="110" y="35" fill="blue">0,1</text>
+
+        <!-- sweep 1 0 -->
+        <path d="M 150 50 a 10 10 0 1 0 10 -10" fill="none" stroke="green" stroke-width="2"/>
+        <text x="160" y="35" fill="green">1,0</text>
+
+        <!-- sweep 1 1 -->
+        <path d="M 200 50 a 10 10 0 1 1 10 -10" fill="none" stroke="orange" stroke-width="2"/>
+        <text x="210" y="35" fill="orange">1,1</text>
+
+        <circle cx="50" cy="50" r="2" fill="black"/>
+        <circle cx="100" cy="50" r="2" fill="black"/>
+        <circle cx="150" cy="50" r="2" fill="black"/>
+        <circle cx="200" cy="50" r="2" fill="black"/>
+    </svg>
+
+</body>
+</html>

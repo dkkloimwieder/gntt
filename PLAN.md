@@ -6,6 +6,111 @@
 
 ---
 
+## Migration Progress
+
+### ✅ Completed Phases
+
+#### Phase 0: Foundation & Testing Infrastructure (COMPLETE)
+- ✅ SolidJS core dependencies installed (v1.9.10)
+- ✅ Vite plugin and Babel preset configured
+- ✅ Solid Primitives installed: raf, scheduled, scroll, resize-observer
+- ✅ Directory structure created (`src/solid/{components,utils,adapters,stores}`)
+- ✅ Dual-build infrastructure (`vite.config.solid.js`, `pnpm run dev:solid`)
+- ✅ Test component created (working demo at http://localhost:5173/test-solid.html)
+- ⚠️ Testing infrastructure (Vitest) skipped per user request - will add tests later
+
+#### Phase 1: Pure Utility Functions (COMPLETE)
+- ✅ `date_utils.js` migrated to `src/solid/utils/date_utils.js`
+- ✅ `svg_utils.js` migrated to `src/solid/utils/svg_utils.js`
+- ✅ `usePrevious` helper created (`src/solid/utils/usePrevious.js`)
+- ✅ No changes needed (pure functions work identically in SolidJS)
+
+#### Phase 2: Popup Component (COMPLETE)
+- ✅ SolidJS `Popup.jsx` component created (supports custom HTML and structured layout)
+- ✅ `PopupAdapter.jsx` created - maintains vanilla `show()`/`hide()` API
+- ✅ Reactive state management (visibility, position, content, title, subtitle, details, actions)
+- ✅ Test component created (`TestPopup.jsx`)
+- ✅ Working demo at http://localhost:5173/test-popup.html
+- ✅ **Proof of hybrid architecture**: Adapter pattern successfully bridges vanilla and SolidJS
+
+#### Phase 3: Arrow Component (COMPLETE)
+- ✅ Reactive task store created (`src/solid/stores/taskStore.js`)
+- ✅ `Arrow.jsx` component with complex SVG path calculation
+- ✅ Reactive path updates when task positions change
+- ✅ `ArrowAdapter.jsx` created - maintains vanilla `update()` API (reactivity makes it a no-op)
+- ✅ Test component created (`TestArrow.jsx`)
+- ✅ Working demo at http://localhost:5173/test-arrow.html
+- ✅ **Supports both forward and backward arrow paths** (with curves)
+- ✅ **Reactive dependency tracking** via task store
+
+### 🚧 Remaining Phases
+
+#### Phase 4: Bar Component (Most Complex)
+- 🔲 Static bar rendering
+- 🔲 Drag state machine with createRAF
+- 🔲 60fps drag operations
+- 🔲 Resize handles (left/right)
+- 🔲 Progress bar dragging
+- 🔲 Ignored dates handling
+- 🔲 Dependency validation
+- 🔲 BarAdapter
+
+#### Phase 5: Main Gantt Orchestrator
+- 🔲 Reactive grid rendering
+- 🔲 Header rendering with date formatting
+- 🔲 Scroll handling with infinite padding (using @solid-primitives/scroll)
+- 🔲 Resize observer integration (using @solid-primitives/resize-observer)
+- 🔲 Reactive ignored dates calculation
+- 🔲 Public API compatibility layer
+- 🔲 Event system preservation
+
+#### Phase 6: Cleanup & Optimization
+- 🔲 Remove adapters
+- 🔲 Delete vanilla code
+- 🔲 Performance tuning
+- 🔲 Code quality improvements
+- 🔲 Migration guide for consumers
+
+### Key Files Created
+
+```
+src/solid/
+├── components/
+│   ├── TestPrimitives.jsx ✅
+│   ├── TestPopup.jsx ✅
+│   ├── Popup.jsx ✅
+│   ├── TestArrow.jsx ✅
+│   └── Arrow.jsx ✅
+├── utils/
+│   ├── date_utils.js ✅
+│   ├── svg_utils.js ✅
+│   └── usePrevious.js ✅
+├── adapters/
+│   ├── PopupAdapter.jsx ✅
+│   └── ArrowAdapter.jsx ✅
+├── stores/
+│   └── taskStore.js ✅
+├── test-entry.jsx ✅
+├── test-popup-entry.jsx ✅
+└── test-arrow-entry.jsx ✅
+
+vite.config.solid.js ✅
+test-solid.html ✅
+test-popup.html ✅
+test-arrow.html ✅
+```
+
+### Lessons Learned
+
+1. **JSX files must use `.jsx` extension** - Vite's SolidJS plugin requires `.jsx` for JSX syntax
+2. **createPrevious doesn't exist** - Had to create manual `usePrevious` helper
+3. **Adapter pattern works perfectly** - PopupAdapter and ArrowAdapter successfully maintain vanilla API while using SolidJS underneath
+4. **Reactive signals translate well** - Converting imperative show/hide to signals is straightforward
+5. **Task store enables reactive dependencies** - Arrows automatically update when task positions change via reactive task store
+6. **createMemo is efficient** - Complex path calculations only re-run when dependencies actually change
+
+---
+
 ## Phase 0: Foundation & Testing Infrastructure
 
 **Goal**: Establish testing framework and build infrastructure before touching any application code.
@@ -70,7 +175,7 @@
 ### Critical Primitives to Install
 
 ```bash
-pnpm add @solid-primitives/raf @solid-primitives/scheduled @solid-primitives/scroll @solid-primitives/resize-observer @solid-primitives/memo
+pnpm add @solid-primitives/raf @solid-primitives/scheduled @solid-primitives/scroll @solid-primitives/resize-observer
 ```
 
 ### Primitive Usage by Use Case
@@ -157,21 +262,38 @@ createEffect(() => {
 });
 ```
 
-#### 5. `@solid-primitives/memo` (Previous Value Tracking)
+#### 5. Manual Previous Value Tracking
 **Purpose**: Detect changes and avoid unnecessary recalculations.
 
 **Use in**: Phase 3 (Arrow path updates)
 
+**Note**: `@solid-primitives/memo` does not provide a `createPrevious` function. Use manual tracking instead.
+
 **Pattern**:
 ```javascript
-import { createPrevious } from "@solid-primitives/memo";
+import { createSignal, createEffect } from "solid-js";
 
-const prevFromX = createPrevious(() => from_task.x());
+// Create a reusable helper
+export function usePrevious(value) {
+  let prev;
+  const [previous, setPrevious] = createSignal();
+
+  createEffect(() => {
+    const current = value();
+    setPrevious(prev);
+    prev = current;
+  });
+
+  return previous;
+}
+
+// Usage in Arrow component:
+const fromX = () => from_task.x();
+const prevFromX = usePrevious(fromX);
 
 const path = createMemo(() => {
-  const fromX = from_task.x();
   // Only recalculate if position actually changed
-  if (fromX !== prevFromX()) {
+  if (fromX() !== prevFromX()) {
     return calculatePath(...);
   }
 });
@@ -428,23 +550,41 @@ if (SOLID_MODE) {
 
 **Challenge**: Arrow paths are calculated from bar positions. In vanilla code, paths are recalculated imperatively when bars move. In SolidJS, this should be reactive AND optimized to avoid unnecessary recalculations.
 
-**Solution**: Use `@solid-primitives/memo` (createPrevious) + `@solid-primitives/scheduled` (throttle)
+**Solution**: Manual previous value tracking + `@solid-primitives/scheduled` (throttle)
 
 ```javascript
 // src/solid/components/Arrow.jsx
-import { createMemo } from 'solid-js';
-import { createPrevious } from '@solid-primitives/memo';
+import { createMemo, createSignal, createEffect } from 'solid-js';
 import { throttle } from '@solid-primitives/scheduled';
+
+// Reusable previous value tracker
+function usePrevious(value) {
+  let prev;
+  const [previous, setPrevious] = createSignal();
+
+  createEffect(() => {
+    const current = value();
+    setPrevious(prev);
+    prev = current;
+  });
+
+  return previous;
+}
 
 export function Arrow(props) {
   const from_task = () => props.gantt.getTask(props.dependency.from);
   const to_task = () => props.gantt.getTask(props.dependency.to);
 
   // Track previous positions to detect actual changes
-  const prevFromX = createPrevious(() => from_task().x());
-  const prevFromY = createPrevious(() => from_task().y());
-  const prevToX = createPrevious(() => to_task().x());
-  const prevToY = createPrevious(() => to_task().y());
+  const fromX = () => from_task().x();
+  const fromY = () => from_task().y();
+  const toX = () => to_task().x();
+  const toY = () => to_task().y();
+
+  const prevFromX = usePrevious(fromX);
+  const prevFromY = usePrevious(fromY);
+  const prevToX = usePrevious(toX);
+  const prevToY = usePrevious(toY);
 
   // Throttled path calculation - max 60fps updates
   const path = createMemo(throttle(() => {
@@ -495,7 +635,7 @@ function calculatePath(x1, y1, x2, y2, curve) {
 ```
 
 **Why this works**:
-- `createPrevious` avoids recalculating path if positions haven't changed
+- `usePrevious` helper avoids recalculating path if positions haven't changed
 - `throttle(16)` ensures arrow updates happen at max 60fps, preventing jank during rapid bar movements
 - Memoization caches result until dependencies change
 

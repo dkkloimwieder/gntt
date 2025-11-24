@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Popup Test - Frappe Gantt SolidJS</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #fafafa;
+        }
+        #app {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        /* Popup styles (from gantt.css) */
+        .popup-wrapper {
+            position: absolute;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            min-width: 200px;
+            z-index: 1000;
+        }
+
+        .popup-wrapper.hide {
+            display: none;
+        }
+
+        .popup-wrapper .title {
+            font-weight: 600;
+            font-size: 16px;
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        .popup-wrapper .subtitle {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .popup-wrapper .details {
+            font-size: 13px;
+            color: #888;
+            margin-bottom: 12px;
+        }
+
+        .popup-wrapper .actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #eee;
+        }
+
+        .popup-wrapper .action-btn {
+            padding: 6px 12px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .popup-wrapper .action-btn:hover {
+            background-color: #45a049;
+        }
+
+        .popup-wrapper .action-btn:last-child {
+            background-color: #f44336;
+        }
+
+        .popup-wrapper .action-btn:last-child:hover {
+            background-color: #da190b;
+        }
+    </style>
+</head>
+<body>
+    <div id="app"></div>
+    <script type="module" src="/src/solid/test-popup-entry.jsx"></script>
+</body>
+</html>
