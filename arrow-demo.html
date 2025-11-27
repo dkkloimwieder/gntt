@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arrow Component Demo - Frappe Gantt SolidJS</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f8f9fa;
+            color: #212529;
+        }
+
+        #app {
+            min-height: 100vh;
+        }
+
+        /* Ensure SVG arrows render correctly */
+        svg path {
+            vector-effect: non-scaling-stroke;
+        }
+
+        /* Smooth transitions for interactive elements */
+        rect {
+            transition: fill 0.1s ease;
+        }
+
+        /* Code styling */
+        code {
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
+        }
+
+        /* Fieldset styling */
+        fieldset {
+            margin: 0;
+        }
+
+        /* Range input styling */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            height: 6px;
+            background: #dee2e6;
+            border-radius: 3px;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #339af0;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: #339af0;
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+        }
+
+        /* Select styling */
+        select {
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            background: white;
+            font-size: 12px;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: #339af0;
+            box-shadow: 0 0 0 2px rgba(51, 154, 240, 0.2);
+        }
+
+        /* Checkbox styling */
+        input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="app"></div>
+    <script type="module" src="/src/solid/arrow-demo-entry.jsx"></script>
+</body>
+</html>
