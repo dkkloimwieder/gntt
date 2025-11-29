@@ -192,6 +192,12 @@ function resolveMovement(taskId, newX, newY, taskStore, relationships, depth = 0
         } else {
             // This task is the SUCCESSOR - check distance from predecessor
             const predTask = otherTask;
+
+            // HARD LIMIT: Successor cannot start before predecessor
+            if (newX < predTask.$bar.x) {
+                newX = predTask.$bar.x;
+            }
+
             const distance = calculateDistance(predTask, task, null);
             const newDistance = newX - (predTask.$bar.x + predTask.$bar.width);
 

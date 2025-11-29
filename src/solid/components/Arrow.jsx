@@ -120,12 +120,15 @@ function calculateSmartOffset(from, to, anchor, curveRadius) {
     }
 
     if (anchor === 'top' || anchor === 'bottom') {
-        // Exit point must be to the LEFT of target's left edge
+        // Default: exit at 90% along bar (10% from right edge)
+        const defaultOffset = 0.90;
+
+        // But clamp to ensure exit is left of target's left edge
         const maxExitX = to.x - curveRadius;  // Leave room for curve
         const maxOffset = (maxExitX - from.x) / from.width;
 
-        // Clamp offset to ensure exit is left of target
-        return Math.max(0, Math.min(maxOffset, 1));
+        // Use default unless it would place exit past target
+        return Math.max(0, Math.min(defaultOffset, maxOffset));
     }
 
     return 0.5;
