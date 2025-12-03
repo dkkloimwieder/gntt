@@ -27,6 +27,17 @@ Arrows visualize task dependencies. Constraints enforce task positioning rules.
 | Successor below | Predecessor's BOTTOM edge |
 | Vertically aligned | Predecessor's RIGHT edge |
 
+### Exit Point Offset
+
+When exiting from TOP or BOTTOM edges, the arrow exits at **90% along the bar** (10% from the right edge) by default. This ensures arrows don't exit from the very corner, which looks awkward.
+
+The offset is automatically clamped to ensure the exit point is always to the left of the successor's start, leaving room for the curve.
+
+| Anchor | Default Offset | Notes |
+|--------|----------------|-------|
+| RIGHT | 50% (center) | Middle of right edge |
+| TOP/BOTTOM | 90% | 10% from right edge, clamped if needed |
+
 ### Path Shapes
 
 - **Vertical-first (L-shape)**: Exit top/bottom → curve → horizontal to target
@@ -119,5 +130,14 @@ relationships: [
 | File | Purpose |
 |------|---------|
 | `Arrow.jsx` | Arrow rendering component |
-| `ConstraintDemo.jsx` | Interactive demo with all scenarios |
+| `Bar.jsx` | Task bar with drag/resize/progress |
+| `BarDemo.jsx` | Main demo with all features |
+| `ConstraintDemo.jsx` | Interactive demo with constraint scenarios |
+| `constraintResolver.js` | Constraint resolution logic |
 | `taskStore.js` | Reactive task position store |
+
+---
+
+## See Also
+
+For comprehensive documentation including all components, stores, and utilities, see `SOLID_ARCHITECTURE.md`.
