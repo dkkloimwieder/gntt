@@ -146,10 +146,10 @@ export function Bar(props) {
                 ) {
                     // Clamp deltaX to prevent constraint violations when dragging backward
                     if (props.onClampBatchDelta && deltaX < 0) {
-                        const batchIds = new Set(
-                            data.dependentOriginals.keys(),
+                        deltaX = props.onClampBatchDelta(
+                            data.dependentOriginals,
+                            deltaX,
                         );
-                        deltaX = props.onClampBatchDelta(batchIds, deltaX);
                     }
 
                     // Batch move all dependent tasks by the same delta

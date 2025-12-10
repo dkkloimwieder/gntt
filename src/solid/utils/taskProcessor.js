@@ -75,12 +75,6 @@ export function processTask(task, index) {
         [processed._start, processed._end] = [processed._end, processed._start];
     }
 
-    // Extend to full day if no time specified
-    const endValues = date_utils.get_date_values(processed._end);
-    if (endValues.slice(3).every((d) => d === 0)) {
-        processed._end = date_utils.add(processed._end, 24, 'hour');
-    }
-
     // Parse dependencies
     processed.dependencies = parseDependencies(task.dependencies);
 

@@ -370,16 +370,16 @@ export function calculateMaxPredecessorX(
  * Calculate the minimum allowed backward delta for batch drag.
  * This ensures no task in the batch violates its predecessor constraint.
  *
- * @param {Set<string>} batchTaskIds - Set of task IDs being moved together
+ * @param {Map<string, {originalX: number}>} batchOriginals - Map of task ID -> original position
  * @param {number} proposedDeltaX - The proposed movement delta (negative for backward)
  * @param {Array} relationships - All relationships
- * @param {Function} getTask - Function to get task by ID
+ * @param {Function} getTask - Function to get task by ID (for predecessor positions)
  * @param {Object} options - Optional configuration
  * @param {number} options.pixelsPerTimeUnit - Conversion factor for lag (default: 1)
  * @returns {number} The clamped deltaX (may be less negative than proposed)
  */
 export function clampBatchDeltaX(
-    batchTaskIds,
+    batchOriginals,
     proposedDeltaX,
     relationships,
     getTask,
@@ -391,8 +391,10 @@ export function clampBatchDeltaX(
     const { pixelsPerTimeUnit = 1 } = options;
     let minAllowedDelta = proposedDeltaX;
 
+    const batchTaskIds = new Set(batchOriginals.keys());
+
     // For each task in the batch, check if it has a predecessor OUTSIDE the batch
-    for (const taskId of batchTaskIds) {
+    for (const [taskId, { originalX }] of batchOriginals) {
         const task = getTask(taskId);
         if (!task?.$bar) continue;
 
@@ -413,6 +415,7 @@ export function clampBatchDeltaX(
             const lagPx = lag * pixelsPerTimeUnit;
 
             // Calculate minimum allowed X for this successor
+            // Use task's current width but predecessor's current position
             const minSuccX = calculateMinSuccessorX(
                 type,
                 predTask,
@@ -420,15 +423,26 @@ export function clampBatchDeltaX(
                 lagPx,
             );
 
-            // Current position + proposed delta
-            const newX = task.$bar.x + proposedDeltaX;
+            // Original position + proposed delta = new position
+            const newX = originalX + proposedDeltaX;
 
             // If this would violate constraint, calculate max allowed delta
             if (newX < minSuccX) {
-                const maxBackwardDelta = minSuccX - task.$bar.x;
-                // maxBackwardDelta could be positive (task already past min)
-                // or zero/negative (task at or before min)
-                minAllowedDelta = Math.max(minAllowedDelta, maxBackwardDelta);
+                // Max backward delta from ORIGINAL position
+                const maxBackwardDelta = minSuccX - originalX;
+                // Only clamp if it would require moving backward less (not moving forward)
+                // This prevents "fixing" existing constraint violations during drag
+                if (maxBackwardDelta <= 0) {
+                    minAllowedDelta = Math.max(
+                        minAllowedDelta,
+                        maxBackwardDelta,
+                    );
+                }
+                // If maxBackwardDelta > 0, the task is already violating constraint
+                // Don't force it forward, just prevent further backward movement
+                else {
+                    minAllowedDelta = Math.max(minAllowedDelta, 0);
+                }
             }
         }
     }

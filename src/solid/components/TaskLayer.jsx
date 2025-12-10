@@ -4,6 +4,7 @@ import {
     resolveMovement,
     collectDependentTasks,
     clampBatchDeltaX,
+    resolveAfterResize,
 } from '../utils/constraintResolver.js';
 
 /**
@@ -78,8 +79,13 @@ export function TaskLayer(props) {
 
     /**
      * Handle resize end callback from Bar.
+     * Resolves constraints to push dependent tasks if needed.
      */
     const handleResizeEnd = (taskId) => {
+        // Apply constraints after resize - push dependents if needed
+        if (props.taskStore) {
+            resolveAfterResize(taskId, props.taskStore, relationships());
+        }
         props.onResizeEnd?.(taskId);
     };
 
@@ -116,11 +122,13 @@ export function TaskLayer(props) {
     /**
      * Clamp batch delta to prevent constraint violations.
      * Called during drag to ensure no task moves behind its predecessor.
+     * @param {Map<string, {originalX: number}>} batchOriginals - Original positions
+     * @param {number} proposedDeltaX - Proposed movement delta
      */
-    const handleClampBatchDelta = (batchTaskIds, proposedDeltaX) => {
+    const handleClampBatchDelta = (batchOriginals, proposedDeltaX) => {
         const getTask = props.taskStore?.getTask?.bind(props.taskStore);
         return clampBatchDeltaX(
-            batchTaskIds,
+            batchOriginals,
             proposedDeltaX,
             relationships(),
             getTask,
