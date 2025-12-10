@@ -1,5 +1,10 @@
 import { createSignal, createMemo, Show, onCleanup } from 'solid-js';
-import { computeProgressWidth, computeExpectedProgress, computeLabelPosition, snapToGrid } from '../utils/barCalculations.js';
+import {
+    computeProgressWidth,
+    computeExpectedProgress,
+    computeLabelPosition,
+    snapToGrid,
+} from '../utils/barCalculations.js';
 import { useDrag, clamp } from '../hooks/useDrag.js';
 
 /**
@@ -32,13 +37,27 @@ export function Bar(props) {
 
     // Configuration from ganttConfig or direct props
     const config = createMemo(() => ({
-        barCornerRadius: props.ganttConfig?.barCornerRadius?.() ?? props.cornerRadius ?? 3,
+        barCornerRadius:
+            props.ganttConfig?.barCornerRadius?.() ?? props.cornerRadius ?? 3,
         readonly: props.ganttConfig?.readonly?.() ?? props.readonly ?? false,
-        readonlyDates: props.ganttConfig?.readonlyDates?.() ?? props.readonlyDates ?? false,
-        readonlyProgress: props.ganttConfig?.readonlyProgress?.() ?? props.readonlyProgress ?? false,
-        showExpectedProgress: props.ganttConfig?.showExpectedProgress?.() ?? props.showExpectedProgress ?? false,
-        columnWidth: props.ganttConfig?.columnWidth?.() ?? props.columnWidth ?? 45,
-        ignoredPositions: props.ganttConfig?.ignoredPositions?.() ?? props.ignoredPositions ?? [],
+        readonlyDates:
+            props.ganttConfig?.readonlyDates?.() ??
+            props.readonlyDates ??
+            false,
+        readonlyProgress:
+            props.ganttConfig?.readonlyProgress?.() ??
+            props.readonlyProgress ??
+            false,
+        showExpectedProgress:
+            props.ganttConfig?.showExpectedProgress?.() ??
+            props.showExpectedProgress ??
+            false,
+        columnWidth:
+            props.ganttConfig?.columnWidth?.() ?? props.columnWidth ?? 45,
+        ignoredPositions:
+            props.ganttConfig?.ignoredPositions?.() ??
+            props.ignoredPositions ??
+            [],
     }));
 
     // Task data
@@ -52,6 +71,9 @@ export function Bar(props) {
 
     // Minimum bar width (one column)
     const minWidth = () => config().columnWidth;
+
+    // Track if a drag occurred (to distinguish click from drag)
+    const [didDrag, setDidDrag] = createSignal(false);
 
     // ═══════════════════════════════════════════════════════════════════════════
     // DRAG SETUP
@@ -69,22 +91,32 @@ export function Bar(props) {
         onDragMove: (move, data, state) => {
             if (!props.taskStore || !task().id) return;
 
+            // Mark that a drag occurred (used to distinguish click from drag)
+            setDidDrag(true);
+
             const colWidth = config().columnWidth;
             const ignored = config().ignoredPositions;
 
             if (state === 'dragging_bar') {
                 // Bar movement - snap to grid
-                let newX = snapToGrid(data.originalX + move.deltaX, colWidth, ignored);
+                let newX = snapToGrid(
+                    data.originalX + move.deltaX,
+                    colWidth,
+                    ignored,
+                );
 
                 // Apply constraints if provided
                 if (props.onConstrainPosition) {
-                    const constrained = props.onConstrainPosition(task().id, newX, y());
+                    const constrained = props.onConstrainPosition(
+                        task().id,
+                        newX,
+                        y(),
+                    );
                     if (constrained === null) return; // Movement blocked
                     newX = constrained.x ?? newX;
                 }
 
                 props.taskStore.updateBarPosition(task().id, { x: newX });
-
             } else if (state === 'dragging_left') {
                 // Left handle - resize from start
                 const rawDelta = move.deltaX;
@@ -102,8 +134,25 @@ export function Bar(props) {
                 // Skip ignored positions
                 newX = snapToGrid(newX, colWidth, ignored);
 
-                props.taskStore.updateBarPosition(task().id, { x: newX, width: newWidth });
+                // Apply constraints if provided - prevent moving start before predecessor's end
+                if (props.onConstrainPosition) {
+                    const constrained = props.onConstrainPosition(
+                        task().id,
+                        newX,
+                        y(),
+                    );
+                    if (constrained === null) return; // Movement blocked
+                    // If constraint moved us right, adjust width accordingly
+                    if (constrained.x > newX) {
+                        newWidth = newWidth - (constrained.x - newX);
+                        newX = constrained.x;
+                    }
+                }
 
+                props.taskStore.updateBarPosition(task().id, {
+                    x: newX,
+                    width: newWidth,
+                });
             } else if (state === 'dragging_right') {
                 // Right handle - resize from end
                 const rawDelta = move.deltaX;
@@ -114,8 +163,9 @@ export function Bar(props) {
                 // Enforce minimum width
                 newWidth = Math.max(minWidth(), newWidth);
 
-                props.taskStore.updateBarPosition(task().id, { width: newWidth });
-
+                props.taskStore.updateBarPosition(task().id, {
+                    width: newWidth,
+                });
             } else if (state === 'dragging_progress') {
                 // Progress handle - update progress percentage
                 const barX = x();
@@ -127,24 +177,32 @@ export function Bar(props) {
                 let newProgressX = clamp(
                     data.startSvgX + move.deltaX,
                     barX,
-                    barX + barWidth
+                    barX + barWidth,
                 );
 
                 // Calculate progress percentage (accounting for ignored dates)
                 const totalIgnoredInBar = ignored.reduce((acc, pos) => {
                     return acc + (pos >= barX && pos < barX + barWidth ? 1 : 0);
                 }, 0);
-                const effectiveWidth = barWidth - (totalIgnoredInBar * colWidth);
+                const effectiveWidth = barWidth - totalIgnoredInBar * colWidth;
 
                 const progressOffset = newProgressX - barX;
                 const ignoredInProgress = ignored.reduce((acc, pos) => {
                     return acc + (pos >= barX && pos < newProgressX ? 1 : 0);
                 }, 0);
-                const effectiveProgress = progressOffset - (ignoredInProgress * colWidth);
+                const effectiveProgress =
+                    progressOffset - ignoredInProgress * colWidth;
 
-                const newProgress = effectiveWidth > 0
-                    ? clamp(Math.round((effectiveProgress / effectiveWidth) * 100), 0, 100)
-                    : 0;
+                const newProgress =
+                    effectiveWidth > 0
+                        ? clamp(
+                              Math.round(
+                                  (effectiveProgress / effectiveWidth) * 100,
+                              ),
+                              0,
+                              100,
+                          )
+                        : 0;
 
                 // Update task progress
                 if (props.taskStore) {
@@ -161,12 +219,21 @@ export function Bar(props) {
 
         onDragEnd: (move, data, state) => {
             // Notify about changes - read directly from store to avoid reactive timing issues
-            if (state === 'dragging_bar' || state === 'dragging_left' || state === 'dragging_right') {
+            if (
+                state === 'dragging_bar' ||
+                state === 'dragging_left' ||
+                state === 'dragging_right'
+            ) {
                 const pos = props.taskStore?.getBarPosition(task().id);
                 props.onDateChange?.(task().id, {
                     x: pos?.x ?? x(),
                     width: pos?.width ?? width(),
                 });
+
+                // Trigger constraint resolution after resize (width changed)
+                if (state === 'dragging_left' || state === 'dragging_right') {
+                    props.onResizeEnd?.(task().id);
+                }
             } else if (state === 'dragging_progress') {
                 props.onProgressChange?.(task().id, task().progress);
             }
@@ -184,7 +251,29 @@ export function Bar(props) {
         const target = e.target;
         if (target.classList.contains('handle')) return;
 
+        setDidDrag(false); // Reset drag flag on mousedown
         startDrag(e, 'dragging_bar', { taskId: task().id });
+    };
+
+    // Hover handlers for task data popup
+    const handleMouseEnter = (e) => {
+        if (props.onHover && !isDragging()) {
+            props.onHover(task().id, e.clientX, e.clientY);
+        }
+    };
+
+    const handleMouseLeave = () => {
+        if (props.onHoverEnd) {
+            props.onHoverEnd();
+        }
+    };
+
+    // Click handler for task data modal (only fires if no drag occurred)
+    const handleClick = (e) => {
+        if (!didDrag() && props.onTaskClick) {
+            e.stopPropagation();
+            props.onTaskClick(task().id, e);
+        }
     };
 
     const handleLeftHandleMouseDown = (e) => {
@@ -200,7 +289,8 @@ export function Bar(props) {
     };
 
     const handleProgressMouseDown = (e) => {
-        if (config().readonly || config().readonlyProgress || isLocked()) return;
+        if (config().readonly || config().readonlyProgress || isLocked())
+            return;
         e.stopPropagation();
         startDrag(e, 'dragging_progress', { taskId: task().id });
     };
@@ -217,7 +307,7 @@ export function Bar(props) {
             width(),
             progress,
             config().ignoredPositions,
-            config().columnWidth
+            config().columnWidth,
         );
     });
 
@@ -233,7 +323,7 @@ export function Bar(props) {
             taskStart,
             taskEnd,
             props.ganttConfig?.unit?.() ?? 'day',
-            props.ganttConfig?.step?.() ?? 1
+            props.ganttConfig?.step?.() ?? 1,
         );
 
         return computeProgressWidth(
@@ -241,7 +331,7 @@ export function Bar(props) {
             width(),
             expectedPercent,
             config().ignoredPositions,
-            config().columnWidth
+            config().columnWidth,
         );
     });
 
@@ -253,8 +343,10 @@ export function Bar(props) {
 
     // Colors
     const barColor = () => task().color ?? 'var(--g-bar-color, #b8c2cc)';
-    const progressColor = () => task().color_progress ?? 'var(--g-bar-progress-color, #a3a3ff)';
-    const expectedProgressColor = () => 'var(--g-expected-progress-color, rgba(0,0,0,0.2))';
+    const progressColor = () =>
+        task().color_progress ?? 'var(--g-bar-progress-color, #a3a3ff)';
+    const expectedProgressColor = () =>
+        'var(--g-expected-progress-color, rgba(0,0,0,0.2))';
 
     // Invalid state
     const isInvalid = () => task().invalid ?? false;
@@ -265,13 +357,14 @@ export function Bar(props) {
     // Handle visibility (show when not fully readonly)
     const showHandles = () => !config().readonly;
     const showDateHandles = () => showHandles() && !config().readonlyDates;
-    const showProgressHandle = () => showHandles() && !config().readonlyProgress;
+    const showProgressHandle = () =>
+        showHandles() && !config().readonlyProgress;
 
     // Locked state (from constraint system)
     const isLocked = () => task().constraints?.locked ?? false;
 
     // Drag state class
-    const dragClass = () => isDragging() ? `dragging ${dragState()}` : '';
+    const dragClass = () => (isDragging() ? `dragging ${dragState()}` : '');
 
     // ═══════════════════════════════════════════════════════════════════════════
     // RENDER
@@ -282,7 +375,16 @@ export function Bar(props) {
             class={`bar-wrapper ${customClass()} ${isInvalid() ? 'invalid' : ''} ${isLocked() ? 'locked' : ''} ${dragClass()}`}
             data-id={task().id}
             onMouseDown={handleBarMouseDown}
-            style={{ cursor: isLocked() ? 'not-allowed' : (config().readonly ? 'default' : 'move') }}
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
+            onClick={handleClick}
+            style={{
+                cursor: isLocked()
+                    ? 'not-allowed'
+                    : config().readonly
+                      ? 'default'
+                      : 'move',
+            }}
         >
             {/* Main bar group */}
             <g class="bar-group">
@@ -296,8 +398,14 @@ export function Bar(props) {
                     ry={config().barCornerRadius}
                     class="bar"
                     style={{
-                        fill: isLocked() ? '#7f8c8d' : (isDragging() ? '#2c3e50' : barColor()),
-                        stroke: isLocked() ? '#c0392b' : 'var(--g-bar-stroke, #8a8aff)',
+                        fill: isLocked()
+                            ? '#7f8c8d'
+                            : isDragging()
+                              ? '#2c3e50'
+                              : barColor(),
+                        stroke: isLocked()
+                            ? '#c0392b'
+                            : 'var(--g-bar-stroke, #8a8aff)',
                         'stroke-width': isLocked() ? '2' : '0',
                         'stroke-dasharray': isLocked() ? '4,4' : 'none',
                         transition: isDragging() ? 'none' : 'fill 0.1s ease',
@@ -305,7 +413,12 @@ export function Bar(props) {
                 />
 
                 {/* Expected progress bar (behind actual progress) */}
-                <Show when={config().showExpectedProgress && expectedProgressWidth() > 0}>
+                <Show
+                    when={
+                        config().showExpectedProgress &&
+                        expectedProgressWidth() > 0
+                    }
+                >
                     <rect
                         x={x()}
                         y={y()}
@@ -336,7 +449,9 @@ export function Bar(props) {
                     y={y() + height() / 2}
                     class={`bar-label ${labelInfo().position}`}
                     dominant-baseline="middle"
-                    text-anchor={labelInfo().position === 'inside' ? 'middle' : 'start'}
+                    text-anchor={
+                        labelInfo().position === 'inside' ? 'middle' : 'start'
+                    }
                     style={{ 'pointer-events': 'none' }}
                 >
                     {task().name ?? ''}

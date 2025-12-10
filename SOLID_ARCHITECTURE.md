@@ -1,6 +1,6 @@
 # SolidJS Architecture Documentation
 
-**Last Updated**: November 28, 2025
+**Last Updated**: December 6, 2025
 
 This document describes the current state of the SolidJS implementation within the Frappe Gantt project. The codebase is in active migration from vanilla JavaScript to SolidJS, following a hybrid architecture that allows both implementations to coexist.
 
@@ -94,14 +94,18 @@ src/solid/
 | `fromId` | `string` | - | Task ID for predecessor lookup |
 | `toId` | `string` | - | Task ID for successor lookup |
 | `startAnchor` | `'auto'\|'top'\|'bottom'\|'left'\|'right'` | `'auto'` | Where arrow exits predecessor |
-| `endAnchor` | `'auto'\|'left'` | `'auto'` | Where arrow enters successor |
+| `endAnchor` | `'auto'\|'left'\|'top'\|'right'` | `'auto'` | Where arrow enters successor |
+| `dependencyType` | `'FS'\|'SS'\|'FF'\|'SF'` | `'FS'` | Dependency type (affects anchor selection) |
 | `startOffset` | `number` | Smart calc | 0-1 position along anchor edge |
 | `routing` | `'orthogonal'\|'straight'` | `'orthogonal'` | Path routing style |
 | `curveRadius` | `number` | `5` | Radius for rounded corners |
 | `stroke` | `string` | `'#666'` | Arrow color |
 | `strokeWidth` | `number` | `1.4` | Line thickness |
 | `headSize` | `number` | `5` | Arrow head size |
-| `headShape` | `'chevron'\|'triangle'\|'none'` | `'chevron'` | Arrow head style |
+| `headShape` | `'chevron'\|'triangle'\|'diamond'\|'circle'\|'none'` | `'chevron'` | Arrow head style |
+| `headFill` | `boolean` | `false` | Fill arrow head (not chevron) |
+| `strokeOpacity` | `number` | `1` | Line opacity (0-1) |
+| `strokeDasharray` | `string` | `''` | Dash pattern (e.g., '8,4') |
 
 **Path Calculation Logic** (`Arrow.jsx:117-135`):
 ```javascript
@@ -458,6 +462,23 @@ Arrow component testing in isolation.
 
 ---
 
+### ShowcaseDemo (`/showcase-demo.html`)
+
+Interactive props showcase for all task and connector configuration options.
+
+**Features**:
+- 6 presets (Default, Colorful, Minimal, Constrained, Locked, Fixed Offset)
+- Full task configuration (name, color, progress, cornerRadius, locked, invalid)
+- Full connector configuration (anchoring, routing, line style, arrow head)
+- Constraint controls (minDistance, maxDistance, fixedOffset, allowOverlap)
+- Global settings (readonly modes, grid snap)
+
+**Run**: `pnpm run dev:solid` → http://localhost:5173/showcase-demo.html
+
+**Documentation**: See `SHOWCASE_DEMO.md` for complete parameter reference.
+
+---
+
 ## Configuration Options
 
 ### columnWidth (Default: 45)
@@ -542,23 +563,32 @@ function computeExpectedProgress(taskStart, taskEnd, unit, step) {
 
 ### Arrow Smart Anchoring
 
-**Auto-selection Logic** (`Arrow.jsx:81-103`):
+**Start Anchor Selection** (`Arrow.jsx:autoSelectStartAnchor`):
 
 ```
-If tasks overlap horizontally:
-    → Exit from TOP or BOTTOM (based on vertical position)
-
-Else if vertically aligned (within 8px):
-    → Exit from RIGHT edge (center)
-
-Else if target is above:
-    → Exit from TOP
+If tasks on same row (within alignment threshold):
+    → Exit from RIGHT edge
 
 Else:
     → Exit from BOTTOM
 ```
 
-**Exit Offset Calculation**:
+**End Anchor Selection** (`Arrow.jsx:autoSelectEndAnchor`):
+
+Entry point is determined by what the dependency constrains:
+
+```
+For -Start dependencies (FS, SS):
+    → Always enter from LEFT (the start of the task)
+
+For -Finish dependencies (FF, SF):
+    If same row:
+        → Enter from RIGHT
+    Else:
+        → Enter from TOP (cleaner routing for stacked tasks)
+```
+
+**Start Offset Calculation**:
 - For TOP/BOTTOM: Default 90% along bar (10% from right edge)
 - Clamped to ensure exit point is left of target's left edge
 - Leaves room for curve radius

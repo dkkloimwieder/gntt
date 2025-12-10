@@ -12,6 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `pnpm build` - Build production bundle (UMD + ES modules)
 - `pnpm build-dev` - Build in watch mode for development
 - `pnpm dev` - Start Vite development server with hot reload
+- `pnpm run dev:solid` - Start SolidJS demo server (showcase, bar, arrow demos)
 - Test changes: Open `index.html` in browser after building
 
 ### Code Quality
@@ -80,7 +81,7 @@ set_dimensions() → set_scroll_position()
 
 ### Migration Context
 
-**Important**: There's an approved migration plan (`PLAN.md`) to incrementally move from vanilla JS to SolidJS over 9 weeks using a hybrid architecture with adapters. Be aware of this context when making architectural decisions.
+**Important**: The codebase is migrating from vanilla JS to SolidJS. Core components are complete (Arrow, Bar, Popup, stores). See `SOLID_ARCHITECTURE.md` for current status and `PLAN.md` for the full migration plan. The main Gantt orchestrator is pending.
 
 ## Development Workflow
 

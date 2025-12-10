@@ -34,7 +34,7 @@ const DEFAULTS = {
     HEAD_FILL: false,
 
     // Thresholds
-    ALIGNMENT_THRESHOLD: 8,  // pixels - threshold for "same level" detection
+    ALIGNMENT_THRESHOLD: 8, // pixels - threshold for "same level" detection
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -73,40 +73,56 @@ function hasHorizontalOverlap(from, to) {
 }
 
 /**
- * Automatically select the best start anchor based on geometry.
+ * Automatically select the best start anchor based on geometry and dependency type.
  *
- * - TOP/BOTTOM: if target is above/below (or if tasks overlap horizontally)
- * - RIGHT: only if target is to the right AND vertically aligned
+ * Gantt chart convention:
+ * - Different rows: Exit from BOTTOM (going down) or TOP (going up)
+ * - Same row: Exit from side (RIGHT for FS/FF, LEFT for SS/SF)
  */
-function autoSelectStartAnchor(from, to) {
+function autoSelectStartAnchor(from, to, dependencyType = 'FS') {
     const fromCenterY = from.y + from.height / 2;
     const toCenterY = to.y + to.height / 2;
     const dy = toCenterY - fromCenterY;
 
-    // If tasks overlap horizontally, must exit from top/bottom
-    if (hasHorizontalOverlap(from, to)) {
+    // Check if on same row (within threshold)
+    const sameRow = Math.abs(dy) <= DEFAULTS.ALIGNMENT_THRESHOLD;
+
+    // SS and SF dependencies exit from the START of the predecessor
+    if (dependencyType === 'SS' || dependencyType === 'SF') {
+        if (sameRow) {
+            return 'left';
+        }
+        // Different rows: exit from top/bottom
         return dy < 0 ? 'top' : 'bottom';
     }
 
-    // Check if vertically aligned (within threshold)
-    if (Math.abs(dy) <= DEFAULTS.ALIGNMENT_THRESHOLD) {
+    // FS and FF dependencies exit from the END of the predecessor
+    if (sameRow) {
         return 'right';
     }
-
-    // Target is above - exit from top
-    if (dy < 0) {
-        return 'top';
-    }
-
-    // Target is below - exit from bottom
-    return 'bottom';
+    // Different rows: exit from top/bottom
+    return dy < 0 ? 'top' : 'bottom';
 }
 
 /**
- * Automatically select the best end anchor based on geometry.
- * Always returns 'left' - arrows always enter at the START of the successor task.
+ * Automatically select the best end anchor based on dependency type and geometry.
+ *
+ * Entry point is determined by what the dependency constrains:
+ * - -Start dependencies (FS, SS): enter from LEFT (the start of the task)
+ * - -Finish dependencies (FF, SF): enter from RIGHT for same row, TOP for different rows
  */
-function autoSelectEndAnchor(from, to) {
+function autoSelectEndAnchor(from, to, dependencyType = 'FS') {
+    const fromCenterY = from.y + from.height / 2;
+    const toCenterY = to.y + to.height / 2;
+    const dy = toCenterY - fromCenterY;
+    const sameRow = Math.abs(dy) <= DEFAULTS.ALIGNMENT_THRESHOLD;
+
+    if (dependencyType === 'FF' || dependencyType === 'SF') {
+        // For finish-based dependencies on same row, enter from right
+        // For different rows, enter from top (cleaner routing)
+        return sameRow ? 'right' : 'top';
+    }
+    // -Start dependencies always enter from left
     return 'left';
 }
 
@@ -114,21 +130,35 @@ function autoSelectEndAnchor(from, to) {
  * Calculate optimal offset for edge anchors based on target position.
  * Exit point must ALWAYS be to the LEFT of target's start.
  */
-function calculateSmartOffset(from, to, anchor, curveRadius) {
+function calculateSmartOffset(
+    from,
+    to,
+    anchor,
+    curveRadius,
+    dependencyType = 'FS',
+) {
     if (anchor === 'right') {
-        return 0.5;  // Center of right edge
+        return 0.5; // Center of right edge
+    }
+
+    if (anchor === 'left') {
+        return 0.5; // Center of left edge
     }
 
     if (anchor === 'top' || anchor === 'bottom') {
-        // Default: exit at 90% along bar (10% from right edge)
-        const defaultOffset = 0.90;
+        // For FF/SF: exit near the END (right) of the predecessor
+        if (dependencyType === 'FF' || dependencyType === 'SF') {
+            return 0.9; // Exit near right edge for finish-based dependencies
+        }
 
-        // But clamp to ensure exit is left of target's left edge
-        const maxExitX = to.x - curveRadius;  // Leave room for curve
+        // For FS/SS: position exit to align nicely with target
+        const defaultOffset = 0.9;
+
+        // Clamp to ensure exit is left of target's left edge
+        const maxExitX = to.x - curveRadius;
         const maxOffset = (maxExitX - from.x) / from.width;
 
-        // Use default unless it would place exit past target
-        return Math.max(0, Math.min(defaultOffset, maxOffset));
+        return Math.max(0.1, Math.min(defaultOffset, maxOffset));
     }
 
     return 0.5;
@@ -148,17 +178,34 @@ function generateArrowHeadRight(shape, size, fill) {
 
     switch (shape) {
         case 'chevron':
+            // Open chevron pointing right: < shape
             return `m ${-size} ${-size} l ${size} ${size} l ${-size} ${size}`;
         case 'triangle':
-            if (fill) {
-                return `m ${-size} ${-size} l ${size} ${size} l ${-size} ${size} z`;
-            }
-            return `m ${-size} ${-size} l ${size} ${size} l ${-size} ${size}`;
+            // Triangle pointing right - draw all sides explicitly (no z to avoid closing to path start)
+            return (
+                `m ${-size} ${-size} l ${size} ${size} l ${-size} ${size}` +
+                (fill ? ` l 0 ${-size * 2}` : '')
+            );
+        case 'diamond':
+            // Diamond shape - tip at current position, extends back
+            // Draw all 4 sides explicitly to avoid z closing to wrong point
+            return `m ${-size * 2} 0 l ${size} ${-size} l ${size} ${size} l ${-size} ${size} l ${-size} ${-size}`;
+        case 'circle':
+            // Circle at the end point - draw as a complete circle without z
+            const r = size * 0.7;
+            const k = 0.5523;
+            // Move to start of circle, draw 4 bezier curves
+            return (
+                `m ${-r * 2} 0 ` +
+                `c 0 ${-r * k} ${r * (1 - k)} ${-r} ${r} ${-r} ` +
+                `c ${r * k} 0 ${r} ${r * (1 - k)} ${r} ${r} ` +
+                `c 0 ${r * k} ${-r * (1 - k)} ${r} ${-r} ${r} ` +
+                `c ${-r * k} 0 ${-r} ${-r * (1 - k)} ${-r} ${-r}`
+            );
         default:
             return `m ${-size} ${-size} l ${size} ${size} l ${-size} ${size}`;
     }
 }
-
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PATH ROUTING
@@ -166,21 +213,23 @@ function generateArrowHeadRight(shape, size, fill) {
 
 /**
  * Generate a straight line path between two points.
+ * Returns just the line path (no arrow head).
  */
-function straightPath(start, end, arrowHead) {
-    return `M ${start.x} ${start.y} L ${end.x} ${end.y} ${arrowHead}`;
+function straightPath(start, end) {
+    return `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
 }
 
 /**
  * Generate an orthogonal path with rounded corners.
+ * Returns just the line path (no arrow head).
  */
-function orthogonalPath(start, end, startAnchor, endAnchor, curveRadius, arrowHead) {
+function orthogonalPath(start, end, startAnchor, endAnchor, curveRadius) {
     const dx = end.x - start.x;
     const dy = end.y - start.y;
 
     // Same point - straight line
     if (Math.abs(dx) < 1 && Math.abs(dy) < 1) {
-        return straightPath(start, end, arrowHead);
+        return straightPath(start, end);
     }
 
     // Limit curve radius to available space
@@ -188,25 +237,164 @@ function orthogonalPath(start, end, startAnchor, endAnchor, curveRadius, arrowHe
     if (curve < 1) curve = 0;
 
     const isVerticalStart = startAnchor === 'top' || startAnchor === 'bottom';
+    const isVerticalEnd = endAnchor === 'top' || endAnchor === 'bottom';
+    const isHorizontalEnd = endAnchor === 'left' || endAnchor === 'right';
+
+    // Vertical start to vertical end (bottom-to-top or top-to-bottom)
+    if (isVerticalStart && isVerticalEnd) {
+        return verticalToVerticalPath(start, end, curve);
+    }
+
+    // Vertical start to horizontal end (bottom exit to left/right entry)
+    if (isVerticalStart && isHorizontalEnd) {
+        return verticalToHorizontalPath(
+            start,
+            end,
+            startAnchor,
+            endAnchor,
+            curve,
+        );
+    }
 
     if (isVerticalStart) {
-        return verticalFirstPath(start, end, curve, arrowHead);
+        return verticalFirstPath(start, end, curve);
     } else {
-        return horizontalFirstPath(start, end, curve, arrowHead);
+        return horizontalFirstPath(start, end, curve);
+    }
+}
+
+/**
+ * Path from vertical exit to vertical entry (bottom-to-top is most common in Gantt).
+ * Goes: down, horizontal, down to target.
+ * Returns just the line path (no arrow head).
+ */
+function verticalToVerticalPath(start, end, curve) {
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+
+    // Nearly vertically aligned - straight line
+    if (Math.abs(dx) < curve * 2) {
+        return straightPath(start, end);
+    }
+
+    // Calculate midpoint Y for the horizontal segment
+    const midY = start.y + dy / 2;
+
+    if (dy > 0) {
+        // Going DOWN: exit bottom, enter top
+        // Path: down to midY, curve to horizontal, horizontal, curve to down, down to end
+        // Sweep flag: 0 = counter-clockwise, 1 = clockwise
+        // When going RIGHT (dx > 0): first curve is CCW (0), second is CW (1)
+        // When going LEFT (dx < 0): first curve is CW (1), second is CCW (0)
+        const firstSweep = dx > 0 ? '0' : '1';
+        const secondSweep = dx > 0 ? '1' : '0';
+        const curveX = dx > 0 ? curve : -curve;
+
+        return `
+            M ${start.x} ${start.y}
+            V ${midY - curve}
+            a ${curve} ${curve} 0 0 ${firstSweep} ${curveX} ${curve}
+            H ${end.x - curveX}
+            a ${curve} ${curve} 0 0 ${secondSweep} ${curveX} ${curve}
+            V ${end.y}
+        `
+            .replace(/\s+/g, ' ')
+            .trim();
+    } else {
+        // Going UP: exit top, enter bottom
+        return `
+            M ${start.x} ${start.y}
+            V ${midY + curve}
+            a ${curve} ${curve} 0 0 ${dx > 0 ? '1' : '0'} ${dx > 0 ? curve : -curve} ${-curve}
+            H ${end.x - (dx > 0 ? curve : -curve)}
+            a ${curve} ${curve} 0 0 ${dx > 0 ? '0' : '1'} ${dx > 0 ? curve : -curve} ${-curve}
+            V ${end.y}
+        `
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+}
+
+/**
+ * Path from vertical exit to horizontal entry (bottom to left is most common).
+ * Goes: down, then horizontal to the target edge.
+ * Returns just the line path (no arrow head).
+ */
+function verticalToHorizontalPath(start, end, startAnchor, endAnchor, curve) {
+    const dy = end.y - start.y;
+    const goingDown = startAnchor === 'bottom';
+    const enteringLeft = endAnchor === 'left';
+
+    // If nearly aligned horizontally, just do a simple L
+    if (Math.abs(dy) < curve * 2) {
+        return straightPath(start, end);
+    }
+
+    if (goingDown && enteringLeft) {
+        // Exit bottom, enter left: down then right
+        const targetY = end.y; // Enter at middle height of target
+        return `
+            M ${start.x} ${start.y}
+            V ${targetY - curve}
+            a ${curve} ${curve} 0 0 0 ${curve} ${curve}
+            H ${end.x}
+        `
+            .replace(/\s+/g, ' ')
+            .trim();
+    } else if (goingDown && !enteringLeft) {
+        // Exit bottom, enter right: approach from the right side
+        // Path: down, curve right, go past target, then left into right edge
+        const targetY = end.y;
+        const overshoot = 25;
+        const overshootX = end.x + overshoot;
+
+        return `
+            M ${start.x} ${start.y}
+            V ${targetY - curve}
+            a ${curve} ${curve} 0 0 0 ${curve} ${curve}
+            H ${overshootX}
+            L ${overshootX} ${targetY}
+            H ${end.x}
+        `
+            .replace(/\s+/g, ' ')
+            .trim();
+    } else if (!goingDown && enteringLeft) {
+        // Exit top, enter left: up then right
+        const targetY = end.y;
+        return `
+            M ${start.x} ${start.y}
+            V ${targetY + curve}
+            a ${curve} ${curve} 0 0 1 ${curve} ${-curve}
+            H ${end.x}
+        `
+            .replace(/\s+/g, ' ')
+            .trim();
+    } else {
+        // Exit top, enter right: up then left
+        const targetY = end.y;
+        return `
+            M ${start.x} ${start.y}
+            V ${targetY + curve}
+            a ${curve} ${curve} 0 0 0 ${-curve} ${-curve}
+            H ${end.x}
+        `
+            .replace(/\s+/g, ' ')
+            .trim();
     }
 }
 
 /**
  * Path that starts vertical (from top/bottom), then turns horizontal.
  * Simple L-shape - always goes forward (right) since exit point is clamped.
+ * Returns just the line path (no arrow head).
  */
-function verticalFirstPath(start, end, curve, arrowHead) {
+function verticalFirstPath(start, end, curve) {
     const dy = end.y - start.y;
     const goingUp = dy < 0;
 
     // Nearly aligned - straight line
     if (Math.abs(end.x - start.x) < curve) {
-        return straightPath(start, end, arrowHead);
+        return straightPath(start, end);
     }
 
     if (goingUp) {
@@ -216,8 +404,9 @@ function verticalFirstPath(start, end, curve, arrowHead) {
             V ${end.y + curve}
             a ${curve} ${curve} 0 0 1 ${curve} ${-curve}
             H ${end.x}
-            ${arrowHead}
-        `.replace(/\s+/g, ' ').trim();
+        `
+            .replace(/\s+/g, ' ')
+            .trim();
     } else {
         // Going DOWN then RIGHT
         return `
@@ -225,23 +414,25 @@ function verticalFirstPath(start, end, curve, arrowHead) {
             V ${end.y - curve}
             a ${curve} ${curve} 0 0 0 ${curve} ${curve}
             H ${end.x}
-            ${arrowHead}
-        `.replace(/\s+/g, ' ').trim();
+        `
+            .replace(/\s+/g, ' ')
+            .trim();
     }
 }
 
 /**
  * Path that starts horizontal (from right edge), then curves to target.
  * S-curve shape for vertical offset.
+ * Returns just the line path (no arrow head).
  */
-function horizontalFirstPath(start, end, curve, arrowHead) {
+function horizontalFirstPath(start, end, curve) {
     const dx = end.x - start.x;
     const dy = end.y - start.y;
     const goingUp = dy < 0;
 
     // Nearly horizontal - straight line
     if (Math.abs(dy) < curve * 2) {
-        return straightPath(start, end, arrowHead);
+        return straightPath(start, end);
     }
 
     // S-curve: horizontal, curve, vertical, curve, horizontal
@@ -255,8 +446,9 @@ function horizontalFirstPath(start, end, curve, arrowHead) {
             V ${end.y + curve}
             a ${curve} ${curve} 0 0 1 ${curve} ${-curve}
             H ${end.x}
-            ${arrowHead}
-        `.replace(/\s+/g, ' ').trim();
+        `
+            .replace(/\s+/g, ' ')
+            .trim();
     } else {
         return `
             M ${start.x} ${start.y}
@@ -265,14 +457,124 @@ function horizontalFirstPath(start, end, curve, arrowHead) {
             V ${end.y - curve}
             a ${curve} ${curve} 0 0 0 ${curve} ${curve}
             H ${end.x}
-            ${arrowHead}
-        `.replace(/\s+/g, ' ').trim();
+        `
+            .replace(/\s+/g, ' ')
+            .trim();
     }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN PATH GENERATOR
 // ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Generate arrow head path at a specific position.
+ * Returns an absolute-positioned path string.
+ * Direction determines which way the arrow points.
+ */
+function generateArrowHeadPath(
+    endPoint,
+    shape,
+    size,
+    fill,
+    direction = 'right',
+) {
+    if (size <= 0 || shape === 'none') {
+        return '';
+    }
+
+    const x = endPoint.x;
+    const y = endPoint.y;
+
+    // Generate arrow head based on direction
+    if (direction === 'down') {
+        // Arrow pointing DOWN (entering from top)
+        switch (shape) {
+            case 'chevron':
+                return `M ${x - size} ${y - size} L ${x} ${y} L ${x + size} ${y - size}`;
+            case 'triangle':
+                return `M ${x - size} ${y - size} L ${x} ${y} L ${x + size} ${y - size} Z`;
+            case 'diamond':
+                return `M ${x} ${y - size * 2} L ${x - size} ${y - size} L ${x} ${y} L ${x + size} ${y - size} Z`;
+            case 'circle': {
+                const r = size * 0.7;
+                const cy = y - r;
+                return `M ${x} ${cy - r} A ${r} ${r} 0 1 1 ${x} ${cy + r} A ${r} ${r} 0 1 1 ${x} ${cy - r}`;
+            }
+            default:
+                return `M ${x - size} ${y - size} L ${x} ${y} L ${x + size} ${y - size}`;
+        }
+    } else if (direction === 'up') {
+        // Arrow pointing UP (entering from bottom)
+        switch (shape) {
+            case 'chevron':
+                return `M ${x - size} ${y + size} L ${x} ${y} L ${x + size} ${y + size}`;
+            case 'triangle':
+                return `M ${x - size} ${y + size} L ${x} ${y} L ${x + size} ${y + size} Z`;
+            case 'diamond':
+                return `M ${x} ${y + size * 2} L ${x - size} ${y + size} L ${x} ${y} L ${x + size} ${y + size} Z`;
+            case 'circle': {
+                const r = size * 0.7;
+                const cy = y + r;
+                return `M ${x} ${cy - r} A ${r} ${r} 0 1 1 ${x} ${cy + r} A ${r} ${r} 0 1 1 ${x} ${cy - r}`;
+            }
+            default:
+                return `M ${x - size} ${y + size} L ${x} ${y} L ${x + size} ${y + size}`;
+        }
+    } else if (direction === 'left') {
+        // Arrow pointing LEFT
+        switch (shape) {
+            case 'chevron':
+                return `M ${x + size} ${y - size} L ${x} ${y} L ${x + size} ${y + size}`;
+            case 'triangle':
+                return `M ${x + size} ${y - size} L ${x} ${y} L ${x + size} ${y + size} Z`;
+            case 'diamond':
+                return `M ${x + size * 2} ${y} L ${x + size} ${y - size} L ${x} ${y} L ${x + size} ${y + size} Z`;
+            case 'circle': {
+                const r = size * 0.7;
+                const cx = x + r;
+                return `M ${cx - r} ${y} A ${r} ${r} 0 1 1 ${cx + r} ${y} A ${r} ${r} 0 1 1 ${cx - r} ${y}`;
+            }
+            default:
+                return `M ${x + size} ${y - size} L ${x} ${y} L ${x + size} ${y + size}`;
+        }
+    } else {
+        // Arrow pointing RIGHT (default)
+        switch (shape) {
+            case 'chevron':
+                return `M ${x - size} ${y - size} L ${x} ${y} L ${x - size} ${y + size}`;
+            case 'triangle':
+                return `M ${x - size} ${y - size} L ${x} ${y} L ${x - size} ${y + size} Z`;
+            case 'diamond':
+                return `M ${x - size * 2} ${y} L ${x - size} ${y - size} L ${x} ${y} L ${x - size} ${y + size} Z`;
+            case 'circle': {
+                const r = size * 0.7;
+                const cx = x - r;
+                return `M ${cx - r} ${y} A ${r} ${r} 0 1 1 ${cx + r} ${y} A ${r} ${r} 0 1 1 ${cx - r} ${y}`;
+            }
+            default:
+                return `M ${x - size} ${y - size} L ${x} ${y} L ${x - size} ${y + size}`;
+        }
+    }
+}
+
+/**
+ * Determine arrow head direction based on end anchor.
+ */
+function getArrowHeadDirection(endAnchor) {
+    switch (endAnchor) {
+        case 'top':
+            return 'down'; // Arrow points down into top of bar
+        case 'bottom':
+            return 'up'; // Arrow points up into bottom of bar
+        case 'left':
+            return 'right'; // Arrow points right into left of bar
+        case 'right':
+            return 'left'; // Arrow points left into right of bar
+        default:
+            return 'right';
+    }
+}
 
 function generatePath(from, to, config) {
     const {
@@ -285,34 +587,65 @@ function generatePath(from, to, config) {
         headSize,
         headShape,
         headFill,
+        dependencyType,
     } = config;
 
-    // Resolve auto anchors
-    const resolvedStartAnchor = startAnchor === 'auto'
-        ? autoSelectStartAnchor(from, to)
-        : startAnchor;
+    // Resolve auto anchors based on dependency type
+    const resolvedStartAnchor =
+        startAnchor === 'auto'
+            ? autoSelectStartAnchor(from, to, dependencyType)
+            : startAnchor;
 
-    const resolvedEndAnchor = endAnchor === 'auto'
-        ? autoSelectEndAnchor(from, to)
-        : endAnchor;
+    const resolvedEndAnchor =
+        endAnchor === 'auto'
+            ? autoSelectEndAnchor(from, to, dependencyType)
+            : endAnchor;
 
     // Calculate smart offset for edge anchors if not explicitly set
-    const resolvedStartOffset = startOffset !== undefined
-        ? startOffset
-        : calculateSmartOffset(from, to, resolvedStartAnchor, curveRadius);
+    const resolvedStartOffset =
+        startOffset !== undefined
+            ? startOffset
+            : calculateSmartOffset(
+                  from,
+                  to,
+                  resolvedStartAnchor,
+                  curveRadius,
+                  dependencyType,
+              );
 
     // Get anchor points
-    const start = getAnchorPoint(from, resolvedStartAnchor, resolvedStartOffset);
+    const start = getAnchorPoint(
+        from,
+        resolvedStartAnchor,
+        resolvedStartOffset,
+    );
     const end = getAnchorPoint(to, resolvedEndAnchor, endOffset);
 
-    // Arrow always enters from left, so head always points right
-    const arrowHead = generateArrowHeadRight(headShape, headSize, headFill);
-
-    // Route the path
+    // Route the line path (no arrow head)
+    let linePath;
     if (routing === 'straight') {
-        return straightPath(start, end, arrowHead);
+        linePath = straightPath(start, end);
+    } else {
+        linePath = orthogonalPath(
+            start,
+            end,
+            resolvedStartAnchor,
+            resolvedEndAnchor,
+            curveRadius,
+        );
     }
-    return orthogonalPath(start, end, resolvedStartAnchor, resolvedEndAnchor, curveRadius, arrowHead);
+
+    // Generate arrow head with correct direction based on end anchor
+    const headDirection = getArrowHeadDirection(resolvedEndAnchor);
+    const headPath = generateArrowHeadPath(
+        end,
+        headShape,
+        headSize,
+        headFill,
+        headDirection,
+    );
+
+    return { linePath, headPath, endPoint: end };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -324,6 +657,7 @@ function generatePath(from, to, config) {
  *
  * A pure visual renderer for arrows between task bars.
  * Assumes successor is always to the right of predecessor.
+ * Renders line and arrow head as separate paths for proper fill support.
  */
 export function Arrow(props) {
     const fromPosition = createMemo(() => {
@@ -352,33 +686,70 @@ export function Arrow(props) {
         headSize: props.headSize ?? DEFAULTS.HEAD_SIZE,
         headShape: props.headShape ?? DEFAULTS.HEAD_SHAPE,
         headFill: props.headFill ?? DEFAULTS.HEAD_FILL,
+        dependencyType: props.dependencyType ?? 'FS',
     }));
 
-    const path = createMemo(() => {
+    const paths = createMemo(() => {
         const from = fromPosition();
         const to = toPosition();
 
-        if (!from || !to) return '';
+        if (!from || !to) return { linePath: '', headPath: '' };
 
         return generatePath(from, to, config());
     });
 
+    const stroke = () => props.stroke ?? DEFAULTS.STROKE;
+    const headShape = () => props.headShape ?? DEFAULTS.HEAD_SHAPE;
+    const headFill = () => props.headFill ?? DEFAULTS.HEAD_FILL;
+
+    // Chevron is always stroke-only, never filled
+    const shouldFillHead = () => headFill() && headShape() !== 'chevron';
+
     return (
-        <path
-            d={path()}
-            fill={props.headFill && props.headShape !== 'chevron' ? (props.stroke ?? DEFAULTS.STROKE) : 'none'}
-            stroke={props.stroke ?? DEFAULTS.STROKE}
-            stroke-width={props.strokeWidth ?? DEFAULTS.STROKE_WIDTH}
-            stroke-opacity={props.strokeOpacity ?? DEFAULTS.STROKE_OPACITY}
-            stroke-dasharray={props.strokeDasharray}
-            stroke-linecap={props.strokeLinecap ?? DEFAULTS.STROKE_LINECAP}
-            stroke-linejoin={props.strokeLinejoin ?? DEFAULTS.STROKE_LINEJOIN}
+        <g
             data-arrow-id={props.id}
             data-from={props.fromId}
             data-to={props.toId}
             class={props.class}
-        />
+        >
+            {/* Line path - stroke only, no fill */}
+            <path
+                d={paths().linePath}
+                fill="none"
+                stroke={stroke()}
+                stroke-width={props.strokeWidth ?? DEFAULTS.STROKE_WIDTH}
+                stroke-opacity={props.strokeOpacity ?? DEFAULTS.STROKE_OPACITY}
+                stroke-dasharray={props.strokeDasharray}
+                stroke-linecap={props.strokeLinecap ?? DEFAULTS.STROKE_LINECAP}
+                stroke-linejoin={
+                    props.strokeLinejoin ?? DEFAULTS.STROKE_LINEJOIN
+                }
+            />
+            {/* Arrow head path - can have fill */}
+            {paths().headPath && (
+                <path
+                    d={paths().headPath}
+                    fill={shouldFillHead() ? stroke() : 'none'}
+                    stroke={stroke()}
+                    stroke-width={props.strokeWidth ?? DEFAULTS.STROKE_WIDTH}
+                    stroke-opacity={
+                        props.strokeOpacity ?? DEFAULTS.STROKE_OPACITY
+                    }
+                    stroke-linecap={
+                        props.strokeLinecap ?? DEFAULTS.STROKE_LINECAP
+                    }
+                    stroke-linejoin={
+                        props.strokeLinejoin ?? DEFAULTS.STROKE_LINEJOIN
+                    }
+                />
+            )}
+        </g>
     );
 }
 
-export { getAnchorPoint, autoSelectStartAnchor, generateArrowHeadRight, DEFAULTS as ARROW_DEFAULTS };
+export {
+    getAnchorPoint,
+    autoSelectStartAnchor,
+    generateArrowHeadRight,
+    DEFAULTS as ARROW_DEFAULTS,
+};
