@@ -16,12 +16,16 @@ export function GridTicks(props) {
 
     // Line display mode: 'both', 'vertical', 'horizontal', 'none'
     const lineMode = () => props.lines || 'both';
-    const showVertical = () => lineMode() === 'both' || lineMode() === 'vertical';
-    const showHorizontal = () => lineMode() === 'both' || lineMode() === 'horizontal';
+    const showVertical = () =>
+        lineMode() === 'both' || lineMode() === 'vertical';
+    const showHorizontal = () =>
+        lineMode() === 'both' || lineMode() === 'horizontal';
 
     // Colors
-    const lineColor = () => props.lineColor || 'var(--g-grid-line-color, #e0e0e0)';
-    const thickLineColor = () => props.thickLineColor || 'var(--g-grid-thick-line-color, #c0c0c0)';
+    const lineColor = () =>
+        props.lineColor || 'var(--g-grid-line-color, #e0e0e0)';
+    const thickLineColor = () =>
+        props.thickLineColor || 'var(--g-grid-thick-line-color, #c0c0c0)';
 
     // Date infos for determining thick lines
     const dateInfos = () => props.dateInfos || [];
@@ -40,34 +44,7 @@ export function GridTicks(props) {
         }));
     });
 
-    // Generate horizontal lines (between rows)
-    const horizontalLines = createMemo(() => {
-        const count = taskCount();
-        const hh = headerHeight();
-        const rh = barHeight() + padding();
-        const pad = padding();
-        const width = gridWidth();
-
-        const lines = [];
-
-        // Line at bottom of header
-        lines.push({
-            y: hh,
-            x1: 0,
-            x2: width,
-        });
-
-        // Lines between rows
-        for (let i = 0; i <= count; i++) {
-            lines.push({
-                y: hh + pad + i * rh,
-                x1: 0,
-                x2: width,
-            });
-        }
-
-        return lines;
-    });
+    // Horizontal lines removed - rows in Grid.jsx now have stroke borders
 
     // Line styles
     const normalLineStyle = () => ({
@@ -92,26 +69,12 @@ export function GridTicks(props) {
                                 y1={tick.y1}
                                 x2={tick.x}
                                 y2={tick.y2}
-                                style={tick.isThick ? thickLineStyle() : normalLineStyle()}
+                                style={
+                                    tick.isThick
+                                        ? thickLineStyle()
+                                        : normalLineStyle()
+                                }
                                 class={tick.isThick ? 'tick thick' : 'tick'}
-                            />
-                        )}
-                    </For>
-                </g>
-            </Show>
-
-            {/* Horizontal lines */}
-            <Show when={showHorizontal()}>
-                <g class="horizontal-lines">
-                    <For each={horizontalLines()}>
-                        {(line) => (
-                            <line
-                                x1={line.x1}
-                                y1={line.y}
-                                x2={line.x2}
-                                y2={line.y}
-                                style={normalLineStyle()}
-                                class="row-line"
                             />
                         )}
                     </For>

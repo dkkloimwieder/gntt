@@ -126,7 +126,7 @@ export function processTask(task, index) {
  * Process all tasks and compute their initial positions.
  * @param {Object[]} tasks - Raw task array
  * @param {Object} config - Configuration with ganttStart, unit, step, columnWidth, headerHeight, barHeight, padding
- * @returns {{tasks: Object[], relationships: Object[]}}
+ * @returns {{tasks: Object[], relationships: Object[], resources: string[]}}
  */
 export function processTasks(tasks, config) {
     const processedTasks = [];
@@ -140,8 +140,27 @@ export function processTasks(tasks, config) {
         }
     }
 
+    // Build resource list - unique resources in order of first appearance
+    const resourceSet = new Set();
+    const resources = [];
+    for (const task of processedTasks) {
+        const resource = task.resource || 'Unassigned';
+        if (!resourceSet.has(resource)) {
+            resourceSet.add(resource);
+            resources.push(resource);
+        }
+    }
+
+    // Create resource index map for Y positioning
+    const resourceIndex = new Map();
+    resources.forEach((r, i) => resourceIndex.set(r, i));
+
     // Second pass: compute positions and build relationships
     for (const task of processedTasks) {
+        // Get row index based on resource (swimlane layout)
+        const resource = task.resource || 'Unassigned';
+        const rowIndex = resourceIndex.get(resource);
+
         // Compute bar position
         const x = computeX(
             task._start,
@@ -152,7 +171,7 @@ export function processTasks(tasks, config) {
         );
 
         const y = computeY(
-            task._index,
+            rowIndex,
             config.headerHeight,
             config.barHeight,
             config.padding,
@@ -173,6 +192,7 @@ export function processTasks(tasks, config) {
             width,
             height: config.barHeight,
         };
+        task._resourceIndex = rowIndex;
 
         // Build relationships from dependencies
         for (const dep of task.dependencies) {
@@ -190,7 +210,7 @@ export function processTasks(tasks, config) {
         }
     }
 
-    return { tasks: processedTasks, relationships };
+    return { tasks: processedTasks, relationships, resources };
 }
 
 /**

@@ -19,7 +19,8 @@ export function Grid(props) {
     const headerHeight = () => props.headerHeight || 75;
     const taskCount = () => props.taskCount || 0;
 
-    // Calculate rows
+    // Calculate rows - must align with barCalculations.computeY
+    // computeY uses: headerHeight + padding/2 + index * (barHeight + padding)
     const rows = createMemo(() => {
         const count = taskCount();
         const rh = rowHeight();
@@ -30,7 +31,7 @@ export function Grid(props) {
         for (let i = 0; i < count; i++) {
             result.push({
                 index: i,
-                y: hh + pad + i * rh,
+                y: hh + pad / 2 + i * rh,
                 height: rh,
             });
         }
@@ -38,7 +39,8 @@ export function Grid(props) {
     });
 
     // Background color
-    const bgColor = () => props.backgroundColor || 'var(--g-grid-bg-color, #fff)';
+    const bgColor = () =>
+        props.backgroundColor || 'var(--g-grid-bg-color, #fff)';
 
     // Row colors (alternating or single)
     const rowColor = (index) => {
@@ -71,6 +73,8 @@ export function Grid(props) {
                         width={gridWidth()}
                         height={row.height}
                         fill={rowColor(row.index)}
+                        stroke="var(--g-grid-line-color, #e0e0e0)"
+                        stroke-width="0.5"
                         class="grid-row"
                         data-row-index={row.index}
                     />

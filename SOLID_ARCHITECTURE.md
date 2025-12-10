@@ -1,6 +1,6 @@
 # SolidJS Architecture Documentation
 
-**Last Updated**: December 10, 2025 (Added SS+lag constraints, arrow exit point differentiation)
+**Last Updated**: December 10, 2025 (Added ResourceColumn for swimlane layout, grid row borders)
 
 This document describes the current state of the SolidJS implementation within the Frappe Gantt project. The codebase is in active migration from vanilla JavaScript to SolidJS, following a hybrid architecture that allows both implementations to coexist.
 
@@ -39,6 +39,7 @@ The SolidJS implementation lives in `src/solid/` and provides reactive, fine-gra
 | Constraint System | Complete | `src/solid/utils/constraintResolver.js` |
 | Main Gantt Orchestrator | Complete | `src/solid/components/Gantt.jsx` |
 | Grid & Headers | Complete | `src/solid/components/Grid.jsx`, `DateHeaders.jsx` |
+| Resource Column | Complete | `src/solid/components/ResourceColumn.jsx` |
 | Task Layer | Complete | `src/solid/components/TaskLayer.jsx` |
 | Arrow Layer | Complete | `src/solid/components/ArrowLayer.jsx` |
 
@@ -56,8 +57,9 @@ src/solid/
 │   ├── Gantt.jsx           # Main orchestrator component
 │   ├── GanttContainer.jsx  # Scroll container with sticky headers
 │   ├── GanttDemo.jsx       # Full Gantt demo page
-│   ├── Grid.jsx            # Background grid with rows
-│   ├── GridTicks.jsx       # Vertical grid lines
+│   ├── Grid.jsx            # Background grid with rows (stroke borders for row separation)
+│   ├── GridTicks.jsx       # Vertical grid lines only
+│   ├── ResourceColumn.jsx  # Sticky left column showing resource labels (swimlanes)
 │   ├── ShowcaseDemo.jsx    # Interactive props showcase
 │   ├── TaskDataModal.jsx   # Debug/detail modal on click
 │   ├── TaskDataPopup.jsx   # Hover tooltip popup
@@ -138,6 +140,37 @@ function calculateSmartOffset(from, to, anchor, curveRadius, dependencyType = 'F
     return 0.5;
 }
 ```
+
+---
+
+### ResourceColumn Component (`ResourceColumn.jsx`)
+
+**Purpose**: Renders a sticky left column showing unique resource labels for swimlane layout.
+
+**Key Features**:
+- CSS sticky positioning (stays fixed during horizontal scroll)
+- Resource cells positioned to match SVG grid rows exactly
+- Supports alphabetic labels (A-Z, AA, AB, etc.)
+
+**Props**:
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `resources` | `string[]` | `[]` | Array of unique resource names |
+| `ganttConfig` | `GanttConfigStore` | - | Config store for headerHeight, barHeight, padding |
+| `width` | `number` | `60` | Column width in pixels |
+| `headerLabel` | `string` | `'Resource'` | Header text (currently not rendered) |
+
+**Cell Positioning Formula**:
+```javascript
+// Must match SVG row positioning in Grid.jsx and barCalculations.computeY
+cellTop = headerHeight + padding/2 + index * (barHeight + padding)
+```
+
+**Swimlane Layout**:
+- Each unique resource gets one row
+- Multiple tasks with same resource appear on same row
+- Tasks are positioned by resource index, not task index
+- Cross-resource dependencies create diagonal arrows between swimlanes
 
 ---
 
@@ -732,6 +765,7 @@ pnpm prettier    # Format code
 2. **Infinite Padding**: Timeline extension on scroll edges
 3. **View Mode Switching**: Hour/Day/Week/Month/Year support (currently Day only)
 4. **Cleanup**: Remove legacy adapters, consolidate demo components
+5. **Grid line fix**: Missing horizontal line between row A and B (first row top border issue)
 
 ### Known Limitations
 

@@ -8,7 +8,7 @@ const MILLISECOND = 'millisecond';
 
 export default {
     parse_duration(duration) {
-        const regex = /([0-9]+)(y|m|d|h|min|s|ms)/gm;
+        const regex = /([0-9]+)(y|min|ms|m|d|h|s)/gm;
         const matches = regex.exec(duration);
         if (matches !== null) {
             if (matches[2] === 'y') {

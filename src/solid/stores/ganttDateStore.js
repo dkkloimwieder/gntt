@@ -8,15 +8,29 @@ import { DEFAULT_VIEW_MODES } from '../../defaults.js';
  */
 export function createGanttDateStore(options = {}) {
     // Timeline boundaries
-    const [ganttStart, setGanttStart] = createSignal(options.ganttStart || new Date());
-    const [ganttEnd, setGanttEnd] = createSignal(options.ganttEnd || new Date());
+    const [ganttStart, setGanttStart] = createSignal(
+        options.ganttStart || new Date(),
+    );
+    const [ganttEnd, setGanttEnd] = createSignal(
+        options.ganttEnd || new Date(),
+    );
 
     // Generated date columns
     const [dates, setDates] = createSignal([]);
 
     // View mode configuration
-    const defaultViewMode = DEFAULT_VIEW_MODES.find(m => m.name === 'Day') || DEFAULT_VIEW_MODES[3];
-    const [viewMode, setViewMode] = createSignal(options.viewMode || defaultViewMode);
+    const defaultViewMode =
+        DEFAULT_VIEW_MODES.find((m) => m.name === 'Day') ||
+        DEFAULT_VIEW_MODES[3];
+
+    // Support both viewMode and view_mode options
+    const initialViewModeName = options.viewMode || options.view_mode;
+    const initialViewMode = initialViewModeName
+        ? DEFAULT_VIEW_MODES.find((m) => m.name === initialViewModeName) ||
+          defaultViewMode
+        : defaultViewMode;
+
+    const [viewMode, setViewMode] = createSignal(initialViewMode);
 
     // Available view modes
     const [viewModes] = createSignal(options.viewModes || DEFAULT_VIEW_MODES);
@@ -52,7 +66,9 @@ export function createGanttDateStore(options = {}) {
             // Default to today +/- padding
             const today = date_utils.today();
             const mode = viewMode();
-            const { duration, scale } = date_utils.parse_duration(mode.padding || '7d');
+            const { duration, scale } = date_utils.parse_duration(
+                mode.padding || '7d',
+            );
 
             const start = date_utils.add(today, -duration, scale);
             const end = date_utils.add(today, duration, scale);
@@ -77,7 +93,8 @@ export function createGanttDateStore(options = {}) {
 
         // Apply padding from view mode
         const mode = viewMode();
-        const { duration: padDuration, scale: padScale } = date_utils.parse_duration(mode.padding || '7d');
+        const { duration: padDuration, scale: padScale } =
+            date_utils.parse_duration(mode.padding || '7d');
 
         let start = date_utils.add(minDate, -padDuration, padScale);
         let end = date_utils.add(maxDate, padDuration, padScale);
@@ -89,9 +106,12 @@ export function createGanttDateStore(options = {}) {
             end = date_utils.add(end, extendUnits, unit());
         }
 
-        // Align to unit start
+        // Align to unit start (don't reset hours/minutes for sub-day views)
         start = date_utils.start_of(start, unit());
-        start.setHours(0, 0, 0, 0);
+        const u = unit();
+        if (u !== 'hour' && u !== 'minute') {
+            start.setHours(0, 0, 0, 0);
+        }
 
         setGanttStart(start);
         setGanttEnd(end);
@@ -128,7 +148,11 @@ export function createGanttDateStore(options = {}) {
         const unitVal = unit();
 
         if (direction === 'left') {
-            const newStart = date_utils.add(ganttStart(), -units * stepVal, unitVal);
+            const newStart = date_utils.add(
+                ganttStart(),
+                -units * stepVal,
+                unitVal,
+            );
             setGanttStart(newStart);
         } else {
             const newEnd = date_utils.add(ganttEnd(), units * stepVal, unitVal);
@@ -143,7 +167,7 @@ export function createGanttDateStore(options = {}) {
      */
     const changeViewMode = (mode) => {
         if (typeof mode === 'string') {
-            const found = viewModes().find(m => m.name === mode);
+            const found = viewModes().find((m) => m.name === mode);
             if (found) {
                 setViewMode(found);
                 generateDates();

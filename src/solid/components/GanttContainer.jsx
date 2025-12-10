@@ -73,7 +73,7 @@ export function GanttContainer(props) {
             const h = props.ganttConfig.containerHeight();
             if (h !== 'auto') return h;
         }
-        return 'auto';
+        return '100%'; // Fill parent by default
     };
 
     return (
@@ -88,22 +88,39 @@ export function GanttContainer(props) {
             }}
             onScroll={handleScroll}
         >
-            {/* Header slot - rendered outside SVG for sticky positioning */}
-            {props.header}
-
-            {/* Main SVG canvas */}
-            <svg
-                ref={svgRef}
-                class="gantt"
-                width={props.svgWidth || '100%'}
-                height={props.svgHeight || 300}
+            {/* Content wrapper with flex layout for resource column */}
+            <div
+                class="gantt-content"
                 style={{
-                    display: 'block',
-                    'min-width': props.svgWidth ? `${props.svgWidth}px` : undefined,
+                    display: 'flex',
+                    'min-width': 'fit-content',
                 }}
             >
-                {props.children}
-            </svg>
+                {/* Resource column slot - sticky left */}
+                {props.resourceColumn}
+
+                {/* Main Gantt area */}
+                <div class="gantt-main" style={{ flex: 1 }}>
+                    {/* Header slot - rendered outside SVG for sticky positioning */}
+                    {props.header}
+
+                    {/* Main SVG canvas */}
+                    <svg
+                        ref={svgRef}
+                        class="gantt"
+                        width={props.svgWidth || '100%'}
+                        height={props.svgHeight || 300}
+                        style={{
+                            display: 'block',
+                            'min-width': props.svgWidth
+                                ? `${props.svgWidth}px`
+                                : undefined,
+                        }}
+                    >
+                        {props.children}
+                    </svg>
+                </div>
+            </div>
 
             {/* Overlay slot - for popups, modals, etc. */}
             {props.overlay}

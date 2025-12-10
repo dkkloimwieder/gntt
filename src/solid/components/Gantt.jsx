@@ -8,6 +8,7 @@ import { GanttContainer } from './GanttContainer.jsx';
 import { Grid } from './Grid.jsx';
 import { GridTicks } from './GridTicks.jsx';
 import { DateHeaders } from './DateHeaders.jsx';
+import { ResourceColumn } from './ResourceColumn.jsx';
 import { TaskLayer } from './TaskLayer.jsx';
 import { ArrowLayer } from './ArrowLayer.jsx';
 import { TaskDataPopup } from './TaskDataPopup.jsx';
@@ -34,6 +35,9 @@ export function Gantt(props) {
 
     // Relationships state
     const [relationships, setRelationships] = createSignal([]);
+
+    // Resources list (unique resources for swimlane rows)
+    const [resources, setResources] = createSignal([]);
 
     // Hover state for popup
     const [hoveredTaskId, setHoveredTaskId] = createSignal(null);
@@ -112,12 +116,16 @@ export function Gantt(props) {
             padding: ganttConfig.padding(),
         };
 
-        const { tasks: processedTasks, relationships: taskRelationships } =
-            processTasks(rawTasks, config);
+        const {
+            tasks: processedTasks,
+            relationships: taskRelationships,
+            resources: taskResources,
+        } = processTasks(rawTasks, config);
 
         // Update stores
         taskStore.updateTasks(processedTasks);
         setRelationships(taskRelationships);
+        setResources(taskResources);
     };
 
     // Initialize on mount and when tasks change
@@ -133,11 +141,28 @@ export function Gantt(props) {
         }
     });
 
+    // Watch for view mode changes - track previous to avoid loops
+    let prevViewMode = props.options?.view_mode;
+    createEffect(() => {
+        const viewMode = props.options?.view_mode;
+        if (viewMode && viewMode !== prevViewMode) {
+            prevViewMode = viewMode;
+            dateStore.changeViewMode(viewMode);
+            // Re-initialize tasks with new view mode settings
+            if (props.tasks && props.tasks.length > 0) {
+                initializeTasks(props.tasks);
+            }
+        }
+    });
+
     // Computed dimensions
     const taskCount = createMemo(() => {
         const tasks = taskStore.tasks();
         return tasks ? tasks.size : 0;
     });
+
+    // Resource count for swimlane rows
+    const resourceCount = createMemo(() => resources().length);
 
     const gridWidth = createMemo(() => dateStore.gridWidth());
 
@@ -145,7 +170,8 @@ export function Gantt(props) {
         const hh = ganttConfig.headerHeight();
         const bh = ganttConfig.barHeight();
         const pad = ganttConfig.padding();
-        const count = taskCount();
+        // Use resource count for swimlane layout
+        const count = resourceCount() || taskCount();
 
         return hh + pad + count * (bh + pad);
     });
@@ -225,6 +251,14 @@ export function Gantt(props) {
                 svgWidth={gridWidth()}
                 svgHeight={gridHeight()}
                 onContainerReady={handleContainerReady}
+                resourceColumn={
+                    <ResourceColumn
+                        resources={resources()}
+                        ganttConfig={ganttConfig}
+                        width={60}
+                        headerLabel="Resource"
+                    />
+                }
                 header={
                     <DateHeaders
                         dateInfos={dateInfos()}
@@ -242,7 +276,7 @@ export function Gantt(props) {
                     headerHeight={ganttConfig.headerHeight()}
                     barHeight={ganttConfig.barHeight()}
                     padding={ganttConfig.padding()}
-                    taskCount={taskCount()}
+                    taskCount={resourceCount() || taskCount()}
                 />
 
                 {/* Grid lines */}
@@ -253,7 +287,7 @@ export function Gantt(props) {
                     columnWidth={dateStore.columnWidth()}
                     barHeight={ganttConfig.barHeight()}
                     padding={ganttConfig.padding()}
-                    taskCount={taskCount()}
+                    taskCount={resourceCount() || taskCount()}
                     dateInfos={dateInfos()}
                     lines={props.options?.lines || 'both'}
                 />

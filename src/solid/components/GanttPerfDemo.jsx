@@ -1,4 +1,4 @@
-import { createSignal, createEffect, onMount } from 'solid-js';
+import { createSignal, createEffect, createMemo, onMount } from 'solid-js';
 import { Gantt } from './Gantt.jsx';
 
 // Color palette for task groups
@@ -41,6 +41,35 @@ function addDays(dateStr, days) {
 }
 
 /**
+ * Generate alphabetic label: 0=A, 25=Z, 26=AA, 27=AB, etc.
+ * Similar to Excel column naming
+ */
+function getResourceLabel(index) {
+    let label = '';
+    let n = index;
+    do {
+        label = String.fromCharCode(65 + (n % 26)) + label;
+        n = Math.floor(n / 26) - 1;
+    } while (n >= 0);
+    return label;
+}
+
+/**
+ * Add hours to a datetime string
+ */
+function addHours(dateStr, hours) {
+    const date = new Date(dateStr);
+    date.setTime(date.getTime() + hours * 60 * 60 * 1000);
+    // Format as 'YYYY-MM-DD HH:MM' (space separator, not T - required by date_utils.parse)
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    const hh = String(date.getHours()).padStart(2, '0');
+    const min = String(date.getMinutes()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd} ${hh}:${min}`;
+}
+
+/**
  * Generate tasks with dependency chains in groups
  * @param {number} count - Total number of tasks
  * @param {number} minGroupSize - Minimum tasks per group
@@ -59,86 +88,67 @@ function generateTasks(
 ) {
     const random = createRandom(seed);
     const tasks = [];
-    let taskNum = 1;
-    let groupStartDate = '2024-01-01';
-    let groupIndex = 0;
+    const resourceCount = 10; // Number of unique resources (A-J)
 
-    while (taskNum <= count) {
-        // Random group size between min and max
-        const groupSize =
-            Math.floor(random() * (maxGroupSize - minGroupSize + 1)) +
-            minGroupSize;
-        const groupColor = GROUP_COLORS[groupIndex % GROUP_COLORS.length];
-        const progressColor = groupColor + 'cc'; // Slightly transparent version
+    // Start from today
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    let currentDate = `${yyyy}-${mm}-${dd} 08:00`;
 
-        // Track previous task info for dependency calculations
-        let prevTaskStart = groupStartDate;
-        let prevTaskEnd = groupStartDate;
+    for (let taskNum = 1; taskNum <= count; taskNum++) {
+        // Cycle through resources - each task on different resource
+        const resourceIndex = (taskNum - 1) % resourceCount;
+        const resource = getResourceLabel(resourceIndex);
+        const color = GROUP_COLORS[resourceIndex % GROUP_COLORS.length];
+        const progressColor = color + 'cc';
 
-        for (let i = 0; i < groupSize && taskNum <= count; i++) {
-            // Random duration 2-5 days (longer durations allow visible SS overlap)
-            const duration = Math.floor(random() * 4) + 2;
+        // Random duration 1-8 hours
+        const duration = Math.floor(random() * 8) + 1;
 
-            // Determine dependency type and calculate start date
-            let dependency = undefined;
-            let taskStartDate;
+        // Dependency on previous task (cross-resource!)
+        let dependency = undefined;
+        let taskStartDate;
 
-            if (i === 0) {
-                // First task in group - no dependency
-                taskStartDate = groupStartDate;
+        if (taskNum === 1) {
+            // First task - no dependency
+            taskStartDate = currentDate;
+        } else {
+            const useSSConstraint = random() < ssPercent / 100;
+            if (useSSConstraint) {
+                const lag = Math.floor(random() * maxLag) + 1;
+                dependency = {
+                    id: `task-${taskNum - 1}`,
+                    type: 'SS',
+                    lag: lag,
+                };
+                // SS constraint: start relative to predecessor start
+                taskStartDate = currentDate;
             } else {
-                const useSSConstraint = random() < ssPercent / 100;
-                if (useSSConstraint) {
-                    // SS+lag: successor starts X days after predecessor STARTS
-                    // For visible overlap, lag must be < predecessor duration
-                    // prevDuration = days between prevTaskStart and prevTaskEnd
-                    const prevDuration = Math.round(
-                        (new Date(prevTaskEnd) - new Date(prevTaskStart)) /
-                            (1000 * 60 * 60 * 24),
-                    );
-                    // Lag is 1 to min(maxLag, prevDuration-1), ensuring overlap
-                    const effectiveMaxLag = Math.min(
-                        maxLag,
-                        Math.max(1, prevDuration - 1),
-                    );
-                    const lag = Math.floor(random() * effectiveMaxLag) + 1;
-                    dependency = {
-                        id: `task-${taskNum - 1}`,
-                        type: 'SS',
-                        lag: lag,
-                    };
-                    // Position task: predecessor START + lag days
-                    taskStartDate = addDays(prevTaskStart, lag);
-                } else {
-                    // Simple FS: successor starts when predecessor finishes
-                    dependency = `task-${taskNum - 1}`;
-                    // Position task: predecessor END
-                    taskStartDate = prevTaskEnd;
-                }
+                // FS: depends on previous task finishing
+                dependency = `task-${taskNum - 1}`;
+                taskStartDate = currentDate;
             }
-
-            const endDate = addDays(taskStartDate, duration);
-
-            tasks.push({
-                id: `task-${taskNum}`,
-                name: `${taskNum}`,
-                start: taskStartDate,
-                end: endDate,
-                progress: Math.floor(random() * 101), // 0-100
-                color: groupColor,
-                color_progress: progressColor,
-                dependencies: dependency,
-            });
-
-            // Update previous task tracking for next iteration
-            prevTaskStart = taskStartDate;
-            prevTaskEnd = endDate;
-            taskNum++;
         }
 
-        // Stagger groups by 2 days
-        groupStartDate = addDays(groupStartDate, 2);
-        groupIndex++;
+        const endDate = addHours(taskStartDate, duration);
+
+        tasks.push({
+            id: `task-${taskNum}`,
+            name: `${taskNum}`,
+            start: taskStartDate,
+            end: endDate,
+            progress: Math.floor(random() * 101),
+            color: color,
+            color_progress: progressColor,
+            dependencies: dependency,
+            resource: resource,
+        });
+
+        // Move time forward by 1-3 hours for next task (creates spread)
+        const gap = Math.floor(random() * 3) + 1;
+        currentDate = addHours(endDate, gap);
     }
 
     return tasks;
@@ -156,18 +166,22 @@ export function GanttPerfDemo() {
     const [tasks, setTasks] = createSignal([]);
     const [renderTime, setRenderTime] = createSignal(null);
     const [domStats, setDomStats] = createSignal({ tasks: 0, arrows: 0 });
+    const [viewMode, setViewMode] = createSignal('Hour'); // Hour, Day, Week, Month, Year
 
-    // Gantt options
-    const [options] = createSignal({
-        view_mode: 'Day',
+    // Gantt options - reactive based on viewMode
+    const upperHeaderHeight = 35;
+    const lowerHeaderHeight = 25;
+    const options = createMemo(() => ({
+        view_mode: viewMode(),
         bar_height: 20, // Smaller bars for 1000 tasks
         padding: 8, // Less padding
-        column_width: 30, // Narrower columns
-        upper_header_height: 35,
-        lower_header_height: 25,
+        column_width: viewMode() === 'Hour' ? 25 : 30, // Narrower for hour view
+        upper_header_height: upperHeaderHeight,
+        lower_header_height: lowerHeaderHeight,
+        headerHeight: upperHeaderHeight + lowerHeaderHeight, // Must match!
         lines: 'both',
         scroll_to: 'start',
-    });
+    }));
 
     // Generate tasks
     const regenerate = () => {
@@ -220,8 +234,13 @@ export function GanttPerfDemo() {
     // Styles
     const containerStyle = {
         'max-width': '100%',
-        margin: '0 auto',
+        height: '100vh',
+        margin: 0,
         padding: '10px',
+        display: 'flex',
+        'flex-direction': 'column',
+        'box-sizing': 'border-box',
+        overflow: 'hidden', // Prevent page scroll
         'font-family':
             '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     };
@@ -288,6 +307,8 @@ export function GanttPerfDemo() {
         'border-radius': '8px',
         overflow: 'hidden',
         'background-color': '#fff',
+        flex: 1,
+        'min-height': 0, // Important for flex child to respect overflow
     };
 
     return (
@@ -378,6 +399,25 @@ export function GanttPerfDemo() {
                             }
                             style={{ ...inputStyle, width: '60px' }}
                         />
+                    </label>
+                    <label style={{ 'font-size': '13px' }}>
+                        View:
+                        <select
+                            value={viewMode()}
+                            onChange={(e) => setViewMode(e.target.value)}
+                            style={{
+                                ...inputStyle,
+                                width: '90px',
+                                cursor: 'pointer',
+                            }}
+                        >
+                            <option value="Minute">Minute</option>
+                            <option value="Quarter Hour">Quarter Hour</option>
+                            <option value="Hour">Hour</option>
+                            <option value="Day">Day</option>
+                            <option value="Week">Week</option>
+                            <option value="Month">Month</option>
+                        </select>
                     </label>
                     <button onClick={regenerate} style={buttonStyle}>
                         Regenerate

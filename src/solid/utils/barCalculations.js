@@ -53,7 +53,12 @@ export function computeWidth(taskStart, taskEnd, unit, step, columnWidth) {
  * @param {Function|null} ignoredFunction - Optional function to test if date should be ignored
  * @returns {{ totalDays: number, actualDays: number, ignoredDays: number }}
  */
-export function computeDuration(taskStart, taskEnd, ignoredDates = [], ignoredFunction = null) {
+export function computeDuration(
+    taskStart,
+    taskEnd,
+    ignoredDates = [],
+    ignoredFunction = null,
+) {
     let actualDays = 0;
     let totalDays = 0;
 
@@ -97,7 +102,13 @@ export function daysToUnits(days, unit, step) {
  * @param {number} columnWidth - Column width
  * @returns {number} Progress bar width in pixels
  */
-export function computeProgressWidth(barX, barWidth, progress, ignoredPositions = [], columnWidth = 45) {
+export function computeProgressWidth(
+    barX,
+    barWidth,
+    progress,
+    ignoredPositions = [],
+    columnWidth = 45,
+) {
     const barEnd = barX + barWidth;
 
     // Count ignored columns within bar
@@ -121,7 +132,13 @@ export function computeProgressWidth(barX, barWidth, progress, ignoredPositions 
 
     // Skip over any ignored regions at the progress end
     let currentPos = barX + progressWidth;
-    while (ignoredPositions.some((pos) => Math.abs(pos - currentPos) < columnWidth / 2 && currentPos < barEnd)) {
+    while (
+        ignoredPositions.some(
+            (pos) =>
+                Math.abs(pos - currentPos) < columnWidth / 2 &&
+                currentPos < barEnd,
+        )
+    ) {
         progressWidth += columnWidth;
         currentPos = barX + progressWidth;
     }
@@ -167,7 +184,12 @@ export function isIgnoredPosition(x, ignoredPositions, columnWidth) {
  * @param {number} direction - 1 for right, -1 for left
  * @returns {number} Next valid position
  */
-export function getNextValidPosition(x, ignoredPositions, columnWidth, direction = 1) {
+export function getNextValidPosition(
+    x,
+    ignoredPositions,
+    columnWidth,
+    direction = 1,
+) {
     let current = x;
     const maxIterations = 100; // Safety limit
 

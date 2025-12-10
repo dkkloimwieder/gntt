@@ -14,6 +14,32 @@ function formatWeek(d, ld, lang) {
 
 const DEFAULT_VIEW_MODES = [
     {
+        name: 'Minute',
+        padding: '1h',
+        step: '1min',
+        column_width: 20,
+        date_format: 'YYYY-MM-DD HH:mm',
+        lower_text: 'mm',
+        upper_text: (d, ld, lang) =>
+            !ld || d.getHours() !== ld.getHours()
+                ? date_utils.format(d, 'D MMM HH:00', lang)
+                : '',
+        upper_text_frequency: 60,
+    },
+    {
+        name: 'Quarter Hour',
+        padding: '6h',
+        step: '15min',
+        column_width: 30,
+        date_format: 'YYYY-MM-DD HH:mm',
+        lower_text: 'mm',
+        upper_text: (d, ld, lang) =>
+            !ld || d.getHours() !== ld.getHours()
+                ? date_utils.format(d, 'D MMM HH:00', lang)
+                : '',
+        upper_text_frequency: 4,
+    },
+    {
         name: 'Hour',
         padding: '7d',
         step: '1h',
