@@ -18,12 +18,7 @@ import { createSignal, onCleanup } from 'solid-js';
  * @returns {Object} Drag state and handlers
  */
 export function useDrag(options = {}) {
-    const {
-        onDragStart,
-        onDragMove,
-        onDragEnd,
-        getSvgPoint,
-    } = options;
+    const { onDragStart, onDragMove, onDragEnd, getSvgPoint } = options;
 
     // Drag state
     const [dragState, setDragState] = createSignal('idle');
@@ -150,9 +145,12 @@ export function useDrag(options = {}) {
      * @param {Object} data - Additional data to pass to callbacks
      */
     const startDrag = (e, state, data = {}) => {
-        if (dragState() !== 'idle') return;
+        if (dragState() !== 'idle') {
+            return;
+        }
 
-        const svg = e.currentTarget?.ownerSVGElement || e.target?.ownerSVGElement;
+        const svg =
+            e.currentTarget?.ownerSVGElement || e.target?.ownerSVGElement;
         const svgCoords = toSvgCoords(e.clientX, e.clientY, svg);
 
         dragData = {
@@ -186,7 +184,10 @@ export function useDrag(options = {}) {
      */
     const createDragHandler = (state, dataOrGetter = {}) => {
         return (e) => {
-            const data = typeof dataOrGetter === 'function' ? dataOrGetter(e) : dataOrGetter;
+            const data =
+                typeof dataOrGetter === 'function'
+                    ? dataOrGetter(e)
+                    : dataOrGetter;
             startDrag(e, state, data);
         };
     };

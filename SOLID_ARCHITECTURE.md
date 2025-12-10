@@ -1,6 +1,6 @@
 # SolidJS Architecture Documentation
 
-**Last Updated**: December 6, 2025
+**Last Updated**: December 10, 2025
 
 This document describes the current state of the SolidJS implementation within the Frappe Gantt project. The codebase is in active migration from vanilla JavaScript to SolidJS, following a hybrid architecture that allows both implementations to coexist.
 
@@ -31,11 +31,16 @@ The SolidJS implementation lives in `src/solid/` and provides reactive, fine-gra
 |-----------|--------|----------|
 | Arrow | Complete | `src/solid/components/Arrow.jsx` |
 | Bar | Complete | `src/solid/components/Bar.jsx` |
-| Popup | Complete | `src/solid/components/Popup.jsx` |
+| Popup | Complete | `src/solid/components/TaskDataPopup.jsx` |
+| Modal | Complete | `src/solid/components/TaskDataModal.jsx` |
 | Task Store | Complete | `src/solid/stores/taskStore.js` |
 | Config Store | Complete | `src/solid/stores/ganttConfigStore.js` |
+| Date Store | Complete | `src/solid/stores/ganttDateStore.js` |
 | Constraint System | Complete | `src/solid/utils/constraintResolver.js` |
-| Main Gantt Orchestrator | Pending | - |
+| Main Gantt Orchestrator | Complete | `src/solid/components/Gantt.jsx` |
+| Grid & Headers | Complete | `src/solid/components/Grid.jsx`, `DateHeaders.jsx` |
+| Task Layer | Complete | `src/solid/components/TaskLayer.jsx` |
+| Arrow Layer | Complete | `src/solid/components/ArrowLayer.jsx` |
 
 ---
 
@@ -45,28 +50,29 @@ The SolidJS implementation lives in `src/solid/` and provides reactive, fine-gra
 src/solid/
 ├── components/
 │   ├── Arrow.jsx           # Dependency arrow rendering
-│   ├── ArrowDemo.jsx       # Arrow component test page
+│   ├── ArrowLayer.jsx      # Container for all arrows
 │   ├── Bar.jsx             # Task bar with drag/resize/progress
-│   ├── BarDemo.jsx         # Bar component test page (main demo)
-│   ├── ConstraintDemo.jsx  # Constraint system test page
-│   ├── CurveDiagnostic.jsx # Arrow curve debugging tool
-│   ├── Popup.jsx           # Task detail tooltip
-│   ├── TestPopup.jsx       # Popup test page
-│   └── TestPrimitives.jsx  # SolidJS primitives test
+│   ├── DateHeaders.jsx     # Month/day headers
+│   ├── Gantt.jsx           # Main orchestrator component
+│   ├── GanttContainer.jsx  # Scroll container with sticky headers
+│   ├── GanttDemo.jsx       # Full Gantt demo page
+│   ├── Grid.jsx            # Background grid with rows
+│   ├── GridTicks.jsx       # Vertical grid lines
+│   ├── ShowcaseDemo.jsx    # Interactive props showcase
+│   ├── TaskDataModal.jsx   # Debug/detail modal on click
+│   ├── TaskDataPopup.jsx   # Hover tooltip popup
+│   ├── TaskLayer.jsx       # Container for all bars
+│   └── ...                 # Legacy demo components
 ├── stores/
 │   ├── taskStore.js        # Reactive task state management
-│   └── ganttConfigStore.js # Configuration state management
+│   ├── ganttConfigStore.js # Configuration state management
+│   └── ganttDateStore.js   # Date/timeline calculations
 ├── utils/
 │   ├── barCalculations.js  # Pure functions for bar geometry
 │   ├── constraintResolver.js # Task relationship constraints
-│   ├── date_utils.js       # Date manipulation utilities
-│   ├── svg_utils.js        # SVG DOM helpers
-│   └── usePrevious.js      # Previous value tracking hook
+│   └── taskProcessor.js    # Task parsing and position computation
 ├── hooks/
 │   └── useDrag.js          # RAF-based drag state machine
-├── adapters/
-│   ├── ArrowAdapter.jsx    # Vanilla API wrapper for Arrow
-│   └── PopupAdapter.jsx    # Vanilla API wrapper for Popup
 └── *-entry.jsx             # Vite entry points for demos
 ```
 
@@ -411,54 +417,32 @@ const handleLeftResize = createDragHandler('dragging_left', { taskId });
 
 ## Demo Pages
 
-### BarDemo (`/test-bar.html`)
+### GanttDemo (`/gantt-demo.html`) - **Primary Demo**
 
-Main demonstration of Bar and Arrow components.
+Full-featured Gantt chart demonstration with real task data.
 
 **Features Demonstrated**:
-- 8 sample tasks with various configurations
-- Relationship constraints (minDistance, maxDistance, fixedOffset)
-- Expected progress calculation (dates relative to today)
-- Locked task (cannot be moved)
-- Debug overlay (shows constraint info)
-- Progress adjustment buttons
+- Complete Gantt chart with grid, headers, tasks, and arrows
+- 6 sample tasks with dependencies (FS - Finish-to-Start)
+- Draggable task bars with grid snapping
+- Resizable bars (drag left/right edges)
+- Progress bar adjustment
+- Dependency constraint enforcement (successors pushed when predecessor moves)
+- Hover popup with task details
+- Click modal with debug/raw task info
+- Horizontal scrolling
 
 **Sample Tasks**:
-| Task | Description | Constraints |
-|------|-------------|-------------|
-| Design | Complete task (100%) | - |
-| Documentation | Parallel with Design (start-to-start) | minDistance: -Infinity |
-| Frontend Dev | After Design (finish-to-start) | minDistance: 0 |
-| Backend Dev | After Design, parallel with Frontend | minDistance: 0 |
-| Integration | After both parallel tasks, tethered | maxDistance: 90 |
-| Locked Task | Cannot be moved | locked: true |
-| Sync A / Sync B | Move together | fixedOffset: true |
+| Task | Dependencies | Description |
+|------|--------------|-------------|
+| Project Planning | - | Initial planning phase |
+| Design Phase | task-1 | UI/UX design work |
+| Development | task-2 | Main coding phase |
+| Testing | task-3 | QA and testing |
+| Documentation | task-2 | User docs (parallel with dev) |
+| Deployment | task-4, task-5 | Final deployment |
 
-**Run**: `pnpm run dev:solid` → http://localhost:5173/test-bar.html
-
----
-
-### ConstraintDemo (`/test-constraints.html`)
-
-Focused constraint system testing with isolated scenarios.
-
-**Scenarios**:
-1. Push (minDistance) - Drag predecessor, pushes successor
-2. Blocked by Lock - Movement stops at locked task
-3. Pull/Tether (maxDistance) - Tasks pulled when gap exceeds limit
-4. Bounded (min + max) - Gap constrained between limits
-5. Fixed Offset Pair - Two tasks move together
-6. Fixed Offset Chain - Three tasks linked A→B→C
-7. Parallel Tasks - Overlapping (start-to-start)
-8. Arrow Directions - Forward arrows up/down/same level
-
-**Run**: `pnpm run dev:solid` → http://localhost:5173/test-constraints.html
-
----
-
-### ArrowDemo (`/test-arrow.html`)
-
-Arrow component testing in isolation.
+**Run**: `pnpm run dev:solid` → http://localhost:5173/gantt-demo.html
 
 ---
 
@@ -467,15 +451,26 @@ Arrow component testing in isolation.
 Interactive props showcase for all task and connector configuration options.
 
 **Features**:
-- 6 presets (Default, Colorful, Minimal, Constrained, Locked, Fixed Offset)
+- 8 presets (Default, Colorful, Minimal, Constrained, Locked, Fixed Offset, Start-to-Start, Finish-to-Finish)
 - Full task configuration (name, color, progress, cornerRadius, locked, invalid)
 - Full connector configuration (anchoring, routing, line style, arrow head)
-- Constraint controls (minDistance, maxDistance, fixedOffset, allowOverlap)
+- Dependency type controls (FS, SS, FF, SF)
+- Constraint controls (lag, elastic vs fixed)
 - Global settings (readonly modes, grid snap)
+- 4 linked tasks demonstrating constraint chains
 
 **Run**: `pnpm run dev:solid` → http://localhost:5173/showcase-demo.html
 
-**Documentation**: See `SHOWCASE_DEMO.md` for complete parameter reference.
+---
+
+### Legacy Demos
+
+The following demo pages exist for component-level testing:
+
+- `/test-bar.html` - Bar component isolation testing
+- `/test-arrow.html` - Arrow component isolation testing
+- `/test-constraints.html` - Constraint system scenarios
+- `/test-popup.html` - Popup component testing
 
 ---
 
@@ -637,26 +632,27 @@ pnpm prettier    # Format code
 
 ### What's Complete
 
-1. **Core Components**: Bar, Arrow, Popup fully functional
-2. **State Management**: Task and config stores operational
-3. **Interactions**: Drag, resize, progress editing working
-4. **Constraints**: Full constraint system implemented
-5. **Demos**: Interactive test pages for all components
+1. **Core Components**: Bar, Arrow, TaskDataPopup, TaskDataModal fully functional
+2. **Main Gantt Orchestrator**: Grid, headers, scroll handling, task/arrow layers
+3. **State Management**: Task store, config store, date store operational
+4. **Interactions**: Drag, resize, progress editing all working
+5. **Constraints**: Full dependency constraint system (FS, SS, FF, SF types)
+6. **Reactivity**: Fine-grained updates via SolidJS signals and stores
+7. **Demos**: Full Gantt demo and interactive showcase
 
 ### What's Pending
 
-1. **Main Gantt Orchestrator**: Grid, headers, scroll handling
-2. **Public API Wrapper**: Compatibility layer for vanilla API
-3. **Infinite Padding**: Timeline extension on scroll
-4. **View Mode Switching**: Day/Week/Month/Year support
-5. **Cleanup**: Remove adapters, delete vanilla code
+1. **Public API Wrapper**: Compatibility layer for vanilla API (`new Gantt()`)
+2. **Infinite Padding**: Timeline extension on scroll edges
+3. **View Mode Switching**: Hour/Day/Week/Month/Year support (currently Day only)
+4. **Cleanup**: Remove legacy adapters, consolidate demo components
 
 ### Known Limitations
 
 - No SSR support (SVG rendering is client-side only)
-- Demos use hardcoded sample data
 - No TypeScript (JavaScript only)
-- Test coverage pending (framework skipped per user request)
+- Test coverage pending
+- View mode is fixed to Day view
 
 ---
 
@@ -664,11 +660,15 @@ pnpm prettier    # Format code
 
 | Need to... | Look in... |
 |------------|------------|
-| Modify arrow appearance | `Arrow.jsx` DEFAULTS object (line 14-38) |
-| Change anchor logic | `Arrow.jsx` autoSelectStartAnchor (line 81-103) |
-| Adjust exit offset | `Arrow.jsx` calculateSmartOffset (line 117-135) |
-| Add bar interaction | `Bar.jsx` useDrag callbacks (line 60-174) |
+| Modify arrow appearance | `Arrow.jsx` DEFAULTS object |
+| Change anchor logic | `Arrow.jsx` autoSelectStartAnchor, autoSelectEndAnchor |
+| Add bar interaction | `Bar.jsx` useDrag callbacks |
 | Change grid snapping | `barCalculations.js` snapToGrid |
 | Modify constraint rules | `constraintResolver.js` resolveMovement |
 | Add new config option | `ganttConfigStore.js` |
-| Update sample tasks | `BarDemo.jsx` sampleTasks array |
+| Change date calculations | `ganttDateStore.js` |
+| Modify task processing | `taskProcessor.js` processTasks |
+| Update Gantt demo tasks | `GanttDemo.jsx` tasks signal |
+| Update showcase presets | `ShowcaseDemo.jsx` PRESETS object |
+| Modify grid rendering | `Grid.jsx`, `GridTicks.jsx` |
+| Change header rendering | `DateHeaders.jsx` |

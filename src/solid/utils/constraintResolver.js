@@ -367,6 +367,45 @@ export function calculateMaxPredecessorX(
 }
 
 /**
+ * Collect all tasks that would move when dragging a task forward.
+ * Traverses successor relationships recursively (forward-only).
+ * Stops at locked tasks.
+ *
+ * @param {string} taskId - Starting task ID
+ * @param {Array} relationships - All relationships
+ * @param {Function} getTask - Function to get task by ID (for checking locked status)
+ * @param {Set} visited - Already visited (for recursion)
+ * @returns {Set<string>} Set of task IDs including the original
+ */
+export function collectDependentTasks(
+    taskId,
+    relationships,
+    getTask = null,
+    visited = new Set(),
+) {
+    if (visited.has(taskId)) return visited;
+
+    // Check if this task is locked - if so, don't include it or its dependents
+    if (getTask) {
+        const task = getTask(taskId);
+        if (task?.constraints?.locked) {
+            return visited;
+        }
+    }
+
+    visited.add(taskId);
+
+    // Find all relationships where this task is the predecessor
+    for (const rel of relationships) {
+        if (rel.from === taskId && !visited.has(rel.to)) {
+            collectDependentTasks(rel.to, relationships, getTask, visited);
+        }
+    }
+
+    return visited;
+}
+
+/**
  * Resolve constraints after a task's duration (width) changes.
  * Should be called when a task is resized.
  *

@@ -81,7 +81,14 @@ set_dimensions() → set_scroll_position()
 
 ### Migration Context
 
-**Important**: The codebase is migrating from vanilla JS to SolidJS. Core components are complete (Arrow, Bar, Popup, stores). See `SOLID_ARCHITECTURE.md` for current status and `PLAN.md` for the full migration plan. The main Gantt orchestrator is pending.
+**Important**: The codebase is migrating from vanilla JS to SolidJS. The SolidJS implementation is now feature-complete for core functionality:
+
+- **Complete**: Main Gantt orchestrator, Bar, Arrow, Grid, Headers, Popup, Modal
+- **Complete**: Task/Config/Date stores, constraint system (FS/SS/FF/SF dependencies)
+- **Complete**: Drag, resize, progress editing with constraint enforcement
+- **Pending**: Public API wrapper (`new Gantt()`), view mode switching, infinite scroll
+
+See `SOLID_ARCHITECTURE.md` for detailed documentation. Run `pnpm run dev:solid` and open http://localhost:5173/gantt-demo.html for the main demo.
 
 ## Development Workflow
 

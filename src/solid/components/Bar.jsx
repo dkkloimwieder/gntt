@@ -21,10 +21,19 @@ import { useDrag, clamp } from '../hooks/useDrag.js';
  * Integrates with taskStore for reactive position updates.
  */
 export function Bar(props) {
-    // Get position from taskStore reactively
-    const position = createMemo(() => {
-        if (props.taskStore && props.task?.id) {
-            return props.taskStore.getBarPosition(props.task.id);
+    // Get task ID - prefer explicit taskId prop, fallback to task.id
+    const taskId = () => props.taskId ?? props.task?.id;
+
+    // Get position directly from taskStore signal - reads fresh on each access
+    // This is called in JSX so SolidJS tracks it as a dependency
+    const getPosition = () => {
+        if (props.taskStore && taskId()) {
+            // Access tasks() signal directly - this creates the reactive dependency
+            const tasksMap = props.taskStore.tasks();
+            const task = tasksMap.get(taskId());
+            if (task?.$bar) {
+                return task.$bar;
+            }
         }
         // Fallback to direct props
         return {
@@ -33,7 +42,7 @@ export function Bar(props) {
             width: props.width ?? 100,
             height: props.height ?? 30,
         };
-    });
+    };
 
     // Configuration from ganttConfig or direct props
     const config = createMemo(() => ({
@@ -60,14 +69,20 @@ export function Bar(props) {
             [],
     }));
 
-    // Task data
-    const task = createMemo(() => props.task ?? {});
+    // Task data - read fresh from store if available
+    const task = () => {
+        if (props.taskStore && taskId()) {
+            const tasksMap = props.taskStore.tasks();
+            return tasksMap.get(taskId()) ?? props.task ?? {};
+        }
+        return props.task ?? {};
+    };
 
-    // Derived values
-    const x = () => position()?.x ?? 0;
-    const y = () => position()?.y ?? 0;
-    const width = () => position()?.width ?? 100;
-    const height = () => position()?.height ?? 30;
+    // Derived values - call getPosition() each time to track signal
+    const x = () => getPosition()?.x ?? 0;
+    const y = () => getPosition()?.y ?? 0;
+    const width = () => getPosition()?.width ?? 100;
+    const height = () => getPosition()?.height ?? 30;
 
     // Minimum bar width (one column)
     const minWidth = () => config().columnWidth;
@@ -86,10 +101,26 @@ export function Bar(props) {
             data.originalY = y();
             data.originalWidth = width();
             data.originalProgress = task().progress ?? 0;
+
+            // For bar dragging: collect dependent tasks ONCE at drag start
+            // This enables batch updates during drag for better performance
+            if (state === 'dragging_bar' && props.onCollectDependents) {
+                const dependentIds = props.onCollectDependents(task().id);
+                // Store original positions for all dependents
+                data.dependentOriginals = new Map();
+                for (const id of dependentIds) {
+                    const pos = props.taskStore?.getBarPosition(id);
+                    if (pos) {
+                        data.dependentOriginals.set(id, { originalX: pos.x });
+                    }
+                }
+            }
         },
 
         onDragMove: (move, data, state) => {
-            if (!props.taskStore || !task().id) return;
+            if (!props.taskStore || !task().id) {
+                return;
+            }
 
             // Mark that a drag occurred (used to distinguish click from drag)
             setDidDrag(true);
@@ -105,18 +136,33 @@ export function Bar(props) {
                     ignored,
                 );
 
-                // Apply constraints if provided
-                if (props.onConstrainPosition) {
-                    const constrained = props.onConstrainPosition(
-                        task().id,
-                        newX,
-                        y(),
-                    );
-                    if (constrained === null) return; // Movement blocked
-                    newX = constrained.x ?? newX;
-                }
+                // Calculate delta from original position
+                let deltaX = newX - data.originalX;
 
-                props.taskStore.updateBarPosition(task().id, { x: newX });
+                // Use batch move if we have dependent tasks (for performance)
+                if (
+                    data.dependentOriginals?.size > 0 &&
+                    props.taskStore.batchMovePositions
+                ) {
+                    // Batch move all dependent tasks by the same delta
+                    // This is much faster than individual constraint resolution
+                    props.taskStore.batchMovePositions(
+                        data.dependentOriginals,
+                        deltaX,
+                    );
+                } else {
+                    // Fallback: apply constraints and update single task
+                    if (props.onConstrainPosition) {
+                        const constrained = props.onConstrainPosition(
+                            task().id,
+                            newX,
+                            y(),
+                        );
+                        if (constrained === null) return; // Movement blocked
+                        newX = constrained.x ?? newX;
+                    }
+                    props.taskStore.updateBarPosition(task().id, { x: newX });
+                }
             } else if (state === 'dragging_left') {
                 // Left handle - resize from start
                 const rawDelta = move.deltaX;
@@ -245,11 +291,15 @@ export function Bar(props) {
     // ═══════════════════════════════════════════════════════════════════════════
 
     const handleBarMouseDown = (e) => {
-        if (config().readonly || config().readonlyDates || isLocked()) return;
+        if (config().readonly || config().readonlyDates || isLocked()) {
+            return;
+        }
 
         // Check if clicking on a handle
         const target = e.target;
-        if (target.classList.contains('handle')) return;
+        if (target.classList && target.classList.contains('handle')) {
+            return;
+        }
 
         setDidDrag(false); // Reset drag flag on mousedown
         startDrag(e, 'dragging_bar', { taskId: task().id });

@@ -15,9 +15,10 @@ export function createTaskStore() {
     };
 
     // Get bar position for a task
-    // Returns raw value - caller should wrap in createMemo if needed for reactivity
+    // Accesses tasks() signal to ensure reactivity when called inside createMemo
     const getBarPosition = (id) => {
-        const task = tasks().get(id);
+        const tasksMap = tasks(); // Access signal to track dependency
+        const task = tasksMap.get(id);
         if (!task || !task.$bar) return null;
 
         return {
@@ -25,13 +26,13 @@ export function createTaskStore() {
             y: task.$bar.y,
             width: task.$bar.width,
             height: task.$bar.height,
-            index: task._index
+            index: task._index,
         };
     };
 
     // Update task in store
     const updateTask = (id, taskData) => {
-        setTasks(prev => {
+        setTasks((prev) => {
             const next = new Map(prev);
             next.set(id, taskData);
             return next;
@@ -40,7 +41,7 @@ export function createTaskStore() {
 
     // Update bar position for a task
     const updateBarPosition = (id, position) => {
-        setTasks(prev => {
+        setTasks((prev) => {
             const next = new Map(prev);
             const task = next.get(id);
             if (task) {
@@ -48,8 +49,8 @@ export function createTaskStore() {
                     ...task,
                     $bar: {
                         ...task.$bar,
-                        ...position
-                    }
+                        ...position,
+                    },
                 });
             }
             return next;
@@ -60,7 +61,7 @@ export function createTaskStore() {
     const updateTasks = (tasksArray) => {
         setTasks(() => {
             const next = new Map();
-            tasksArray.forEach(task => {
+            tasksArray.forEach((task) => {
                 next.set(task.id, task);
             });
             return next;
@@ -69,7 +70,7 @@ export function createTaskStore() {
 
     // Remove task from store
     const removeTask = (id) => {
-        setTasks(prev => {
+        setTasks((prev) => {
             const next = new Map(prev);
             next.delete(id);
             return next;
@@ -81,14 +82,48 @@ export function createTaskStore() {
         setTasks(new Map());
     };
 
+    // Get all tasks as array
+    const getAllTasks = () => {
+        return Array.from(tasks().values());
+    };
+
+    // Get task count
+    const taskCount = createMemo(() => tasks().size);
+
+    /**
+     * Move multiple tasks by deltaX in a single reactive update.
+     * Used for batch drag operations to avoid N separate updates.
+     *
+     * @param {Map<string, {originalX: number}>} taskOriginals - Task ID -> original position
+     * @param {number} deltaX - Pixels to move from original position
+     */
+    const batchMovePositions = (taskOriginals, deltaX) => {
+        setTasks((prev) => {
+            const next = new Map(prev);
+            for (const [id, { originalX }] of taskOriginals) {
+                const task = next.get(id);
+                if (task?.$bar) {
+                    next.set(id, {
+                        ...task,
+                        $bar: { ...task.$bar, x: originalX + deltaX },
+                    });
+                }
+            }
+            return next;
+        });
+    };
+
     return {
         tasks,
         getTask,
         getBarPosition,
+        getAllTasks,
+        taskCount,
         updateTask,
         updateBarPosition,
         updateTasks,
+        batchMovePositions,
         removeTask,
-        clear
+        clear,
     };
 }
