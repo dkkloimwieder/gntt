@@ -3,9 +3,21 @@ import { Gantt } from './Gantt.jsx';
 
 // Color palette for task groups
 const GROUP_COLORS = [
-    '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6',
-    '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1',
-    '#14b8a6', '#a855f7', '#22c55e', '#eab308', '#e11d48',
+    '#3b82f6',
+    '#ef4444',
+    '#10b981',
+    '#f59e0b',
+    '#8b5cf6',
+    '#ec4899',
+    '#06b6d4',
+    '#84cc16',
+    '#f97316',
+    '#6366f1',
+    '#14b8a6',
+    '#a855f7',
+    '#22c55e',
+    '#eab308',
+    '#e11d48',
 ];
 
 /**
@@ -34,8 +46,17 @@ function addDays(dateStr, days) {
  * @param {number} minGroupSize - Minimum tasks per group
  * @param {number} maxGroupSize - Maximum tasks per group
  * @param {number} seed - Random seed for reproducibility
+ * @param {number} ssPercent - Percentage of tasks with SS+lag constraints (0-100)
+ * @param {number} maxLag - Maximum lag days for SS constraints (1-maxLag)
  */
-function generateTasks(count = 1000, minGroupSize = 5, maxGroupSize = 20, seed = 12345) {
+function generateTasks(
+    count = 100,
+    minGroupSize = 5,
+    maxGroupSize = 15,
+    seed = 12345,
+    ssPercent = 20,
+    maxLag = 5,
+) {
     const random = createRandom(seed);
     const tasks = [];
     let taskNum = 1;
@@ -44,30 +65,74 @@ function generateTasks(count = 1000, minGroupSize = 5, maxGroupSize = 20, seed =
 
     while (taskNum <= count) {
         // Random group size between min and max
-        const groupSize = Math.floor(random() * (maxGroupSize - minGroupSize + 1)) + minGroupSize;
+        const groupSize =
+            Math.floor(random() * (maxGroupSize - minGroupSize + 1)) +
+            minGroupSize;
         const groupColor = GROUP_COLORS[groupIndex % GROUP_COLORS.length];
         const progressColor = groupColor + 'cc'; // Slightly transparent version
 
-        let currentDate = groupStartDate;
+        // Track previous task info for dependency calculations
+        let prevTaskStart = groupStartDate;
+        let prevTaskEnd = groupStartDate;
 
         for (let i = 0; i < groupSize && taskNum <= count; i++) {
-            // Random duration 1-3 days
-            const duration = Math.floor(random() * 3) + 1;
-            const endDate = addDays(currentDate, duration);
+            // Random duration 2-5 days (longer durations allow visible SS overlap)
+            const duration = Math.floor(random() * 4) + 2;
+
+            // Determine dependency type and calculate start date
+            let dependency = undefined;
+            let taskStartDate;
+
+            if (i === 0) {
+                // First task in group - no dependency
+                taskStartDate = groupStartDate;
+            } else {
+                const useSSConstraint = random() < ssPercent / 100;
+                if (useSSConstraint) {
+                    // SS+lag: successor starts X days after predecessor STARTS
+                    // For visible overlap, lag must be < predecessor duration
+                    // prevDuration = days between prevTaskStart and prevTaskEnd
+                    const prevDuration = Math.round(
+                        (new Date(prevTaskEnd) - new Date(prevTaskStart)) /
+                            (1000 * 60 * 60 * 24),
+                    );
+                    // Lag is 1 to min(maxLag, prevDuration-1), ensuring overlap
+                    const effectiveMaxLag = Math.min(
+                        maxLag,
+                        Math.max(1, prevDuration - 1),
+                    );
+                    const lag = Math.floor(random() * effectiveMaxLag) + 1;
+                    dependency = {
+                        id: `task-${taskNum - 1}`,
+                        type: 'SS',
+                        lag: lag,
+                    };
+                    // Position task: predecessor START + lag days
+                    taskStartDate = addDays(prevTaskStart, lag);
+                } else {
+                    // Simple FS: successor starts when predecessor finishes
+                    dependency = `task-${taskNum - 1}`;
+                    // Position task: predecessor END
+                    taskStartDate = prevTaskEnd;
+                }
+            }
+
+            const endDate = addDays(taskStartDate, duration);
 
             tasks.push({
                 id: `task-${taskNum}`,
                 name: `${taskNum}`,
-                start: currentDate,
+                start: taskStartDate,
                 end: endDate,
                 progress: Math.floor(random() * 101), // 0-100
                 color: groupColor,
                 color_progress: progressColor,
-                // First task in group has no dependency, others depend on previous
-                dependencies: i > 0 ? `task-${taskNum - 1}` : undefined,
+                dependencies: dependency,
             });
 
-            currentDate = endDate; // Next task starts where this one ends
+            // Update previous task tracking for next iteration
+            prevTaskStart = taskStartDate;
+            prevTaskEnd = endDate;
             taskNum++;
         }
 
@@ -80,12 +145,14 @@ function generateTasks(count = 1000, minGroupSize = 5, maxGroupSize = 20, seed =
 }
 
 /**
- * GanttPerfDemo - Performance testing component for 1000 tasks
+ * GanttPerfDemo - Performance testing component for Gantt chart
  */
 export function GanttPerfDemo() {
     // State
-    const [taskCount, setTaskCount] = createSignal(1000);
+    const [taskCount, setTaskCount] = createSignal(100);
     const [seed, setSeed] = createSignal(12345);
+    const [ssPercent, setSSPercent] = createSignal(20); // % of tasks with SS+lag
+    const [maxLag, setMaxLag] = createSignal(5); // max lag days (1-maxLag)
     const [tasks, setTasks] = createSignal([]);
     const [renderTime, setRenderTime] = createSignal(null);
     const [domStats, setDomStats] = createSignal({ tasks: 0, arrows: 0 });
@@ -94,7 +161,7 @@ export function GanttPerfDemo() {
     const [options] = createSignal({
         view_mode: 'Day',
         bar_height: 20, // Smaller bars for 1000 tasks
-        padding: 8,     // Less padding
+        padding: 8, // Less padding
         column_width: 30, // Narrower columns
         upper_header_height: 35,
         lower_header_height: 25,
@@ -106,7 +173,14 @@ export function GanttPerfDemo() {
     const regenerate = () => {
         const startTime = performance.now();
 
-        const newTasks = generateTasks(taskCount(), 5, 20, seed());
+        const newTasks = generateTasks(
+            taskCount(),
+            5,
+            15,
+            seed(),
+            ssPercent(),
+            maxLag(),
+        );
         setTasks(newTasks);
 
         // Measure render time after DOM updates
@@ -116,8 +190,10 @@ export function GanttPerfDemo() {
                 setRenderTime((endTime - startTime).toFixed(1));
 
                 // Count DOM elements
-                const taskElements = document.querySelectorAll('.bar-wrapper').length;
-                const arrowElements = document.querySelectorAll('.arrow-layer > g').length;
+                const taskElements =
+                    document.querySelectorAll('.bar-wrapper').length;
+                const arrowElements =
+                    document.querySelectorAll('.arrow-layer > g').length;
                 setDomStats({ tasks: taskElements, arrows: arrowElements });
             });
         });
@@ -146,7 +222,8 @@ export function GanttPerfDemo() {
         'max-width': '100%',
         margin: '0 auto',
         padding: '10px',
-        'font-family': '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        'font-family':
+            '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     };
 
     const headerStyle = {
@@ -243,7 +320,9 @@ export function GanttPerfDemo() {
                         <input
                             type="number"
                             value={taskCount()}
-                            onInput={(e) => setTaskCount(parseInt(e.target.value) || 1000)}
+                            onInput={(e) =>
+                                setTaskCount(parseInt(e.target.value) || 1000)
+                            }
                             style={inputStyle}
                         />
                     </label>
@@ -252,8 +331,52 @@ export function GanttPerfDemo() {
                         <input
                             type="number"
                             value={seed()}
-                            onInput={(e) => setSeed(parseInt(e.target.value) || 12345)}
+                            onInput={(e) =>
+                                setSeed(parseInt(e.target.value) || 12345)
+                            }
                             style={inputStyle}
+                        />
+                    </label>
+                    <label style={{ 'font-size': '13px' }}>
+                        SS%:
+                        <input
+                            type="number"
+                            value={ssPercent()}
+                            min="0"
+                            max="100"
+                            onInput={(e) =>
+                                setSSPercent(
+                                    Math.max(
+                                        0,
+                                        Math.min(
+                                            100,
+                                            parseInt(e.target.value) || 0,
+                                        ),
+                                    ),
+                                )
+                            }
+                            style={{ ...inputStyle, width: '60px' }}
+                        />
+                    </label>
+                    <label style={{ 'font-size': '13px' }}>
+                        Max Lag:
+                        <input
+                            type="number"
+                            value={maxLag()}
+                            min="1"
+                            max="10"
+                            onInput={(e) =>
+                                setMaxLag(
+                                    Math.max(
+                                        1,
+                                        Math.min(
+                                            10,
+                                            parseInt(e.target.value) || 1,
+                                        ),
+                                    ),
+                                )
+                            }
+                            style={{ ...inputStyle, width: '60px' }}
                         />
                     </label>
                     <button onClick={regenerate} style={buttonStyle}>
@@ -261,7 +384,10 @@ export function GanttPerfDemo() {
                     </button>
                     <button
                         onClick={() => console.clear()}
-                        style={{ ...buttonStyle, 'background-color': '#6b7280' }}
+                        style={{
+                            ...buttonStyle,
+                            'background-color': '#6b7280',
+                        }}
                     >
                         Clear Console
                     </button>

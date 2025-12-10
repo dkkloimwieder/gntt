@@ -70,9 +70,7 @@ export function Gantt(props) {
     const modalRelationships = createMemo(() => {
         const id = modalTaskId();
         if (!id) return [];
-        return relationships().filter(
-            (r) => r.predecessorId === id || r.successorId === id,
-        );
+        return relationships().filter((r) => r.from === id || r.to === id);
     });
 
     // Initialize tasks and compute positions

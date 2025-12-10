@@ -18,8 +18,12 @@ export function formatTaskCompact(task, barPosition) {
     ];
 
     if (barPosition) {
-        lines.push(`Position: (${Math.round(barPosition.x)}, ${Math.round(barPosition.y)})`);
-        lines.push(`Size: ${Math.round(barPosition.width)} x ${Math.round(barPosition.height)}`);
+        lines.push(
+            `Position: (${Math.round(barPosition.x)}, ${Math.round(barPosition.y)})`,
+        );
+        lines.push(
+            `Size: ${Math.round(barPosition.width)} x ${Math.round(barPosition.height)}`,
+        );
     }
 
     if (task.constraints?.locked) {
@@ -50,21 +54,49 @@ export function formatTaskFull(task, barPosition, relationships = []) {
     const sections = {
         rawTask: JSON.stringify(taskCopy, null, 2),
         position: barPosition
-            ? JSON.stringify({
-                x: Math.round(barPosition.x),
-                y: Math.round(barPosition.y),
-                width: Math.round(barPosition.width),
-                height: Math.round(barPosition.height),
-                index: barPosition.index
-            }, null, 2)
+            ? JSON.stringify(
+                  {
+                      x: Math.round(barPosition.x),
+                      y: Math.round(barPosition.y),
+                      width: Math.round(barPosition.width),
+                      height: Math.round(barPosition.height),
+                      index: barPosition.index,
+                  },
+                  null,
+                  2,
+              )
             : 'N/A',
         relationships: formatRelationships(task.id, relationships),
     };
 
     return {
         sections,
-        raw: JSON.stringify({ task: taskCopy, position: barPosition }, null, 2)
+        raw: JSON.stringify({ task: taskCopy, position: barPosition }, null, 2),
     };
+}
+
+/**
+ * Human-readable names for constraint types
+ */
+const CONSTRAINT_TYPE_NAMES = {
+    FS: 'Finish-to-Start',
+    SS: 'Start-to-Start',
+    FF: 'Finish-to-Finish',
+    SF: 'Start-to-Finish',
+};
+
+/**
+ * Format a single relationship for display
+ * @param {Object} rel - Relationship object
+ * @param {string} taskId - The task ID to show (from or to depending on direction)
+ * @param {string} arrow - Arrow direction ('<-' or '->')
+ * @returns {string} Formatted relationship line
+ */
+function formatRelationshipLine(rel, taskId, arrow) {
+    const typeName = CONSTRAINT_TYPE_NAMES[rel.type] || rel.type;
+    const lag = rel.lag ?? 0;
+    const lagStr = lag ? `, lag: ${lag} day${lag !== 1 ? 's' : ''}` : '';
+    return `  ${rel.type} ${arrow} ${taskId} (${typeName}${lagStr})`;
 }
 
 /**
@@ -78,8 +110,8 @@ function formatRelationships(taskId, relationships) {
         return 'No relationships defined';
     }
 
-    const incoming = relationships.filter(r => r.to === taskId);
-    const outgoing = relationships.filter(r => r.from === taskId);
+    const incoming = relationships.filter((r) => r.to === taskId);
+    const outgoing = relationships.filter((r) => r.from === taskId);
 
     let result = '';
 
@@ -87,10 +119,8 @@ function formatRelationships(taskId, relationships) {
         result += 'Incoming: (none)\n';
     } else {
         result += 'Incoming:\n';
-        incoming.forEach(r => {
-            const lag = r.lag ?? 0;
-            const elastic = r.elastic !== false ? 'elastic' : 'fixed';
-            result += `  ${r.type} <- ${r.from} (lag: ${lag}, ${elastic})\n`;
+        incoming.forEach((r) => {
+            result += formatRelationshipLine(r, r.from, '<-') + '\n';
         });
     }
 
@@ -98,11 +128,9 @@ function formatRelationships(taskId, relationships) {
         result += 'Outgoing: (none)';
     } else {
         result += 'Outgoing:\n';
-        outgoing.forEach(r => {
-            const lag = r.lag ?? 0;
-            const elastic = r.elastic !== false ? 'elastic' : 'fixed';
-            result += `  ${r.type} -> ${r.to} (lag: ${lag}, ${elastic})`;
-            if (r !== outgoing[outgoing.length - 1]) result += '\n';
+        outgoing.forEach((r, i) => {
+            result += formatRelationshipLine(r, r.to, '->');
+            if (i < outgoing.length - 1) result += '\n';
         });
     }
 
@@ -117,15 +145,29 @@ function formatRelationships(taskId, relationships) {
 export function highlightJSON(jsonString) {
     if (!jsonString) return '';
 
-    return jsonString
-        // Keys (property names in quotes followed by colon)
-        .replace(/"([^"]+)":/g, '<span style="color: #9b59b6;">"$1"</span>:')
-        // String values
-        .replace(/: "([^"]+)"/g, ': <span style="color: #27ae60;">"$1"</span>')
-        // Numbers
-        .replace(/: (-?\d+\.?\d*)/g, ': <span style="color: #e74c3c;">$1</span>')
-        // Booleans
-        .replace(/: (true|false)/g, ': <span style="color: #3498db;">$1</span>')
-        // Null
-        .replace(/: (null)/g, ': <span style="color: #95a5a6;">$1</span>');
+    return (
+        jsonString
+            // Keys (property names in quotes followed by colon)
+            .replace(
+                /"([^"]+)":/g,
+                '<span style="color: #9b59b6;">"$1"</span>:',
+            )
+            // String values
+            .replace(
+                /: "([^"]+)"/g,
+                ': <span style="color: #27ae60;">"$1"</span>',
+            )
+            // Numbers
+            .replace(
+                /: (-?\d+\.?\d*)/g,
+                ': <span style="color: #e74c3c;">$1</span>',
+            )
+            // Booleans
+            .replace(
+                /: (true|false)/g,
+                ': <span style="color: #3498db;">$1</span>',
+            )
+            // Null
+            .replace(/: (null)/g, ': <span style="color: #95a5a6;">$1</span>')
+    );
 }

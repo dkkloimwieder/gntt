@@ -1,6 +1,6 @@
 # SolidJS Architecture Documentation
 
-**Last Updated**: December 10, 2025
+**Last Updated**: December 10, 2025 (Added SS+lag constraints, arrow exit point differentiation)
 
 This document describes the current state of the SolidJS implementation within the Frappe Gantt project. The codebase is in active migration from vanilla JavaScript to SolidJS, following a hybrid architecture that allows both implementations to coexist.
 
@@ -101,7 +101,7 @@ src/solid/
 | `toId` | `string` | - | Task ID for successor lookup |
 | `startAnchor` | `'auto'\|'top'\|'bottom'\|'left'\|'right'` | `'auto'` | Where arrow exits predecessor |
 | `endAnchor` | `'auto'\|'left'\|'top'\|'right'` | `'auto'` | Where arrow enters successor |
-| `dependencyType` | `'FS'\|'SS'\|'FF'\|'SF'` | `'FS'` | Dependency type (affects anchor selection) |
+| `dependencyType` | `'FS'\|'SS'\|'FF'\|'SF'` | `'FS'` | Dependency type (affects anchor selection and exit point) |
 | `startOffset` | `number` | Smart calc | 0-1 position along anchor edge |
 | `routing` | `'orthogonal'\|'straight'` | `'orthogonal'` | Path routing style |
 | `curveRadius` | `number` | `5` | Radius for rounded corners |
@@ -113,18 +113,28 @@ src/solid/
 | `strokeOpacity` | `number` | `1` | Line opacity (0-1) |
 | `strokeDasharray` | `string` | `''` | Dash pattern (e.g., '8,4') |
 
-**Path Calculation Logic** (`Arrow.jsx:117-135`):
+**Path Calculation Logic** (`Arrow.jsx:calculateSmartOffset`):
+
+Exit point positioning depends on dependency type:
+- **FS/FF**: Exit near the END (right) of predecessor → offset 0.9
+- **SS/SF**: Exit near the START (left) of predecessor → offset 0.1
+
 ```javascript
-function calculateSmartOffset(from, to, anchor, curveRadius) {
+function calculateSmartOffset(from, to, anchor, curveRadius, dependencyType = 'FS') {
     if (anchor === 'right') return 0.5;  // Center of right edge
+    if (anchor === 'left') return 0.5;   // Center of left edge
 
     if (anchor === 'top' || anchor === 'bottom') {
-        const defaultOffset = 0.90;  // 10% from right edge
+        // SS/SF: Exit near the START (left) of predecessor
+        if (dependencyType === 'SS' || dependencyType === 'SF') {
+            return 0.1;  // Exit near left edge
+        }
+        // FS/FF: Exit near the END (right) of predecessor
+        const defaultOffset = 0.9;
         const maxExitX = to.x - curveRadius;
         const maxOffset = (maxExitX - from.x) / from.width;
-        return Math.max(0, Math.min(defaultOffset, maxOffset));
+        return Math.max(0.1, Math.min(defaultOffset, maxOffset));
     }
-
     return 0.5;
 }
 ```
@@ -165,6 +175,9 @@ function calculateSmartOffset(from, to, anchor, curveRadius) {
     color: '#3498db',       // Bar background
     color_progress: '#2980b9', // Progress bar color
     _index: 0,              // Row position
+    dependencies: [         // Parsed dependency array
+        { id: 'task-0', type: 'FS', lag: 0 }
+    ],
     constraints: {
         locked: false       // Prevents movement
     },
@@ -176,6 +189,30 @@ function calculateSmartOffset(from, to, anchor, curveRadius) {
     }
 }
 ```
+
+**Dependency Input Formats** (parsed by `taskProcessor.parseDependencies`):
+```javascript
+// String format (simple FS, no lag)
+dependencies: 'task-1'
+dependencies: 'task-1, task-2'  // Comma-separated
+
+// Object format (with type and lag)
+dependencies: { id: 'task-1', type: 'SS', lag: 2 }
+
+// Array format (mixed)
+dependencies: [
+    'task-1',                              // FS, lag: 0
+    { id: 'task-2', type: 'SS', lag: 3 }   // SS, lag: 3 days
+]
+```
+
+**Dependency Types**:
+| Type | Name | Description |
+|------|------|-------------|
+| `FS` | Finish-to-Start | Successor starts after predecessor ENDS (default) |
+| `SS` | Start-to-Start | Successor starts after predecessor STARTS + lag |
+| `FF` | Finish-to-Finish | Successor finishes after predecessor finishes |
+| `SF` | Start-to-Finish | Successor finishes after predecessor starts |
 
 **Drag States** (`Bar.jsx:60-174`):
 - `idle` - No drag in progress
@@ -311,9 +348,22 @@ Pure functions for computing bar geometry.
 
 Handles relationship constraints between tasks.
 
+**Relationship Object Shape**:
+```javascript
+{
+    from: 'task-1',      // Predecessor task ID
+    to: 'task-2',        // Successor task ID
+    type: 'SS',          // FS, SS, FF, SF
+    lag: 3,              // Lag in days (for SS: days after predecessor starts)
+    elastic: true,       // Elastic = minimum distance constraint
+}
+```
+
 **Constraint Types** (on relationships):
 | Property | Type | Description |
 |----------|------|-------------|
+| `type` | `string` | Dependency type: FS, SS, FF, SF |
+| `lag` | `number` | Lag/offset in days |
 | `minDistance` | `number` | Minimum gap in pixels (push if closer) |
 | `maxDistance` | `number` | Maximum gap in pixels (pull if further) |
 | `fixedOffset` | `boolean` | Tasks move together as unit |
@@ -463,6 +513,35 @@ Interactive props showcase for all task and connector configuration options.
 
 ---
 
+### GanttPerfDemo (`/gantt-perf.html`) - **Performance Testing**
+
+Performance testing demo with configurable task generation and SS+lag constraints.
+
+**Features**:
+- Configurable task count (default 100)
+- Seeded random generation for reproducibility
+- SS% control: Percentage of Start-to-Start constraints (0-100%)
+- Max Lag control: Maximum lag days for SS constraints (1-10)
+- Render time measurement
+- DOM element counting (tasks, arrows)
+
+**SS+Lag Constraint Generation**:
+- SS constraints position successor relative to predecessor's START date
+- Lag specifies days after predecessor starts
+- With short lag and long tasks, creates visible overlap (parallel work)
+
+**Controls**:
+| Control | Default | Description |
+|---------|---------|-------------|
+| Tasks | 100 | Number of tasks to generate |
+| Seed | 12345 | Random seed for reproducibility |
+| SS% | 20 | Percentage of dependencies using SS+lag |
+| Max Lag | 5 | Maximum lag days (random 1 to Max Lag) |
+
+**Run**: `pnpm run dev:solid` → http://localhost:5174/gantt-perf.html
+
+---
+
 ### Legacy Demos
 
 The following demo pages exist for component-level testing:
@@ -561,11 +640,13 @@ function computeExpectedProgress(taskStart, taskEnd, unit, step) {
 **Start Anchor Selection** (`Arrow.jsx:autoSelectStartAnchor`):
 
 ```
-If tasks on same row (within alignment threshold):
-    → Exit from RIGHT edge
+For SS/SF dependencies (start-based):
+    If same row → Exit from LEFT edge
+    Else → Exit from TOP/BOTTOM
 
-Else:
-    → Exit from BOTTOM
+For FS/FF dependencies (finish-based):
+    If same row → Exit from RIGHT edge
+    Else → Exit from TOP/BOTTOM
 ```
 
 **End Anchor Selection** (`Arrow.jsx:autoSelectEndAnchor`):
@@ -583,10 +664,15 @@ For -Finish dependencies (FF, SF):
         → Enter from TOP (cleaner routing for stacked tasks)
 ```
 
-**Start Offset Calculation**:
-- For TOP/BOTTOM: Default 90% along bar (10% from right edge)
+**Start Offset Calculation** (along TOP/BOTTOM edges):
+- **SS/SF**: Exit at 10% (near LEFT/start of predecessor)
+- **FS/FF**: Exit at 90% (near RIGHT/end of predecessor)
 - Clamped to ensure exit point is left of target's left edge
 - Leaves room for curve radius
+
+This creates a visual distinction:
+- SS arrows originate from the START of the predecessor bar
+- FS arrows originate from the END of the predecessor bar
 
 ---
 

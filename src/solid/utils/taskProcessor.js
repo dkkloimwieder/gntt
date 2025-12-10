@@ -12,22 +12,48 @@ function generateTaskId(task, index) {
 }
 
 /**
- * Parse dependencies from string or array.
- * @param {string | string[] | undefined} dependencies
- * @returns {string[]}
+ * Parse dependencies from string, object, or array.
+ * Returns array of dependency objects with { id, type, lag }.
+ * @param {string | Object | Array | undefined} dependencies
+ * @returns {Array<{id: string, type: string, lag: number}>}
  */
 function parseDependencies(dependencies) {
     if (!dependencies) return [];
 
+    // Object with constraint metadata: { id, type, lag }
+    if (typeof dependencies === 'object' && !Array.isArray(dependencies)) {
+        return [
+            {
+                id: dependencies.id,
+                type: dependencies.type || 'FS',
+                lag: dependencies.lag || 0,
+            },
+        ];
+    }
+
+    // String: simple task ID (FS, lag=0) - can be comma-separated
     if (typeof dependencies === 'string') {
         return dependencies
             .split(',')
             .map((d) => d.trim())
-            .filter((d) => d.length > 0);
+            .filter((d) => d.length > 0)
+            .map((id) => ({ id, type: 'FS', lag: 0 }));
     }
 
+    // Array: mixed format (strings or objects)
     if (Array.isArray(dependencies)) {
-        return dependencies.filter((d) => d && typeof d === 'string');
+        return dependencies
+            .filter((d) => d)
+            .map((d) => {
+                if (typeof d === 'string') {
+                    return { id: d, type: 'FS', lag: 0 };
+                }
+                return {
+                    id: d.id,
+                    type: d.type || 'FS',
+                    lag: d.lag || 0,
+                };
+            });
     }
 
     return [];
@@ -149,15 +175,15 @@ export function processTasks(tasks, config) {
         };
 
         // Build relationships from dependencies
-        for (const depId of task.dependencies) {
+        for (const dep of task.dependencies) {
             // Find the predecessor task
-            const predecessor = processedTasks.find((t) => t.id === depId);
+            const predecessor = processedTasks.find((t) => t.id === dep.id);
             if (predecessor) {
                 relationships.push({
-                    from: depId, // Predecessor task ID (constraintResolver expects 'from')
-                    to: task.id, // Successor task ID (constraintResolver expects 'to')
-                    type: 'FS', // Default Finish-to-Start
-                    lag: 0, // No lag by default
+                    from: dep.id, // Predecessor task ID
+                    to: task.id, // Successor task ID
+                    type: dep.type || 'FS',
+                    lag: dep.lag || 0,
                     elastic: true, // Elastic = minimum distance constraint
                 });
             }
@@ -199,7 +225,8 @@ export function buildDependencyMap(tasks) {
     const map = new Map();
 
     for (const task of tasks) {
-        for (const depId of task.dependencies) {
+        for (const dep of task.dependencies) {
+            const depId = dep.id;
             if (!map.has(depId)) {
                 map.set(depId, []);
             }

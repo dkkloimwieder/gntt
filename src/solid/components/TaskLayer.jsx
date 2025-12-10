@@ -30,12 +30,16 @@ export function TaskLayer(props) {
     const handleConstrainPosition = (taskId, newX, newY) => {
         if (!props.taskStore) return { x: newX, y: newY };
 
+        // Get columnWidth for lag conversion (lag is in days, needs pixels)
+        const columnWidth = props.ganttConfig?.columnWidth?.() ?? 45;
+
         const result = resolveMovement(
             taskId,
             newX,
             newY,
             props.taskStore,
             relationships(),
+            { pixelsPerTimeUnit: columnWidth },
         );
 
         if (!result) {
@@ -127,11 +131,14 @@ export function TaskLayer(props) {
      */
     const handleClampBatchDelta = (batchOriginals, proposedDeltaX) => {
         const getTask = props.taskStore?.getTask?.bind(props.taskStore);
+        // Get columnWidth for lag conversion (lag is in days, needs pixels)
+        const columnWidth = props.ganttConfig?.columnWidth?.() ?? 45;
         return clampBatchDeltaX(
             batchOriginals,
             proposedDeltaX,
             relationships(),
             getTask,
+            { pixelsPerTimeUnit: columnWidth },
         );
     };
 

@@ -128,7 +128,9 @@ function autoSelectEndAnchor(from, to, dependencyType = 'FS') {
 
 /**
  * Calculate optimal offset for edge anchors based on target position.
- * Exit point must ALWAYS be to the LEFT of target's start.
+ * Exit point positioning depends on dependency type:
+ * - FS/FF: Exit near the END (right) of the predecessor
+ * - SS/SF: Exit near the START (left) of the predecessor
  */
 function calculateSmartOffset(
     from,
@@ -146,12 +148,12 @@ function calculateSmartOffset(
     }
 
     if (anchor === 'top' || anchor === 'bottom') {
-        // For FF/SF: exit near the END (right) of the predecessor
-        if (dependencyType === 'FF' || dependencyType === 'SF') {
-            return 0.9; // Exit near right edge for finish-based dependencies
+        // SS/SF: Exit near the START (left) of the predecessor
+        if (dependencyType === 'SS' || dependencyType === 'SF') {
+            return 0.1; // Exit near left edge for start-based dependencies
         }
 
-        // For FS/SS: position exit to align nicely with target
+        // FS/FF: Exit near the END (right) of the predecessor
         const defaultOffset = 0.9;
 
         // Clamp to ensure exit is left of target's left edge
