@@ -367,6 +367,76 @@ export function calculateMaxPredecessorX(
 }
 
 /**
+ * Calculate the minimum allowed backward delta for batch drag.
+ * This ensures no task in the batch violates its predecessor constraint.
+ *
+ * @param {Set<string>} batchTaskIds - Set of task IDs being moved together
+ * @param {number} proposedDeltaX - The proposed movement delta (negative for backward)
+ * @param {Array} relationships - All relationships
+ * @param {Function} getTask - Function to get task by ID
+ * @param {Object} options - Optional configuration
+ * @param {number} options.pixelsPerTimeUnit - Conversion factor for lag (default: 1)
+ * @returns {number} The clamped deltaX (may be less negative than proposed)
+ */
+export function clampBatchDeltaX(
+    batchTaskIds,
+    proposedDeltaX,
+    relationships,
+    getTask,
+    options = {},
+) {
+    // Only need to clamp when moving backward
+    if (proposedDeltaX >= 0) return proposedDeltaX;
+
+    const { pixelsPerTimeUnit = 1 } = options;
+    let minAllowedDelta = proposedDeltaX;
+
+    // For each task in the batch, check if it has a predecessor OUTSIDE the batch
+    for (const taskId of batchTaskIds) {
+        const task = getTask(taskId);
+        if (!task?.$bar) continue;
+
+        // Find predecessor relationships
+        for (const rel of relationships) {
+            if (rel.to !== taskId) continue;
+
+            const predId = rel.from;
+            // Only check predecessors that are NOT in the batch
+            // (predecessors in the batch move together, so constraint is maintained)
+            if (batchTaskIds.has(predId)) continue;
+
+            const predTask = getTask(predId);
+            if (!predTask?.$bar) continue;
+
+            const type = rel.type || DEPENDENCY_TYPES.FS;
+            const lag = rel.lag ?? DEFAULT_LAG;
+            const lagPx = lag * pixelsPerTimeUnit;
+
+            // Calculate minimum allowed X for this successor
+            const minSuccX = calculateMinSuccessorX(
+                type,
+                predTask,
+                task,
+                lagPx,
+            );
+
+            // Current position + proposed delta
+            const newX = task.$bar.x + proposedDeltaX;
+
+            // If this would violate constraint, calculate max allowed delta
+            if (newX < minSuccX) {
+                const maxBackwardDelta = minSuccX - task.$bar.x;
+                // maxBackwardDelta could be positive (task already past min)
+                // or zero/negative (task at or before min)
+                minAllowedDelta = Math.max(minAllowedDelta, maxBackwardDelta);
+            }
+        }
+    }
+
+    return minAllowedDelta;
+}
+
+/**
  * Collect all tasks that would move when dragging a task forward.
  * Traverses successor relationships recursively (forward-only).
  * Stops at locked tasks.

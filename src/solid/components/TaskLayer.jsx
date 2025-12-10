@@ -3,6 +3,7 @@ import { Bar } from './Bar.jsx';
 import {
     resolveMovement,
     collectDependentTasks,
+    clampBatchDeltaX,
 } from '../utils/constraintResolver.js';
 
 /**
@@ -112,6 +113,20 @@ export function TaskLayer(props) {
         return collectDependentTasks(taskId, relationships(), getTask);
     };
 
+    /**
+     * Clamp batch delta to prevent constraint violations.
+     * Called during drag to ensure no task moves behind its predecessor.
+     */
+    const handleClampBatchDelta = (batchTaskIds, proposedDeltaX) => {
+        const getTask = props.taskStore?.getTask?.bind(props.taskStore);
+        return clampBatchDeltaX(
+            batchTaskIds,
+            proposedDeltaX,
+            relationships(),
+            getTask,
+        );
+    };
+
     // Get task IDs for iteration - For will re-run when IDs change
     const taskIds = () => tasks().map((t) => t.id);
 
@@ -130,6 +145,7 @@ export function TaskLayer(props) {
                             ganttConfig={props.ganttConfig}
                             onConstrainPosition={handleConstrainPosition}
                             onCollectDependents={handleCollectDependents}
+                            onClampBatchDelta={handleClampBatchDelta}
                             onDateChange={handleDateChange}
                             onProgressChange={handleProgressChange}
                             onResizeEnd={handleResizeEnd}
