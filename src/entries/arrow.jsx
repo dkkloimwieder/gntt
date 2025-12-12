@@ -1,10 +1,10 @@
 import { render } from 'solid-js/web';
-import { ConstraintDemo } from './components/ConstraintDemo';
+import { ArrowDemo } from '../components/ArrowDemo';
 
 const root = document.getElementById('app');
 
 if (root) {
-    render(() => <ConstraintDemo />, root);
+    render(() => <ArrowDemo />, root);
 } else {
     console.error('Root element not found');
 }

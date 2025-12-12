@@ -33,3 +33,6 @@ node_modules
 gh-pages
 feedback*.md
 .aider*
+
+# Prevent test files at root
+/test-*.html

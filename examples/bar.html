@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Constraint Demo - Frappe Gantt SolidJS</title>
+    <title>Bar Demo - Frappe Gantt SolidJS</title>
     <style>
         * {
             box-sizing: border-box;
@@ -21,13 +21,43 @@
             min-height: 100vh;
         }
 
-        /* SVG rendering */
-        svg path {
-            vector-effect: non-scaling-stroke;
+        /* Bar styles */
+        .bar-wrapper {
+            cursor: pointer;
         }
 
-        rect {
-            transition: fill 0.1s ease;
+        .bar-wrapper:hover .handle {
+            opacity: 1 !important;
+        }
+
+        .bar-wrapper.invalid .bar {
+            fill: #fee2e2 !important;
+            stroke: #ef4444 !important;
+            stroke-width: 2 !important;
+            stroke-dasharray: 4,4;
+        }
+
+        .bar-label {
+            font-size: 12px;
+            font-weight: 500;
+            fill: #333;
+        }
+
+        .bar-label.inside {
+            fill: #fff;
+        }
+
+        .bar-label.outside {
+            fill: #333;
+        }
+
+        /* Handle hover effects */
+        .handle {
+            transition: opacity 0.15s ease;
+        }
+
+        .handle:hover {
+            opacity: 1 !important;
         }
 
         /* Form controls */
@@ -41,7 +71,7 @@
         }
 
         button:hover {
-            background-color: #f1f3f5 !important;
+            filter: brightness(0.95);
         }
 
         input[type="checkbox"] {
@@ -53,6 +83,6 @@
 </head>
 <body>
     <div id="app"></div>
-    <script type="module" src="/src/solid/constraint-demo-entry.jsx"></script>
+    <script type="module" src="/src/entries/bar.jsx"></script>
 </body>
 </html>

@@ -4,17 +4,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Frappe Gantt** is a lightweight, vanilla JavaScript library for creating interactive Gantt charts using SVG rendering. It's production-ready and used by ERPNext. The library provides drag & drop task management, dependency visualization, multiple view modes (Hour/Day/Week/Month/Year), and theme support.
+**Frappe Gantt** is a Gantt chart library with two implementations:
+
+- **SolidJS** (primary, in `src/`) - The active implementation using reactive stores and fine-grained reactivity
+- **Vanilla JS** (legacy, in `vanilla/`) - The original implementation, archived for reference
+
+The library provides drag & drop task management, dependency visualization, constraint enforcement (FS/SS/FF/SF), and theme support.
 
 ## Essential Commands
 
 ### Build & Development
-- `pnpm build` - Build production bundle (UMD + ES modules)
-- `pnpm build-dev` - Build in watch mode for development
-- `pnpm dev` - Start Vite development server with hot reload
-- `pnpm run dev:solid` - Start SolidJS demo server (showcase, bar, arrow demos)
+- `pnpm run dev:solid` - Start SolidJS demo server at http://localhost:5173/examples/
 - `pnpm run generate:calendar` - Generate test calendar data (see Performance Testing below)
-- Test changes: Open `index.html` in browser after building
+- `pnpm build:solid` - Build SolidJS production bundle
+- `pnpm dev` - Start vanilla JS dev server (legacy)
+- `pnpm build` - Build vanilla JS bundle
 
 ### Code Quality
 - `pnpm lint` - Lint JavaScript files
@@ -26,70 +30,56 @@ Only one test file exists (`tests/date_utils.test.js`) but no test runner is con
 
 ## Architecture
 
-### Core Design
-Class-based OOP architecture with imperative DOM manipulation (no framework). The codebase follows a clear separation of concerns:
+### Directory Structure
 
-**Main Orchestrator:**
-- `src/index.js` (Gantt class) - Central coordinator that manages setup, rendering, view mode switching, and event handling. Creates and coordinates all subcomponents.
+```
+gantt/
+├── src/                        # SolidJS (primary)
+│   ├── components/             # UI components (Gantt, Bar, Arrow, Grid, etc.)
+│   ├── stores/                 # Reactive stores (ganttStore, ganttConfigStore, ganttDateStore)
+│   ├── utils/                  # Utilities (barCalculations, constraintResolver, etc.)
+│   ├── hooks/                  # useDrag
+│   ├── adapters/               # Data adapters
+│   ├── entries/                # Entry points for each demo
+│   ├── scripts/                # CLI tools (generateCalendar.js)
+│   ├── data/                   # Generated test data
+│   └── styles/                 # CSS
+├── examples/                   # SolidJS demo HTML files
+│   ├── index.html              # Demo hub
+│   ├── gantt.html              # Main demo
+│   ├── perf.html               # Performance test (200+ tasks)
+│   ├── arrow.html, bar.html    # Component demos
+│   └── constraint.html, showcase.html
+├── vanilla/                    # Legacy vanilla JS (archived)
+│   ├── src/                    # Original JS source
+│   └── examples/               # Original demo
+├── docs/
+│   └── ARCHITECTURE.md         # Detailed SolidJS architecture
+└── [config files]
+```
+
+### SolidJS Architecture
+
+The SolidJS implementation uses reactive stores for state management:
+
+**Stores:**
+- `ganttStore.js` - Task data and operations
+- `ganttConfigStore.js` - Configuration (view mode, dimensions, features)
+- `ganttDateStore.js` - Timeline calculations and date utilities
 
 **Components:**
-- `src/bar.js` (Bar class) - Individual task bars with drag & drop, resize handles, and progress updates
-- `src/arrow.js` (Arrow class) - Dependency arrows with dynamic SVG path calculation
-- `src/popup.js` (Popup class) - Task detail tooltips
+- `Gantt.jsx` - Main container component
+- `Bar.jsx` - Task bars with drag/resize/progress handles
+- `Arrow.jsx` - Dependency visualization
+- `Grid.jsx` - Background grid and time scale
+- `ResourceColumn.jsx` - Resource names column
 
 **Utilities:**
-- `src/date_utils.js` - Pure date manipulation functions (parse, format, add, diff) with locale support
-- `src/svg_utils.js` - SVG DOM helpers (jQuery-like $ selector, createSVG, animateSVG)
-- `src/defaults.js` - Configuration constants including DEFAULT_OPTIONS and view mode definitions
+- `barCalculations.js` - Position/size calculations from dates
+- `constraintResolver.js` - Dependency constraint enforcement (FS/SS/FF/SF)
+- `taskGenerator.js` - Test data generation
 
-### Data Flow
-
-**Initialization:**
-```
-new Gantt() → setup_wrapper() → setup_options() → setup_tasks() →
-change_view_mode() → bind_events()
-```
-
-**Rendering:**
-```
-render() → clear() → setup_layers() → make_grid() → make_dates() →
-make_grid_extras() → make_bars() → make_arrows() →
-set_dimensions() → set_scroll_position()
-```
-
-### Key Architectural Patterns
-
-1. **Imperative SVG Rendering** - Direct SVG element creation and manipulation, no virtual DOM
-2. **Event-Driven Interactions** - Mouse events (mousedown/mousemove/mouseup) handle all drag operations
-3. **Prototype Extension** - Adds helper methods to SVGElement.prototype (getX, getY, getWidth, etc.)
-4. **Configuration Object Pattern** - Extensive options for customization via DEFAULT_OPTIONS
-5. **Singleton Instances** - Each Gantt instance independently manages its own state
-
-### Important Features
-
-- **View Modes**: Time scales are fully configurable in `defaults.js` with column widths, date formats, and header rendering logic
-- **Ignored Dates**: Complex logic for excluding weekends/holidays from task duration calculations
-- **Infinite Padding**: Timeline automatically extends when scrolling to edges
-- **Dependencies**: Tasks reference other tasks by ID; arrows update dynamically when bars move
-- **Drag & Drop**: Complex state machine in Bar class handles dragging bars, resizing with handles, and updating progress
-
-### Build System
-
-- **Vite** bundles the library (see `vite.config.js`)
-- Outputs: `frappe-gantt.umd.js` (UMD) and `frappe-gantt.es.js` (ES modules)
-- CSS: PostCSS with nesting plugin compiles `src/styles/` to `frappe-gantt.css`
-- Themes: `light.css` and `dark.css` use CSS variables
-
-### Migration Context
-
-**Important**: The codebase is migrating from vanilla JS to SolidJS. The SolidJS implementation is now feature-complete for core functionality:
-
-- **Complete**: Main Gantt orchestrator, Bar, Arrow, Grid, Headers, Popup, Modal
-- **Complete**: Task/Config/Date stores, constraint system (FS/SS/FF/SF dependencies)
-- **Complete**: Drag, resize, progress editing with constraint enforcement
-- **Pending**: Public API wrapper (`new Gantt()`), view mode switching, infinite scroll
-
-See `SOLID_ARCHITECTURE.md` for detailed documentation. Run `pnpm run dev:solid` and open http://localhost:5173/gantt-demo.html for the main demo.
+See `docs/ARCHITECTURE.md` for detailed documentation.
 
 ## Performance Testing
 
@@ -99,12 +89,12 @@ The SolidJS implementation includes a task generator for performance testing wit
 ```bash
 pnpm run generate:calendar          # Generate 200 tasks
 pnpm run dev:solid                   # Start dev server
-# Open http://localhost:5173/gantt-perf.html
+# Open http://localhost:5173/examples/perf.html
 ```
 
 ### Task Generator
 
-Located at `src/solid/scripts/generateCalendar.js`, generates `src/solid/data/calendar.json`.
+Located at `src/scripts/generateCalendar.js`, generates `src/data/calendar.json`.
 
 **Features:**
 - Cross-resource dependency chains (tasks in a group span different resources A-Z)
@@ -115,8 +105,8 @@ Located at `src/solid/scripts/generateCalendar.js`, generates `src/solid/data/ca
 
 **CLI Options:**
 ```bash
-node src/solid/scripts/generateCalendar.js --help
-node src/solid/scripts/generateCalendar.js --tasks=300 --seed=54321 --ss=30
+node src/scripts/generateCalendar.js --help
+node src/scripts/generateCalendar.js --tasks=300 --seed=54321 --ss=30
 ```
 
 | Option | Default | Description |
@@ -144,22 +134,21 @@ node src/solid/scripts/generateCalendar.js --tasks=300 --seed=54321 --ss=30
 ```
 
 **Key Files:**
-- `src/solid/utils/taskGenerator.js` - Shared generation logic
-- `src/solid/scripts/generateCalendar.js` - CLI script
-- `src/solid/data/calendar.json` - Generated test data
-- `src/solid/components/GanttPerfDemo.jsx` - Performance test UI
+- `src/utils/taskGenerator.js` - Shared generation logic
+- `src/scripts/generateCalendar.js` - CLI script
+- `src/data/calendar.json` - Generated test data
+- `src/components/GanttPerfDemo.jsx` - Performance test UI
 
 ## Development Workflow
 
 1. Clone and run `pnpm i`
-2. Edit source files in `src/`
-3. Run `pnpm build-dev` for watch mode
-4. Open `index.html` in browser to see changes
-5. Vite automatically rebuilds on file changes
+2. Run `pnpm run dev:solid` to start the development server
+3. Open http://localhost:5173/examples/ to see the demo hub
+4. Edit source files in `src/` - Vite automatically reloads
 
 ## Code Style
 
 - ES6 modules with import/export
 - 4-space indentation, single quotes
 - ESLint + Prettier configured
-- No TypeScript - pure JavaScript
+- JSX for SolidJS components

@@ -21,7 +21,7 @@ export default defineConfig({
     output: { interop: 'auto' },
     server: {
         watch: {
-            include: ['dist/*', 'src/*', 'src/solid/**/*']
+            include: ['dist/*', 'src/**/*', 'examples/**/*']
         }
     }
 });
