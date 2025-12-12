@@ -50,10 +50,15 @@ export function GanttContainer(props) {
     // Set scroll position programmatically
     const scrollTo = (x, smooth = true) => {
         if (scrollAreaRef) {
-            scrollAreaRef.scrollTo({
-                left: x,
-                behavior: smooth ? 'smooth' : 'auto',
-            });
+            if (smooth) {
+                scrollAreaRef.scrollTo({
+                    left: x,
+                    behavior: 'smooth',
+                });
+            } else {
+                // Direct property set is fastest - no layout thrashing
+                scrollAreaRef.scrollLeft = x;
+            }
         }
     };
 

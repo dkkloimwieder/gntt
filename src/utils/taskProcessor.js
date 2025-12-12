@@ -1,4 +1,4 @@
-import date_utils from '../../date_utils.js';
+import date_utils from './date_utils.js';
 import { computeX, computeY, computeWidth } from './barCalculations.js';
 
 /**

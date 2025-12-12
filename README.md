@@ -142,8 +142,8 @@ If you want to contribute enhancements or fixes:
 1. Clone this repo.
 2. `cd` into project directory.
 3. Run `pnpm i` to install dependencies.
-4. `pnpm run build` to build files - or `pnpm run build-dev` to build and watch for changes.
-5. Open `index.html` in your browser.
+4. **SolidJS (primary)**: `pnpm run dev:solid` → Open http://localhost:5173/examples/
+5. **Vanilla JS (legacy)**: `pnpm run build` then open `vanilla/examples/index.html`
 6. Make your code changes and test them.
 
 <br />

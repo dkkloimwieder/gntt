@@ -3,8 +3,8 @@
  * CLI script to generate calendar.json for Gantt performance testing.
  *
  * Usage:
- *   node src/solid/scripts/generateCalendar.js
- *   node src/solid/scripts/generateCalendar.js --tasks=300 --seed=54321 --ss=30
+ *   node src/scripts/generateCalendar.js
+ *   node src/scripts/generateCalendar.js --tasks=300 --seed=54321 --ss=30
  *
  * Options:
  *   --tasks=N    Total number of tasks (default: 200)
@@ -60,7 +60,7 @@ function parseArgs(args) {
 Calendar Generator for Gantt Performance Testing
 
 Usage:
-  node src/solid/scripts/generateCalendar.js [options]
+  node src/scripts/generateCalendar.js [options]
 
 Options:
   --tasks=N    Total number of tasks (default: 200)

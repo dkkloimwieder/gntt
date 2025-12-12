@@ -1,8 +1,8 @@
 # SolidJS Architecture Documentation
 
-**Last Updated**: December 10, 2025 (Added ResourceColumn for swimlane layout, grid row borders)
+**Last Updated**: December 12, 2025 (Repository reorganization - SolidJS is now primary in `src/`)
 
-This document describes the current state of the SolidJS implementation within the Frappe Gantt project. The codebase is in active migration from vanilla JavaScript to SolidJS, following a hybrid architecture that allows both implementations to coexist.
+This document describes the SolidJS implementation of Frappe Gantt, which is now the primary codebase. The vanilla JavaScript implementation has been archived in `vanilla/`.
 
 ---
 
@@ -23,32 +23,32 @@ This document describes the current state of the SolidJS implementation within t
 
 ## Project Overview
 
-The SolidJS implementation lives in `src/solid/` and provides reactive, fine-grained updates for Gantt chart components. The migration follows an incremental approach with adapters for interoperability with the existing vanilla JavaScript codebase.
+The SolidJS implementation lives in `src/` and provides reactive, fine-grained updates for Gantt chart components.
 
-### Migration Status
+### Component Status
 
 | Component | Status | Location |
 |-----------|--------|----------|
-| Arrow | Complete | `src/solid/components/Arrow.jsx` |
-| Bar | Complete | `src/solid/components/Bar.jsx` |
-| Popup | Complete | `src/solid/components/TaskDataPopup.jsx` |
-| Modal | Complete | `src/solid/components/TaskDataModal.jsx` |
-| Task Store | Complete | `src/solid/stores/taskStore.js` |
-| Config Store | Complete | `src/solid/stores/ganttConfigStore.js` |
-| Date Store | Complete | `src/solid/stores/ganttDateStore.js` |
-| Constraint System | Complete | `src/solid/utils/constraintResolver.js` |
-| Main Gantt Orchestrator | Complete | `src/solid/components/Gantt.jsx` |
-| Grid & Headers | Complete | `src/solid/components/Grid.jsx`, `DateHeaders.jsx` |
-| Resource Column | Complete | `src/solid/components/ResourceColumn.jsx` |
-| Task Layer | Complete | `src/solid/components/TaskLayer.jsx` |
-| Arrow Layer | Complete | `src/solid/components/ArrowLayer.jsx` |
+| Arrow | Complete | `src/components/Arrow.jsx` |
+| Bar | Complete | `src/components/Bar.jsx` |
+| Popup | Complete | `src/components/TaskDataPopup.jsx` |
+| Modal | Complete | `src/components/TaskDataModal.jsx` |
+| Task Store | Complete | `src/stores/taskStore.js` |
+| Config Store | Complete | `src/stores/ganttConfigStore.js` |
+| Date Store | Complete | `src/stores/ganttDateStore.js` |
+| Constraint System | Complete | `src/utils/constraintResolver.js` |
+| Main Gantt Orchestrator | Complete | `src/components/Gantt.jsx` |
+| Grid & Headers | Complete | `src/components/Grid.jsx`, `DateHeaders.jsx` |
+| Resource Column | Complete | `src/components/ResourceColumn.jsx` |
+| Task Layer | Complete | `src/components/TaskLayer.jsx` |
+| Arrow Layer | Complete | `src/components/ArrowLayer.jsx` |
 
 ---
 
 ## Directory Structure
 
 ```
-src/solid/
+src/
 ├── components/
 │   ├── Arrow.jsx           # Dependency arrow rendering
 │   ├── ArrowLayer.jsx      # Container for all arrows
@@ -57,25 +57,38 @@ src/solid/
 │   ├── Gantt.jsx           # Main orchestrator component
 │   ├── GanttContainer.jsx  # Scroll container with sticky headers
 │   ├── GanttDemo.jsx       # Full Gantt demo page
-│   ├── Grid.jsx            # Background grid with rows (stroke borders for row separation)
+│   ├── GanttPerfDemo.jsx   # Performance testing demo
+│   ├── Grid.jsx            # Background grid with rows
 │   ├── GridTicks.jsx       # Vertical grid lines only
-│   ├── ResourceColumn.jsx  # Sticky left column showing resource labels (swimlanes)
+│   ├── ResourceColumn.jsx  # Sticky left column (swimlanes)
 │   ├── ShowcaseDemo.jsx    # Interactive props showcase
 │   ├── TaskDataModal.jsx   # Debug/detail modal on click
 │   ├── TaskDataPopup.jsx   # Hover tooltip popup
-│   ├── TaskLayer.jsx       # Container for all bars
-│   └── ...                 # Legacy demo components
+│   └── TaskLayer.jsx       # Container for all bars
 ├── stores/
-│   ├── taskStore.js        # Reactive task state management
+│   ├── ganttStore.js       # Reactive task state management
 │   ├── ganttConfigStore.js # Configuration state management
 │   └── ganttDateStore.js   # Date/timeline calculations
 ├── utils/
 │   ├── barCalculations.js  # Pure functions for bar geometry
 │   ├── constraintResolver.js # Task relationship constraints
-│   └── taskProcessor.js    # Task parsing and position computation
+│   ├── taskProcessor.js    # Task parsing and position computation
+│   └── taskGenerator.js    # Test data generation
 ├── hooks/
 │   └── useDrag.js          # RAF-based drag state machine
-└── *-entry.jsx             # Vite entry points for demos
+├── entries/                # Vite entry points for demos
+│   ├── gantt.jsx
+│   ├── perf.jsx
+│   ├── arrow.jsx
+│   ├── bar.jsx
+│   ├── constraint.jsx
+│   └── showcase.jsx
+├── scripts/
+│   └── generateCalendar.js # CLI for generating test data
+├── data/
+│   └── calendar.json       # Generated test data
+└── styles/
+    └── *.css               # Stylesheets
 ```
 
 ---
@@ -500,7 +513,7 @@ const handleLeftResize = createDragHandler('dragging_left', { taskId });
 
 ## Demo Pages
 
-### GanttDemo (`/gantt-demo.html`) - **Primary Demo**
+### GanttDemo (`/examples/gantt.html`) - **Primary Demo**
 
 Full-featured Gantt chart demonstration with real task data.
 
@@ -525,11 +538,11 @@ Full-featured Gantt chart demonstration with real task data.
 | Documentation | task-2 | User docs (parallel with dev) |
 | Deployment | task-4, task-5 | Final deployment |
 
-**Run**: `pnpm run dev:solid` → http://localhost:5173/gantt-demo.html
+**Run**: `pnpm run dev:solid` → http://localhost:5173/examples/gantt.html
 
 ---
 
-### ShowcaseDemo (`/showcase-demo.html`)
+### ShowcaseDemo (`/examples/showcase.html`)
 
 Interactive props showcase for all task and connector configuration options.
 
@@ -542,11 +555,11 @@ Interactive props showcase for all task and connector configuration options.
 - Global settings (readonly modes, grid snap)
 - 4 linked tasks demonstrating constraint chains
 
-**Run**: `pnpm run dev:solid` → http://localhost:5173/showcase-demo.html
+**Run**: `pnpm run dev:solid` → http://localhost:5173/examples/showcase.html
 
 ---
 
-### GanttPerfDemo (`/gantt-perf.html`) - **Performance Testing**
+### GanttPerfDemo (`/examples/perf.html`) - **Performance Testing**
 
 Performance testing demo with configurable task generation and SS+lag constraints.
 
@@ -571,18 +584,17 @@ Performance testing demo with configurable task generation and SS+lag constraint
 | SS% | 20 | Percentage of dependencies using SS+lag |
 | Max Lag | 5 | Maximum lag days (random 1 to Max Lag) |
 
-**Run**: `pnpm run dev:solid` → http://localhost:5174/gantt-perf.html
+**Run**: `pnpm run dev:solid` → http://localhost:5173/examples/perf.html
 
 ---
 
-### Legacy Demos
+### Component Demos
 
-The following demo pages exist for component-level testing:
+Individual component demos for isolated testing:
 
-- `/test-bar.html` - Bar component isolation testing
-- `/test-arrow.html` - Arrow component isolation testing
-- `/test-constraints.html` - Constraint system scenarios
-- `/test-popup.html` - Popup component testing
+- `/examples/bar.html` - Bar component isolation testing
+- `/examples/arrow.html` - Arrow component isolation testing
+- `/examples/constraint.html` - Constraint system scenarios
 
 ---
 
@@ -721,11 +733,13 @@ pnpm i
 pnpm run dev:solid
 
 # Open demos:
-# http://localhost:5173/test-bar.html       - Main demo
-# http://localhost:5173/test-constraints.html - Constraint demo
-# http://localhost:5173/test-arrow.html     - Arrow demo
-# http://localhost:5173/test-popup.html     - Popup demo
-# http://localhost:5173/test-solid.html     - Primitives test
+# http://localhost:5173/examples/           - Demo hub (index)
+# http://localhost:5173/examples/gantt.html - Main Gantt demo
+# http://localhost:5173/examples/perf.html  - Performance test
+# http://localhost:5173/examples/arrow.html - Arrow component
+# http://localhost:5173/examples/bar.html   - Bar component
+# http://localhost:5173/examples/constraint.html - Constraint demo
+# http://localhost:5173/examples/showcase.html - Props showcase
 ```
 
 ### Build

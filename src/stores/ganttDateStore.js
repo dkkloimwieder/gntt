@@ -1,6 +1,6 @@
 import { createSignal, createMemo } from 'solid-js';
-import date_utils from '../../date_utils.js';
-import { DEFAULT_VIEW_MODES } from '../../defaults.js';
+import date_utils from '../utils/date_utils.js';
+import { DEFAULT_VIEW_MODES } from '../utils/defaults.js';
 
 /**
  * Reactive store for timeline/date management.
