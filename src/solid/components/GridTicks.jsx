@@ -30,14 +30,15 @@ export function GridTicks(props) {
     // Date infos for determining thick lines
     const dateInfos = () => props.dateInfos || [];
 
-    // Generate vertical ticks
+    // Generate vertical ticks - lines at right edge of each column
+    // Just use exact column boundaries - no offset needed
     const verticalTicks = createMemo(() => {
         const infos = dateInfos();
         const colWidth = columnWidth();
         const height = gridHeight();
 
         return infos.map((info, index) => ({
-            x: index * colWidth,
+            x: (index + 1) * colWidth - 0.5,
             y1: 0,
             y2: height,
             isThick: info.isThickLine,

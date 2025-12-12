@@ -41,24 +41,30 @@ export const DEFAULT_LAG = 0;
  * @returns {Array} Array of { taskId, relationship } objects
  */
 export function findFixedLinks(taskId, relationships, visited = new Set()) {
-    if (visited.has(taskId)) return [];
-    visited.add(taskId);
-
+    // Use iterative BFS to avoid stack overflow with long dependency chains
     const linked = [];
+    const queue = [taskId];
 
-    relationships.forEach((rel) => {
-        // Only follow non-elastic (fixed) relationships
-        if (rel.elastic !== false) return;
+    while (queue.length > 0) {
+        const currentId = queue.shift();
 
-        if (rel.from === taskId && !visited.has(rel.to)) {
-            linked.push({ taskId: rel.to, relationship: rel });
-            linked.push(...findFixedLinks(rel.to, relationships, visited));
+        if (visited.has(currentId)) continue;
+        visited.add(currentId);
+
+        for (const rel of relationships) {
+            // Only follow non-elastic (fixed) relationships
+            if (rel.elastic !== false) continue;
+
+            if (rel.from === currentId && !visited.has(rel.to)) {
+                linked.push({ taskId: rel.to, relationship: rel });
+                queue.push(rel.to);
+            }
+            if (rel.to === currentId && !visited.has(rel.from)) {
+                linked.push({ taskId: rel.from, relationship: rel });
+                queue.push(rel.from);
+            }
         }
-        if (rel.to === taskId && !visited.has(rel.from)) {
-            linked.push({ taskId: rel.from, relationship: rel });
-            linked.push(...findFixedLinks(rel.from, relationships, visited));
-        }
-    });
+    }
 
     return linked;
 }
@@ -452,13 +458,13 @@ export function clampBatchDeltaX(
 
 /**
  * Collect all tasks that would move when dragging a task forward.
- * Traverses successor relationships recursively (forward-only).
+ * Traverses successor relationships iteratively (forward-only).
  * Stops at locked tasks.
  *
  * @param {string} taskId - Starting task ID
  * @param {Array} relationships - All relationships
  * @param {Function} getTask - Function to get task by ID (for checking locked status)
- * @param {Set} visited - Already visited (for recursion)
+ * @param {Set} visited - Already visited (optional, for external use)
  * @returns {Set<string>} Set of task IDs including the original
  */
 export function collectDependentTasks(
@@ -467,22 +473,29 @@ export function collectDependentTasks(
     getTask = null,
     visited = new Set(),
 ) {
-    if (visited.has(taskId)) return visited;
+    // Use iterative BFS to avoid stack overflow with long dependency chains
+    const queue = [taskId];
 
-    // Check if this task is locked - if so, don't include it or its dependents
-    if (getTask) {
-        const task = getTask(taskId);
-        if (task?.constraints?.locked) {
-            return visited;
+    while (queue.length > 0) {
+        const currentId = queue.shift();
+
+        if (visited.has(currentId)) continue;
+
+        // Check if this task is locked - if so, don't include it or its dependents
+        if (getTask) {
+            const task = getTask(currentId);
+            if (task?.constraints?.locked) {
+                continue;
+            }
         }
-    }
 
-    visited.add(taskId);
+        visited.add(currentId);
 
-    // Find all relationships where this task is the predecessor
-    for (const rel of relationships) {
-        if (rel.from === taskId && !visited.has(rel.to)) {
-            collectDependentTasks(rel.to, relationships, getTask, visited);
+        // Find all relationships where this task is the predecessor
+        for (const rel of relationships) {
+            if (rel.from === currentId && !visited.has(rel.to)) {
+                queue.push(rel.to);
+            }
         }
     }
 

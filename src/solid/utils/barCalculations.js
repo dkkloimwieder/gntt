@@ -16,19 +16,26 @@ import date_utils from './date_utils.js';
  */
 export function computeX(taskStart, ganttStart, unit, step, columnWidth) {
     const diff = date_utils.diff(taskStart, ganttStart, unit) / step;
-    return diff * columnWidth;
+    // Round to nearest column boundary, subtract 0.5 to align with grid lines
+    // Grid lines are at (index+1)*colWidth - 0.5, so bar starts at index*colWidth - 0.5
+    return Math.round(diff) * columnWidth - 0.5;
 }
 
 /**
  * Compute bar Y position from task index.
+ * Y position is relative to SVG content area (no header offset).
+ * Bar is vertically centered within its row.
+ * Row height = barHeight + padding, rows start at y=0.
  * @param {number} taskIndex - Task index (row number)
- * @param {number} headerHeight - Total header height
  * @param {number} barHeight - Height of each bar
  * @param {number} padding - Vertical padding between bars
  * @returns {number} Y position in pixels
  */
-export function computeY(taskIndex, headerHeight, barHeight, padding) {
-    return headerHeight + padding / 2 + taskIndex * (barHeight + padding);
+export function computeY(taskIndex, barHeight, padding) {
+    // Row starts at taskIndex * rowHeight (where rowHeight = barHeight + padding)
+    // Bar is centered within row, so add padding/2 offset from row start
+    const rowHeight = barHeight + padding;
+    return taskIndex * rowHeight + padding / 2;
 }
 
 /**
@@ -42,7 +49,8 @@ export function computeY(taskIndex, headerHeight, barHeight, padding) {
  */
 export function computeWidth(taskStart, taskEnd, unit, step, columnWidth) {
     const diff = date_utils.diff(taskEnd, taskStart, unit) / step;
-    return diff * columnWidth;
+    // Round to nearest column boundary
+    return Math.round(diff) * columnWidth;
 }
 
 /**

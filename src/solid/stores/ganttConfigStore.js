@@ -11,12 +11,12 @@ export function createGanttConfigStore(options = {}) {
     const [unit, setUnit] = createSignal(options.unit || 'day');
     const [step, setStep] = createSignal(options.step || 1);
 
-    // Layout configuration
-    const [columnWidth, setColumnWidth] = createSignal(options.columnWidth || 45);
-    const [barHeight, setBarHeight] = createSignal(options.barHeight || 30);
+    // Layout configuration - support both snake_case and camelCase
+    const [columnWidth, setColumnWidth] = createSignal(options.columnWidth || options.column_width || 45);
+    const [barHeight, setBarHeight] = createSignal(options.barHeight || options.bar_height || 30);
     const [headerHeight, setHeaderHeight] = createSignal(options.headerHeight || 75);
     const [padding, setPadding] = createSignal(options.padding || 18);
-    const [barCornerRadius, setBarCornerRadius] = createSignal(options.barCornerRadius || 3);
+    const [barCornerRadius, setBarCornerRadius] = createSignal(options.barCornerRadius || options.bar_corner_radius || 3);
 
     // Feature flags
     const [readonly, setReadonly] = createSignal(options.readonly || false);

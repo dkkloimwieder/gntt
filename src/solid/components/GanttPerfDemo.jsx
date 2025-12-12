@@ -1,5 +1,6 @@
 import { createSignal, createEffect, createMemo, onMount } from 'solid-js';
 import { Gantt } from './Gantt.jsx';
+import calendarData from '../data/calendar.json';
 
 // Color palette for task groups
 const GROUP_COLORS = [
@@ -70,85 +71,102 @@ function addHours(dateStr, hours) {
 }
 
 /**
- * Generate tasks with dependency chains in groups
+ * Generate tasks in groups with dependency chains.
+ * Each group is independent - dependencies only within a group.
  * @param {number} count - Total number of tasks
- * @param {number} minGroupSize - Minimum tasks per group
- * @param {number} maxGroupSize - Maximum tasks per group
+ * @param {number} minGroupSize - Minimum tasks per group (default 5)
+ * @param {number} maxGroupSize - Maximum tasks per group (default 20)
  * @param {number} seed - Random seed for reproducibility
  * @param {number} ssPercent - Percentage of tasks with SS+lag constraints (0-100)
- * @param {number} maxLag - Maximum lag days for SS constraints (1-maxLag)
+ * @param {number} maxLag - Maximum lag hours for SS constraints (1-maxLag)
  */
 function generateTasks(
     count = 100,
     minGroupSize = 5,
-    maxGroupSize = 15,
+    maxGroupSize = 20,
     seed = 12345,
     ssPercent = 20,
     maxLag = 5,
 ) {
     const random = createRandom(seed);
     const tasks = [];
-    const resourceCount = 10; // Number of unique resources (A-J)
+    const resourceCount = 26; // Full alphabet A-Z
 
     // Start from today
     const today = new Date();
     const yyyy = today.getFullYear();
     const mm = String(today.getMonth() + 1).padStart(2, '0');
     const dd = String(today.getDate()).padStart(2, '0');
-    let currentDate = `${yyyy}-${mm}-${dd} 08:00`;
+    const baseDate = `${yyyy}-${mm}-${dd} 08:00`;
 
-    for (let taskNum = 1; taskNum <= count; taskNum++) {
-        // Cycle through resources - each task on different resource
-        const resourceIndex = (taskNum - 1) % resourceCount;
+    let taskNum = 1;
+    let groupStartDate = baseDate;
+
+    while (taskNum <= count) {
+        // Determine group size (5-20 tasks)
+        const groupSize = Math.min(
+            count - taskNum + 1,
+            minGroupSize + Math.floor(random() * (maxGroupSize - minGroupSize + 1))
+        );
+
+        // Pick a random resource for this group
+        const resourceIndex = Math.floor(random() * resourceCount);
         const resource = getResourceLabel(resourceIndex);
         const color = GROUP_COLORS[resourceIndex % GROUP_COLORS.length];
         const progressColor = color + 'cc';
 
-        // Random duration 1-8 hours
-        const duration = Math.floor(random() * 8) + 1;
+        // Track the first task ID in this group for dependencies
+        const groupFirstTaskId = taskNum;
+        let groupCurrentDate = groupStartDate;
 
-        // Dependency on previous task (cross-resource!)
-        let dependency = undefined;
-        let taskStartDate;
+        // Generate tasks in this group
+        for (let i = 0; i < groupSize && taskNum <= count; i++) {
+            // Random duration 1-8 hours
+            const duration = Math.floor(random() * 8) + 1;
 
-        if (taskNum === 1) {
-            // First task - no dependency
-            taskStartDate = currentDate;
-        } else {
-            const useSSConstraint = random() < ssPercent / 100;
-            if (useSSConstraint) {
-                const lag = Math.floor(random() * maxLag) + 1;
-                dependency = {
-                    id: `task-${taskNum - 1}`,
-                    type: 'SS',
-                    lag: lag,
-                };
-                // SS constraint: start relative to predecessor start
-                taskStartDate = currentDate;
-            } else {
-                // FS: depends on previous task finishing
-                dependency = `task-${taskNum - 1}`;
-                taskStartDate = currentDate;
+            // Dependency logic - only within the group
+            let dependency = undefined;
+
+            if (i > 0) {
+                // Not the first task in group - depends on previous task in group
+                const useSSConstraint = random() < ssPercent / 100;
+                if (useSSConstraint) {
+                    const lag = Math.floor(random() * maxLag) + 1;
+                    dependency = {
+                        id: `task-${taskNum - 1}`,
+                        type: 'SS',
+                        lag: lag,
+                    };
+                } else {
+                    // FS: depends on previous task finishing
+                    dependency = `task-${taskNum - 1}`;
+                }
             }
+            // First task in group has no dependency
+
+            const endDate = addHours(groupCurrentDate, duration);
+
+            tasks.push({
+                id: `task-${taskNum}`,
+                name: `${taskNum}`,
+                start: groupCurrentDate,
+                end: endDate,
+                progress: Math.floor(random() * 101),
+                color: color,
+                color_progress: progressColor,
+                dependencies: dependency,
+                resource: resource,
+            });
+
+            // Move time forward by 1-3 hours for next task in group
+            const gap = Math.floor(random() * 3) + 1;
+            groupCurrentDate = addHours(endDate, gap);
+            taskNum++;
         }
 
-        const endDate = addHours(taskStartDate, duration);
-
-        tasks.push({
-            id: `task-${taskNum}`,
-            name: `${taskNum}`,
-            start: taskStartDate,
-            end: endDate,
-            progress: Math.floor(random() * 101),
-            color: color,
-            color_progress: progressColor,
-            dependencies: dependency,
-            resource: resource,
-        });
-
-        // Move time forward by 1-3 hours for next task (creates spread)
-        const gap = Math.floor(random() * 3) + 1;
-        currentDate = addHours(endDate, gap);
+        // Move group start date forward for the next group (stagger groups)
+        const groupGap = Math.floor(random() * 5) + 2; // 2-6 hours between groups
+        groupStartDate = addHours(groupStartDate, groupGap);
     }
 
     return tasks;
@@ -159,6 +177,7 @@ function generateTasks(
  */
 export function GanttPerfDemo() {
     // State
+    const [dataSource, setDataSource] = createSignal('json'); // 'json' | 'generated'
     const [taskCount, setTaskCount] = createSignal(100);
     const [seed, setSeed] = createSignal(12345);
     const [ssPercent, setSSPercent] = createSignal(20); // % of tasks with SS+lag
@@ -183,18 +202,25 @@ export function GanttPerfDemo() {
         scroll_to: 'start',
     }));
 
-    // Generate tasks
+    // Generate or load tasks
     const regenerate = () => {
         const startTime = performance.now();
 
-        const newTasks = generateTasks(
-            taskCount(),
-            5,
-            15,
-            seed(),
-            ssPercent(),
-            maxLag(),
-        );
+        let newTasks;
+        if (dataSource() === 'json') {
+            // Load from JSON file
+            newTasks = calendarData.tasks;
+        } else {
+            // Generate on-the-fly
+            newTasks = generateTasks(
+                taskCount(),
+                5,
+                15,
+                seed(),
+                ssPercent(),
+                maxLag(),
+            );
+        }
         setTasks(newTasks);
 
         // Measure render time after DOM updates
@@ -337,34 +363,55 @@ export function GanttPerfDemo() {
 
                 <div style={controlsStyle}>
                     <label style={{ 'font-size': '13px' }}>
+                        Source:
+                        <select
+                            value={dataSource()}
+                            onChange={(e) => {
+                                setDataSource(e.target.value);
+                                regenerate();
+                            }}
+                            style={{
+                                ...inputStyle,
+                                width: '120px',
+                                cursor: 'pointer',
+                            }}
+                        >
+                            <option value="json">JSON ({calendarData.tasks.length})</option>
+                            <option value="generated">Generate</option>
+                        </select>
+                    </label>
+                    <label style={{ 'font-size': '13px', opacity: dataSource() === 'json' ? 0.5 : 1 }}>
                         Tasks:
                         <input
                             type="number"
                             value={taskCount()}
+                            disabled={dataSource() === 'json'}
                             onInput={(e) =>
                                 setTaskCount(parseInt(e.target.value) || 1000)
                             }
                             style={inputStyle}
                         />
                     </label>
-                    <label style={{ 'font-size': '13px' }}>
+                    <label style={{ 'font-size': '13px', opacity: dataSource() === 'json' ? 0.5 : 1 }}>
                         Seed:
                         <input
                             type="number"
                             value={seed()}
+                            disabled={dataSource() === 'json'}
                             onInput={(e) =>
                                 setSeed(parseInt(e.target.value) || 12345)
                             }
                             style={inputStyle}
                         />
                     </label>
-                    <label style={{ 'font-size': '13px' }}>
+                    <label style={{ 'font-size': '13px', opacity: dataSource() === 'json' ? 0.5 : 1 }}>
                         SS%:
                         <input
                             type="number"
                             value={ssPercent()}
                             min="0"
                             max="100"
+                            disabled={dataSource() === 'json'}
                             onInput={(e) =>
                                 setSSPercent(
                                     Math.max(
@@ -379,13 +426,14 @@ export function GanttPerfDemo() {
                             style={{ ...inputStyle, width: '60px' }}
                         />
                     </label>
-                    <label style={{ 'font-size': '13px' }}>
+                    <label style={{ 'font-size': '13px', opacity: dataSource() === 'json' ? 0.5 : 1 }}>
                         Max Lag:
                         <input
                             type="number"
                             value={maxLag()}
                             min="1"
                             max="10"
+                            disabled={dataSource() === 'json'}
                             onInput={(e) =>
                                 setMaxLag(
                                     Math.max(

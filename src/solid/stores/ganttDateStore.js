@@ -51,8 +51,9 @@ export function createGanttDateStore(options = {}) {
     const unit = createMemo(() => parsedStep().scale);
     const step = createMemo(() => parsedStep().duration);
 
-    // Column width (from view mode or default)
-    const columnWidth = createMemo(() => viewMode().column_width || 45);
+    // Column width - use options override if provided, else view mode default
+    const [columnWidthOverride] = createSignal(options.columnWidth || options.column_width || null);
+    const columnWidth = createMemo(() => columnWidthOverride() || viewMode().column_width || 45);
 
     // Grid width in pixels
     const gridWidth = createMemo(() => dateCount() * columnWidth());

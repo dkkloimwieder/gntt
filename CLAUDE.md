@@ -13,6 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `pnpm build-dev` - Build in watch mode for development
 - `pnpm dev` - Start Vite development server with hot reload
 - `pnpm run dev:solid` - Start SolidJS demo server (showcase, bar, arrow demos)
+- `pnpm run generate:calendar` - Generate test calendar data (see Performance Testing below)
 - Test changes: Open `index.html` in browser after building
 
 ### Code Quality
@@ -89,6 +90,64 @@ set_dimensions() → set_scroll_position()
 - **Pending**: Public API wrapper (`new Gantt()`), view mode switching, infinite scroll
 
 See `SOLID_ARCHITECTURE.md` for detailed documentation. Run `pnpm run dev:solid` and open http://localhost:5173/gantt-demo.html for the main demo.
+
+## Performance Testing
+
+The SolidJS implementation includes a task generator for performance testing with realistic calendar data.
+
+### Quick Start
+```bash
+pnpm run generate:calendar          # Generate 200 tasks
+pnpm run dev:solid                   # Start dev server
+# Open http://localhost:5173/gantt-perf.html
+```
+
+### Task Generator
+
+Located at `src/solid/scripts/generateCalendar.js`, generates `src/solid/data/calendar.json`.
+
+**Features:**
+- Cross-resource dependency chains (tasks in a group span different resources A-Z)
+- No overlap per resource (concurrency = 1)
+- Workday-aware scheduling (08:00-17:00, rolls over to next day)
+- Mixed FS/SS dependencies with configurable lag
+- Seeded random for reproducible results
+
+**CLI Options:**
+```bash
+node src/solid/scripts/generateCalendar.js --help
+node src/solid/scripts/generateCalendar.js --tasks=300 --seed=54321 --ss=30
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--tasks=N` | 200 | Total number of tasks |
+| `--seed=N` | 12345 | Random seed for reproducibility |
+| `--ss=N` | 20 | Percentage of SS (Start-to-Start) dependencies |
+| `--minGroup=N` | 5 | Minimum tasks per dependency group |
+| `--maxGroup=N` | 20 | Maximum tasks per dependency group |
+| `--start=DATE` | 2025-01-01 | Start date (YYYY-MM-DD) |
+
+**Generated Data Structure:**
+```javascript
+{
+  id: "task-1",
+  name: "G1-1",              // Group 1, Task 1
+  start: "2025-01-01 08:00", // Workday-aware
+  end: "2025-01-01 16:00",
+  progress: 87,
+  color: "#3b82f6",
+  color_progress: "#3b82f6cc",
+  dependencies: "task-0" | { id, type: "SS", lag: 2 },
+  resource: "E"              // A-Z, no overlap on same resource
+}
+```
+
+**Key Files:**
+- `src/solid/utils/taskGenerator.js` - Shared generation logic
+- `src/solid/scripts/generateCalendar.js` - CLI script
+- `src/solid/data/calendar.json` - Generated test data
+- `src/solid/components/GanttPerfDemo.jsx` - Performance test UI
 
 ## Development Workflow
 

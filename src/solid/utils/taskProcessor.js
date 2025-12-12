@@ -172,7 +172,6 @@ export function processTasks(tasks, config) {
 
         const y = computeY(
             rowIndex,
-            config.headerHeight,
             config.barHeight,
             config.padding,
         );

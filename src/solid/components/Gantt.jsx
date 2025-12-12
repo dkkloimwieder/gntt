@@ -30,8 +30,8 @@ export function Gantt(props) {
     const ganttConfig = createGanttConfigStore(props.options || {});
     const dateStore = createGanttDateStore(props.options || {});
 
-    // Container reference for scroll control
-    let containerApi = null;
+    // Container reference for scroll control (reactive so effects can depend on it)
+    const [containerApi, setContainerApi] = createSignal(null);
 
     // Relationships state
     const [relationships, setRelationships] = createSignal([]);
@@ -166,14 +166,17 @@ export function Gantt(props) {
 
     const gridWidth = createMemo(() => dateStore.gridWidth());
 
-    const gridHeight = createMemo(() => {
-        const hh = ganttConfig.headerHeight();
+    // SVG height - content area only (NO headerHeight)
+    // Headers are now rendered separately outside the SVG
+    // Rows start at y=0, so total height = count * rowHeight
+    const svgHeight = createMemo(() => {
         const bh = ganttConfig.barHeight();
         const pad = ganttConfig.padding();
         // Use resource count for swimlane layout
         const count = resourceCount() || taskCount();
+        const rowHeight = bh + pad;
 
-        return hh + pad + count * (bh + pad);
+        return count * rowHeight;
     });
 
     // Date infos for headers and ticks
@@ -217,19 +220,38 @@ export function Gantt(props) {
     };
 
     const handleContainerReady = (api) => {
-        containerApi = api;
+        setContainerApi(api);
 
-        // Set initial scroll position
-        if (props.options?.scroll_to) {
-            const scrollTo = props.options.scroll_to;
-            if (scrollTo === 'today') {
-                const todayX = dateStore.dateToX(new Date());
-                api.scrollTo(todayX - api.getContainerWidth() / 4, false);
-            } else if (scrollTo === 'start') {
-                api.scrollTo(0, false);
-            }
+        // Handle 'today' scroll immediately (doesn't depend on tasks)
+        if (props.options?.scroll_to === 'today') {
+            const todayX = dateStore.dateToX(new Date());
+            api.scrollTo(todayX - api.getContainerWidth() / 4, false);
         }
     };
+
+    // Track if initial scroll to 'start' has been done
+    let initialScrollDone = false;
+
+    // Effect to scroll to first task when tasks are loaded
+    // This handles scroll_to: 'start' which depends on tasks being ready
+    createEffect(() => {
+        const tasks = taskStore.tasks();
+        const api = containerApi(); // Access signal to create dependency
+        if (
+            !initialScrollDone &&
+            api &&
+            props.options?.scroll_to === 'start' &&
+            tasks &&
+            tasks.size > 0
+        ) {
+            const firstTask = tasks.values().next().value;
+            if (firstTask?.$bar?.x) {
+                // Scroll to first task with some left margin
+                api.scrollTo(Math.max(0, firstTask.$bar.x - 50), false);
+                initialScrollDone = true;
+            }
+        }
+    });
 
     // Header heights from options
     const upperHeaderHeight = () => props.options?.upper_header_height || 45;
@@ -249,14 +271,16 @@ export function Gantt(props) {
             <GanttContainer
                 ganttConfig={ganttConfig}
                 svgWidth={gridWidth()}
-                svgHeight={gridHeight()}
+                svgHeight={svgHeight()}
+                headerHeight={ganttConfig.headerHeight()}
+                resourceColumnWidth={60}
+                resourceHeaderLabel="Resource"
                 onContainerReady={handleContainerReady}
                 resourceColumn={
                     <ResourceColumn
                         resources={resources()}
                         ganttConfig={ganttConfig}
                         width={60}
-                        headerLabel="Resource"
                     />
                 }
                 header={
@@ -272,8 +296,7 @@ export function Gantt(props) {
                 {/* Grid background and rows */}
                 <Grid
                     width={gridWidth()}
-                    height={gridHeight()}
-                    headerHeight={ganttConfig.headerHeight()}
+                    height={svgHeight()}
                     barHeight={ganttConfig.barHeight()}
                     padding={ganttConfig.padding()}
                     taskCount={resourceCount() || taskCount()}
@@ -282,8 +305,7 @@ export function Gantt(props) {
                 {/* Grid lines */}
                 <GridTicks
                     width={gridWidth()}
-                    height={gridHeight()}
-                    headerHeight={ganttConfig.headerHeight()}
+                    height={svgHeight()}
                     columnWidth={dateStore.columnWidth()}
                     barHeight={ganttConfig.barHeight()}
                     padding={ganttConfig.padding()}

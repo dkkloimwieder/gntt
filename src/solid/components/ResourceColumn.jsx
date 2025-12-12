@@ -1,66 +1,44 @@
 import { For } from 'solid-js';
 
 /**
- * ResourceColumn - Renders a sticky left column showing unique resources (swimlanes).
- * Positioned with CSS sticky to stay fixed during horizontal scroll.
+ * ResourceColumn - Renders the resource labels for swimlane rows.
+ * No longer includes header - that's now handled by GanttContainer.
+ * Cell positions start at y=0 (or padding/2) to align with SVG content.
  */
 export function ResourceColumn(props) {
     // Get unique resources list
     const resources = () => props.resources || [];
 
     // Configuration from ganttConfig
-    const headerHeight = () => props.ganttConfig?.headerHeight?.() ?? 75;
     const barHeight = () => props.ganttConfig?.barHeight?.() ?? 30;
     const padding = () => props.ganttConfig?.padding?.() ?? 18;
     const columnWidth = () => props.width ?? 60;
 
-    // Calculate total height to match SVG (same formula as Gantt.jsx gridHeight)
+    // Row height (bar + padding)
+    const rowHeight = () => barHeight() + padding();
+
+    // Calculate total height for the resource body
+    // Rows start at y=0, so total height = count * rowHeight
     const totalHeight = () => {
         const count = resources().length;
-        const hh = headerHeight();
-        const pad = padding();
-        const rowHeight = barHeight() + pad;
-        return hh + pad / 2 + count * rowHeight + pad / 2;
+        const rh = rowHeight();
+        return count * rh;
     };
 
-    // Styles
+    // Container style
     const containerStyle = () => ({
-        position: 'sticky',
-        left: 0,
-        'z-index': 9,
-        width: `${columnWidth()}px`,
-        'min-width': `${columnWidth()}px`,
-        height: `${totalHeight()}px`,
-        'background-color': 'var(--g-resource-bg, #fff)',
-        'border-right': '1px solid var(--g-grid-line-color, #e0e0e0)',
-        'flex-shrink': 0,
-    });
-
-    const headerStyle = () => ({
-        position: 'sticky',
-        top: 0,
-        height: `${headerHeight()}px`,
-        display: 'flex',
-        'align-items': 'center',
-        'justify-content': 'center',
-        'font-weight': 600,
-        'font-size': '12px',
-        'background-color': 'var(--g-header-bg-color, #fff)',
-        'border-bottom': '1px solid var(--g-grid-line-color, #e0e0e0)',
-        'z-index': 11,
-        color: 'var(--g-header-text-color, #333)',
-    });
-
-    const rowsContainerStyle = () => ({
         position: 'relative',
+        width: `${columnWidth()}px`,
+        height: `${totalHeight()}px`,
     });
 
+    // Cell style - positioned to align with SVG task bars (centered in row)
+    // Formula matches computeY: index * rowHeight + padding/2
     const cellStyle = (index) => {
-        // Cell top must match SVG row Y: headerHeight + padding/2 + index * (barHeight + padding)
-        const hh = headerHeight();
         const bh = barHeight();
         const pad = padding();
-        const cellTop = hh + pad / 2 + index * (bh + pad);
+        const rowHeight = bh + pad;
+        const cellTop = index * rowHeight + pad / 2;
         return {
             position: 'absolute',
             left: 0,
@@ -77,20 +55,17 @@ export function ResourceColumn(props) {
 
     return (
         <div class="resource-column" style={containerStyle()}>
-            {/* Resource labels - positioned absolutely from top to match SVG coordinates */}
-            <div class="resource-rows" style={rowsContainerStyle()}>
-                <For each={resources()}>
-                    {(resource, index) => (
-                        <div
-                            class="resource-cell"
-                            style={cellStyle(index())}
-                            data-resource={resource}
-                        >
-                            {resource}
-                        </div>
-                    )}
-                </For>
-            </div>
+            <For each={resources()}>
+                {(resource, index) => (
+                    <div
+                        class="resource-cell"
+                        style={cellStyle(index())}
+                        data-resource={resource}
+                    >
+                        {resource}
+                    </div>
+                )}
+            </For>
         </div>
     );
 }

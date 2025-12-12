@@ -3,6 +3,7 @@ import { createMemo, For } from 'solid-js';
 /**
  * Grid - Renders the SVG background and row rectangles.
  * Provides visual structure for the Gantt chart.
+ * Row positions are relative to SVG content (no header offset).
  */
 export function Grid(props) {
     // Grid dimensions
@@ -16,22 +17,20 @@ export function Grid(props) {
         return barHeight + padding;
     };
 
-    const headerHeight = () => props.headerHeight || 75;
     const taskCount = () => props.taskCount || 0;
 
-    // Calculate rows - must align with barCalculations.computeY
-    // computeY uses: headerHeight + padding/2 + index * (barHeight + padding)
+    // Calculate rows - rows fill the full height from y=0
+    // Each row has height = barHeight + padding
+    // Task bars are centered within rows (at padding + index * rowHeight)
     const rows = createMemo(() => {
         const count = taskCount();
         const rh = rowHeight();
-        const hh = headerHeight();
-        const pad = props.padding || 18;
 
         const result = [];
         for (let i = 0; i < count; i++) {
             result.push({
                 index: i,
-                y: hh + pad / 2 + i * rh,
+                y: i * rh,
                 height: rh,
             });
         }
