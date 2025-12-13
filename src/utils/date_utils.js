@@ -6,6 +6,20 @@ const MINUTE = 'minute';
 const SECOND = 'second';
 const MILLISECOND = 'millisecond';
 
+// Cache Intl.DateTimeFormat instances to avoid expensive constructor calls
+// Key: locale, Value: { long: DateTimeFormat, short: DateTimeFormat }
+const formatterCache = new Map();
+
+function getFormatters(lang) {
+    if (!formatterCache.has(lang)) {
+        formatterCache.set(lang, {
+            long: new Intl.DateTimeFormat(lang, { month: 'long' }),
+            short: new Intl.DateTimeFormat(lang, { month: 'short' }),
+        });
+    }
+    return formatterCache.get(lang);
+}
+
 export default {
     parse_duration(duration) {
         const regex = /([0-9]+)(y|min|ms|m|d|h|s)/gm;
@@ -79,13 +93,9 @@ export default {
     },
 
     format(date, date_format = 'YYYY-MM-DD HH:mm:ss.SSS', lang = 'en') {
-        const dateTimeFormat = new Intl.DateTimeFormat(lang, {
-            month: 'long',
-        });
-        const dateTimeFormatShort = new Intl.DateTimeFormat(lang, {
-            month: 'short',
-        });
-        const month_name = dateTimeFormat.format(date);
+        // Use cached formatters instead of creating new ones every call
+        const formatters = getFormatters(lang);
+        const month_name = formatters.long.format(date);
         const month_name_capitalized =
             month_name.charAt(0).toUpperCase() + month_name.slice(1);
 
@@ -100,7 +110,7 @@ export default {
             SSS: values[6],
             D: values[2],
             MMMM: month_name_capitalized,
-            MMM: dateTimeFormatShort.format(date),
+            MMM: formatters.short.format(date),
         };
 
         let str = date_format;

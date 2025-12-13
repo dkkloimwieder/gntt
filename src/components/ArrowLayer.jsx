@@ -4,10 +4,19 @@ import { Arrow } from './Arrow.jsx';
 /**
  * ArrowLayer - Container for all dependency arrows.
  * Maps dependencies to Arrow components.
+ * Supports row virtualization - only renders arrows connected to visible rows.
  */
 export function ArrowLayer(props) {
-    // Get dependencies from relationships
-    const dependencies = createMemo(() => {
+    // Viewport range for row virtualization
+    const startRow = () => props.startRow ?? 0;
+    const endRow = () => props.endRow ?? Infinity;
+
+    // Viewport range for horizontal (X) virtualization
+    const startX = () => props.startX ?? 0;
+    const endX = () => props.endX ?? Infinity;
+
+    // Get all dependencies from relationships
+    const allDependencies = createMemo(() => {
         const rels = props.relationships || [];
         const deps = [];
 
@@ -26,6 +35,54 @@ export function ArrowLayer(props) {
         }
 
         return deps;
+    });
+
+    // Filter to only arrows connected to visible rows AND within visible X range
+    const dependencies = createMemo(() => {
+        const all = allDependencies();
+        const rowStart = startRow();
+        const rowEnd = endRow();
+        const sx = startX();
+        const ex = endX();
+
+        // If no task store, return all
+        if (!props.taskStore) {
+            return all;
+        }
+
+        return all.filter((dep) => {
+            const fromTask = props.taskStore.getTask(dep.fromId);
+            const toTask = props.taskStore.getTask(dep.toId);
+
+            // Row visibility check (if row filtering is enabled)
+            if (rowEnd !== Infinity) {
+                const fromRow = fromTask?._resourceIndex ?? -1;
+                const toRow = toTask?._resourceIndex ?? -1;
+
+                const buffer = 2;
+                const rowVisible =
+                    (fromRow >= rowStart - buffer && fromRow <= rowEnd + buffer) ||
+                    (toRow >= rowStart - buffer && toRow <= rowEnd + buffer);
+
+                if (!rowVisible) return false;
+            }
+
+            // X visibility check (if X filtering is enabled)
+            if (ex !== Infinity) {
+                const fromX = fromTask?.$bar?.x ?? 0;
+                const fromWidth = fromTask?.$bar?.width ?? 0;
+                const toX = toTask?.$bar?.x ?? 0;
+                const toWidth = toTask?.$bar?.width ?? 0;
+
+                // Arrow is visible if either endpoint's bar overlaps viewport
+                const fromVisible = fromX + fromWidth >= sx && fromX <= ex;
+                const toVisible = toX + toWidth >= sx && toX <= ex;
+
+                if (!fromVisible && !toVisible) return false;
+            }
+
+            return true;
+        });
     });
 
     // Arrow configuration from props or defaults

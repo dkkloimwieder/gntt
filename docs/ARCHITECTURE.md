@@ -781,6 +781,41 @@ pnpm prettier    # Format code
 4. **Cleanup**: Remove legacy adapters, consolidate demo components
 5. **Grid line fix**: Missing horizontal line between row A and B (first row top border issue)
 
+### Performance Optimizations Implemented
+
+See `PERFORMANCE.md` for detailed documentation.
+
+| Optimization | Impact |
+|--------------|--------|
+| scrollTo fix (direct scrollLeft) | 5,000ms → 2,100ms (58% faster) |
+| SVG pattern for grid lines | 2,100ms → 1,800ms (14% faster) |
+| Intl.DateTimeFormat caching | 1,800ms → 1,138ms (37% faster) |
+| DateHeaders column virtualization | 1,138ms → 568ms (50% faster) |
+| Row-level task grouping | Foundation for row virtualization |
+| Arrow row virtualization | Filters by visible row range |
+| **Horizontal task/arrow virtualization** | **10K tasks: ~30ms re-render** |
+
+**Total improvement**: 99.5% for 10K tasks (5,519ms → ~30ms re-render)
+
+**Virtualization Architecture**:
+```
+Gantt.jsx
+├── viewportXRange: { startX, endX } in pixels (200px buffer)
+├── viewportCols: { startCol, endCol } for DateHeaders
+└── viewportRows: { startRow, endRow } for row filtering
+
+TaskLayer.jsx
+└── filterByViewportX(tasks) → only bars overlapping viewport
+
+ArrowLayer.jsx
+└── Filter by row AND X position → only arrows with visible endpoints
+
+DateHeaders.jsx
+└── Render only columns[startCol:endCol]
+```
+
+With 10K tasks: 10,000 bars → ~11 rendered, 9,179 arrows → ~11 rendered
+
 ### Known Limitations
 
 - No SSR support (SVG rendering is client-side only)

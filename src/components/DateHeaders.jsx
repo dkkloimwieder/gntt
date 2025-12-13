@@ -15,12 +15,18 @@ export function DateHeaders(props) {
     // Date infos from ganttDateStore
     const dateInfos = () => props.dateInfos || [];
 
+    // Viewport range for virtualization
+    const startCol = () => props.startCol ?? 0;
+    const endCol = () => props.endCol ?? dateInfos().length;
+
     // Group upper text entries (only render when text changes)
-    const upperTextEntries = createMemo(() => {
+    // Pre-compute ALL entries for proper grouping, then filter visible
+    const allUpperTextEntries = createMemo(() => {
         const infos = dateInfos();
         const entries = [];
         let currentText = null;
         let startX = 0;
+        let startIndex = 0;
 
         for (let i = 0; i < infos.length; i++) {
             const info = infos[i];
@@ -32,11 +38,14 @@ export function DateHeaders(props) {
                         text: currentText,
                         x: startX,
                         width: info.x - startX,
+                        startIndex,
+                        endIndex: i - 1,
                     });
                 }
                 // Start new entry
                 currentText = info.upperText;
                 startX = info.x;
+                startIndex = i;
             }
         }
 
@@ -46,21 +55,42 @@ export function DateHeaders(props) {
                 text: currentText,
                 x: startX,
                 width: gridWidth() - startX,
+                startIndex,
+                endIndex: infos.length - 1,
             });
         }
 
         return entries;
     });
 
-    // Lower text entries (one per column)
+    // Filter upper entries to only those overlapping visible range
+    const upperTextEntries = createMemo(() => {
+        const all = allUpperTextEntries();
+        const start = startCol();
+        const end = endCol();
+
+        return all.filter(
+            (entry) => entry.endIndex >= start && entry.startIndex <= end,
+        );
+    });
+
+    // Lower text entries - VIRTUALIZED: only visible range
     const lowerTextEntries = createMemo(() => {
         const infos = dateInfos();
-        return infos.map((info, index) => ({
-            text: info.lowerText,
-            x: info.x,
-            width: info.width || columnWidth(),
-            index,
-        }));
+        const start = Math.max(0, startCol());
+        const end = Math.min(infos.length, endCol());
+
+        const entries = [];
+        for (let i = start; i < end; i++) {
+            const info = infos[i];
+            entries.push({
+                text: info.lowerText,
+                x: info.x,
+                width: info.width || columnWidth(),
+                index: i,
+            });
+        }
+        return entries;
     });
 
     // Styles

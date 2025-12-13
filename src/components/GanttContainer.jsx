@@ -17,6 +17,7 @@ export function GanttContainer(props) {
     const [scrollLeft, setScrollLeft] = createSignal(0);
     const [scrollTop, setScrollTop] = createSignal(0);
     const [containerWidth, setContainerWidth] = createSignal(0);
+    const [viewportHeight, setViewportHeight] = createSignal(0);
 
     // Resource column width
     const resourceColumnWidth = () => props.resourceColumnWidth || 60;
@@ -71,6 +72,7 @@ export function GanttContainer(props) {
             const resizeObserver = new ResizeObserver((entries) => {
                 for (const entry of entries) {
                     setContainerWidth(entry.contentRect.width);
+                    setViewportHeight(entry.contentRect.height);
                 }
             });
             resizeObserver.observe(scrollAreaRef);
@@ -78,13 +80,19 @@ export function GanttContainer(props) {
             onCleanup(() => resizeObserver.disconnect());
         }
 
-        // Expose scroll API to parent
+        // Expose scroll API and viewport info to parent
         props.onContainerReady?.({
             scrollTo,
             getScrollLeft: () => scrollLeft(),
             getScrollTop: () => scrollTop(),
             getContainerWidth: () => containerWidth(),
+            getContainerHeight: () => viewportHeight(),
             getSvgElement: () => svgRef,
+            // Expose signals for reactive updates
+            scrollLeftSignal: scrollLeft,
+            scrollTopSignal: scrollTop,
+            containerWidthSignal: containerWidth,
+            containerHeightSignal: viewportHeight,
         });
     });
 

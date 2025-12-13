@@ -6,7 +6,6 @@ import { processTasks, findDateBounds } from '../utils/taskProcessor.js';
 
 import { GanttContainer } from './GanttContainer.jsx';
 import { Grid } from './Grid.jsx';
-import { GridTicks } from './GridTicks.jsx';
 import { DateHeaders } from './DateHeaders.jsx';
 import { ResourceColumn } from './ResourceColumn.jsx';
 import { TaskLayer } from './TaskLayer.jsx';
@@ -32,6 +31,12 @@ export function Gantt(props) {
 
     // Container reference for scroll control (reactive so effects can depend on it)
     const [containerApi, setContainerApi] = createSignal(null);
+
+    // Viewport state for virtualization
+    const [scrollLeft, setScrollLeft] = createSignal(0);
+    const [scrollTop, setScrollTop] = createSignal(0);
+    const [viewportWidth, setViewportWidth] = createSignal(0);
+    const [viewportHeight, setViewportHeight] = createSignal(0);
 
     // Relationships state
     const [relationships, setRelationships] = createSignal([]);
@@ -182,6 +187,58 @@ export function Gantt(props) {
     // Date infos for headers and ticks
     const dateInfos = createMemo(() => dateStore.getAllDateInfos());
 
+    // Row height for viewport calculations
+    const rowHeight = createMemo(() => ganttConfig.barHeight() + ganttConfig.padding());
+
+    // Viewport range calculations for virtualization
+    const BUFFER_COLS = 5; // Extra columns to render outside viewport
+    const BUFFER_ROWS = 3; // Extra rows to render outside viewport
+
+    // Column range for DateHeaders virtualization
+    const viewportCols = createMemo(() => {
+        const colWidth = dateStore.columnWidth();
+        const sl = scrollLeft();
+        const vw = viewportWidth();
+
+        if (colWidth <= 0 || vw <= 0) {
+            return { startCol: 0, endCol: 100 }; // Fallback for initial render
+        }
+
+        const startCol = Math.max(0, Math.floor(sl / colWidth) - BUFFER_COLS);
+        const endCol = Math.ceil((sl + vw) / colWidth) + BUFFER_COLS;
+
+        return { startCol, endCol };
+    });
+
+    // Pixel-based X range for TaskLayer/ArrowLayer horizontal virtualization
+    const BUFFER_X = 200; // Extra pixels to render outside viewport
+    const viewportXRange = createMemo(() => {
+        const sl = scrollLeft();
+        const vw = viewportWidth();
+
+        return {
+            startX: Math.max(0, sl - BUFFER_X),
+            endX: sl + vw + BUFFER_X,
+        };
+    });
+
+    // Row range for Grid, TaskLayer, ResourceColumn, ArrowLayer virtualization
+    const viewportRows = createMemo(() => {
+        const rh = rowHeight();
+        const st = scrollTop();
+        const vh = viewportHeight();
+        const totalRows = resourceCount() || taskCount();
+
+        if (rh <= 0 || vh <= 0) {
+            return { startRow: 0, endRow: Math.min(totalRows, 30) }; // Fallback
+        }
+
+        const startRow = Math.max(0, Math.floor(st / rh) - BUFFER_ROWS);
+        const endRow = Math.min(totalRows, Math.ceil((st + vh) / rh) + BUFFER_ROWS);
+
+        return { startRow, endRow };
+    });
+
     // Event handlers
     const handleDateChange = (taskId, position) => {
         props.onDateChange?.(taskId, position);
@@ -221,6 +278,24 @@ export function Gantt(props) {
 
     const handleContainerReady = (api) => {
         setContainerApi(api);
+
+        // Initialize viewport dimensions
+        setViewportWidth(api.getContainerWidth());
+        setViewportHeight(api.getContainerHeight());
+
+        // Subscribe to reactive signals from container
+        if (api.scrollLeftSignal) {
+            createEffect(() => setScrollLeft(api.scrollLeftSignal()));
+        }
+        if (api.scrollTopSignal) {
+            createEffect(() => setScrollTop(api.scrollTopSignal()));
+        }
+        if (api.containerWidthSignal) {
+            createEffect(() => setViewportWidth(api.containerWidthSignal()));
+        }
+        if (api.containerHeightSignal) {
+            createEffect(() => setViewportHeight(api.containerHeightSignal()));
+        }
 
         // Handle 'today' scroll immediately (doesn't depend on tasks)
         if (props.options?.scroll_to === 'today') {
@@ -281,6 +356,8 @@ export function Gantt(props) {
                         resources={resources()}
                         ganttConfig={ganttConfig}
                         width={60}
+                        startRow={viewportRows().startRow}
+                        endRow={viewportRows().endRow}
                     />
                 }
                 header={
@@ -290,28 +367,23 @@ export function Gantt(props) {
                         gridWidth={gridWidth()}
                         upperHeaderHeight={upperHeaderHeight()}
                         lowerHeaderHeight={lowerHeaderHeight()}
+                        startCol={viewportCols().startCol}
+                        endCol={viewportCols().endCol}
                     />
                 }
             >
-                {/* Grid background and rows */}
+                {/* Grid background, rows, and vertical lines (via SVG pattern) */}
                 <Grid
                     width={gridWidth()}
                     height={svgHeight()}
                     barHeight={ganttConfig.barHeight()}
                     padding={ganttConfig.padding()}
                     taskCount={resourceCount() || taskCount()}
-                />
-
-                {/* Grid lines */}
-                <GridTicks
-                    width={gridWidth()}
-                    height={svgHeight()}
                     columnWidth={dateStore.columnWidth()}
-                    barHeight={ganttConfig.barHeight()}
-                    padding={ganttConfig.padding()}
-                    taskCount={resourceCount() || taskCount()}
                     dateInfos={dateInfos()}
                     lines={props.options?.lines || 'both'}
+                    startRow={viewportRows().startRow}
+                    endRow={viewportRows().endRow}
                 />
 
                 {/* Dependency arrows */}
@@ -319,6 +391,10 @@ export function Gantt(props) {
                     taskStore={taskStore}
                     relationships={relationships()}
                     arrowConfig={arrowConfig()}
+                    startRow={viewportRows().startRow}
+                    endRow={viewportRows().endRow}
+                    startX={viewportXRange().startX}
+                    endX={viewportXRange().endX}
                 />
 
                 {/* Task bars */}
@@ -326,12 +402,17 @@ export function Gantt(props) {
                     taskStore={taskStore}
                     ganttConfig={ganttConfig}
                     relationships={relationships()}
+                    resources={resources()}
                     onDateChange={handleDateChange}
                     onProgressChange={handleProgressChange}
                     onResizeEnd={handleResizeEnd}
                     onTaskClick={handleTaskClick}
                     onHover={handleTaskHover}
                     onHoverEnd={handleTaskHoverEnd}
+                    startRow={viewportRows().startRow}
+                    endRow={viewportRows().endRow}
+                    startX={viewportXRange().startX}
+                    endX={viewportXRange().endX}
                 />
             </GanttContainer>
 
