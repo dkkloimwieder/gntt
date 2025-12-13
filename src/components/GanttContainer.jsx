@@ -1,4 +1,5 @@
 import { createSignal, onMount, onCleanup } from 'solid-js';
+import { throttle } from '@solid-primitives/scheduled';
 
 /**
  * GanttContainer - Main wrapper component with scroll handling.
@@ -29,18 +30,23 @@ export function GanttContainer(props) {
         return 60;
     };
 
+    // Throttled scroll position updates for virtualization (16ms = 60fps)
+    // This reduces recalculation overhead while maintaining smooth scrolling
+    const throttledSetScrollLeft = throttle(setScrollLeft, 16);
+    const throttledSetScrollTop = throttle(setScrollTop, 16);
+
     // Handle scroll in main scroll area - sync other panels
     const handleScroll = (e) => {
         const { scrollLeft: sl, scrollTop: st } = e.target;
-        setScrollLeft(sl);
-        setScrollTop(st);
 
-        // Sync date headers horizontal scroll
+        // Throttle signal updates (triggers virtualization recalc)
+        throttledSetScrollLeft(sl);
+        throttledSetScrollTop(st);
+
+        // Direct DOM sync for visual smoothness (no throttle)
         if (dateHeadersRef) {
             dateHeadersRef.scrollLeft = sl;
         }
-
-        // Sync resource body vertical scroll
         if (resourceBodyRef) {
             resourceBodyRef.scrollTop = st;
         }

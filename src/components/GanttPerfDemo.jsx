@@ -1,4 +1,5 @@
-import { createSignal, createEffect, createMemo, onMount } from 'solid-js';
+import { createSignal, createEffect, createMemo, onMount, onCleanup } from 'solid-js';
+import { createRAF } from '@solid-primitives/raf';
 import { Gantt } from './Gantt.jsx';
 import calendarData from '../data/calendar.json';
 
@@ -186,6 +187,20 @@ export function GanttPerfDemo() {
     const [renderTime, setRenderTime] = createSignal(null);
     const [domStats, setDomStats] = createSignal({ tasks: 0, arrows: 0 });
     const [viewMode, setViewMode] = createSignal('Hour'); // Hour, Day, Week, Month, Year
+    const [fps, setFps] = createSignal(0);
+
+    // FPS counter using RAF
+    let frameCount = 0;
+    let lastFpsUpdate = performance.now();
+    const [, startFpsCounter] = createRAF((timestamp) => {
+        frameCount++;
+        const elapsed = timestamp - lastFpsUpdate;
+        if (elapsed >= 1000) {
+            setFps(Math.round((frameCount * 1000) / elapsed));
+            frameCount = 0;
+            lastFpsUpdate = timestamp;
+        }
+    });
 
     // Gantt options - reactive based on viewMode
     const upperHeaderHeight = 35;
@@ -224,24 +239,29 @@ export function GanttPerfDemo() {
         setTasks(newTasks);
 
         // Measure render time after DOM updates
+        // Use multiple RAF cycles + setTimeout to ensure SolidJS has fully rendered
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
-                const endTime = performance.now();
-                setRenderTime((endTime - startTime).toFixed(1));
+                // Additional microtask to ensure all reactive updates complete
+                setTimeout(() => {
+                    const endTime = performance.now();
+                    setRenderTime((endTime - startTime).toFixed(1));
 
-                // Count DOM elements
-                const taskElements =
-                    document.querySelectorAll('.bar-wrapper').length;
-                const arrowElements =
-                    document.querySelectorAll('.arrow-layer > g').length;
-                setDomStats({ tasks: taskElements, arrows: arrowElements });
+                    // Count DOM elements in visible viewport
+                    const taskElements =
+                        document.querySelectorAll('.bar-wrapper').length;
+                    const arrowElements =
+                        document.querySelectorAll('.arrow-layer > g').length;
+                    setDomStats({ tasks: taskElements, arrows: arrowElements });
+                }, 0);
             });
         });
     };
 
-    // Initial generation
+    // Initial generation and FPS counter
     onMount(() => {
         regenerate();
+        startFpsCounter();
     });
 
     // Event handlers
@@ -357,6 +377,15 @@ export function GanttPerfDemo() {
                         <span style={statLabelStyle}>Render:</span>
                         <span style={statValueStyle}>
                             {renderTime() ? `${renderTime()}ms` : '...'}
+                        </span>
+                    </div>
+                    <div style={statItemStyle}>
+                        <span style={statLabelStyle}>FPS:</span>
+                        <span style={{
+                            ...statValueStyle,
+                            color: fps() >= 55 ? '#10b981' : fps() >= 30 ? '#f59e0b' : '#ef4444'
+                        }}>
+                            {fps()}
                         </span>
                     </div>
                 </div>

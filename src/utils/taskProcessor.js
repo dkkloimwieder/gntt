@@ -1,5 +1,6 @@
 import date_utils from './date_utils.js';
 import { computeX, computeY, computeWidth } from './barCalculations.js';
+import { detectCycles } from './constraintResolver.js';
 
 /**
  * Generate a unique ID for a task.
@@ -207,6 +208,15 @@ export function processTasks(tasks, config) {
                 });
             }
         }
+    }
+
+    // Check for cycles in dependency graph
+    const cycleResult = detectCycles(relationships);
+    if (cycleResult.hasCycle) {
+        console.warn(
+            `Circular dependency detected: ${cycleResult.cycle.join(' → ')}`,
+            '\nThis may cause unexpected behavior during task dragging.'
+        );
     }
 
     return { tasks: processedTasks, relationships, resources };

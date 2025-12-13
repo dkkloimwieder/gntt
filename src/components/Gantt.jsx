@@ -146,12 +146,23 @@ export function Gantt(props) {
         }
     });
 
-    // Watch for view mode changes - track previous to avoid loops
-    let prevViewMode = props.options?.view_mode;
+    // Watch for options changes and sync to config store
+    // This ensures store stays in sync when parent passes new options
+    // Note: dateStore handles view_mode changes via the separate effect below
+    createEffect(() => {
+        const opts = props.options;
+        if (opts) {
+            ganttConfig.updateOptions(opts);
+        }
+    });
+
+    // Watch for view mode changes - use signal to track previous value
+    const [prevViewMode, setPrevViewMode] = createSignal(props.options?.view_mode);
     createEffect(() => {
         const viewMode = props.options?.view_mode;
-        if (viewMode && viewMode !== prevViewMode) {
-            prevViewMode = viewMode;
+        const prev = prevViewMode();
+        if (viewMode && viewMode !== prev) {
+            setPrevViewMode(viewMode);
             dateStore.changeViewMode(viewMode);
             // Re-initialize tasks with new view mode settings
             if (props.tasks && props.tasks.length > 0) {

@@ -32,6 +32,98 @@ export const DEPENDENCY_TYPES = {
 export const DEFAULT_LAG = 0;
 
 /**
+ * Detect cycles in the dependency graph using DFS with three-color marking.
+ * Returns the first cycle found, or null if no cycles exist.
+ *
+ * Colors: 0 = white (unvisited), 1 = gray (in progress), 2 = black (finished)
+ *
+ * @param {Array} relationships - Array of relationship objects with from/to fields
+ * @returns {{ hasCycle: boolean, cycle: string[]|null }} Result with cycle path if found
+ */
+export function detectCycles(relationships) {
+    // Build adjacency list
+    const graph = new Map();
+    const allNodes = new Set();
+
+    for (const rel of relationships) {
+        const from = rel.from ?? rel.predecessorId;
+        const to = rel.to ?? rel.successorId;
+        if (!from || !to) continue;
+
+        allNodes.add(from);
+        allNodes.add(to);
+
+        if (!graph.has(from)) {
+            graph.set(from, []);
+        }
+        graph.get(from).push(to);
+    }
+
+    // Three-color DFS
+    const color = new Map(); // 0=white, 1=gray, 2=black
+    const parent = new Map(); // For reconstructing cycle path
+
+    for (const node of allNodes) {
+        color.set(node, 0);
+    }
+
+    // DFS from each unvisited node
+    for (const startNode of allNodes) {
+        if (color.get(startNode) !== 0) continue;
+
+        const stack = [{ node: startNode, iterator: null }];
+        color.set(startNode, 1); // Mark gray
+
+        while (stack.length > 0) {
+            const current = stack[stack.length - 1];
+            const neighbors = graph.get(current.node) || [];
+
+            // Initialize iterator on first visit
+            if (current.iterator === null) {
+                current.iterator = 0;
+            }
+
+            let foundUnvisited = false;
+            while (current.iterator < neighbors.length) {
+                const neighbor = neighbors[current.iterator];
+                current.iterator++;
+
+                const neighborColor = color.get(neighbor);
+
+                if (neighborColor === 1) {
+                    // Found a back edge - cycle detected!
+                    // Reconstruct cycle path
+                    const cycle = [neighbor];
+                    for (let i = stack.length - 1; i >= 0; i--) {
+                        cycle.unshift(stack[i].node);
+                        if (stack[i].node === neighbor) break;
+                    }
+                    return { hasCycle: true, cycle };
+                }
+
+                if (neighborColor === 0) {
+                    // Unvisited - explore it
+                    color.set(neighbor, 1);
+                    parent.set(neighbor, current.node);
+                    stack.push({ node: neighbor, iterator: null });
+                    foundUnvisited = true;
+                    break;
+                }
+                // neighborColor === 2: already finished, skip
+            }
+
+            if (!foundUnvisited) {
+                // All neighbors processed - mark as finished
+                color.set(current.node, 2);
+                stack.pop();
+            }
+        }
+    }
+
+    return { hasCycle: false, cycle: null };
+}
+
+/**
  * Find all tasks connected by fixed (non-elastic) relationships.
  * Traverses bidirectionally through fixed links.
  *
@@ -178,11 +270,11 @@ export function calculatePushAmount(type, predTask, succTask, lagPx, predNewX) {
  * @param {Array} relationships - Array of relationship objects
  * @param {Object} options - Optional configuration
  * @param {number} options.pixelsPerTimeUnit - Conversion factor for lag (default: 1)
- * @param {number} depth - Recursion depth (max 10)
+ * @param {Set} visited - Set of task IDs already in the resolution chain (for cycle detection)
  * @returns {Object|null} Result object:
  *   - { type: 'single', taskId, x, y } for single task update
  *   - { type: 'batch', updates: [...] } for fixed batch update
- *   - null if movement is blocked
+ *   - null if movement is blocked (locked task or cycle detected)
  */
 export function resolveMovement(
     taskId,
@@ -191,10 +283,17 @@ export function resolveMovement(
     taskStore,
     relationships,
     options = {},
-    depth = 0,
+    visited = new Set(),
 ) {
-    // Prevent infinite recursion
-    if (depth > 10) return null;
+    // Cycle detection: if we're already resolving this task, we've hit a cycle
+    if (visited.has(taskId)) {
+        console.warn(`Cycle detected in dependency chain involving task: ${taskId}`);
+        return null;
+    }
+
+    // Add this task to the resolution chain
+    const newVisited = new Set(visited);
+    newVisited.add(taskId);
 
     const { pixelsPerTimeUnit = 1 } = options;
 
@@ -288,7 +387,7 @@ export function resolveMovement(
                         taskStore,
                         relationships,
                         options,
-                        depth + 1,
+                        newVisited,
                     );
                     if (result?.type === 'single') {
                         taskStore.updateBarPosition(otherTaskId, {
@@ -550,7 +649,7 @@ export function resolveAfterResize(
                     taskStore,
                     relationships,
                     options,
-                    0,
+                    new Set([taskId]), // Start with this task as already visited
                 );
                 if (result?.type === 'single') {
                     taskStore.updateBarPosition(rel.to, {
