@@ -44,30 +44,14 @@ export function Bar(props) {
         };
     };
 
-    // Configuration from ganttConfig or direct props
-    const config = createMemo(() => ({
-        barCornerRadius:
-            props.ganttConfig?.barCornerRadius?.() ?? props.cornerRadius ?? 3,
-        readonly: props.ganttConfig?.readonly?.() ?? props.readonly ?? false,
-        readonlyDates:
-            props.ganttConfig?.readonlyDates?.() ??
-            props.readonlyDates ??
-            false,
-        readonlyProgress:
-            props.ganttConfig?.readonlyProgress?.() ??
-            props.readonlyProgress ??
-            false,
-        showExpectedProgress:
-            props.ganttConfig?.showExpectedProgress?.() ??
-            props.showExpectedProgress ??
-            false,
-        columnWidth:
-            props.ganttConfig?.columnWidth?.() ?? props.columnWidth ?? 45,
-        ignoredPositions:
-            props.ganttConfig?.ignoredPositions?.() ??
-            props.ignoredPositions ??
-            [],
-    }));
+    // Configuration - inline accessors (no memo needed for rarely-changing values)
+    const barCornerRadius = () => props.ganttConfig?.barCornerRadius?.() ?? props.cornerRadius ?? 3;
+    const readonly = () => props.ganttConfig?.readonly?.() ?? props.readonly ?? false;
+    const readonlyDates = () => props.ganttConfig?.readonlyDates?.() ?? props.readonlyDates ?? false;
+    const readonlyProgress = () => props.ganttConfig?.readonlyProgress?.() ?? props.readonlyProgress ?? false;
+    const showExpectedProgress = () => props.ganttConfig?.showExpectedProgress?.() ?? props.showExpectedProgress ?? false;
+    const columnWidth = () => props.ganttConfig?.columnWidth?.() ?? props.columnWidth ?? 45;
+    const ignoredPositions = () => props.ganttConfig?.ignoredPositions?.() ?? props.ignoredPositions ?? [];
 
     // Task data - read fresh from store if available
     const task = () => {
@@ -85,7 +69,7 @@ export function Bar(props) {
     const height = () => getPosition()?.height ?? 30;
 
     // Minimum bar width (one column)
-    const minWidth = () => config().columnWidth;
+    const minWidth = () => columnWidth();
 
     // Track if a drag occurred (to distinguish click from drag)
     const [didDrag, setDidDrag] = createSignal(false);
@@ -125,8 +109,8 @@ export function Bar(props) {
             // Mark that a drag occurred (used to distinguish click from drag)
             setDidDrag(true);
 
-            const colWidth = config().columnWidth;
-            const ignored = config().ignoredPositions;
+            const colWidth = columnWidth();
+            const ignored = ignoredPositions();
 
             if (state === 'dragging_bar') {
                 // Bar movement - snap to grid
@@ -224,8 +208,8 @@ export function Bar(props) {
                 // Progress handle - update progress percentage
                 const barX = x();
                 const barWidth = width();
-                const ignored = config().ignoredPositions;
-                const colWidth = config().columnWidth;
+                const ignored = ignoredPositions();
+                const colWidth = columnWidth();
 
                 // Calculate new progress X position
                 let newProgressX = clamp(
@@ -299,7 +283,7 @@ export function Bar(props) {
     // ═══════════════════════════════════════════════════════════════════════════
 
     const handleBarMouseDown = (e) => {
-        if (config().readonly || config().readonlyDates || isLocked()) {
+        if (readonly() || readonlyDates() || isLocked()) {
             return;
         }
 
@@ -335,19 +319,19 @@ export function Bar(props) {
     };
 
     const handleLeftHandleMouseDown = (e) => {
-        if (config().readonly || config().readonlyDates || isLocked()) return;
+        if (readonly() || readonlyDates() || isLocked()) return;
         e.stopPropagation();
         startDrag(e, 'dragging_left', { taskId: task().id });
     };
 
     const handleRightHandleMouseDown = (e) => {
-        if (config().readonly || config().readonlyDates || isLocked()) return;
+        if (readonly() || readonlyDates() || isLocked()) return;
         e.stopPropagation();
         startDrag(e, 'dragging_right', { taskId: task().id });
     };
 
     const handleProgressMouseDown = (e) => {
-        if (config().readonly || config().readonlyProgress || isLocked())
+        if (readonly() || readonlyProgress() || isLocked())
             return;
         e.stopPropagation();
         startDrag(e, 'dragging_progress', { taskId: task().id });
@@ -364,14 +348,14 @@ export function Bar(props) {
             x(),
             width(),
             progress,
-            config().ignoredPositions,
-            config().columnWidth,
+            ignoredPositions(),
+            columnWidth(),
         );
     });
 
     // Expected progress width (if enabled)
     const expectedProgressWidth = createMemo(() => {
-        if (!config().showExpectedProgress) return 0;
+        if (!showExpectedProgress()) return 0;
 
         const taskStart = task()._start ?? task().start;
         const taskEnd = task()._end ?? task().end;
@@ -388,8 +372,8 @@ export function Bar(props) {
             x(),
             width(),
             expectedPercent,
-            config().ignoredPositions,
-            config().columnWidth,
+            ignoredPositions(),
+            columnWidth(),
         );
     });
 
@@ -413,10 +397,10 @@ export function Bar(props) {
     const customClass = () => task().custom_class ?? '';
 
     // Handle visibility (show when not fully readonly)
-    const showHandles = () => !config().readonly;
-    const showDateHandles = () => showHandles() && !config().readonlyDates;
+    const showHandles = () => !readonly();
+    const showDateHandles = () => showHandles() && !readonlyDates();
     const showProgressHandle = () =>
-        showHandles() && !config().readonlyProgress;
+        showHandles() && !readonlyProgress();
 
     // Locked state (from constraint system)
     const isLocked = () => task().constraints?.locked ?? false;
@@ -442,7 +426,7 @@ export function Bar(props) {
             style={{
                 cursor: isLocked()
                     ? 'not-allowed'
-                    : config().readonly
+                    : readonly()
                       ? 'default'
                       : 'move',
                 visibility: visible() ? 'visible' : 'hidden',
@@ -456,8 +440,8 @@ export function Bar(props) {
                     y={y()}
                     width={width()}
                     height={height()}
-                    rx={config().barCornerRadius}
-                    ry={config().barCornerRadius}
+                    rx={barCornerRadius()}
+                    ry={barCornerRadius()}
                     class="bar"
                     style={{
                         fill: isLocked()
@@ -477,7 +461,7 @@ export function Bar(props) {
                 {/* Expected progress bar (behind actual progress) */}
                 <Show
                     when={
-                        config().showExpectedProgress &&
+                        showExpectedProgress() &&
                         expectedProgressWidth() > 0
                     }
                 >
@@ -486,8 +470,8 @@ export function Bar(props) {
                         y={y()}
                         width={expectedProgressWidth()}
                         height={height()}
-                        rx={config().barCornerRadius}
-                        ry={config().barCornerRadius}
+                        rx={barCornerRadius()}
+                        ry={barCornerRadius()}
                         class="bar-expected-progress"
                         style={{ fill: expectedProgressColor() }}
                     />
@@ -499,8 +483,8 @@ export function Bar(props) {
                     y={y()}
                     width={progressWidth()}
                     height={height()}
-                    rx={config().barCornerRadius}
-                    ry={config().barCornerRadius}
+                    rx={barCornerRadius()}
+                    ry={barCornerRadius()}
                     class="bar-progress"
                     style={{ fill: progressColor() }}
                 />

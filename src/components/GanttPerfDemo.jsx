@@ -24,6 +24,12 @@ export function GanttPerfDemo() {
     const [verticalStressTestRunning, setVerticalStressTestRunning] = createSignal(false);
     const [scrollEventsPerSec, setScrollEventsPerSec] = createSignal(0);
 
+    // Buffer controls for testing virtualization tradeoffs
+    const [overscanRows, setOverscanRows] = createSignal(5);
+    const [overscanX, setOverscanX] = createSignal(600);
+    const [overscanCols, setOverscanCols] = createSignal(5);
+    const [heapSize, setHeapSize] = createSignal(null);
+
     // Frame timing tracking
     let lastFrameTime = performance.now();
     let frameTimes = [];
@@ -62,6 +68,11 @@ export function GanttPerfDemo() {
                 setScrollEventsPerSec(Math.round((scrollEventCount * 1000) / scrollElapsed));
                 scrollEventCount = 0;
                 lastScrollCountUpdate = timestamp;
+            }
+
+            // Memory tracking (Chrome only)
+            if (performance.memory) {
+                setHeapSize((performance.memory.usedJSHeapSize / 1048576).toFixed(1));
             }
         }
     });
@@ -295,6 +306,10 @@ export function GanttPerfDemo() {
                         <span style={styles.statLabel}>Scroll/s:</span>
                         <span style={styles.statValue}>{scrollEventsPerSec()}</span>
                     </div>
+                    <div style={styles.statItem}>
+                        <span style={styles.statLabel}>Heap:</span>
+                        <span style={styles.statValue}>{heapSize() ? `${heapSize()}MB` : 'N/A'}</span>
+                    </div>
                 </div>
 
                 <div style={styles.controls}>
@@ -325,12 +340,37 @@ export function GanttPerfDemo() {
                         {verticalStressTestRunning() ? 'Stop' : 'V-Scroll'}
                     </button>
                 </div>
+
+                <div style={{ display: 'flex', gap: '15px', 'align-items': 'center', 'font-size': '12px', color: '#6b7280' }}>
+                    <span style={{ 'font-weight': 'bold' }}>Buffers:</span>
+                    <label style={{ display: 'flex', 'align-items': 'center', gap: '4px' }}>
+                        Rows:
+                        <input type="range" min="1" max="30" value={overscanRows()}
+                               onInput={(e) => setOverscanRows(+e.target.value)} style={{ width: '60px' }} />
+                        <span style={{ 'min-width': '20px' }}>{overscanRows()}</span>
+                    </label>
+                    <label style={{ display: 'flex', 'align-items': 'center', gap: '4px' }}>
+                        X:
+                        <input type="range" min="200" max="3000" step="100" value={overscanX()}
+                               onInput={(e) => setOverscanX(+e.target.value)} style={{ width: '60px' }} />
+                        <span style={{ 'min-width': '45px' }}>{overscanX()}px</span>
+                    </label>
+                    <label style={{ display: 'flex', 'align-items': 'center', gap: '4px' }}>
+                        Cols:
+                        <input type="range" min="1" max="30" value={overscanCols()}
+                               onInput={(e) => setOverscanCols(+e.target.value)} style={{ width: '60px' }} />
+                        <span style={{ 'min-width': '20px' }}>{overscanCols()}</span>
+                    </label>
+                </div>
             </div>
 
             <div style={styles.ganttWrapper}>
                 <Gantt
                     tasks={tasks()}
                     options={options()}
+                    overscanRows={overscanRows()}
+                    overscanX={overscanX()}
+                    overscanCols={overscanCols()}
                     onDateChange={(id, pos) => console.log('Date changed:', id, pos)}
                     onProgressChange={(id, prog) => console.log('Progress changed:', id, prog)}
                     onTaskClick={(id) => console.log('Task clicked:', id)}

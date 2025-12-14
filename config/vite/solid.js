@@ -1,10 +1,15 @@
 import { resolve } from 'path';
 import { defineConfig } from 'vite';
+import solidPlugin from 'vite-plugin-solid';
+
+const root = resolve(__dirname, '../..');
 
 export default defineConfig({
+    root,
+    plugins: [solidPlugin()],
     build: {
         lib: {
-            entry: resolve(__dirname, 'src/index.js'),
+            entry: resolve(root, 'src/index.js'),
             name: 'Gantt',
             fileName: 'frappe-gantt',
         },
@@ -17,5 +22,9 @@ export default defineConfig({
         },
     },
     output: { interop: 'auto' },
-    server: { watch: { include: ['dist/*', 'src/*'] } }
+    server: {
+        watch: {
+            include: ['dist/*', 'src/**/*', 'examples/**/*']
+        }
+    }
 });

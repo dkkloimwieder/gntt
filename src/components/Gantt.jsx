@@ -212,9 +212,9 @@ export function Gantt(props) {
         columnWidth: () => dateStore.columnWidth(),
         rowHeight,
         totalRows: () => resourceCount() || taskCount(),
-        overscanCols: 5,
-        overscanRows: 5,
-        overscanX: 600,
+        overscanCols: props.overscanCols ?? 5,
+        overscanRows: props.overscanRows ?? 5,
+        overscanX: props.overscanX ?? 600,
     });
 
     // Event handlers
