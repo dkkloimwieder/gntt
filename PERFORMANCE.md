@@ -187,40 +187,54 @@ const dependencies = createMemo(() => {
 
 **Impact**: Reduces arrows when viewport shows subset of rows (no effect when all 26 rows visible)
 
-### 8. Horizontal Task/Arrow Virtualization
+### 8. Unified Viewport Virtualization
 
-**Problem**: With 10K tasks, all bars and arrows rendered regardless of horizontal scroll position (~5,500ms).
+**Problem**: With 10K tasks, all bars and arrows rendered regardless of scroll position (~5,500ms).
 
-**Solution**: Filter tasks and arrows by X position overlap with viewport.
+**Solution**: Created a single `createVirtualViewport.js` utility following the solid-primitives/virtual pattern. All components share one viewport calculation.
 
 **Files**:
-- `src/components/Gantt.jsx` - Added `viewportXRange` memo with `startX/endX` in pixels
-- `src/components/TaskLayer.jsx` - Filter tasks where `bar.x + bar.width >= startX && bar.x <= endX`
-- `src/components/ArrowLayer.jsx` - Filter arrows where either endpoint bar is in visible X range
+- `src/utils/createVirtualViewport.js` - **NEW** - Simple 2D viewport virtualization utility
+- `src/components/Gantt.jsx` - Uses single viewport for all components
+- `src/components/TaskLayer.jsx` - Filters tasks by row range and X range
+- `src/components/ArrowLayer.jsx` - Filters arrows by row range and X range
 
 ```jsx
-// Gantt.jsx - Pixel-based X range
-const BUFFER_X = 200; // Extra pixels to render outside viewport
-const viewportXRange = createMemo(() => {
-    const sl = scrollLeft();
-    const vw = viewportWidth();
-    return {
-        startX: Math.max(0, sl - BUFFER_X),
-        endX: sl + vw + BUFFER_X,
-    };
+// src/utils/createVirtualViewport.js - Simple pattern: offset / itemSize → visible range
+export function createVirtualViewport(config) {
+    const { scrollX, scrollY, viewportWidth, viewportHeight, columnWidth, rowHeight, totalRows,
+            overscanCols = 5, overscanRows = 3, overscanX = 600 } = config;
+
+    const colRange = createMemo(() => ({
+        start: Math.max(0, Math.floor(scrollX() / columnWidth()) - overscanCols),
+        end: Math.ceil((scrollX() + viewportWidth()) / columnWidth()) + overscanCols,
+    }));
+
+    const rowRange = createMemo(() => ({
+        start: Math.max(0, Math.floor(scrollY() / rowHeight()) - overscanRows),
+        end: Math.min(totalRows(), Math.ceil((scrollY() + viewportHeight()) / rowHeight()) + overscanRows),
+    }));
+
+    const xRange = createMemo(() => ({
+        start: Math.max(0, scrollX() - overscanX),
+        end: scrollX() + viewportWidth() + overscanX,
+    }));
+
+    return { colRange, rowRange, xRange };
+}
+
+// Gantt.jsx - Single viewport shared by all components
+const viewport = createVirtualViewport({
+    scrollX: scrollLeft, scrollY: scrollTop, viewportWidth, viewportHeight,
+    columnWidth: () => dateStore.columnWidth(), rowHeight, totalRows: () => resourceCount(),
 });
 
-// TaskLayer.jsx - Filter by X position
-const filterByViewportX = (taskList) => {
-    const sx = startX();
-    const ex = endX();
-    if (ex === Infinity) return taskList;
-    return taskList.filter((task) => {
-        const bar = task.$bar;
-        if (!bar) return true;
-        return bar.x + bar.width >= sx && bar.x <= ex;
-    });
-};
+// All components use the same viewport:
+<DateHeaders startCol={viewport.colRange().start} endCol={viewport.colRange().end} />
+<TaskLayer startRow={viewport.rowRange().start} endRow={viewport.rowRange().end}
+           startX={viewport.xRange().start} endX={viewport.xRange().end} />
+<ArrowLayer startRow={viewport.rowRange().start} endRow={viewport.rowRange().end}
+            startX={viewport.xRange().start} endX={viewport.xRange().end} />
 ```
 
 **Impact**: 99.9% reduction in rendered elements (10K → ~11), render time ~30ms
@@ -318,11 +332,12 @@ pnpm run dev:solid
 
 | File | Change |
 |------|--------|
+| `src/utils/createVirtualViewport.js` | **NEW** - Simple 2D viewport virtualization utility |
 | `src/components/Grid.jsx` | SVG pattern for vertical lines |
 | `src/components/GanttContainer.jsx` | Direct scrollLeft assignment, viewport signals |
-| `src/components/Gantt.jsx` | Viewport range calculations, removed GridTicks |
+| `src/components/Gantt.jsx` | Uses createVirtualViewport for unified virtualization |
 | `src/components/DateHeaders.jsx` | Column virtualization |
-| `src/components/TaskLayer.jsx` | Row grouping, row virtualization |
-| `src/components/ArrowLayer.jsx` | Arrow virtualization by visible rows |
+| `src/components/TaskLayer.jsx` | Row and X filtering via viewport ranges |
+| `src/components/ArrowLayer.jsx` | Row and X filtering via viewport ranges |
 | `src/components/GridTicks.jsx` | Can be deleted (unused) |
 | `src/utils/date_utils.js` | Cached Intl.DateTimeFormat instances |

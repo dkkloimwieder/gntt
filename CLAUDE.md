@@ -77,6 +77,7 @@ The SolidJS implementation uses reactive stores for state management:
 **Utilities:**
 - `barCalculations.js` - Position/size calculations from dates
 - `constraintResolver.js` - Dependency constraint enforcement (FS/SS/FF/SF)
+- `createVirtualViewport.js` - Simple 2D viewport virtualization
 - `taskGenerator.js` - Test data generation
 
 See `docs/ARCHITECTURE.md` for detailed documentation.

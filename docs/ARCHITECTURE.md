@@ -72,6 +72,7 @@ src/
 ├── utils/
 │   ├── barCalculations.js  # Pure functions for bar geometry
 │   ├── constraintResolver.js # Task relationship constraints
+│   ├── createVirtualViewport.js # Simple 2D viewport virtualization
 │   ├── taskProcessor.js    # Task parsing and position computation
 │   └── taskGenerator.js    # Test data generation
 ├── hooks/
@@ -390,6 +391,42 @@ Pure functions for computing bar geometry.
 
 ---
 
+### Viewport Virtualization (`createVirtualViewport.js`)
+
+Simple 2D viewport virtualization following the solid-primitives/virtual pattern.
+
+**Pattern**: `offset / itemSize → visible range`
+
+**API**:
+```javascript
+import { createVirtualViewport } from '../utils/createVirtualViewport.js';
+
+const viewport = createVirtualViewport({
+    scrollX: scrollLeft,           // Horizontal scroll position signal
+    scrollY: scrollTop,            // Vertical scroll position signal
+    viewportWidth,                 // Viewport width signal
+    viewportHeight,                // Viewport height signal
+    columnWidth: () => 45,         // Column width accessor
+    rowHeight: () => 28,           // Row height accessor
+    totalRows: () => 100,          // Total row count accessor
+    overscanCols: 5,               // Extra columns to render
+    overscanRows: 5,               // Extra rows to render
+    overscanX: 600,                // Extra pixels for X range
+});
+
+// Returns reactive ranges:
+viewport.colRange()   // { start: 0, end: 64 } - for DateHeaders
+viewport.rowRange()   // { start: 0, end: 30 } - for Grid, TaskLayer, ArrowLayer
+viewport.xRange()     // { start: 0, end: 1800 } - for TaskLayer, ArrowLayer X filtering
+```
+
+**Usage**:
+- Single viewport calculation shared by ALL components in Gantt.jsx
+- No throttling, no hysteresis - pure reactive updates
+- Components filter their own content based on viewport ranges
+
+---
+
 ### Constraint Resolver (`constraintResolver.js`)
 
 Handles relationship constraints between tasks.
@@ -561,28 +598,31 @@ Interactive props showcase for all task and connector configuration options.
 
 ### GanttPerfDemo (`/examples/perf.html`) - **Performance Testing**
 
-Performance testing demo with configurable task generation and SS+lag constraints.
+Performance testing demo with pre-generated calendar data and stress tests.
 
 **Features**:
-- Configurable task count (default 100)
-- Seeded random generation for reproducibility
-- SS% control: Percentage of Start-to-Start constraints (0-100%)
-- Max Lag control: Maximum lag days for SS constraints (1-10)
-- Render time measurement
-- DOM element counting (tasks, arrows)
+- Loads pre-generated calendar data from `src/data/calendar.json`
+- FPS counter and frame timing metrics
+- Horizontal scroll stress test (H-Scroll button)
+- Vertical scroll stress test (V-Scroll button)
+- View mode selector (Hour/Day/Week/Month)
 
-**SS+Lag Constraint Generation**:
-- SS constraints position successor relative to predecessor's START date
-- Lag specifies days after predecessor starts
-- With short lag and long tasks, creates visible overlap (parallel work)
+**Metrics Displayed**:
+| Metric | Description |
+|--------|-------------|
+| Tasks | Number of task bars currently in DOM |
+| Arrows | Number of dependency arrows currently in DOM |
+| Render | Initial render time (ms) |
+| FPS | Current frames per second |
+| Worst | Worst frame time in last 60 frames |
+| Avg | Average frame time in last 60 frames |
+| Scroll/s | Scroll events per second (during stress test) |
 
-**Controls**:
-| Control | Default | Description |
-|---------|---------|-------------|
-| Tasks | 100 | Number of tasks to generate |
-| Seed | 12345 | Random seed for reproducibility |
-| SS% | 20 | Percentage of dependencies using SS+lag |
-| Max Lag | 5 | Maximum lag days (random 1 to Max Lag) |
+**To generate test data**:
+```bash
+pnpm run generate:calendar              # Generate 200 tasks (default)
+node src/scripts/generateCalendar.js --tasks=500  # Custom count
+```
 
 **Run**: `pnpm run dev:solid` → http://localhost:5173/examples/perf.html
 
@@ -793,25 +833,23 @@ See `PERFORMANCE.md` for detailed documentation.
 | DateHeaders column virtualization | 1,138ms → 568ms (50% faster) |
 | Row-level task grouping | Foundation for row virtualization |
 | Arrow row virtualization | Filters by visible row range |
-| **Horizontal task/arrow virtualization** | **10K tasks: ~30ms re-render** |
+| **Unified viewport virtualization** | **10K tasks: ~30ms re-render** |
 
 **Total improvement**: 99.5% for 10K tasks (5,519ms → ~30ms re-render)
 
 **Virtualization Architecture**:
 ```
+src/utils/createVirtualViewport.js
+└── Single utility providing:
+    ├── colRange()  → DateHeaders (which columns to render)
+    ├── rowRange()  → Grid, TaskLayer, ArrowLayer (which rows)
+    └── xRange()    → TaskLayer, ArrowLayer (X pixel filtering)
+
 Gantt.jsx
-├── viewportXRange: { startX, endX } in pixels (200px buffer)
-├── viewportCols: { startCol, endCol } for DateHeaders
-└── viewportRows: { startRow, endRow } for row filtering
+└── viewport = createVirtualViewport({...})
+    └── Shared by ALL components (single calculation)
 
-TaskLayer.jsx
-└── filterByViewportX(tasks) → only bars overlapping viewport
-
-ArrowLayer.jsx
-└── Filter by row AND X position → only arrows with visible endpoints
-
-DateHeaders.jsx
-└── Render only columns[startCol:endCol]
+Pattern: offset / itemSize → visible range (solid-primitives/virtual)
 ```
 
 With 10K tasks: 10,000 bars → ~11 rendered, 9,179 arrows → ~11 rendered
