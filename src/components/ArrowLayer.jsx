@@ -18,7 +18,6 @@ export function ArrowLayer(props) {
     // Get all dependencies from relationships and index by "from" task's row
     // This avoids O(n) iteration on every scroll - instead we do O(visible_rows)
     const dependenciesByRow = createMemo(() => {
-        const t0 = performance.now();
         const rels = props.relationships || [];
         const byRow = new Map(); // resourceIndex → dependencies[]
 
@@ -73,29 +72,12 @@ export function ArrowLayer(props) {
             }
         }
 
-        const elapsed = performance.now() - t0;
-        if (elapsed > 1) {
-            console.log(`[ArrowLayer] dependenciesByRow build: ${elapsed.toFixed(2)}ms, ${rels.length} relationships`);
-        }
-
         return byRow;
     });
-
-    // Track arrow filter calls per second
-    let arrowFilterCallCount = 0;
-    let lastArrowFilterLogTime = performance.now();
 
     // Filter to only arrows connected to visible rows AND within visible X range
     // Now O(visible_rows * deps_per_row) instead of O(all_dependencies)
     const dependencies = createMemo(() => {
-        const t0 = performance.now();
-        arrowFilterCallCount++;
-        const now = performance.now();
-        if (now - lastArrowFilterLogTime > 1000) {
-            console.log(`[ArrowLayer] filter calls/sec: ${arrowFilterCallCount}`);
-            arrowFilterCallCount = 0;
-            lastArrowFilterLogTime = now;
-        }
         const byRow = dependenciesByRow();
         const rowStart = startRow();
         const rowEnd = endRow();
@@ -133,11 +115,6 @@ export function ArrowLayer(props) {
 
                 result.push(dep);
             }
-        }
-
-        const elapsed = performance.now() - t0;
-        if (elapsed > 1) {
-            console.log(`[ArrowLayer] dependencies filter: ${elapsed.toFixed(2)}ms, ${result.length} arrows`);
         }
 
         return result;

@@ -155,7 +155,6 @@ export function TaskLayer(props) {
 
     // Group tasks by resource for row-level rendering
     const tasksByResource = createMemo(() => {
-        const t0 = performance.now();
         const grouped = new Map();
         for (const task of tasks()) {
             const resource = task.resource || 'Unassigned';
@@ -163,10 +162,6 @@ export function TaskLayer(props) {
                 grouped.set(resource, []);
             }
             grouped.get(resource).push(task);
-        }
-        const elapsed = performance.now() - t0;
-        if (elapsed > 1) {
-            console.log(`[TaskLayer] tasksByResource recalc: ${elapsed.toFixed(2)}ms`);
         }
         return grouped;
     });
@@ -177,7 +172,6 @@ export function TaskLayer(props) {
 
     // Create flat list of tasks filtered by BOTH row AND X range
     const visibleTasks = createMemo(() => {
-        const t0 = performance.now();
         const result = [];
         const resList = resources();
         const startIdx = startRow();
@@ -204,10 +198,6 @@ export function TaskLayer(props) {
             }
         }
 
-        const elapsed = performance.now() - t0;
-        if (elapsed > 1) {
-            console.log(`[TaskLayer] visibleTasks filter: ${elapsed.toFixed(2)}ms, ${result.length} tasks`);
-        }
         return result;
     });
 

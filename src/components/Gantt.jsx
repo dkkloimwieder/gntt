@@ -1,9 +1,9 @@
 import { createSignal, createMemo, createEffect, onMount } from 'solid-js';
-import { throttle } from '@solid-primitives/scheduled';
 import { createTaskStore } from '../stores/taskStore.js';
 import { createGanttConfigStore } from '../stores/ganttConfigStore.js';
 import { createGanttDateStore } from '../stores/ganttDateStore.js';
 import { processTasks, findDateBounds } from '../utils/taskProcessor.js';
+import { createVirtualViewport } from '../utils/createVirtualViewport.js';
 
 import { GanttContainer } from './GanttContainer.jsx';
 import { Grid } from './Grid.jsx';
@@ -38,19 +38,6 @@ export function Gantt(props) {
     const [scrollTop, setScrollTop] = createSignal(0);
     const [viewportWidth, setViewportWidth] = createSignal(0);
     const [viewportHeight, setViewportHeight] = createSignal(0);
-
-    // Arrow-specific scroll signals with slower throttle (100ms vs 16ms)
-    // This reduces arrow filter recalcs from 60/sec to 10/sec
-    const [arrowScrollLeft, setArrowScrollLeft] = createSignal(0);
-    const [arrowScrollTop, setArrowScrollTop] = createSignal(0);
-    const throttledArrowScrollLeft = throttle(setArrowScrollLeft, 100);
-    const throttledArrowScrollTop = throttle(setArrowScrollTop, 100);
-
-    // Hysteresis for stable task viewport range
-    // Instead of throttling (which causes batch spikes), we use hysteresis
-    // to only update the range when scroll exceeds a threshold
-    const [committedXRange, setCommittedXRange] = createSignal({ startX: 0, endX: 3000 });
-    const [committedRowRange, setCommittedRowRange] = createSignal({ startRow: 0, endRow: 30 });
 
     // Relationships state
     const [relationships, setRelationships] = createSignal([]);
@@ -215,139 +202,19 @@ export function Gantt(props) {
     // Row height for viewport calculations
     const rowHeight = createMemo(() => ganttConfig.barHeight() + ganttConfig.padding());
 
-    // Viewport range calculations for virtualization
-    const BUFFER_COLS = 5; // Extra columns to render outside viewport
-    const BUFFER_ROWS = 3; // Extra rows to render outside viewport
-
-    // Column range for DateHeaders virtualization
-    const viewportCols = createMemo(() => {
-        const colWidth = dateStore.columnWidth();
-        const sl = scrollLeft();
-        const vw = viewportWidth();
-
-        if (colWidth <= 0 || vw <= 0) {
-            return { startCol: 0, endCol: 100 }; // Fallback for initial render
-        }
-
-        const startCol = Math.max(0, Math.floor(sl / colWidth) - BUFFER_COLS);
-        const endCol = Math.ceil((sl + vw) / colWidth) + BUFFER_COLS;
-
-        return { startCol, endCol };
-    });
-
-    // Pixel-based X range for Grid horizontal virtualization (uses main scroll)
-    const BUFFER_X = 600; // Extra pixels to render outside viewport (increased for smooth scroll)
-    const viewportXRange = createMemo(() => {
-        const sl = scrollLeft();
-        const vw = viewportWidth();
-
-        return {
-            startX: Math.max(0, sl - BUFFER_X),
-            endX: sl + vw + BUFFER_X,
-        };
-    });
-
-    // Task-specific viewport X range with HYSTERESIS (not throttle)
-    // Hysteresis prevents edge thrashing without batching DOM updates
-    // Only commits new range when scroll exceeds HYSTERESIS_X threshold
-    const TASK_BUFFER_X = 800; // Buffer for task visibility
-    const HYSTERESIS_X = 400; // Dead zone to prevent rapid range commits
-
-    const stableTaskXRange = createMemo(() => {
-        const sl = scrollLeft(); // Use main scroll (not throttled)
-        const vw = viewportWidth();
-        const newStart = Math.max(0, sl - TASK_BUFFER_X);
-        const newEnd = sl + vw + TASK_BUFFER_X;
-
-        const current = committedXRange();
-        const deltaStart = Math.abs(newStart - current.startX);
-        const deltaEnd = Math.abs(newEnd - current.endX);
-
-        // Only commit new range if change exceeds hysteresis threshold
-        if (deltaStart > HYSTERESIS_X || deltaEnd > HYSTERESIS_X) {
-            setCommittedXRange({ startX: newStart, endX: newEnd });
-            return { startX: newStart, endX: newEnd };
-        }
-
-        return current; // Return stable (cached) range
-    });
-
-    // Task-specific viewport ROW range with HYSTERESIS (not throttle)
-    // Same approach as X range - prevents edge thrashing during vertical scroll
-    // AGGRESSIVE values needed for smooth vertical scroll with 10k tasks
-    const TASK_BUFFER_ROWS = 25; // Buffer rows above/below viewport (was 5)
-    const HYSTERESIS_ROWS = 20; // Dead zone to prevent rapid range commits (was 3)
-
-    const stableRowRange = createMemo(() => {
-        const rh = rowHeight();
-        const st = scrollTop();
-        const vh = viewportHeight();
-        const totalRows = resourceCount() || taskCount();
-
-        if (rh <= 0 || vh <= 0) {
-            return { startRow: 0, endRow: Math.min(totalRows, 30) };
-        }
-
-        const newStart = Math.max(0, Math.floor(st / rh) - TASK_BUFFER_ROWS);
-        const newEnd = Math.min(totalRows, Math.ceil((st + vh) / rh) + TASK_BUFFER_ROWS);
-
-        const current = committedRowRange();
-        const deltaStart = Math.abs(newStart - current.startRow);
-        const deltaEnd = Math.abs(newEnd - current.endRow);
-
-        // Only commit new range if change exceeds hysteresis threshold
-        if (deltaStart > HYSTERESIS_ROWS || deltaEnd > HYSTERESIS_ROWS) {
-            setCommittedRowRange({ startRow: newStart, endRow: newEnd });
-            return { startRow: newStart, endRow: newEnd };
-        }
-
-        return current; // Return stable (cached) range
-    });
-
-    // Arrow-specific viewport ranges with slower update rate (100ms throttle)
-    // Uses wider buffer since updates are less frequent
-    const ARROW_BUFFER_X = 1000; // Wider buffer for arrow updates
-    const ARROW_BUFFER_ROWS = 5; // Extra buffer for arrow row updates
-
-    const arrowViewportXRange = createMemo(() => {
-        const sl = arrowScrollLeft();
-        const vw = viewportWidth();
-        return {
-            startX: Math.max(0, sl - ARROW_BUFFER_X),
-            endX: sl + vw + ARROW_BUFFER_X,
-        };
-    });
-
-    const arrowViewportRows = createMemo(() => {
-        const rh = rowHeight();
-        const st = arrowScrollTop();
-        const vh = viewportHeight();
-        const totalRows = resourceCount() || taskCount();
-
-        if (rh <= 0 || vh <= 0) {
-            return { startRow: 0, endRow: Math.min(totalRows, 30) };
-        }
-
-        const startRow = Math.max(0, Math.floor(st / rh) - ARROW_BUFFER_ROWS);
-        const endRow = Math.min(totalRows, Math.ceil((st + vh) / rh) + ARROW_BUFFER_ROWS);
-        return { startRow, endRow };
-    });
-
-    // Row range for Grid, TaskLayer, ResourceColumn, ArrowLayer virtualization
-    const viewportRows = createMemo(() => {
-        const rh = rowHeight();
-        const st = scrollTop();
-        const vh = viewportHeight();
-        const totalRows = resourceCount() || taskCount();
-
-        if (rh <= 0 || vh <= 0) {
-            return { startRow: 0, endRow: Math.min(totalRows, 30) }; // Fallback
-        }
-
-        const startRow = Math.max(0, Math.floor(st / rh) - BUFFER_ROWS);
-        const endRow = Math.min(totalRows, Math.ceil((st + vh) / rh) + BUFFER_ROWS);
-
-        return { startRow, endRow };
+    // Single viewport calculation - used by ALL components
+    // Simple virtualization: offset / itemSize → visible range
+    const viewport = createVirtualViewport({
+        scrollX: scrollLeft,
+        scrollY: scrollTop,
+        viewportWidth,
+        viewportHeight,
+        columnWidth: () => dateStore.columnWidth(),
+        rowHeight,
+        totalRows: () => resourceCount() || taskCount(),
+        overscanCols: 5,
+        overscanRows: 5,
+        overscanX: 600,
     });
 
     // Event handlers
@@ -406,15 +273,6 @@ export function Gantt(props) {
         }
         if (api.containerHeightSignal) {
             createEffect(() => setViewportHeight(api.containerHeightSignal()));
-        }
-
-        // Arrow signals with 100ms throttle (instead of 16ms for main scroll)
-        // This decouples arrow updates from main scroll for better performance
-        if (api.scrollLeftSignal) {
-            createEffect(() => throttledArrowScrollLeft(api.scrollLeftSignal()));
-        }
-        if (api.scrollTopSignal) {
-            createEffect(() => throttledArrowScrollTop(api.scrollTopSignal()));
         }
 
         // Handle 'today' scroll immediately (doesn't depend on tasks)
@@ -476,8 +334,8 @@ export function Gantt(props) {
                         resources={resources()}
                         ganttConfig={ganttConfig}
                         width={60}
-                        startRow={viewportRows().startRow}
-                        endRow={viewportRows().endRow}
+                        startRow={viewport.rowRange().start}
+                        endRow={viewport.rowRange().end}
                     />
                 }
                 header={
@@ -487,8 +345,8 @@ export function Gantt(props) {
                         gridWidth={gridWidth()}
                         upperHeaderHeight={upperHeaderHeight()}
                         lowerHeaderHeight={lowerHeaderHeight()}
-                        startCol={viewportCols().startCol}
-                        endCol={viewportCols().endCol}
+                        startCol={viewport.colRange().start}
+                        endCol={viewport.colRange().end}
                     />
                 }
             >
@@ -502,22 +360,22 @@ export function Gantt(props) {
                     columnWidth={dateStore.columnWidth()}
                     dateInfos={dateInfos()}
                     lines={props.options?.lines || 'both'}
-                    startRow={viewportRows().startRow}
-                    endRow={viewportRows().endRow}
+                    startRow={viewport.rowRange().start}
+                    endRow={viewport.rowRange().end}
                 />
 
-                {/* Dependency arrows - uses separate 100ms throttle for better scroll perf */}
+                {/* Dependency arrows */}
                 <ArrowLayer
                     taskStore={taskStore}
                     relationships={relationships()}
                     arrowConfig={arrowConfig()}
-                    startRow={arrowViewportRows().startRow}
-                    endRow={arrowViewportRows().endRow}
-                    startX={arrowViewportXRange().startX}
-                    endX={arrowViewportXRange().endX}
+                    startRow={viewport.rowRange().start}
+                    endRow={viewport.rowRange().end}
+                    startX={viewport.xRange().start}
+                    endX={viewport.xRange().end}
                 />
 
-                {/* Task bars - uses hysteresis for stable X range (not throttle) */}
+                {/* Task bars */}
                 <TaskLayer
                     taskStore={taskStore}
                     ganttConfig={ganttConfig}
@@ -529,10 +387,10 @@ export function Gantt(props) {
                     onTaskClick={handleTaskClick}
                     onHover={handleTaskHover}
                     onHoverEnd={handleTaskHoverEnd}
-                    startRow={stableRowRange().startRow}
-                    endRow={stableRowRange().endRow}
-                    startX={stableTaskXRange().startX}
-                    endX={stableTaskXRange().endX}
+                    startRow={viewport.rowRange().start}
+                    endRow={viewport.rowRange().end}
+                    startX={viewport.xRange().start}
+                    endX={viewport.xRange().end}
                 />
             </GanttContainer>
 
