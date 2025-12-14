@@ -155,6 +155,7 @@ export function TaskLayer(props) {
 
     // Group tasks by resource for row-level rendering
     const tasksByResource = createMemo(() => {
+        const t0 = performance.now();
         const grouped = new Map();
         for (const task of tasks()) {
             const resource = task.resource || 'Unassigned';
@@ -163,40 +164,49 @@ export function TaskLayer(props) {
             }
             grouped.get(resource).push(task);
         }
+        const elapsed = performance.now() - t0;
+        if (elapsed > 1) {
+            console.log(`[TaskLayer] tasksByResource recalc: ${elapsed.toFixed(2)}ms`);
+        }
         return grouped;
     });
 
-    // Get visible resources (for virtualization)
-    const visibleResources = createMemo(() => {
-        const allResources = resources();
-        const start = Math.max(0, startRow());
-        const end = Math.min(allResources.length, endRow());
-        return allResources.slice(start, end).map((resource, idx) => ({
+    // HYBRID APPROACH: Filter rows (reduce DOM) + X visibility (smooth horizontal scroll)
+    // This limits DOM to ~30 rows × tasks/row instead of ALL rows
+    const visibleResourcesWithIndex = createMemo(() => {
+        const sr = startRow();
+        const er = endRow();
+        const all = resources();
+
+        // Slice to only visible row range (reduces DOM size significantly)
+        return all.slice(sr, er).map((resource, idx) => ({
             resource,
-            rowIndex: start + idx,
+            rowIndex: sr + idx, // Preserve original index for positioning
         }));
     });
 
-    // Filter tasks by horizontal visibility (X position)
-    const filterByViewportX = (taskList) => {
+    // Check if a task is visible in the current X viewport
+    // Returns true if bar overlaps viewport range
+    const isTaskVisible = (task) => {
         const sx = startX();
         const ex = endX();
-        if (ex === Infinity) return taskList;
+        if (ex === Infinity) return true;
 
-        return taskList.filter((task) => {
-            const bar = task.$bar;
-            if (!bar) return true; // Include if no position yet
-            // Bar is visible if it overlaps viewport
-            return bar.x + bar.width >= sx && bar.x <= ex;
-        });
+        const bar = task.$bar;
+        if (!bar) return true; // Visible if no position yet
+        // Bar is visible if it overlaps viewport
+        return bar.x + bar.width >= sx && bar.x <= ex;
     };
 
     return (
         <g class="task-layer">
-            <For each={visibleResources()}>
+            {/* HYBRID: Filter rows (DOM reduction) + X visibility (smooth scroll) */}
+            <For each={visibleResourcesWithIndex()}>
                 {({ resource, rowIndex }) => {
+                    // Get ALL tasks for this resource
+                    // X-axis visibility is controlled via CSS, not array filtering
                     const resourceTasks = () =>
-                        filterByViewportX(tasksByResource().get(resource) || []);
+                        tasksByResource().get(resource) || [];
 
                     return (
                         <g
@@ -211,6 +221,7 @@ export function TaskLayer(props) {
                                         taskId={task.id}
                                         taskStore={props.taskStore}
                                         ganttConfig={props.ganttConfig}
+                                        visible={isTaskVisible(task)}
                                         onConstrainPosition={
                                             handleConstrainPosition
                                         }

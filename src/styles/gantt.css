@@ -322,8 +322,15 @@
         fill: var(--g-text-muted);
     }
 
+    /* Task row containment for better scroll performance */
+    & .task-row {
+        contain: layout style;
+    }
+
     & .bar-wrapper {
             cursor: pointer;
+            /* CSS containment for paint performance during scroll */
+            contain: layout style paint;
 
         & .bar {
             outline: 1px solid var(--g-row-border-color);

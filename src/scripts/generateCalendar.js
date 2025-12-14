@@ -5,14 +5,16 @@
  * Usage:
  *   node src/scripts/generateCalendar.js
  *   node src/scripts/generateCalendar.js --tasks=300 --seed=54321 --ss=30
+ *   node src/scripts/generateCalendar.js --tasks=10000 --resources=130
  *
  * Options:
- *   --tasks=N    Total number of tasks (default: 200)
- *   --seed=N     Random seed for reproducibility (default: 12345)
- *   --ss=N       Percentage of SS dependencies (default: 20)
- *   --minGroup=N Minimum group size (default: 5)
- *   --maxGroup=N Maximum group size (default: 20)
- *   --start=DATE Start date YYYY-MM-DD (default: 2025-01-01)
+ *   --tasks=N     Total number of tasks (default: 200)
+ *   --seed=N      Random seed for reproducibility (default: 12345)
+ *   --ss=N        Percentage of SS dependencies (default: 20)
+ *   --minGroup=N  Minimum group size (default: 5)
+ *   --maxGroup=N  Maximum group size (default: 20)
+ *   --start=DATE  Start date YYYY-MM-DD (default: 2025-01-01)
+ *   --resources=N Number of resources/rows (default: 26, A-Z)
  */
 
 import { writeFileSync, mkdirSync } from 'fs';
@@ -54,6 +56,12 @@ function parseArgs(args) {
             case 'start':
                 config.startDate = value;
                 break;
+            case 'resources':
+                config.resourceCount = parseInt(value, 10);
+                break;
+            case 'dense':
+                config.dense = value === undefined || value === 'true' || value === '1';
+                break;
             case 'help':
             case 'h':
                 console.log(`
@@ -63,13 +71,15 @@ Usage:
   node src/scripts/generateCalendar.js [options]
 
 Options:
-  --tasks=N    Total number of tasks (default: 200)
-  --seed=N     Random seed for reproducibility (default: 12345)
-  --ss=N       Percentage of SS dependencies (default: 20)
-  --minGroup=N Minimum group size (default: 5)
-  --maxGroup=N Maximum group size (default: 20)
-  --start=DATE Start date YYYY-MM-DD (default: 2025-01-01)
-  --help       Show this help message
+  --tasks=N     Total number of tasks (default: 200)
+  --seed=N      Random seed for reproducibility (default: 12345)
+  --ss=N        Percentage of SS dependencies (default: 20)
+  --minGroup=N  Minimum group size (default: 5)
+  --maxGroup=N  Maximum group size (default: 20)
+  --start=DATE  Start date YYYY-MM-DD (default: 2025-01-01)
+  --resources=N Number of resources/rows (default: 26, A-Z)
+  --dense       Pack tasks tightly (back-to-back, 1-5h, for stress testing)
+  --help        Show this help message
 `);
                 process.exit(0);
         }

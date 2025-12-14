@@ -428,6 +428,9 @@ export function Bar(props) {
     // RENDER
     // ═══════════════════════════════════════════════════════════════════════════
 
+    // Visibility prop for virtualization - hidden bars stay in DOM but are not painted
+    const visible = () => props.visible ?? true;
+
     return (
         <g
             class={`bar-wrapper ${customClass()} ${isInvalid() ? 'invalid' : ''} ${isLocked() ? 'locked' : ''} ${dragClass()}`}
@@ -442,6 +445,7 @@ export function Bar(props) {
                     : config().readonly
                       ? 'default'
                       : 'move',
+                visibility: visible() ? 'visible' : 'hidden',
             }}
         >
             {/* Main bar group */}

@@ -38,6 +38,7 @@ export const DEFAULT_CONFIG = {
     ssMaxLag: 5,
     resourceCount: 26,
     seed: 12345,
+    dense: false, // If true, pack tasks tightly for maximum viewport density
 };
 
 /**
@@ -165,10 +166,18 @@ function shuffleArray(random, array) {
  * Generate a calendar of tasks with CROSS-RESOURCE dependency chains.
  * Each dependency group spans multiple resources (A -> B -> C -> D, etc.)
  * Ensures no task overlap on the same resource (concurrency = 1).
+ *
+ * If cfg.dense is true, generates tightly packed tasks for stress testing.
  */
 export function generateCalendar(config = {}) {
     const cfg = { ...DEFAULT_CONFIG, ...config };
     const random = createRandom(cfg.seed);
+
+    // Use dense mode for tightly packed tasks
+    if (cfg.dense) {
+        return generateDenseCalendar(cfg, random);
+    }
+
     const tasks = [];
 
     // Create array of all resource labels (A-Z)
@@ -286,6 +295,80 @@ export function generateCalendar(config = {}) {
         // Stagger next group start (1-4 hours offset from original start)
         const groupStagger = randomBetween(random, 1, 4);
         currentDate = addHours(currentDate, groupStagger);
+    }
+
+    return tasks;
+}
+
+/**
+ * Generate densely packed tasks for stress testing.
+ * Creates back-to-back tasks on each resource with FS dependencies per row.
+ * All resources start at the same time for maximum viewport density.
+ */
+function generateDenseCalendar(cfg, random) {
+    const tasks = [];
+
+    // Create array of all resource labels
+    const allResources = [];
+    for (let i = 0; i < cfg.resourceCount; i++) {
+        allResources.push(getResourceLabel(i));
+    }
+
+    // Calculate tasks per resource (distribute evenly)
+    const tasksPerResource = Math.ceil(cfg.totalTasks / cfg.resourceCount);
+
+    // Base start time for ALL resources (same start = maximum density)
+    const baseStart = parseDateTime(
+        `${cfg.startDate} ${String(cfg.workdayStartHour).padStart(2, '0')}:00`
+    );
+
+    let taskNum = 1;
+
+    // Generate tasks for each resource
+    for (let resourceIndex = 0; resourceIndex < allResources.length && taskNum <= cfg.totalTasks; resourceIndex++) {
+        const resource = allResources[resourceIndex];
+        const color = GROUP_COLORS[resourceIndex % GROUP_COLORS.length];
+        const progressColor = color + 'cc';
+
+        let currentTime = cloneDate(baseStart);
+        let prevTaskId = null;
+
+        // Generate back-to-back tasks for this resource
+        for (let i = 0; i < tasksPerResource && taskNum <= cfg.totalTasks; i++) {
+            // Short duration (1-5 hours for density)
+            const duration = randomBetween(random, cfg.minDuration, Math.min(cfg.maxDuration, 5));
+
+            // Calculate start/end (no gaps - tasks are contiguous)
+            const { start, end } = calculateTaskTimes(
+                currentTime,
+                duration,
+                cfg.workdayStartHour,
+                cfg.workdayEndHour
+            );
+
+            // FS dependency on previous task in same row
+            let dependency = undefined;
+            if (prevTaskId) {
+                dependency = prevTaskId;
+            }
+
+            tasks.push({
+                id: `task-${taskNum}`,
+                name: `${resource}-${i + 1}`,
+                start: formatDateTime(start),
+                end: formatDateTime(end),
+                progress: Math.floor(random() * 101),
+                color: color,
+                color_progress: progressColor,
+                dependencies: dependency,
+                resource: resource,
+            });
+
+            // Next task starts immediately after this one
+            currentTime = cloneDate(end);
+            prevTaskId = `task-${taskNum}`;
+            taskNum++;
+        }
     }
 
     return tasks;

@@ -1,6 +1,17 @@
 import { createSignal, onMount, onCleanup } from 'solid-js';
 import { throttle } from '@solid-primitives/scheduled';
 
+// Global debug object for scroll timing (accessible by perf demo)
+if (typeof window !== 'undefined') {
+    window.__ganttScrollDebug = {
+        domSync: 0,
+        signalUpdate: 0,
+        total: 0,
+        worstTotal: 0,
+        callCount: 0,
+    };
+}
+
 /**
  * GanttContainer - Main wrapper component with scroll handling.
  * Uses CSS Grid for proper 4-quadrant layout:
@@ -20,6 +31,14 @@ export function GanttContainer(props) {
     const [containerWidth, setContainerWidth] = createSignal(0);
     const [viewportHeight, setViewportHeight] = createSignal(0);
 
+    // Debug timing signals for performance monitoring
+    const [scrollTiming, setScrollTiming] = createSignal({
+        domSync: 0,
+        signalUpdate: 0,
+        total: 0,
+        worstTotal: 0,
+    });
+
     // Resource column width
     const resourceColumnWidth = () => props.resourceColumnWidth || 60;
 
@@ -35,15 +54,18 @@ export function GanttContainer(props) {
     const throttledSetScrollLeft = throttle(setScrollLeft, 16);
     const throttledSetScrollTop = throttle(setScrollTop, 16);
 
+    // Track worst timing for reporting
+    let worstScrollTotal = 0;
+
     // Handle scroll in main scroll area - sync other panels
     const handleScroll = (e) => {
+        const t0 = performance.now();
+
         const { scrollLeft: sl, scrollTop: st } = e.target;
 
-        // Throttle signal updates (triggers virtualization recalc)
-        throttledSetScrollLeft(sl);
-        throttledSetScrollTop(st);
-
-        // Direct DOM sync for visual smoothness (no throttle)
+        // IMPORTANT: Direct DOM sync FIRST for visual smoothness
+        // This must happen BEFORE reactive updates to avoid forced reflows
+        // (reactive updates may modify DOM, causing layout invalidation)
         if (dateHeadersRef) {
             dateHeadersRef.scrollLeft = sl;
         }
@@ -51,7 +73,44 @@ export function GanttContainer(props) {
             resourceBodyRef.scrollTop = st;
         }
 
+        const t1 = performance.now();
+
+        // Throttle signal updates (triggers virtualization recalc)
+        // These come AFTER DOM sync to avoid layout thrashing
+        throttledSetScrollLeft(sl);
+        throttledSetScrollTop(st);
+
+        const t2 = performance.now();
+
         props.onScroll?.(sl, st);
+
+        const t3 = performance.now();
+
+        // Update timing stats
+        const domSync = t1 - t0;
+        const signalUpdate = t2 - t1;
+        const total = t3 - t0;
+
+        if (total > worstScrollTotal) {
+            worstScrollTotal = total;
+        }
+
+        // Update global debug object for perf demo
+        if (typeof window !== 'undefined' && window.__ganttScrollDebug) {
+            window.__ganttScrollDebug.domSync = domSync;
+            window.__ganttScrollDebug.signalUpdate = signalUpdate;
+            window.__ganttScrollDebug.total = total;
+            window.__ganttScrollDebug.worstTotal = worstScrollTotal;
+            window.__ganttScrollDebug.callCount++;
+        }
+
+        // Only update signal every 100ms to avoid overhead
+        setScrollTiming({
+            domSync: domSync.toFixed(2),
+            signalUpdate: signalUpdate.toFixed(2),
+            total: total.toFixed(2),
+            worstTotal: worstScrollTotal.toFixed(2),
+        });
     };
 
     // Set scroll position programmatically
@@ -99,6 +158,11 @@ export function GanttContainer(props) {
             scrollTopSignal: scrollTop,
             containerWidthSignal: containerWidth,
             containerHeightSignal: viewportHeight,
+            // Debug timing signal
+            scrollTimingSignal: scrollTiming,
+            resetWorstTiming: () => {
+                worstScrollTotal = 0;
+            },
         });
     });
 

@@ -189,16 +189,161 @@ export function GanttPerfDemo() {
     const [viewMode, setViewMode] = createSignal('Hour'); // Hour, Day, Week, Month, Year
     const [fps, setFps] = createSignal(0);
 
-    // FPS counter using RAF
+    // Scroll stress test state
+    const [stressTestRunning, setStressTestRunning] = createSignal(false);
+    const [verticalStressTestRunning, setVerticalStressTestRunning] = createSignal(false);
+    const [scrollEventsPerSec, setScrollEventsPerSec] = createSignal(0);
+    const [worstFrameTime, setWorstFrameTime] = createSignal(0);
+    const [avgFrameTime, setAvgFrameTime] = createSignal(0);
+
+    // Scroll handler timing breakdown
+    const [scrollHandlerTiming, setScrollHandlerTiming] = createSignal({
+        domSync: 0,
+        signalUpdate: 0,
+        total: 0,
+        worstTotal: 0,
+    });
+
+    // Frame timing tracking
+    let lastFrameTime = performance.now();
+    let frameTimes = [];
+    let scrollEventCount = 0;
+    let lastScrollCountUpdate = performance.now();
+
+    // FPS counter using RAF - also tracks frame times
     let frameCount = 0;
     let lastFpsUpdate = performance.now();
     const [, startFpsCounter] = createRAF((timestamp) => {
         frameCount++;
+
+        // Track individual frame times
+        const frameTime = timestamp - lastFrameTime;
+        lastFrameTime = timestamp;
+        frameTimes.push(frameTime);
+
+        // Keep only last 60 frames for stats
+        if (frameTimes.length > 60) {
+            frameTimes.shift();
+        }
+
         const elapsed = timestamp - lastFpsUpdate;
         if (elapsed >= 1000) {
             setFps(Math.round((frameCount * 1000) / elapsed));
             frameCount = 0;
             lastFpsUpdate = timestamp;
+
+            // Calculate frame time stats
+            if (frameTimes.length > 0) {
+                const maxFrame = Math.max(...frameTimes);
+                const avgFrame = frameTimes.reduce((a, b) => a + b, 0) / frameTimes.length;
+                setWorstFrameTime(maxFrame.toFixed(1));
+                setAvgFrameTime(avgFrame.toFixed(1));
+            }
+
+            // Update scroll events per second
+            const scrollElapsed = timestamp - lastScrollCountUpdate;
+            if (scrollElapsed >= 1000) {
+                setScrollEventsPerSec(Math.round((scrollEventCount * 1000) / scrollElapsed));
+                scrollEventCount = 0;
+                lastScrollCountUpdate = timestamp;
+            }
+
+            // Read scroll handler timing from global debug object
+            if (typeof window !== 'undefined' && window.__ganttScrollDebug) {
+                setScrollHandlerTiming({
+                    domSync: window.__ganttScrollDebug.domSync.toFixed(2),
+                    signalUpdate: window.__ganttScrollDebug.signalUpdate.toFixed(2),
+                    total: window.__ganttScrollDebug.total.toFixed(2),
+                    worstTotal: window.__ganttScrollDebug.worstTotal.toFixed(2),
+                });
+            }
+        }
+    });
+
+    // Scroll stress test - fires REAL wheel events at high frequency
+    let stressTestAbort = null;
+    const runScrollStressTest = () => {
+        if (stressTestRunning()) {
+            // Stop test
+            if (stressTestAbort) {
+                stressTestAbort.abort = true;
+            }
+            setStressTestRunning(false);
+            return;
+        }
+
+        const scrollArea = document.querySelector('.gantt-scroll-area');
+        if (!scrollArea) {
+            console.error('Scroll area not found');
+            return;
+        }
+
+        setStressTestRunning(true);
+        frameTimes = []; // Reset frame times
+        setWorstFrameTime(0);
+
+        // Reset scroll handler worst timing
+        if (typeof window !== 'undefined' && window.__ganttScrollDebug) {
+            window.__ganttScrollDebug.worstTotal = 0;
+        }
+
+        const controller = { abort: false };
+        stressTestAbort = controller;
+
+        const duration = 5000; // 5 seconds
+        const startTime = performance.now();
+        let direction = 1;
+        let scrollPos = scrollArea.scrollLeft;
+
+        const fireScrollEvent = () => {
+            if (controller.abort || performance.now() - startTime > duration) {
+                setStressTestRunning(false);
+                console.log('Scroll stress test complete');
+                console.log(`Frame timing - Worst: ${worstFrameTime()}ms, Avg: ${avgFrameTime()}ms`);
+                if (typeof window !== 'undefined' && window.__ganttScrollDebug) {
+                    console.log(`handleScroll timing - DOM: ${window.__ganttScrollDebug.domSync.toFixed(2)}ms, Signal: ${window.__ganttScrollDebug.signalUpdate.toFixed(2)}ms, Worst: ${window.__ganttScrollDebug.worstTotal.toFixed(2)}ms`);
+                }
+                return;
+            }
+
+            // Fire REAL wheel event (this is what browsers fire when you scroll)
+            // AGGRESSIVE: 200px per event at 4ms intervals = 50,000 px/sec
+            const deltaX = direction * 200;
+            const wheelEvent = new WheelEvent('wheel', {
+                deltaX: deltaX,
+                deltaY: 0,
+                deltaMode: 0, // DOM_DELTA_PIXEL
+                bubbles: true,
+                cancelable: true,
+            });
+            scrollArea.dispatchEvent(wheelEvent);
+
+            // Also directly scroll (wheel events may not move scroll on some browsers)
+            scrollPos += deltaX;
+            if (scrollPos > scrollArea.scrollWidth - scrollArea.clientWidth - 500) {
+                direction = -1;
+            } else if (scrollPos < 500) {
+                direction = 1;
+            }
+            scrollArea.scrollLeft = scrollPos;
+
+            // AGGRESSIVE: 4ms intervals (~250hz input rate)
+            setTimeout(fireScrollEvent, 4);
+        };
+
+        console.log('Starting scroll stress test (5 seconds)...');
+        fireScrollEvent();
+    };
+
+    // Track scroll events
+    onMount(() => {
+        const scrollArea = document.querySelector('.gantt-scroll-area');
+        if (scrollArea) {
+            const trackScroll = () => {
+                scrollEventCount++;
+            };
+            scrollArea.addEventListener('scroll', trackScroll, { passive: true });
+            onCleanup(() => scrollArea.removeEventListener('scroll', trackScroll));
         }
     });
 
@@ -388,6 +533,63 @@ export function GanttPerfDemo() {
                             {fps()}
                         </span>
                     </div>
+                    <div style={statItemStyle}>
+                        <span style={statLabelStyle}>Worst:</span>
+                        <span style={{
+                            ...statValueStyle,
+                            color: worstFrameTime() <= 16.67 ? '#10b981' : worstFrameTime() <= 33 ? '#f59e0b' : '#ef4444'
+                        }}>
+                            {worstFrameTime()}ms
+                        </span>
+                    </div>
+                    <div style={statItemStyle}>
+                        <span style={statLabelStyle}>Avg:</span>
+                        <span style={{
+                            ...statValueStyle,
+                            color: avgFrameTime() <= 16.67 ? '#10b981' : avgFrameTime() <= 33 ? '#f59e0b' : '#ef4444'
+                        }}>
+                            {avgFrameTime()}ms
+                        </span>
+                    </div>
+                    <div style={statItemStyle}>
+                        <span style={statLabelStyle}>Scroll/s:</span>
+                        <span style={statValueStyle}>{scrollEventsPerSec()}</span>
+                    </div>
+                </div>
+
+                {/* Scroll handler timing breakdown */}
+                <div style={{
+                    ...statsStyle,
+                    'background-color': '#374151',
+                    'font-size': '11px',
+                }}>
+                    <span style={{ color: '#9ca3af', 'font-weight': 'bold' }}>handleScroll:</span>
+                    <div style={statItemStyle}>
+                        <span style={statLabelStyle}>DOM:</span>
+                        <span style={statValueStyle}>{scrollHandlerTiming().domSync}ms</span>
+                    </div>
+                    <div style={statItemStyle}>
+                        <span style={statLabelStyle}>Signal:</span>
+                        <span style={statValueStyle}>{scrollHandlerTiming().signalUpdate}ms</span>
+                    </div>
+                    <div style={statItemStyle}>
+                        <span style={statLabelStyle}>Total:</span>
+                        <span style={{
+                            ...statValueStyle,
+                            color: parseFloat(scrollHandlerTiming().total) <= 1 ? '#10b981' : parseFloat(scrollHandlerTiming().total) <= 5 ? '#f59e0b' : '#ef4444'
+                        }}>
+                            {scrollHandlerTiming().total}ms
+                        </span>
+                    </div>
+                    <div style={statItemStyle}>
+                        <span style={statLabelStyle}>Worst:</span>
+                        <span style={{
+                            ...statValueStyle,
+                            color: parseFloat(scrollHandlerTiming().worstTotal) <= 5 ? '#10b981' : parseFloat(scrollHandlerTiming().worstTotal) <= 10 ? '#f59e0b' : '#ef4444'
+                        }}>
+                            {scrollHandlerTiming().worstTotal}ms
+                        </span>
+                    </div>
                 </div>
 
                 <div style={controlsStyle}>
@@ -507,6 +709,16 @@ export function GanttPerfDemo() {
                         }}
                     >
                         Clear Console
+                    </button>
+                    <button
+                        onClick={runScrollStressTest}
+                        style={{
+                            ...buttonStyle,
+                            'background-color': stressTestRunning() ? '#ef4444' : '#8b5cf6',
+                            'min-width': '120px',
+                        }}
+                    >
+                        {stressTestRunning() ? 'Stop Test' : 'Scroll Stress'}
                     </button>
                 </div>
             </div>

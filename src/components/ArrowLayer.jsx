@@ -15,75 +15,145 @@ export function ArrowLayer(props) {
     const startX = () => props.startX ?? 0;
     const endX = () => props.endX ?? Infinity;
 
-    // Get all dependencies from relationships
-    const allDependencies = createMemo(() => {
+    // Get all dependencies from relationships and index by "from" task's row
+    // This avoids O(n) iteration on every scroll - instead we do O(visible_rows)
+    const dependenciesByRow = createMemo(() => {
+        const t0 = performance.now();
         const rels = props.relationships || [];
-        const deps = [];
+        const byRow = new Map(); // resourceIndex → dependencies[]
+
+        if (!props.taskStore) {
+            // Fallback: single bucket for all
+            const deps = rels.map((rel) => {
+                const fromId = rel.from ?? rel.predecessorId;
+                const toId = rel.to ?? rel.successorId;
+                return {
+                    id: `${fromId}-${toId}`,
+                    fromId,
+                    toId,
+                    type: rel.type || 'FS',
+                    ...rel,
+                };
+            });
+            byRow.set(-1, deps);
+            return byRow;
+        }
 
         for (const rel of rels) {
-            // Each relationship defines a dependency arrow
-            // Support both 'from/to' and 'predecessorId/successorId' field names
             const fromId = rel.from ?? rel.predecessorId;
             const toId = rel.to ?? rel.successorId;
-            deps.push({
+            const fromTask = props.taskStore.getTask(fromId);
+            const toTask = props.taskStore.getTask(toId);
+            const fromRow = fromTask?._resourceIndex ?? -1;
+            const toRow = toTask?._resourceIndex ?? -1;
+
+            const dep = {
                 id: `${fromId}-${toId}`,
                 fromId,
                 toId,
-                type: rel.type || 'FS', // FS, SS, FF, SF
-                ...rel, // Include any other arrow styling props
-            });
+                type: rel.type || 'FS',
+                fromRow,
+                toRow,
+                // Pre-cache bar positions for faster X filtering
+                fromX: fromTask?.$bar?.x ?? 0,
+                fromWidth: fromTask?.$bar?.width ?? 0,
+                toX: toTask?.$bar?.x ?? 0,
+                toWidth: toTask?.$bar?.width ?? 0,
+                ...rel,
+            };
+
+            // Index by both from and to rows (arrow visible if either end's row is visible)
+            if (!byRow.has(fromRow)) byRow.set(fromRow, []);
+            byRow.get(fromRow).push(dep);
+
+            // Only add to toRow bucket if different from fromRow (avoid duplicates)
+            if (toRow !== fromRow) {
+                if (!byRow.has(toRow)) byRow.set(toRow, []);
+                byRow.get(toRow).push(dep);
+            }
         }
 
-        return deps;
+        const elapsed = performance.now() - t0;
+        if (elapsed > 1) {
+            console.log(`[ArrowLayer] dependenciesByRow build: ${elapsed.toFixed(2)}ms, ${rels.length} relationships`);
+        }
+
+        return byRow;
     });
 
+    // Track arrow filter calls per second
+    let arrowFilterCallCount = 0;
+    let lastArrowFilterLogTime = performance.now();
+
     // Filter to only arrows connected to visible rows AND within visible X range
+    // Now O(visible_rows * deps_per_row) instead of O(all_dependencies)
     const dependencies = createMemo(() => {
-        const all = allDependencies();
+        const t0 = performance.now();
+        arrowFilterCallCount++;
+        const now = performance.now();
+        if (now - lastArrowFilterLogTime > 1000) {
+            console.log(`[ArrowLayer] filter calls/sec: ${arrowFilterCallCount}`);
+            arrowFilterCallCount = 0;
+            lastArrowFilterLogTime = now;
+        }
+        const byRow = dependenciesByRow();
         const rowStart = startRow();
         const rowEnd = endRow();
         const sx = startX();
         const ex = endX();
+        const buffer = 2;
 
-        // If no task store, return all
-        if (!props.taskStore) {
-            return all;
+        // If no row filtering, get all from fallback bucket
+        if (rowEnd === Infinity) {
+            const all = byRow.get(-1) || [];
+            return filterByX(all, sx, ex);
         }
 
-        return all.filter((dep) => {
-            const fromTask = props.taskStore.getTask(dep.fromId);
-            const toTask = props.taskStore.getTask(dep.toId);
+        // Collect dependencies from visible rows only
+        const seen = new Set(); // Avoid duplicates from dual-indexing
+        const result = [];
 
-            // Row visibility check (if row filtering is enabled)
-            if (rowEnd !== Infinity) {
-                const fromRow = fromTask?._resourceIndex ?? -1;
-                const toRow = toTask?._resourceIndex ?? -1;
+        for (let row = rowStart - buffer; row <= rowEnd + buffer; row++) {
+            const rowDeps = byRow.get(row);
+            if (!rowDeps) continue;
 
-                const buffer = 2;
-                const rowVisible =
-                    (fromRow >= rowStart - buffer && fromRow <= rowEnd + buffer) ||
-                    (toRow >= rowStart - buffer && toRow <= rowEnd + buffer);
+            for (const dep of rowDeps) {
+                if (seen.has(dep.id)) continue;
+                seen.add(dep.id);
 
-                if (!rowVisible) return false;
+                // X visibility check using pre-cached positions
+                if (ex !== Infinity) {
+                    const fromVisible = dep.fromX + dep.fromWidth >= sx && dep.fromX <= ex;
+                    const toVisible = dep.toX + dep.toWidth >= sx && dep.toX <= ex;
+                    const midX = (dep.fromX + dep.fromWidth / 2 + dep.toX + dep.toWidth / 2) / 2;
+                    const midVisible = midX >= sx && midX <= ex;
+
+                    if (!fromVisible && !toVisible && !midVisible) continue;
+                }
+
+                result.push(dep);
             }
+        }
 
-            // X visibility check (if X filtering is enabled)
-            if (ex !== Infinity) {
-                const fromX = fromTask?.$bar?.x ?? 0;
-                const fromWidth = fromTask?.$bar?.width ?? 0;
-                const toX = toTask?.$bar?.x ?? 0;
-                const toWidth = toTask?.$bar?.width ?? 0;
+        const elapsed = performance.now() - t0;
+        if (elapsed > 1) {
+            console.log(`[ArrowLayer] dependencies filter: ${elapsed.toFixed(2)}ms, ${result.length} arrows`);
+        }
 
-                // Arrow is visible if either endpoint's bar overlaps viewport
-                const fromVisible = fromX + fromWidth >= sx && fromX <= ex;
-                const toVisible = toX + toWidth >= sx && toX <= ex;
-
-                if (!fromVisible && !toVisible) return false;
-            }
-
-            return true;
-        });
+        return result;
     });
+
+    // Helper for X filtering (used when no row filtering)
+    function filterByX(deps, sx, ex) {
+        if (ex === Infinity) return deps;
+        return deps.filter((dep) => {
+            const fromVisible = dep.fromX + dep.fromWidth >= sx && dep.fromX <= ex;
+            const toVisible = dep.toX + dep.toWidth >= sx && dep.toX <= ex;
+            const midX = (dep.fromX + dep.fromWidth / 2 + dep.toX + dep.toWidth / 2) / 2;
+            const midVisible = midX >= sx && midX <= ex;
+            return fromVisible || toVisible || midVisible;
+        });
+    }
 
     // Arrow configuration from props or defaults
     const arrowConfig = () => props.arrowConfig || {};

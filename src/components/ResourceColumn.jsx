@@ -1,13 +1,18 @@
-import { For } from 'solid-js';
+import { For, createMemo } from 'solid-js';
 
 /**
  * ResourceColumn - Renders the resource labels for swimlane rows.
  * No longer includes header - that's now handled by GanttContainer.
  * Cell positions start at y=0 (or padding/2) to align with SVG content.
+ * Supports row virtualization via startRow/endRow props.
  */
 export function ResourceColumn(props) {
     // Get unique resources list
     const resources = () => props.resources || [];
+
+    // Viewport row range for virtualization
+    const startRow = () => props.startRow ?? 0;
+    const endRow = () => props.endRow ?? resources().length;
 
     // Configuration from ganttConfig
     const barHeight = () => props.ganttConfig?.barHeight?.() ?? 30;
@@ -24,6 +29,20 @@ export function ResourceColumn(props) {
         const rh = rowHeight();
         return count * rh;
     };
+
+    // Virtualized resources - only render visible rows
+    const visibleResources = createMemo(() => {
+        const all = resources();
+        const start = Math.max(0, startRow());
+        const end = Math.min(all.length, endRow());
+
+        // Return array of { resource, originalIndex } to preserve positioning
+        const visible = [];
+        for (let i = start; i < end; i++) {
+            visible.push({ resource: all[i], index: i });
+        }
+        return visible;
+    });
 
     // Container style
     const containerStyle = () => ({
@@ -55,14 +74,14 @@ export function ResourceColumn(props) {
 
     return (
         <div class="resource-column" style={containerStyle()}>
-            <For each={resources()}>
-                {(resource, index) => (
+            <For each={visibleResources()}>
+                {(item) => (
                     <div
                         class="resource-cell"
-                        style={cellStyle(index())}
-                        data-resource={resource}
+                        style={cellStyle(item.index)}
+                        data-resource={item.resource}
                     >
-                        {resource}
+                        {item.resource}
                     </div>
                 )}
             </For>
