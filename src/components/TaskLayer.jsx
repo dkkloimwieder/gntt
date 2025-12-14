@@ -1,4 +1,4 @@
-import { For, createMemo } from 'solid-js';
+import { Index, createMemo } from 'solid-js';
 import { Bar } from './Bar.jsx';
 import {
     resolveMovement,
@@ -171,77 +171,69 @@ export function TaskLayer(props) {
         return grouped;
     });
 
-    // HYBRID APPROACH: Filter rows (reduce DOM) + X visibility (smooth horizontal scroll)
-    // This limits DOM to ~30 rows × tasks/row instead of ALL rows
-    const visibleResourcesWithIndex = createMemo(() => {
-        const sr = startRow();
-        const er = endRow();
-        const all = resources();
+    // FLAT VIRTUALIZATION with both row AND X filtering
+    // Key insight: Keeping DOM size small (~300-500 tasks) is more important than
+    // avoiding CSS visibility toggles for 2,300 tasks
 
-        // Slice to only visible row range (reduces DOM size significantly)
-        return all.slice(sr, er).map((resource, idx) => ({
-            resource,
-            rowIndex: sr + idx, // Preserve original index for positioning
-        }));
-    });
-
-    // Check if a task is visible in the current X viewport
-    // Returns true if bar overlaps viewport range
-    const isTaskVisible = (task) => {
+    // Create flat list of tasks filtered by BOTH row AND X range
+    const visibleTasks = createMemo(() => {
+        const t0 = performance.now();
+        const result = [];
+        const resList = resources();
+        const startIdx = startRow();
+        const endIdx = endRow();
+        const grouped = tasksByResource();
         const sx = startX();
         const ex = endX();
-        if (ex === Infinity) return true;
 
-        const bar = task.$bar;
-        if (!bar) return true; // Visible if no position yet
-        // Bar is visible if it overlaps viewport
-        return bar.x + bar.width >= sx && bar.x <= ex;
-    };
+        // Filter by row range
+        for (let i = startIdx; i < endIdx && i < resList.length; i++) {
+            const resource = resList[i];
+            const resourceTaskList = grouped.get(resource);
+            if (!resourceTaskList) continue;
+
+            // Filter by X range
+            for (const task of resourceTaskList) {
+                if (ex !== Infinity) {
+                    const bar = task.$bar;
+                    if (bar && (bar.x + bar.width < sx || bar.x > ex)) {
+                        continue; // Skip tasks outside X viewport
+                    }
+                }
+                result.push(task);
+            }
+        }
+
+        const elapsed = performance.now() - t0;
+        if (elapsed > 1) {
+            console.log(`[TaskLayer] visibleTasks filter: ${elapsed.toFixed(2)}ms, ${result.length} tasks`);
+        }
+        return result;
+    });
 
     return (
         <g class="task-layer">
-            {/* HYBRID: Filter rows (DOM reduction) + X visibility (smooth scroll) */}
-            <For each={visibleResourcesWithIndex()}>
-                {({ resource, rowIndex }) => {
-                    // Get ALL tasks for this resource
-                    // X-axis visibility is controlled via CSS, not array filtering
-                    const resourceTasks = () =>
-                        tasksByResource().get(resource) || [];
-
-                    return (
-                        <g
-                            class="task-row"
-                            data-resource={resource}
-                            data-row-index={rowIndex}
-                        >
-                            <For each={resourceTasks()}>
-                                {(task) => (
-                                    <Bar
-                                        task={task}
-                                        taskId={task.id}
-                                        taskStore={props.taskStore}
-                                        ganttConfig={props.ganttConfig}
-                                        visible={isTaskVisible(task)}
-                                        onConstrainPosition={
-                                            handleConstrainPosition
-                                        }
-                                        onCollectDependents={
-                                            handleCollectDependents
-                                        }
-                                        onClampBatchDelta={handleClampBatchDelta}
-                                        onDateChange={handleDateChange}
-                                        onProgressChange={handleProgressChange}
-                                        onResizeEnd={handleResizeEnd}
-                                        onHover={handleHover}
-                                        onHoverEnd={handleHoverEnd}
-                                        onTaskClick={handleTaskClick}
-                                    />
-                                )}
-                            </For>
-                        </g>
-                    );
-                }}
-            </For>
+            {/* Index-based virtualization: components reuse on scroll (no create/destroy) */}
+            {/* With Index, task is a signal - components update their data rather than being recreated */}
+            <Index each={visibleTasks()}>
+                {(task) => (
+                    <Bar
+                        task={task()}
+                        taskId={task().id}
+                        taskStore={props.taskStore}
+                        ganttConfig={props.ganttConfig}
+                        onConstrainPosition={handleConstrainPosition}
+                        onCollectDependents={handleCollectDependents}
+                        onClampBatchDelta={handleClampBatchDelta}
+                        onDateChange={handleDateChange}
+                        onProgressChange={handleProgressChange}
+                        onResizeEnd={handleResizeEnd}
+                        onHover={handleHover}
+                        onHoverEnd={handleHoverEnd}
+                        onTaskClick={handleTaskClick}
+                    />
+                )}
+            </Index>
         </g>
     );
 }

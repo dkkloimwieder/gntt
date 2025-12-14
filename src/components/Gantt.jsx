@@ -274,8 +274,9 @@ export function Gantt(props) {
 
     // Task-specific viewport ROW range with HYSTERESIS (not throttle)
     // Same approach as X range - prevents edge thrashing during vertical scroll
-    const TASK_BUFFER_ROWS = 5; // Buffer rows above/below viewport
-    const HYSTERESIS_ROWS = 3; // Dead zone to prevent rapid range commits
+    // AGGRESSIVE values needed for smooth vertical scroll with 10k tasks
+    const TASK_BUFFER_ROWS = 25; // Buffer rows above/below viewport (was 5)
+    const HYSTERESIS_ROWS = 20; // Dead zone to prevent rapid range commits (was 3)
 
     const stableRowRange = createMemo(() => {
         const rh = rowHeight();

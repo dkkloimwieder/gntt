@@ -335,6 +335,81 @@ export function GanttPerfDemo() {
         fireScrollEvent();
     };
 
+    // Vertical scroll stress test - fires REAL wheel events for vertical scrolling
+    let verticalStressTestAbort = null;
+    const runVerticalScrollStressTest = () => {
+        if (verticalStressTestRunning()) {
+            // Stop test
+            if (verticalStressTestAbort) {
+                verticalStressTestAbort.abort = true;
+            }
+            setVerticalStressTestRunning(false);
+            return;
+        }
+
+        const scrollArea = document.querySelector('.gantt-scroll-area');
+        if (!scrollArea) {
+            console.error('Scroll area not found');
+            return;
+        }
+
+        setVerticalStressTestRunning(true);
+        frameTimes = []; // Reset frame times
+        setWorstFrameTime(0);
+
+        // Reset scroll handler worst timing
+        if (typeof window !== 'undefined' && window.__ganttScrollDebug) {
+            window.__ganttScrollDebug.worstTotal = 0;
+        }
+
+        const controller = { abort: false };
+        verticalStressTestAbort = controller;
+
+        const duration = 5000; // 5 seconds
+        const startTime = performance.now();
+        let direction = 1;
+        let scrollPos = scrollArea.scrollTop;
+
+        const fireScrollEvent = () => {
+            if (controller.abort || performance.now() - startTime > duration) {
+                setVerticalStressTestRunning(false);
+                console.log('Vertical scroll stress test complete');
+                console.log(`Frame timing - Worst: ${worstFrameTime()}ms, Avg: ${avgFrameTime()}ms`);
+                if (typeof window !== 'undefined' && window.__ganttScrollDebug) {
+                    console.log(`handleScroll timing - DOM: ${window.__ganttScrollDebug.domSync.toFixed(2)}ms, Signal: ${window.__ganttScrollDebug.signalUpdate.toFixed(2)}ms, Worst: ${window.__ganttScrollDebug.worstTotal.toFixed(2)}ms`);
+                }
+                return;
+            }
+
+            // Fire REAL wheel event for VERTICAL scrolling
+            // AGGRESSIVE: 100px per event at 4ms intervals
+            const deltaY = direction * 100;
+            const wheelEvent = new WheelEvent('wheel', {
+                deltaX: 0,
+                deltaY: deltaY,
+                deltaMode: 0, // DOM_DELTA_PIXEL
+                bubbles: true,
+                cancelable: true,
+            });
+            scrollArea.dispatchEvent(wheelEvent);
+
+            // Also directly scroll (wheel events may not move scroll on some browsers)
+            scrollPos += deltaY;
+            if (scrollPos > scrollArea.scrollHeight - scrollArea.clientHeight - 200) {
+                direction = -1;
+            } else if (scrollPos < 200) {
+                direction = 1;
+            }
+            scrollArea.scrollTop = scrollPos;
+
+            // AGGRESSIVE: 4ms intervals (~250hz input rate)
+            setTimeout(fireScrollEvent, 4);
+        };
+
+        console.log('Starting VERTICAL scroll stress test (5 seconds)...');
+        fireScrollEvent();
+    };
+
     // Track scroll events
     onMount(() => {
         const scrollArea = document.querySelector('.gantt-scroll-area');
@@ -715,10 +790,20 @@ export function GanttPerfDemo() {
                         style={{
                             ...buttonStyle,
                             'background-color': stressTestRunning() ? '#ef4444' : '#8b5cf6',
-                            'min-width': '120px',
+                            'min-width': '100px',
                         }}
                     >
-                        {stressTestRunning() ? 'Stop Test' : 'Scroll Stress'}
+                        {stressTestRunning() ? 'Stop' : 'H-Scroll'}
+                    </button>
+                    <button
+                        onClick={runVerticalScrollStressTest}
+                        style={{
+                            ...buttonStyle,
+                            'background-color': verticalStressTestRunning() ? '#ef4444' : '#8b5cf6',
+                            'min-width': '100px',
+                        }}
+                    >
+                        {verticalStressTestRunning() ? 'Stop' : 'V-Scroll'}
                     </button>
                 </div>
             </div>
