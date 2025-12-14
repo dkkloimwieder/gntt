@@ -239,6 +239,33 @@ const viewport = createVirtualViewport({
 
 **Impact**: 99.9% reduction in rendered elements (10K → ~11), render time ~30ms
 
+### 9. Item-Keyed Rendering with `<For>`
+
+**Approach**: TaskLayer and ArrowLayer use SolidJS `<For>` to render virtualized items, following the solid-primitives/virtual pattern.
+
+```jsx
+// TaskLayer.jsx - Keyed by item identity
+<For each={visibleTasks()}>
+    {(task) => <Bar task={task} taskId={task.id} ... />}
+</For>
+```
+
+**Why `<For>` is essential for virtualization**:
+- Components are keyed by **item reference**, not array index
+- Tasks entering the viewport get **new** Bar components with correct initial state
+- Tasks leaving the viewport have their Bar components **destroyed**
+- Visible tasks that remain keep their **existing** components (no re-render)
+
+This ensures smooth visual transitions during scroll - each task bar always displays its own colors and data.
+
+**File**: `src/components/TaskLayer.jsx`
+
+**Test Results**:
+| Test | FPS | Worst Frame | Avg Frame |
+|------|-----|-------------|-----------|
+| H-Scroll | 60 | 24.7ms | 16.8ms |
+| V-Scroll | 60 | 24.6ms | 16.8ms |
+
 ---
 
 ## Current DOM Structure (After Full Virtualization)

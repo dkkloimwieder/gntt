@@ -834,6 +834,7 @@ See `PERFORMANCE.md` for detailed documentation.
 | Row-level task grouping | Foundation for row virtualization |
 | Arrow row virtualization | Filters by visible row range |
 | **Unified viewport virtualization** | **10K tasks: ~30ms re-render** |
+| **Item-keyed rendering with `<For>`** | **Smooth scroll, no visual artifacts** |
 
 **Total improvement**: 99.5% for 10K tasks (5,519ms → ~30ms re-render)
 
@@ -849,8 +850,14 @@ Gantt.jsx
 └── viewport = createVirtualViewport({...})
     └── Shared by ALL components (single calculation)
 
-Pattern: offset / itemSize → visible range (solid-primitives/virtual)
+TaskLayer.jsx / ArrowLayer.jsx
+└── <For each={visibleItems()}> - Keyed by item identity
+    └── New items get new components, removed items are destroyed
 ```
+
+**Key Pattern**: solid-primitives/virtual approach
+- `offset / itemSize → visible range` for viewport calculation
+- `<For>` for item-keyed rendering (components tied to item identity, not array index)
 
 With 10K tasks: 10,000 bars → ~11 rendered, 9,179 arrows → ~11 rendered
 

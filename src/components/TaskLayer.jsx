@@ -1,4 +1,4 @@
-import { Index, createMemo } from 'solid-js';
+import { For, createMemo } from 'solid-js';
 import { Bar } from './Bar.jsx';
 import {
     resolveMovement,
@@ -203,13 +203,12 @@ export function TaskLayer(props) {
 
     return (
         <g class="task-layer">
-            {/* Index-based virtualization: components reuse on scroll (no create/destroy) */}
-            {/* With Index, task is a signal - components update their data rather than being recreated */}
-            <Index each={visibleTasks()}>
+            {/* For-based virtualization: keyed by item identity (solid-primitives/virtual pattern) */}
+            <For each={visibleTasks()}>
                 {(task) => (
                     <Bar
-                        task={task()}
-                        taskId={task().id}
+                        task={task}
+                        taskId={task.id}
                         taskStore={props.taskStore}
                         ganttConfig={props.ganttConfig}
                         onConstrainPosition={handleConstrainPosition}
@@ -223,7 +222,7 @@ export function TaskLayer(props) {
                         onTaskClick={handleTaskClick}
                     />
                 )}
-            </Index>
+            </For>
         </g>
     );
 }
