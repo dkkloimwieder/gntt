@@ -23,6 +23,7 @@ export function GanttSubtaskDemo() {
         'Diana',
         'QA',
         'Eve',
+        'Frank',  // Single-resource subtask demo
     ]);
 
     // Hierarchical tasks with parentId relationships
@@ -178,6 +179,72 @@ export function GanttSubtaskDemo() {
             color: '#10b981',
             dependencies: 'task-8',
         },
+
+        // === FRANK'S SPRINT (Single-resource subtasks) ===
+        {
+            id: 'frank-sprint',
+            name: "Frank's Sprint",
+            start: '2024-01-02',
+            end: '2024-01-19',
+            progress: 60,
+            type: 'summary',
+            resource: 'Frank',
+            color: '#dc2626',
+        },
+        {
+            id: 'frank-task-1',
+            name: 'Setup environment',
+            start: '2024-01-02',
+            end: '2024-01-03',
+            progress: 100,
+            parentId: 'frank-sprint',
+            resource: 'Frank',
+            color: '#ef4444',
+        },
+        {
+            id: 'frank-task-2',
+            name: 'Write unit tests',
+            start: '2024-01-04',
+            end: '2024-01-08',
+            progress: 100,
+            parentId: 'frank-sprint',
+            resource: 'Frank',
+            color: '#ef4444',
+            dependencies: 'frank-task-1',
+        },
+        {
+            id: 'frank-task-3',
+            name: 'Code review',
+            start: '2024-01-09',
+            end: '2024-01-11',
+            progress: 50,
+            parentId: 'frank-sprint',
+            resource: 'Frank',
+            color: '#ef4444',
+            dependencies: 'frank-task-2',
+        },
+        {
+            id: 'frank-task-4',
+            name: 'Deploy to staging',
+            start: '2024-01-12',
+            end: '2024-01-15',
+            progress: 0,
+            parentId: 'frank-sprint',
+            resource: 'Frank',
+            color: '#ef4444',
+            dependencies: 'frank-task-3',
+        },
+        {
+            id: 'frank-task-5',
+            name: 'Documentation',
+            start: '2024-01-16',
+            end: '2024-01-19',
+            progress: 0,
+            parentId: 'frank-sprint',
+            resource: 'Frank',
+            color: '#ef4444',
+            dependencies: 'frank-task-4',
+        },
     ]);
 
     // Options
@@ -258,9 +325,9 @@ export function GanttSubtaskDemo() {
                 <strong>Subtask Features:</strong>
                 <ul style={{ margin: '10px 0 0 0', 'padding-left': '20px' }}>
                     <li>Click chevron icons on summary bars to collapse/expand children</li>
-                    <li>Summary bars have bracket styling and span their children's range</li>
+                    <li>Cross-resource: parent bar visible, children on different rows</li>
+                    <li>Single-resource: children shown inline, parent hidden when expanded</li>
                     <li>Dragging a parent moves all its children together</li>
-                    <li>Subtasks can be on different resources (cross-resource)</li>
                     <li>Unlimited nesting depth (project &gt; phase &gt; task)</li>
                 </ul>
                 <p style={{ margin: '10px 0 0 0' }}>
