@@ -64,7 +64,8 @@ export function Bar(props) {
 
     // Derived values - call getPosition() each time to track signal
     const x = () => getPosition()?.x ?? 0;
-    const y = () => getPosition()?.y ?? 0;
+    // Use taskPosition Y if provided (for variable row heights), else fall back to $bar.y
+    const y = () => props.taskPosition?.y ?? getPosition()?.y ?? 0;
     const width = () => getPosition()?.width ?? 100;
     const height = () => getPosition()?.height ?? 30;
 
@@ -408,6 +409,9 @@ export function Bar(props) {
     const expectedProgressColor = () =>
         'var(--g-expected-progress-color, rgba(0,0,0,0.2))';
 
+    // Check if task has subtasks (for fill opacity)
+    const hasSubtasks = () => task()._children?.length > 0;
+
     // Invalid state
     const isInvalid = () => task().invalid ?? false;
 
@@ -452,7 +456,7 @@ export function Bar(props) {
         >
             {/* Main bar group */}
             <g class="bar-group">
-                {/* Main bar rectangle */}
+                {/* Main bar rectangle - outline style with subtle fill for non-subtask tasks */}
                 <rect
                     x={x()}
                     y={y()}
@@ -467,10 +471,15 @@ export function Bar(props) {
                             : isDragging()
                               ? '#2c3e50'
                               : barColor(),
+                        'fill-opacity': isLocked() || isDragging()
+                            ? 1
+                            : hasSubtasks()
+                              ? 0
+                              : 0.1,
                         stroke: isLocked()
                             ? '#c0392b'
-                            : 'var(--g-bar-stroke, #8a8aff)',
-                        'stroke-width': isLocked() ? '2' : '0',
+                            : barColor(),
+                        'stroke-width': isLocked() ? '2' : '1.5',
                         'stroke-dasharray': isLocked() ? '4,4' : 'none',
                         transition: isDragging() ? 'none' : 'fill 0.1s ease',
                     }}
@@ -495,7 +504,7 @@ export function Bar(props) {
                     />
                 </Show>
 
-                {/* Progress bar */}
+                {/* Progress bar - subtle fill to match outline style */}
                 <rect
                     x={x()}
                     y={y()}
@@ -504,7 +513,7 @@ export function Bar(props) {
                     rx={barCornerRadius()}
                     ry={barCornerRadius()}
                     class="bar-progress"
-                    style={{ fill: progressColor() }}
+                    style={{ fill: progressColor(), 'fill-opacity': 0.3 }}
                 />
 
                 {/* Label */}

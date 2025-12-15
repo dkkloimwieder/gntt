@@ -204,6 +204,7 @@ export function ArrowLayer(props) {
                         headFill={
                             dep.headFill ?? arrowConfig().headFill ?? false
                         }
+                        rowLayouts={props.rowLayouts}
                     />
                 )}
             </For>

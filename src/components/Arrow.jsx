@@ -662,10 +662,39 @@ function generatePath(from, to, config) {
  * Renders line and arrow head as separate paths for proper fill support.
  */
 export function Arrow(props) {
+    // Helper to get adjusted Y position from rowLayouts
+    // Tasks connect to tasks, subtasks connect to subtasks
+    const getAdjustedPosition = (taskId) => {
+        const barPos = props.taskStore?.getBarPosition(taskId);
+        if (!barPos) return null;
+
+        const rowLayouts = props.rowLayouts;
+        if (!rowLayouts) return barPos;
+
+        const task = props.taskStore?.getTask(taskId);
+        if (!task) return barPos;
+
+        // Get the row layout for this task's resource
+        const rowLayout = rowLayouts.get(task.resource);
+        if (!rowLayout) return barPos;
+
+        // Get task-specific position within the row
+        const taskPos = rowLayout.taskPositions?.get(taskId);
+        if (taskPos) {
+            return {
+                ...barPos,
+                y: taskPos.y,
+                height: taskPos.height,
+            };
+        }
+
+        return barPos;
+    };
+
     const fromPosition = createMemo(() => {
         if (props.from) return props.from;
         if (props.taskStore && props.fromId) {
-            return props.taskStore.getBarPosition(props.fromId);
+            return getAdjustedPosition(props.fromId);
         }
         return null;
     });
@@ -673,7 +702,7 @@ export function Arrow(props) {
     const toPosition = createMemo(() => {
         if (props.to) return props.to;
         if (props.taskStore && props.toId) {
-            return props.taskStore.getBarPosition(props.toId);
+            return getAdjustedPosition(props.toId);
         }
         return null;
     });

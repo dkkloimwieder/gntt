@@ -32,6 +32,57 @@ export function createGanttConfigStore(options = {}) {
     // Computed ignored positions (pixel X values)
     const [ignoredPositions, setIgnoredPositions] = createSignal([]);
 
+    // Subtask configuration
+    const [subtaskHeightRatio, setSubtaskHeightRatio] = createSignal(
+        options.subtaskHeightRatio || 0.5
+    );
+
+    // Expanded tasks (for variable row heights)
+    const [expandedTasks, setExpandedTasks] = createSignal(
+        new Set(options.expandedTasks || [])
+    );
+
+    // Expansion management methods
+    const isTaskExpanded = (taskId) => expandedTasks().has(taskId);
+
+    const toggleTaskExpansion = (taskId) => {
+        setExpandedTasks((prev) => {
+            const next = new Set(prev);
+            if (next.has(taskId)) {
+                next.delete(taskId);
+            } else {
+                next.add(taskId);
+            }
+            return next;
+        });
+    };
+
+    const expandTask = (taskId) => {
+        setExpandedTasks((prev) => {
+            if (prev.has(taskId)) return prev;
+            const next = new Set(prev);
+            next.add(taskId);
+            return next;
+        });
+    };
+
+    const collapseTask = (taskId) => {
+        setExpandedTasks((prev) => {
+            if (!prev.has(taskId)) return prev;
+            const next = new Set(prev);
+            next.delete(taskId);
+            return next;
+        });
+    };
+
+    const expandAllTasks = (taskIds) => {
+        setExpandedTasks(new Set(taskIds));
+    };
+
+    const collapseAllTasks = () => {
+        setExpandedTasks(new Set());
+    };
+
     // Update all options at once
     const updateOptions = (newOptions) => {
         if (newOptions.ganttStart !== undefined) setGanttStart(newOptions.ganttStart);
@@ -51,6 +102,8 @@ export function createGanttConfigStore(options = {}) {
         if (newOptions.ignoredDates !== undefined) setIgnoredDates(newOptions.ignoredDates);
         if (newOptions.ignoredFunction !== undefined) setIgnoredFunction(newOptions.ignoredFunction);
         if (newOptions.ignoredPositions !== undefined) setIgnoredPositions(newOptions.ignoredPositions);
+        if (newOptions.subtaskHeightRatio !== undefined) setSubtaskHeightRatio(newOptions.subtaskHeightRatio);
+        if (newOptions.expandedTasks !== undefined) setExpandedTasks(new Set(newOptions.expandedTasks));
     };
 
     // Get current configuration snapshot
@@ -72,6 +125,8 @@ export function createGanttConfigStore(options = {}) {
         ignoredDates: ignoredDates(),
         ignoredFunction: ignoredFunction(),
         ignoredPositions: ignoredPositions(),
+        subtaskHeightRatio: subtaskHeightRatio(),
+        expandedTasks: expandedTasks(),
     });
 
     return {
@@ -93,6 +148,8 @@ export function createGanttConfigStore(options = {}) {
         ignoredDates,
         ignoredFunction,
         ignoredPositions,
+        subtaskHeightRatio,
+        expandedTasks,
 
         // Setters
         setGanttStart,
@@ -112,6 +169,16 @@ export function createGanttConfigStore(options = {}) {
         setIgnoredDates,
         setIgnoredFunction,
         setIgnoredPositions,
+        setSubtaskHeightRatio,
+        setExpandedTasks,
+
+        // Task expansion methods
+        isTaskExpanded,
+        toggleTaskExpansion,
+        expandTask,
+        collapseTask,
+        expandAllTasks,
+        collapseAllTasks,
 
         // Batch operations
         updateOptions,

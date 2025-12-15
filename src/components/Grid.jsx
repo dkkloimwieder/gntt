@@ -26,8 +26,8 @@ export function Grid(props) {
     const thickLineColor = () =>
         props.thickLineColor || 'var(--g-grid-thick-line-color, #c0c0c0)';
 
-    // Row configuration
-    const rowHeight = () => {
+    // Row configuration (base height for fixed-height mode)
+    const baseRowHeight = () => {
         const barHeight = props.barHeight || 30;
         const padding = props.padding || 18;
         return barHeight + padding;
@@ -38,29 +38,51 @@ export function Grid(props) {
     // Get display resources from resourceStore (for group row detection)
     const displayResources = () => props.resourceStore?.displayResources() || [];
 
+    // Row layouts for variable heights (optional - from rowLayoutCalculator)
+    const rowLayouts = () => props.rowLayouts || null;
+
     // Viewport range for virtualization
     const startRow = () => props.startRow ?? 0;
     const endRow = () => props.endRow ?? taskCount();
 
-    // Calculate rows - rows fill the full height from y=0
-    // Now includes row type info from displayResources
+    // Calculate rows - supports both fixed and variable heights
+    // If rowLayouts is provided, use it for Y positions and heights
+    // Otherwise fall back to fixed row height calculation
     const rows = createMemo(() => {
         const count = taskCount();
-        const rh = rowHeight();
         const resources = displayResources();
+        const layouts = rowLayouts();
         const start = Math.max(0, startRow());
         const end = Math.min(count, endRow());
 
         const result = [];
         for (let i = start; i < end; i++) {
             const resource = resources[i];
-            result.push({
-                index: i,
-                y: i * rh,
-                height: rh,
-                type: resource?.type || 'resource',
-                id: resource?.id,
-            });
+            const resourceId = resource?.id;
+
+            // Check if we have variable row layout for this row
+            const layout = layouts?.get(resourceId);
+
+            if (layout) {
+                // Variable height mode - use layout from rowLayoutCalculator
+                result.push({
+                    index: i,
+                    y: layout.y,
+                    height: layout.height,
+                    type: resource?.type || layout.type || 'resource',
+                    id: resourceId,
+                });
+            } else {
+                // Fixed height mode - use base row height
+                const rh = baseRowHeight();
+                result.push({
+                    index: i,
+                    y: i * rh,
+                    height: rh,
+                    type: resource?.type || 'resource',
+                    id: resourceId,
+                });
+            }
         }
         return result;
     });

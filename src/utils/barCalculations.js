@@ -350,3 +350,72 @@ export function recomputeAllSummaryBounds(taskMap) {
         }
     }
 }
+
+/**
+ * Compute bar Y position from variable row layouts.
+ * Used when rows have different heights (e.g., expanded subtask containers).
+ *
+ * @param {string} rowId - Row identifier (usually resource or task ID)
+ * @param {Map} rowLayouts - Map<rowId, { y, height, contentY, contentHeight }>
+ * @param {number} fallbackY - Fallback Y position if row not found
+ * @returns {number} Y position for the bar
+ */
+export function computeVariableY(rowId, rowLayouts, fallbackY = 0) {
+    const layout = rowLayouts?.get(rowId);
+    if (layout) {
+        return layout.contentY;
+    }
+    return fallbackY;
+}
+
+/**
+ * Compute subtask bar height based on ratio.
+ *
+ * @param {number} barHeight - Normal bar height
+ * @param {number} ratio - Subtask height ratio (default 0.5)
+ * @returns {number} Subtask bar height
+ */
+export function computeSubtaskBarHeight(barHeight, ratio = 0.5) {
+    return barHeight * ratio;
+}
+
+/**
+ * Compute row height based on expansion state.
+ * Used for determining container height when task is expanded.
+ *
+ * @param {Object} task - Task with _children and subtaskLayout
+ * @param {boolean} isExpanded - Whether the task is expanded
+ * @param {Object} config - { barHeight, padding, subtaskHeightRatio }
+ * @returns {number} Row height
+ */
+export function computeExpandedRowHeight(task, isExpanded, config) {
+    const { barHeight = 30, padding = 18, subtaskHeightRatio = 0.5 } = config;
+    const baseRowHeight = barHeight + padding;
+
+    if (!isExpanded || !task._children?.length) {
+        return baseRowHeight;
+    }
+
+    const subtaskBarHeight = barHeight * subtaskHeightRatio;
+    const subtaskPadding = padding * 0.4;
+    const subtaskRowHeight = subtaskBarHeight + subtaskPadding;
+    const layout = task.subtaskLayout || 'sequential';
+
+    if (layout === 'parallel') {
+        return padding + subtaskBarHeight + padding;
+    }
+
+    if (layout === 'mixed') {
+        // Find max row index
+        let maxRow = 0;
+        for (const child of task._children || []) {
+            if (typeof child.row === 'number') {
+                maxRow = Math.max(maxRow, child.row);
+            }
+        }
+        return padding + (maxRow + 1) * subtaskRowHeight + padding / 2;
+    }
+
+    // Sequential
+    return padding + task._children.length * subtaskRowHeight + padding / 2;
+}

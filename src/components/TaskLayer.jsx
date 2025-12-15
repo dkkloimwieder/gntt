@@ -1,6 +1,7 @@
 import { For, createMemo } from 'solid-js';
 import { Bar } from './Bar.jsx';
 import { SummaryBar } from './SummaryBar.jsx';
+import { ExpandedTaskContainer } from './ExpandedTaskContainer.jsx';
 import {
     resolveMovement,
     collectDependentTasks,
@@ -234,28 +235,74 @@ export function TaskLayer(props) {
         return result;
     });
 
-    // Split visible tasks into regular tasks and summary tasks
-    // Summary bars render behind regular bars for proper z-ordering
+    // Check if a task is expanded (has subtasks and is in expandedTasks set)
+    const isTaskExpanded = (taskId) => {
+        return props.ganttConfig?.isTaskExpanded?.(taskId) ?? false;
+    };
+
+    // Split visible tasks into three categories:
+    // 1. expandedIds - tasks with subtasks that are expanded (render as ExpandedTaskContainer)
+    // 2. summaryIds - project-level summary bars (render as SummaryBar)
+    // 3. regularIds - normal tasks (render as Bar)
     const splitTaskIds = createMemo(() => {
         const regularIds = [];
         const summaryIds = [];
+        const expandedIds = [];
         const taskMap = props.taskStore?.tasks() ?? new Map();
 
         for (const taskId of visibleTaskIds()) {
             const task = taskMap.get(taskId);
-            if (task?.type === 'summary') {
+            if (!task) continue;
+
+            // Check if task has subtasks and is expanded
+            const hasSubtasks = task._children && task._children.length > 0;
+            const expanded = isTaskExpanded(taskId);
+
+            if (hasSubtasks && expanded) {
+                // Expanded task with visible subtasks - use ExpandedTaskContainer
+                expandedIds.push(taskId);
+            } else if (task.type === 'summary' || task.type === 'project') {
+                // Project-level summary bar
                 summaryIds.push(taskId);
-            } else {
+            } else if (!task.parentId || !isTaskExpanded(task.parentId)) {
+                // Regular task (not a subtask of an expanded parent)
+                // Subtasks of expanded parents are rendered inside ExpandedTaskContainer
                 regularIds.push(taskId);
             }
+            // else: subtask of expanded parent - skip, rendered by ExpandedTaskContainer
         }
 
-        return { regularIds, summaryIds };
+        return { regularIds, summaryIds, expandedIds };
     });
+
+    // Get task-specific position within its resource row
+    const getTaskPosition = (taskId) => {
+        const rowLayouts = props.rowLayouts;
+        if (!rowLayouts) return null;
+        const task = props.taskStore?.getTask?.(taskId);
+        if (!task) return null;
+
+        const rowLayout = rowLayouts.get(task.resource);
+        if (!rowLayout) return null;
+
+        // Get task-specific position from taskPositions map
+        const taskPos = rowLayout.taskPositions?.get(taskId);
+        if (taskPos) {
+            return {
+                ...rowLayout,
+                y: taskPos.y,
+                height: taskPos.height,
+                isExpanded: taskPos.isExpanded,
+            };
+        }
+
+        // Fallback to row layout
+        return rowLayout;
+    };
 
     return (
         <g class="task-layer">
-            {/* Summary bars render BEHIND regular bars */}
+            {/* Summary bars render BEHIND everything */}
             <g class="summary-layer">
                 <For each={splitTaskIds().summaryIds}>
                     {(taskId) => (
@@ -263,10 +310,25 @@ export function TaskLayer(props) {
                             taskId={taskId}
                             taskStore={props.taskStore}
                             ganttConfig={props.ganttConfig}
+                            taskPosition={getTaskPosition(taskId)}
                             onCollectDescendants={handleCollectDescendants}
                             onClampBatchDelta={handleClampBatchDelta}
                             onToggleCollapse={handleToggleCollapse}
                             onDragEnd={handleResizeEnd}
+                        />
+                    )}
+                </For>
+            </g>
+
+            {/* Expanded task containers (parent + subtasks) */}
+            <g class="expanded-layer">
+                <For each={splitTaskIds().expandedIds}>
+                    {(taskId) => (
+                        <ExpandedTaskContainer
+                            taskId={taskId}
+                            taskStore={props.taskStore}
+                            ganttConfig={props.ganttConfig}
+                            rowLayout={getTaskPosition(taskId)}
                         />
                     )}
                 </For>
@@ -280,6 +342,7 @@ export function TaskLayer(props) {
                             taskId={taskId}
                             taskStore={props.taskStore}
                             ganttConfig={props.ganttConfig}
+                            taskPosition={getTaskPosition(taskId)}
                             onConstrainPosition={handleConstrainPosition}
                             onCollectDependents={handleCollectDependents}
                             onCollectDescendants={handleCollectDescendants}

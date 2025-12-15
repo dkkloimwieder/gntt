@@ -8,6 +8,7 @@ import { extractResourcesFromTasks } from '../utils/resourceProcessor.js';
 import { createVirtualViewport } from '../utils/createVirtualViewport.js';
 import { buildHierarchy, isHiddenByCollapsedAncestor } from '../utils/hierarchyProcessor.js';
 import { recomputeAllSummaryBounds } from '../utils/barCalculations.js';
+import { calculateRowLayouts, rowLayoutsToSortedArray } from '../utils/rowLayoutCalculator.js';
 
 import { GanttContainer } from './GanttContainer.jsx';
 import { Grid } from './Grid.jsx';
@@ -244,27 +245,71 @@ export function Gantt(props) {
 
     const gridWidth = createMemo(() => dateStore.gridWidth());
 
-    // SVG height - content area only (NO headerHeight)
-    // Headers are now rendered separately outside the SVG
-    // Rows start at y=0, so total height = count * rowHeight
-    const svgHeight = createMemo(() => {
-        const bh = ganttConfig.barHeight();
-        const pad = ganttConfig.padding();
-        // Use resource count for swimlane layout
-        const count = resourceCount() || taskCount();
-        const rowHeight = bh + pad;
-
-        return count * rowHeight;
-    });
-
     // Date infos for headers and ticks
     const dateInfos = createMemo(() => dateStore.getAllDateInfos());
 
-    // Row height for viewport calculations
+    // Row height for viewport calculations (base height)
     const rowHeight = createMemo(() => ganttConfig.barHeight() + ganttConfig.padding());
+
+    // Compute variable row layouts based on expanded tasks
+    // This enables rows to have different heights when tasks are expanded
+    const rowLayouts = createMemo(() => {
+        const resources = resourceStore.displayResources();
+        const expandedTasks = ganttConfig.expandedTasks();
+        const taskMap = taskStore.tasks();
+
+        if (!resources || resources.length === 0) {
+            return new Map();
+        }
+
+        // Build display rows from resources
+        const displayRows = resources.map((r, i) => ({
+            id: r.id,
+            type: r.type || 'resource',
+            displayIndex: i,
+            taskId: r.taskId, // If resource row has associated task
+        }));
+
+        return calculateRowLayouts(
+            displayRows,
+            {
+                barHeight: ganttConfig.barHeight(),
+                padding: ganttConfig.padding(),
+                subtaskHeightRatio: ganttConfig.subtaskHeightRatio(),
+            },
+            expandedTasks,
+            taskMap
+        );
+    });
+
+    // Sorted row layouts for binary search in virtualization
+    const sortedRowLayouts = createMemo(() => rowLayoutsToSortedArray(rowLayouts()));
+
+    // Total content height (variable based on expanded rows)
+    const totalContentHeight = createMemo(() => {
+        const layouts = rowLayouts();
+        const total = layouts.get('__total__');
+        if (total) return total.height;
+        // Fallback to fixed height calculation
+        return (resourceCount() || taskCount()) * rowHeight();
+    });
+
+    // SVG height - content area only (NO headerHeight)
+    // Uses totalContentHeight for variable row heights
+    const svgHeight = createMemo(() => {
+        const total = totalContentHeight();
+        if (total > 0) return total;
+
+        // Fallback: fixed row height calculation
+        const bh = ganttConfig.barHeight();
+        const pad = ganttConfig.padding();
+        const count = resourceCount() || taskCount();
+        return count * (bh + pad);
+    });
 
     // Single viewport calculation - used by ALL components
     // Simple virtualization: offset / itemSize → visible range
+    // Supports variable row heights via sortedRowLayouts
     const viewport = createVirtualViewport({
         scrollX: scrollLeft,
         scrollY: scrollTop,
@@ -273,6 +318,7 @@ export function Gantt(props) {
         columnWidth: () => dateStore.columnWidth(),
         rowHeight,
         totalRows: () => resourceCount() || taskCount(),
+        sortedRowLayouts, // For variable height support
         overscanCols: props.overscanCols ?? 5,
         overscanRows: props.overscanRows ?? 5,
         overscanX: props.overscanX ?? 600,
@@ -400,6 +446,7 @@ export function Gantt(props) {
                         width={resourceColumnWidth()}
                         startRow={viewport.rowRange().start}
                         endRow={viewport.rowRange().end}
+                        rowLayouts={rowLayouts()}
                     />
                 }
                 header={
@@ -427,6 +474,7 @@ export function Gantt(props) {
                     startRow={viewport.rowRange().start}
                     endRow={viewport.rowRange().end}
                     resourceStore={resourceStore}
+                    rowLayouts={rowLayouts()}
                 />
 
                 {/* Dependency arrows */}
@@ -438,6 +486,7 @@ export function Gantt(props) {
                     endRow={viewport.rowRange().end}
                     startX={viewport.xRange().start}
                     endX={viewport.xRange().end}
+                    rowLayouts={rowLayouts()}
                 />
 
                 {/* Task bars */}
@@ -456,6 +505,7 @@ export function Gantt(props) {
                     endRow={viewport.rowRange().end}
                     startX={viewport.xRange().start}
                     endX={viewport.xRange().end}
+                    rowLayouts={rowLayouts()}
                 />
             </GanttContainer>
 
