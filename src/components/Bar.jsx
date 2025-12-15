@@ -86,13 +86,31 @@ export function Bar(props) {
             data.originalWidth = width();
             data.originalProgress = task().progress ?? 0;
 
-            // For bar dragging: collect dependent tasks ONCE at drag start
+            // For bar dragging: collect dependent tasks AND descendants ONCE at drag start
             // This enables batch updates during drag for better performance
-            if (state === 'dragging_bar' && props.onCollectDependents) {
-                const dependentIds = props.onCollectDependents(task().id);
-                // Store original positions for all dependents
+            if (state === 'dragging_bar') {
+                // Collect tasks that should move together
+                const tasksToMove = new Set();
+
+                // Add dependency chain (tasks that depend on this one)
+                if (props.onCollectDependents) {
+                    const dependentIds = props.onCollectDependents(task().id);
+                    for (const id of dependentIds) {
+                        tasksToMove.add(id);
+                    }
+                }
+
+                // Add descendants (child tasks for summary bars)
+                if (props.onCollectDescendants) {
+                    const descendantIds = props.onCollectDescendants(task().id);
+                    for (const id of descendantIds) {
+                        tasksToMove.add(id);
+                    }
+                }
+
+                // Store original positions for all tasks in the batch
                 data.dependentOriginals = new Map();
-                for (const id of dependentIds) {
+                for (const id of tasksToMove) {
                     const pos = props.taskStore?.getBarPosition(id);
                     if (pos) {
                         data.dependentOriginals.set(id, { originalX: pos.x });

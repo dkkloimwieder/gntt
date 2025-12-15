@@ -277,3 +277,76 @@ export function calculateDistance(predBar, succBar) {
 export function validateSuccessorPosition(succX, predX) {
     return succX >= predX;
 }
+
+/**
+ * Compute summary bar bounds from its children's positions.
+ * Summary bar spans from earliest child start to latest child end.
+ *
+ * @param {Object} summaryTask - Summary task with _children array
+ * @param {Map<string, Object>} taskMap - Map of task ID to task object
+ * @param {number} minWidth - Minimum width for summary bar (default: 20)
+ * @returns {{ x: number, width: number } | null} New bounds or null if no children
+ */
+export function computeSummaryBounds(summaryTask, taskMap, minWidth = 20) {
+    if (!summaryTask._children || summaryTask._children.length === 0) {
+        return null;
+    }
+
+    // Collect all descendant bars (recursive) for accurate span calculation
+    const descendantBars = [];
+    const collectBars = (childIds) => {
+        for (const childId of childIds) {
+            const child = taskMap.get(childId);
+            if (!child?.$bar) continue;
+
+            // Include this child's bar
+            descendantBars.push(child.$bar);
+
+            // Recursively collect from grandchildren
+            if (child._children && child._children.length > 0) {
+                collectBars(child._children);
+            }
+        }
+    };
+
+    collectBars(summaryTask._children);
+
+    if (descendantBars.length === 0) {
+        return null;
+    }
+
+    const minX = Math.min(...descendantBars.map((b) => b.x));
+    const maxRight = Math.max(...descendantBars.map((b) => b.x + b.width));
+    const width = Math.max(maxRight - minX, minWidth);
+
+    return { x: minX, width };
+}
+
+/**
+ * Recompute all summary bar bounds in the task hierarchy.
+ * Process from deepest level up so parent summaries include child summaries.
+ *
+ * @param {Map<string, Object>} taskMap - Map of task ID to task object
+ */
+export function recomputeAllSummaryBounds(taskMap) {
+    // Find max depth
+    let maxDepth = 0;
+    for (const task of taskMap.values()) {
+        if (task._depth > maxDepth) {
+            maxDepth = task._depth;
+        }
+    }
+
+    // Process from deepest to shallowest
+    for (let depth = maxDepth; depth >= 0; depth--) {
+        for (const task of taskMap.values()) {
+            if (task._depth === depth && task.type === 'summary') {
+                const bounds = computeSummaryBounds(task, taskMap);
+                if (bounds && task.$bar) {
+                    task.$bar.x = bounds.x;
+                    task.$bar.width = bounds.width;
+                }
+            }
+        }
+    }
+}

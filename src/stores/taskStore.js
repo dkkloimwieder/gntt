@@ -8,6 +8,9 @@ export function createTaskStore() {
     // Map of task ID to task data (includes position info)
     const [tasks, setTasks] = createSignal(new Map());
 
+    // Set of collapsed task IDs (tasks whose children are hidden)
+    const [collapsedTasks, setCollapsedTasks] = createSignal(new Set());
+
     // Get a specific task by ID
     // Returns raw value - don't create memos in event handlers!
     const getTask = (id) => {
@@ -113,6 +116,77 @@ export function createTaskStore() {
         });
     };
 
+    // --- Subtask Collapse State ---
+
+    /**
+     * Toggle collapse state for a task (show/hide its descendants).
+     * @param {string} taskId - Task ID to toggle
+     */
+    const toggleTaskCollapse = (taskId) => {
+        setCollapsedTasks((prev) => {
+            const next = new Set(prev);
+            if (next.has(taskId)) {
+                next.delete(taskId);
+            } else {
+                next.add(taskId);
+            }
+            return next;
+        });
+    };
+
+    /**
+     * Check if a task is collapsed.
+     * @param {string} taskId - Task ID to check
+     * @returns {boolean}
+     */
+    const isTaskCollapsed = (taskId) => collapsedTasks().has(taskId);
+
+    /**
+     * Explicitly expand a task (show its descendants).
+     * @param {string} taskId - Task ID to expand
+     */
+    const expandTask = (taskId) => {
+        setCollapsedTasks((prev) => {
+            if (!prev.has(taskId)) return prev;
+            const next = new Set(prev);
+            next.delete(taskId);
+            return next;
+        });
+    };
+
+    /**
+     * Explicitly collapse a task (hide its descendants).
+     * @param {string} taskId - Task ID to collapse
+     */
+    const collapseTask = (taskId) => {
+        setCollapsedTasks((prev) => {
+            if (prev.has(taskId)) return prev;
+            const next = new Set(prev);
+            next.add(taskId);
+            return next;
+        });
+    };
+
+    /**
+     * Expand all collapsed tasks.
+     */
+    const expandAllTasks = () => {
+        setCollapsedTasks(new Set());
+    };
+
+    /**
+     * Collapse all summary tasks.
+     */
+    const collapseAllTasks = () => {
+        const summaryIds = [];
+        for (const task of tasks().values()) {
+            if (task.type === 'summary' || (task._children && task._children.length > 0)) {
+                summaryIds.push(task.id);
+            }
+        }
+        setCollapsedTasks(new Set(summaryIds));
+    };
+
     return {
         tasks,
         getTask,
@@ -125,5 +199,13 @@ export function createTaskStore() {
         batchMovePositions,
         removeTask,
         clear,
+        // Subtask collapse state
+        collapsedTasks,
+        toggleTaskCollapse,
+        isTaskCollapsed,
+        expandTask,
+        collapseTask,
+        expandAllTasks,
+        collapseAllTasks,
     };
 }

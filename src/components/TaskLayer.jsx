@@ -1,11 +1,13 @@
 import { For, createMemo } from 'solid-js';
 import { Bar } from './Bar.jsx';
+import { SummaryBar } from './SummaryBar.jsx';
 import {
     resolveMovement,
     collectDependentTasks,
     clampBatchDeltaX,
     resolveAfterResize,
 } from '../utils/constraintResolver.js';
+import { collectDescendants } from '../utils/hierarchyProcessor.js';
 
 /**
  * TaskLayer - Container for all task bars.
@@ -142,12 +144,32 @@ export function TaskLayer(props) {
         );
     };
 
-    // Resources list for row grouping
-    const resources = () => props.resources || [];
+    /**
+     * Collect all descendant tasks for batch drag of summary bars.
+     * Returns a Set of task IDs that should move with the parent.
+     * @param {string} taskId - Parent task ID
+     * @returns {Set<string>} Descendant task IDs
+     */
+    const handleCollectDescendants = (taskId) => {
+        if (!props.taskStore) return new Set();
+        const taskMap = props.taskStore.tasks();
+        return collectDescendants(taskId, taskMap);
+    };
+
+    /**
+     * Handle collapse toggle for summary bars.
+     * @param {string} taskId - Summary task ID
+     */
+    const handleToggleCollapse = (taskId) => {
+        props.taskStore?.toggleTaskCollapse(taskId);
+    };
+
+    // Get display resources from resourceStore (respects collapse state)
+    const displayResources = () => props.resourceStore?.displayResources() || [];
 
     // Viewport range for row virtualization
     const startRow = () => props.startRow ?? 0;
-    const endRow = () => props.endRow ?? resources().length;
+    const endRow = () => props.endRow ?? displayResources().length;
 
     // Viewport range for horizontal (X) virtualization
     const startX = () => props.startX ?? 0;
@@ -157,6 +179,9 @@ export function TaskLayer(props) {
     const tasksByResource = createMemo(() => {
         const grouped = new Map();
         for (const task of tasks()) {
+            // Skip hidden tasks (in collapsed groups)
+            if (task._isHidden) continue;
+
             const resource = task.resource || 'Unassigned';
             if (!grouped.has(resource)) {
                 grouped.set(resource, []);
@@ -170,10 +195,13 @@ export function TaskLayer(props) {
     // Key insight: Keeping DOM size small (~300-500 tasks) is more important than
     // avoiding CSS visibility toggles for 2,300 tasks
 
-    // Create flat list of tasks filtered by BOTH row AND X range
-    const visibleTasks = createMemo(() => {
+    // Create flat list of task IDs filtered by BOTH row AND X range
+    // IMPORTANT: Return IDs (strings) instead of task objects to maintain stable references.
+    // This prevents <For> from recreating Bar components when the store updates during drag,
+    // which would kill the document event listeners and break drag functionality.
+    const visibleTaskIds = createMemo(() => {
         const result = [];
-        const resList = resources();
+        const resList = displayResources();
         const startIdx = startRow();
         const endIdx = endRow();
         const grouped = tasksByResource();
@@ -182,8 +210,13 @@ export function TaskLayer(props) {
 
         // Filter by row range
         for (let i = startIdx; i < endIdx && i < resList.length; i++) {
-            const resource = resList[i];
-            const resourceTaskList = grouped.get(resource);
+            const item = resList[i];
+
+            // Skip group rows - they have no tasks directly assigned
+            if (item.type === 'group') continue;
+
+            const resourceId = item.id;
+            const resourceTaskList = grouped.get(resourceId);
             if (!resourceTaskList) continue;
 
             // Filter by X range
@@ -194,35 +227,73 @@ export function TaskLayer(props) {
                         continue; // Skip tasks outside X viewport
                     }
                 }
-                result.push(task);
+                result.push(task.id); // Push ID, not task object - keeps references stable
             }
         }
 
         return result;
     });
 
+    // Split visible tasks into regular tasks and summary tasks
+    // Summary bars render behind regular bars for proper z-ordering
+    const splitTaskIds = createMemo(() => {
+        const regularIds = [];
+        const summaryIds = [];
+        const taskMap = props.taskStore?.tasks() ?? new Map();
+
+        for (const taskId of visibleTaskIds()) {
+            const task = taskMap.get(taskId);
+            if (task?.type === 'summary') {
+                summaryIds.push(taskId);
+            } else {
+                regularIds.push(taskId);
+            }
+        }
+
+        return { regularIds, summaryIds };
+    });
+
     return (
         <g class="task-layer">
-            {/* For-based virtualization: keyed by item identity (solid-primitives/virtual pattern) */}
-            <For each={visibleTasks()}>
-                {(task) => (
-                    <Bar
-                        task={task}
-                        taskId={task.id}
-                        taskStore={props.taskStore}
-                        ganttConfig={props.ganttConfig}
-                        onConstrainPosition={handleConstrainPosition}
-                        onCollectDependents={handleCollectDependents}
-                        onClampBatchDelta={handleClampBatchDelta}
-                        onDateChange={handleDateChange}
-                        onProgressChange={handleProgressChange}
-                        onResizeEnd={handleResizeEnd}
-                        onHover={handleHover}
-                        onHoverEnd={handleHoverEnd}
-                        onTaskClick={handleTaskClick}
-                    />
-                )}
-            </For>
+            {/* Summary bars render BEHIND regular bars */}
+            <g class="summary-layer">
+                <For each={splitTaskIds().summaryIds}>
+                    {(taskId) => (
+                        <SummaryBar
+                            taskId={taskId}
+                            taskStore={props.taskStore}
+                            ganttConfig={props.ganttConfig}
+                            onCollectDescendants={handleCollectDescendants}
+                            onClampBatchDelta={handleClampBatchDelta}
+                            onToggleCollapse={handleToggleCollapse}
+                            onDragEnd={handleResizeEnd}
+                        />
+                    )}
+                </For>
+            </g>
+
+            {/* Regular task bars render ON TOP */}
+            <g class="task-bars-layer">
+                <For each={splitTaskIds().regularIds}>
+                    {(taskId) => (
+                        <Bar
+                            taskId={taskId}
+                            taskStore={props.taskStore}
+                            ganttConfig={props.ganttConfig}
+                            onConstrainPosition={handleConstrainPosition}
+                            onCollectDependents={handleCollectDependents}
+                            onCollectDescendants={handleCollectDescendants}
+                            onClampBatchDelta={handleClampBatchDelta}
+                            onDateChange={handleDateChange}
+                            onProgressChange={handleProgressChange}
+                            onResizeEnd={handleResizeEnd}
+                            onHover={handleHover}
+                            onHoverEnd={handleHoverEnd}
+                            onTaskClick={handleTaskClick}
+                        />
+                    )}
+                </For>
+            </g>
         </g>
     );
 }

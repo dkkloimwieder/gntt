@@ -36,6 +36,7 @@ The SolidJS implementation lives in `src/` and provides reactive, fine-grained u
 | Task Store | Complete | `src/stores/taskStore.js` |
 | Config Store | Complete | `src/stores/ganttConfigStore.js` |
 | Date Store | Complete | `src/stores/ganttDateStore.js` |
+| Resource Store | Complete | `src/stores/resourceStore.js` |
 | Constraint System | Complete | `src/utils/constraintResolver.js` |
 | Main Gantt Orchestrator | Complete | `src/components/Gantt.jsx` |
 | Grid & Headers | Complete | `src/components/Grid.jsx`, `DateHeaders.jsx` |
@@ -58,6 +59,7 @@ src/
 │   ├── GanttContainer.jsx  # Scroll container with sticky headers
 │   ├── GanttDemo.jsx       # Full Gantt demo page
 │   ├── GanttPerfDemo.jsx   # Performance testing demo
+│   ├── GanttResourceGroupsDemo.jsx  # Resource groups demo
 │   ├── Grid.jsx            # Background grid with rows
 │   ├── GridTicks.jsx       # Vertical grid lines only
 │   ├── ResourceColumn.jsx  # Sticky left column (swimlanes)
@@ -66,19 +68,22 @@ src/
 │   ├── TaskDataPopup.jsx   # Hover tooltip popup
 │   └── TaskLayer.jsx       # Container for all bars
 ├── stores/
-│   ├── ganttStore.js       # Reactive task state management
+│   ├── taskStore.js        # Reactive task state management
 │   ├── ganttConfigStore.js # Configuration state management
-│   └── ganttDateStore.js   # Date/timeline calculations
+│   ├── ganttDateStore.js   # Date/timeline calculations
+│   └── resourceStore.js    # Resource groups and collapse state
 ├── utils/
 │   ├── barCalculations.js  # Pure functions for bar geometry
 │   ├── constraintResolver.js # Task relationship constraints
 │   ├── createVirtualViewport.js # Simple 2D viewport virtualization
+│   ├── resourceProcessor.js # Resource normalization and group display
 │   ├── taskProcessor.js    # Task parsing and position computation
 │   └── taskGenerator.js    # Test data generation
 ├── hooks/
 │   └── useDrag.js          # RAF-based drag state machine
 ├── entries/                # Vite entry points for demos
 │   ├── gantt.jsx
+│   ├── resource-groups.jsx
 │   ├── perf.jsx
 │   ├── arrow.jsx
 │   ├── bar.jsx
@@ -371,6 +376,66 @@ const snapshot = config.getConfig();
 
 ---
 
+### Resource Store (`resourceStore.js`)
+
+**Purpose**: Reactive state management for resource groups with collapse/expand functionality.
+
+**API**:
+```javascript
+const resourceStore = createResourceStore(initialResources);
+
+// Get all resources (normalized)
+resourceStore.resources();
+
+// Get visible resources (respects collapse state)
+resourceStore.displayResources();
+// Returns: [{ id, type, group, displayIndex, isCollapsed? }, ...]
+
+// Get resource index map for task positioning
+resourceStore.resourceIndexMap();
+// Returns: Map<resourceId, displayIndex>
+
+// Get display count (visible rows)
+resourceStore.displayCount();
+
+// Toggle group collapse state
+resourceStore.toggleGroup('Engineering');
+
+// Expand/collapse specific group
+resourceStore.expandGroup('Engineering');
+resourceStore.collapseGroup('Engineering');
+
+// Update resources
+resourceStore.updateResources(newResources);
+```
+
+**Resource Data Structure**:
+```javascript
+// Input format - groups and resources as flat array
+const resources = [
+    { id: 'Engineering', type: 'group' },
+    { id: 'Alice', type: 'resource', group: 'Engineering' },
+    { id: 'Bob', type: 'resource', group: 'Engineering' },
+    { id: 'Design', type: 'group' },
+    { id: 'Carol', type: 'resource', group: 'Design' },
+];
+
+// Backward compatible - simple string array auto-converts
+const resources = ['Alice', 'Bob', 'Carol'];
+// Converts to: [{ id: 'Alice', type: 'resource' }, ...]
+```
+
+**Integration with Gantt**:
+```jsx
+<Gantt
+    tasks={tasks}
+    resources={resources}  // Optional - extracted from tasks if not provided
+    options={{ resource_column_width: 120 }}
+/>
+```
+
+---
+
 ## Utility Functions
 
 ### Bar Calculations (`barCalculations.js`)
@@ -596,6 +661,23 @@ Interactive props showcase for all task and connector configuration options.
 
 ---
 
+### GanttResourceGroupsDemo (`/examples/resource-groups.html`) - **Resource Groups**
+
+Demonstrates collapsible resource groups for organizing tasks by team.
+
+**Features Demonstrated**:
+- Three resource groups (Engineering, Design, QA)
+- Resources assigned to groups via `group` property
+- Click group headers to collapse/expand
+- Chevron icon indicates collapse state (▼ expanded, ► collapsed)
+- Group rows have distinct gray background
+- Tasks assigned to individual resources within groups
+- Arrows hidden when connected to collapsed groups
+
+**Run**: `pnpm run dev:solid` → http://localhost:5173/examples/resource-groups.html
+
+---
+
 ### GanttPerfDemo (`/examples/perf.html`) - **Performance Testing**
 
 Performance testing demo with pre-generated calendar data and stress tests.
@@ -639,6 +721,14 @@ Individual component demos for isolated testing:
 ---
 
 ## Configuration Options
+
+### resource_column_width (Default: 120)
+
+Width of the sticky left resource column in pixels.
+
+Example: `resource_column_width: 150` → wider column for longer names
+
+---
 
 ### columnWidth (Default: 45)
 
@@ -775,6 +865,7 @@ pnpm run dev:solid
 # Open demos:
 # http://localhost:5173/examples/           - Demo hub (index)
 # http://localhost:5173/examples/gantt.html - Main Gantt demo
+# http://localhost:5173/examples/resource-groups.html - Resource groups
 # http://localhost:5173/examples/perf.html  - Performance test
 # http://localhost:5173/examples/arrow.html - Arrow component
 # http://localhost:5173/examples/bar.html   - Bar component
@@ -807,11 +898,12 @@ pnpm prettier    # Format code
 
 1. **Core Components**: Bar, Arrow, TaskDataPopup, TaskDataModal fully functional
 2. **Main Gantt Orchestrator**: Grid, headers, scroll handling, task/arrow layers
-3. **State Management**: Task store, config store, date store operational
+3. **State Management**: Task store, config store, date store, resource store operational
 4. **Interactions**: Drag, resize, progress editing all working
 5. **Constraints**: Full dependency constraint system (FS, SS, FF, SF types)
 6. **Reactivity**: Fine-grained updates via SolidJS signals and stores
-7. **Demos**: Full Gantt demo and interactive showcase
+7. **Resource Groups**: Collapsible groups with collapse/expand, arrow hiding
+8. **Demos**: Full Gantt demo, resource groups demo, and interactive showcase
 
 ### What's Pending
 
@@ -882,6 +974,7 @@ With 10K tasks: 10,000 bars → ~11 rendered, 9,179 arrows → ~11 rendered
 | Add new config option | `ganttConfigStore.js` |
 | Change date calculations | `ganttDateStore.js` |
 | Modify task processing | `taskProcessor.js` processTasks |
+| Add/modify resource groups | `resourceStore.js`, `resourceProcessor.js` |
 | Update Gantt demo tasks | `GanttDemo.jsx` tasks signal |
 | Update showcase presets | `ShowcaseDemo.jsx` PRESETS object |
 | Modify grid rendering | `Grid.jsx`, `GridTicks.jsx` |

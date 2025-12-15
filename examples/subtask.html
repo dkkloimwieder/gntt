@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Subtasks Demo - SolidJS Gantt</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f9fafb;
+            color: #333;
+        }
+        #app {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        /* Gantt CSS variables */
+        :root {
+            --g-grid-bg-color: #fff;
+            --g-grid-row-color: #fff;
+            --g-grid-row-even: #fff;
+            --g-grid-row-odd: #fafafa;
+            --g-grid-line-color: #e5e7eb;
+            --g-grid-thick-line-color: #d1d5db;
+            --g-grid-group-row: #e5e7eb;
+            --g-group-bg-color: #e5e7eb;
+            --g-group-text-color: #1f2937;
+            --g-header-bg-color: #fff;
+            --g-header-text-color: #374151;
+            --g-header-text-color-secondary: #6b7280;
+        }
+        /* Summary bar styling */
+        .summary-bar-wrapper {
+            cursor: pointer;
+        }
+        .summary-bar-wrapper:hover path,
+        .summary-bar-wrapper:hover rect {
+            filter: brightness(1.1);
+        }
+        .collapse-toggle:hover path {
+            stroke: #333;
+        }
+    </style>
+</head>
+<body>
+    <div id="app"></div>
+    <script type="module" src="/src/entries/subtask.jsx"></script>
+</body>
+</html>

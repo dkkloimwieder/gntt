@@ -120,6 +120,19 @@ export function processTask(task, index) {
         ...task.constraints,
     };
 
+    // Preserve hierarchy fields (parentId, type)
+    // These will be processed by buildHierarchy in Gantt.jsx
+    if (task.parentId !== undefined) {
+        processed.parentId = task.parentId;
+    }
+    if (task.type !== undefined) {
+        processed.type = task.type;
+    }
+
+    // Initialize hierarchy fields (will be populated by buildHierarchy)
+    processed._children = [];
+    processed._depth = 0;
+
     return processed;
 }
 
@@ -127,9 +140,10 @@ export function processTask(task, index) {
  * Process all tasks and compute their initial positions.
  * @param {Object[]} tasks - Raw task array
  * @param {Object} config - Configuration with ganttStart, unit, step, columnWidth, headerHeight, barHeight, padding
+ * @param {Map<string, number>} [externalResourceIndexMap] - Optional resource index map from resourceStore
  * @returns {{tasks: Object[], relationships: Object[], resources: string[]}}
  */
-export function processTasks(tasks, config) {
+export function processTasks(tasks, config, externalResourceIndexMap = null) {
     const processedTasks = [];
     const relationships = [];
 
@@ -142,6 +156,7 @@ export function processTasks(tasks, config) {
     }
 
     // Build resource list - unique resources in order of first appearance
+    // Used for backward compatibility when no resourceStore is provided
     const resourceSet = new Set();
     const resources = [];
     for (const task of processedTasks) {
@@ -152,15 +167,26 @@ export function processTasks(tasks, config) {
         }
     }
 
-    // Create resource index map for Y positioning
-    const resourceIndex = new Map();
-    resources.forEach((r, i) => resourceIndex.set(r, i));
+    // Use external resource index map if provided, otherwise build from tasks
+    // External map comes from resourceStore and respects collapse state
+    let resourceIndex;
+    if (externalResourceIndexMap) {
+        resourceIndex = externalResourceIndexMap;
+    } else {
+        resourceIndex = new Map();
+        resources.forEach((r, i) => resourceIndex.set(r, i));
+    }
 
     // Second pass: compute positions and build relationships
     for (const task of processedTasks) {
         // Get row index based on resource (swimlane layout)
         const resource = task.resource || 'Unassigned';
         const rowIndex = resourceIndex.get(resource);
+
+        // Handle case where resource is not in map (e.g., collapsed group)
+        // Use -1 to indicate hidden/off-screen
+        const effectiveRowIndex = rowIndex !== undefined ? rowIndex : -1;
+        const isHidden = effectiveRowIndex < 0;
 
         // Compute bar position
         const x = computeX(
@@ -171,11 +197,10 @@ export function processTasks(tasks, config) {
             config.columnWidth,
         );
 
-        const y = computeY(
-            rowIndex,
-            config.barHeight,
-            config.padding,
-        );
+        // Use negative Y for hidden tasks (won't be rendered by TaskLayer)
+        const y = isHidden
+            ? -1000
+            : computeY(effectiveRowIndex, config.barHeight, config.padding);
 
         const width = computeWidth(
             task._start,
@@ -192,7 +217,8 @@ export function processTasks(tasks, config) {
             width,
             height: config.barHeight,
         };
-        task._resourceIndex = rowIndex;
+        task._resourceIndex = effectiveRowIndex;
+        task._isHidden = isHidden;
 
         // Build relationships from dependencies
         for (const dep of task.dependencies) {

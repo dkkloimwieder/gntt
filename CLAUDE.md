@@ -47,6 +47,7 @@ gantt/
 ├── examples/                   # SolidJS demo HTML files
 │   ├── index.html              # Demo hub
 │   ├── gantt.html              # Main demo
+│   ├── resource-groups.html    # Collapsible resource groups demo
 │   ├── perf.html               # Performance test (200+ tasks)
 │   ├── arrow.html, bar.html    # Component demos
 │   └── constraint.html, showcase.html
@@ -63,9 +64,10 @@ gantt/
 The SolidJS implementation uses reactive stores for state management:
 
 **Stores:**
-- `ganttStore.js` - Task data and operations
+- `taskStore.js` - Task data and operations
 - `ganttConfigStore.js` - Configuration (view mode, dimensions, features)
 - `ganttDateStore.js` - Timeline calculations and date utilities
+- `resourceStore.js` - Resource groups with collapse/expand state
 
 **Components:**
 - `Gantt.jsx` - Main container component
@@ -78,6 +80,7 @@ The SolidJS implementation uses reactive stores for state management:
 - `barCalculations.js` - Position/size calculations from dates
 - `constraintResolver.js` - Dependency constraint enforcement (FS/SS/FF/SF)
 - `createVirtualViewport.js` - Simple 2D viewport virtualization
+- `resourceProcessor.js` - Resource normalization and group display logic
 - `taskGenerator.js` - Test data generation
 
 See `docs/ARCHITECTURE.md` for detailed documentation.

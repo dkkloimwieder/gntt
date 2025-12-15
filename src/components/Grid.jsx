@@ -4,6 +4,7 @@ import { createMemo, For, Show } from 'solid-js';
  * Grid - Renders the SVG background, row rectangles, and vertical grid lines.
  * Uses SVG patterns for vertical lines (single element vs thousands of <line> elements).
  * Row positions are relative to SVG content (no header offset).
+ * Supports resource groups with distinct styling for group rows.
  */
 export function Grid(props) {
     // Grid dimensions
@@ -34,17 +35,31 @@ export function Grid(props) {
 
     const taskCount = () => props.taskCount || 0;
 
+    // Get display resources from resourceStore (for group row detection)
+    const displayResources = () => props.resourceStore?.displayResources() || [];
+
+    // Viewport range for virtualization
+    const startRow = () => props.startRow ?? 0;
+    const endRow = () => props.endRow ?? taskCount();
+
     // Calculate rows - rows fill the full height from y=0
+    // Now includes row type info from displayResources
     const rows = createMemo(() => {
         const count = taskCount();
         const rh = rowHeight();
+        const resources = displayResources();
+        const start = Math.max(0, startRow());
+        const end = Math.min(count, endRow());
 
         const result = [];
-        for (let i = 0; i < count; i++) {
+        for (let i = start; i < end; i++) {
+            const resource = resources[i];
             result.push({
                 index: i,
                 y: i * rh,
                 height: rh,
+                type: resource?.type || 'resource',
+                id: resource?.id,
             });
         }
         return result;
@@ -54,10 +69,14 @@ export function Grid(props) {
     const bgColor = () =>
         props.backgroundColor || 'var(--g-grid-bg-color, #fff)';
 
-    // Row colors (alternating or single)
-    const rowColor = (index) => {
+    // Row colors - groups get distinct styling
+    const rowColor = (row) => {
+        // Group rows get a distinct background
+        if (row.type === 'group') {
+            return 'var(--g-grid-group-row, #e5e7eb)';
+        }
         if (props.alternateRows) {
-            return index % 2 === 0
+            return row.index % 2 === 0
                 ? 'var(--g-grid-row-even, #fff)'
                 : 'var(--g-grid-row-odd, #f5f5f5)';
         }
@@ -147,11 +166,13 @@ export function Grid(props) {
                         y={row.y}
                         width={gridWidth()}
                         height={row.height}
-                        fill={rowColor(row.index)}
+                        fill={rowColor(row)}
                         stroke="var(--g-grid-line-color, #e0e0e0)"
                         stroke-width="0.5"
-                        class="grid-row"
+                        class={`grid-row ${row.type === 'group' ? 'grid-row-group' : ''}`}
                         data-row-index={row.index}
+                        data-row-type={row.type}
+                        data-row-id={row.id}
                     />
                 )}
             </For>

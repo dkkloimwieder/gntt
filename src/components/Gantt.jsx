@@ -1,9 +1,13 @@
-import { createSignal, createMemo, createEffect, onMount } from 'solid-js';
+import { createSignal, createMemo, createEffect, onMount, untrack } from 'solid-js';
 import { createTaskStore } from '../stores/taskStore.js';
 import { createGanttConfigStore } from '../stores/ganttConfigStore.js';
 import { createGanttDateStore } from '../stores/ganttDateStore.js';
+import { createResourceStore } from '../stores/resourceStore.js';
 import { processTasks, findDateBounds } from '../utils/taskProcessor.js';
+import { extractResourcesFromTasks } from '../utils/resourceProcessor.js';
 import { createVirtualViewport } from '../utils/createVirtualViewport.js';
+import { buildHierarchy, isHiddenByCollapsedAncestor } from '../utils/hierarchyProcessor.js';
+import { recomputeAllSummaryBounds } from '../utils/barCalculations.js';
 
 import { GanttContainer } from './GanttContainer.jsx';
 import { Grid } from './Grid.jsx';
@@ -29,6 +33,7 @@ export function Gantt(props) {
     const taskStore = createTaskStore();
     const ganttConfig = createGanttConfigStore(props.options || {});
     const dateStore = createGanttDateStore(props.options || {});
+    const resourceStore = createResourceStore(props.resources || []);
 
     // Container reference for scroll control (reactive so effects can depend on it)
     const [containerApi, setContainerApi] = createSignal(null);
@@ -42,8 +47,8 @@ export function Gantt(props) {
     // Relationships state
     const [relationships, setRelationships] = createSignal([]);
 
-    // Resources list (unique resources for swimlane rows)
-    const [resources, setResources] = createSignal([]);
+    // Legacy resources signal - for backward compatibility when no resourceStore resources
+    const [legacyResources, setLegacyResources] = createSignal([]);
 
     // Hover state for popup
     const [hoveredTaskId, setHoveredTaskId] = createSignal(null);
@@ -84,7 +89,7 @@ export function Gantt(props) {
     });
 
     // Initialize tasks and compute positions
-    const initializeTasks = (rawTasks) => {
+    const initializeTasks = (rawTasks, useResourceStore = true) => {
         if (!rawTasks || rawTasks.length === 0) {
             taskStore.clear();
             setRelationships([]);
@@ -122,16 +127,47 @@ export function Gantt(props) {
             padding: ganttConfig.padding(),
         };
 
+        // Determine resource index map to use
+        // If resourceStore has explicit resources, use its map (respects collapse state)
+        // Otherwise, extract resources from tasks for backward compatibility
+        let resourceIndexMap = null;
+        const hasExplicitResources = resourceStore.resources().length > 0;
+
+        if (hasExplicitResources && useResourceStore) {
+            resourceIndexMap = resourceStore.resourceIndexMap();
+        } else if (!hasExplicitResources) {
+            // Extract resources from tasks and update resourceStore
+            const extracted = extractResourcesFromTasks(rawTasks);
+            resourceStore.updateResources(extracted);
+            resourceIndexMap = resourceStore.resourceIndexMap();
+        }
+
         const {
             tasks: processedTasks,
             relationships: taskRelationships,
             resources: taskResources,
-        } = processTasks(rawTasks, config);
+        } = processTasks(rawTasks, config, resourceIndexMap);
+
+        // Build task hierarchy (parent-child relationships)
+        const taskMap = buildHierarchy(processedTasks);
+
+        // Recompute summary bar bounds (span from earliest to latest child)
+        recomputeAllSummaryBounds(taskMap);
+
+        // Apply subtask collapse visibility
+        const collapsedTaskSet = taskStore.collapsedTasks();
+        for (const task of taskMap.values()) {
+            // Check if hidden by collapsed ancestor (in addition to resource group collapse)
+            if (isHiddenByCollapsedAncestor(task.id, taskMap, collapsedTaskSet)) {
+                task._isHidden = true;
+            }
+        }
 
         // Update stores
-        taskStore.updateTasks(processedTasks);
+        taskStore.updateTasks(Array.from(taskMap.values()));
         setRelationships(taskRelationships);
-        setResources(taskResources);
+        // Store legacy resources for backward compatibility
+        setLegacyResources(taskResources);
     };
 
     // Initialize on mount and when tasks change
@@ -143,7 +179,8 @@ export function Gantt(props) {
     createEffect(() => {
         const tasks = props.tasks;
         if (tasks) {
-            initializeTasks(tasks);
+            // Use untrack to prevent initializeTasks from creating reactive dependencies
+            untrack(() => initializeTasks(tasks));
         }
     });
 
@@ -167,7 +204,7 @@ export function Gantt(props) {
             dateStore.changeViewMode(viewMode);
             // Re-initialize tasks with new view mode settings
             if (props.tasks && props.tasks.length > 0) {
-                initializeTasks(props.tasks);
+                untrack(() => initializeTasks(props.tasks));
             }
         }
     });
@@ -178,8 +215,32 @@ export function Gantt(props) {
         return tasks ? tasks.size : 0;
     });
 
-    // Resource count for swimlane rows
-    const resourceCount = createMemo(() => resources().length);
+    // Resource count for swimlane rows - use displayResources for collapse support
+    const resourceCount = createMemo(() => {
+        const displayCount = resourceStore.displayCount();
+        // Fallback to legacy resources if no resourceStore resources
+        return displayCount > 0 ? displayCount : legacyResources().length;
+    });
+
+    // Effect: recalculate task positions when resource group collapse state changes
+    createEffect(() => {
+        // Track collapse state
+        const collapsed = resourceStore.collapsedGroups();
+        // Recalculate positions if we have tasks
+        if (props.tasks && props.tasks.length > 0) {
+            untrack(() => initializeTasks(props.tasks));
+        }
+    });
+
+    // Effect: recalculate task positions when subtask collapse state changes
+    createEffect(() => {
+        // Track subtask collapse state
+        const collapsedTasks = taskStore.collapsedTasks();
+        // Recalculate positions if we have tasks
+        if (props.tasks && props.tasks.length > 0) {
+            untrack(() => initializeTasks(props.tasks));
+        }
+    });
 
     const gridWidth = createMemo(() => dateStore.gridWidth());
 
@@ -310,6 +371,9 @@ export function Gantt(props) {
     const upperHeaderHeight = () => props.options?.upper_header_height || 45;
     const lowerHeaderHeight = () => props.options?.lower_header_height || 30;
 
+    // Resource column width from options
+    const resourceColumnWidth = () => props.options?.resource_column_width || 120;
+
     // Arrow configuration from options
     const arrowConfig = createMemo(() => ({
         stroke: props.options?.arrow_color || '#666',
@@ -326,14 +390,14 @@ export function Gantt(props) {
                 svgWidth={gridWidth()}
                 svgHeight={svgHeight()}
                 headerHeight={ganttConfig.headerHeight()}
-                resourceColumnWidth={60}
+                resourceColumnWidth={resourceColumnWidth()}
                 resourceHeaderLabel="Resource"
                 onContainerReady={handleContainerReady}
                 resourceColumn={
                     <ResourceColumn
-                        resources={resources()}
+                        resourceStore={resourceStore}
                         ganttConfig={ganttConfig}
-                        width={60}
+                        width={resourceColumnWidth()}
                         startRow={viewport.rowRange().start}
                         endRow={viewport.rowRange().end}
                     />
@@ -362,6 +426,7 @@ export function Gantt(props) {
                     lines={props.options?.lines || 'both'}
                     startRow={viewport.rowRange().start}
                     endRow={viewport.rowRange().end}
+                    resourceStore={resourceStore}
                 />
 
                 {/* Dependency arrows */}
@@ -380,7 +445,7 @@ export function Gantt(props) {
                     taskStore={taskStore}
                     ganttConfig={ganttConfig}
                     relationships={relationships()}
-                    resources={resources()}
+                    resourceStore={resourceStore}
                     onDateChange={handleDateChange}
                     onProgressChange={handleProgressChange}
                     onResizeEnd={handleResizeEnd}

@@ -43,6 +43,10 @@ export function ArrowLayer(props) {
             const toId = rel.to ?? rel.successorId;
             const fromTask = props.taskStore.getTask(fromId);
             const toTask = props.taskStore.getTask(toId);
+
+            // Skip arrows where either endpoint is hidden (in collapsed group)
+            if (fromTask?._isHidden || toTask?._isHidden) continue;
+
             const fromRow = fromTask?._resourceIndex ?? -1;
             const toRow = toTask?._resourceIndex ?? -1;
 
