@@ -66,10 +66,12 @@ gantt/
 The SolidJS implementation uses reactive stores for state management:
 
 **Stores:**
-- `taskStore.js` - Task data and operations
+- `taskStore.js` - Task data and operations (uses `createStore` for fine-grained reactivity)
 - `ganttConfigStore.js` - Configuration (view mode, dimensions, features)
 - `ganttDateStore.js` - Timeline calculations and date utilities
 - `resourceStore.js` - Resource groups with collapse/expand state
+
+**Performance Note:** The `taskStore` uses SolidJS `createStore({})` instead of `createSignal(Map)` to enable path-level dependency tracking. This allows dragging a task to only update that specific task's Bar component and connected Arrows, achieving 60 FPS with 10K+ tasks.
 
 **Components:**
 - `Gantt.jsx` - Main container component
@@ -117,6 +119,7 @@ Located at `src/scripts/generateCalendar.js`, generates `src/data/calendar.json`
 ```bash
 node src/scripts/generateCalendar.js --help
 node src/scripts/generateCalendar.js --tasks=300 --seed=54321 --ss=30
+node src/scripts/generateCalendar.js --tasks=10000 --resources=100 --dense  # Stress test
 ```
 
 | Option | Default | Description |
@@ -127,6 +130,8 @@ node src/scripts/generateCalendar.js --tasks=300 --seed=54321 --ss=30
 | `--minGroup=N` | 5 | Minimum tasks per dependency group |
 | `--maxGroup=N` | 20 | Maximum tasks per dependency group |
 | `--start=DATE` | 2025-01-01 | Start date (YYYY-MM-DD) |
+| `--resources=N` | 26 | Number of resources (A-Z, AA, AB, etc.) |
+| `--dense` | false | Dense mode: tightly packed tasks with ~30% cross-row deps |
 
 **Generated Data Structure:**
 ```javascript

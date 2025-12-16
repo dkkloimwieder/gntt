@@ -1,4 +1,4 @@
-import { createSignal, createMemo, Show, onCleanup } from 'solid-js';
+import { createSignal, Show, onCleanup } from 'solid-js';
 import {
     computeProgressWidth,
     computeExpectedProgress,
@@ -6,6 +6,7 @@ import {
     snapToGrid,
 } from '../utils/barCalculations.js';
 import { useDrag, clamp } from '../hooks/useDrag.js';
+import { useGanttEvents } from '../contexts/GanttEvents.jsx';
 
 /**
  * SolidJS Bar Component
@@ -21,16 +22,18 @@ import { useDrag, clamp } from '../hooks/useDrag.js';
  * Integrates with taskStore for reactive position updates.
  */
 export function Bar(props) {
+    // Get event handlers from context (fallback to props for backwards compatibility)
+    const events = useGanttEvents();
+
     // Get task ID - prefer explicit taskId prop, fallback to task.id
     const taskId = () => props.taskId ?? props.task?.id;
 
-    // Get position directly from taskStore signal - reads fresh on each access
-    // This is called in JSX so SolidJS tracks it as a dependency
+    // Get position directly from taskStore - reads from store path for fine-grained reactivity
+    // Accessing tasks[id].$bar only subscribes to that specific task's bar position
     const getPosition = () => {
         if (props.taskStore && taskId()) {
-            // Access tasks() signal directly - this creates the reactive dependency
-            const tasksMap = props.taskStore.tasks();
-            const task = tasksMap.get(taskId());
+            // Access store path directly - fine-grained reactivity
+            const task = props.taskStore.tasks[taskId()];
             if (task?.$bar) {
                 return task.$bar;
             }
@@ -56,8 +59,7 @@ export function Bar(props) {
     // Task data - read fresh from store if available
     const task = () => {
         if (props.taskStore && taskId()) {
-            const tasksMap = props.taskStore.tasks();
-            return tasksMap.get(taskId()) ?? props.task ?? {};
+            return props.taskStore.tasks[taskId()] ?? props.task ?? {};
         }
         return props.task ?? {};
     };
@@ -86,6 +88,9 @@ export function Bar(props) {
             data.originalY = y();
             data.originalWidth = width();
             data.originalProgress = task().progress ?? 0;
+
+            // Signal that a drag is in progress (defers expensive recalculations)
+            props.taskStore?.setDraggingTaskId?.(task().id);
 
             // For bar dragging: collect dependent tasks AND descendants ONCE at drag start
             // This enables batch updates during drag for better performance
@@ -275,24 +280,32 @@ export function Bar(props) {
         },
 
         onDragEnd: (move, data, state) => {
+            // Clear drag state (allows deferred recalculations to resume)
+            props.taskStore?.setDraggingTaskId?.(null);
+
             // Notify about changes - read directly from store to avoid reactive timing issues
+            // Use props callbacks if provided, otherwise use context
+            const onDateChange = props.onDateChange ?? events.onDateChange;
+            const onResizeEnd = props.onResizeEnd ?? events.onResizeEnd;
+            const onProgressChange = props.onProgressChange ?? events.onProgressChange;
+
             if (
                 state === 'dragging_bar' ||
                 state === 'dragging_left' ||
                 state === 'dragging_right'
             ) {
                 const pos = props.taskStore?.getBarPosition(task().id);
-                props.onDateChange?.(task().id, {
+                onDateChange?.(task().id, {
                     x: pos?.x ?? x(),
                     width: pos?.width ?? width(),
                 });
 
                 // Trigger constraint resolution after resize (width changed)
                 if (state === 'dragging_left' || state === 'dragging_right') {
-                    props.onResizeEnd?.(task().id);
+                    onResizeEnd?.(task().id);
                 }
             } else if (state === 'dragging_progress') {
-                props.onProgressChange?.(task().id, task().progress);
+                onProgressChange?.(task().id, task().progress);
             }
         },
     });
@@ -316,24 +329,27 @@ export function Bar(props) {
         startDrag(e, 'dragging_bar', { taskId: task().id });
     };
 
-    // Hover handlers for task data popup
+    // Hover handlers for task data popup (use context with props fallback)
     const handleMouseEnter = (e) => {
-        if (props.onHover && !isDragging()) {
-            props.onHover(task().id, e.clientX, e.clientY);
+        const onHover = props.onHover ?? events.onHover;
+        if (onHover && !isDragging()) {
+            onHover(task().id, e.clientX, e.clientY);
         }
     };
 
     const handleMouseLeave = () => {
-        if (props.onHoverEnd) {
-            props.onHoverEnd();
+        const onHoverEnd = props.onHoverEnd ?? events.onHoverEnd;
+        if (onHoverEnd) {
+            onHoverEnd();
         }
     };
 
     // Click handler for task data modal (only fires if no drag occurred)
     const handleClick = (e) => {
-        if (!didDrag() && props.onTaskClick) {
+        const onTaskClick = props.onTaskClick ?? events.onTaskClick;
+        if (!didDrag() && onTaskClick) {
             e.stopPropagation();
-            props.onTaskClick(task().id, e);
+            onTaskClick(task().id, e);
         }
     };
 
@@ -361,7 +377,7 @@ export function Bar(props) {
     // ═══════════════════════════════════════════════════════════════════════════
 
     // Progress width calculation
-    const progressWidth = createMemo(() => {
+    const progressWidth = () => {
         const progress = task().progress ?? 0;
         return computeProgressWidth(
             x(),
@@ -370,10 +386,10 @@ export function Bar(props) {
             ignoredPositions(),
             columnWidth(),
         );
-    });
+    };
 
     // Expected progress width (if enabled)
-    const expectedProgressWidth = createMemo(() => {
+    const expectedProgressWidth = () => {
         if (!showExpectedProgress()) return 0;
 
         const taskStart = task()._start ?? task().start;
@@ -394,13 +410,13 @@ export function Bar(props) {
             ignoredPositions(),
             columnWidth(),
         );
-    });
+    };
 
     // Label positioning
-    const labelInfo = createMemo(() => {
+    const labelInfo = () => {
         const name = task().name ?? '';
         return computeLabelPosition(x(), width(), name);
-    });
+    };
 
     // Colors
     const barColor = () => task().color ?? 'var(--g-bar-color, #b8c2cc)';

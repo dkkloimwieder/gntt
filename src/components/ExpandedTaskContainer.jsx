@@ -1,4 +1,4 @@
-import { createMemo, For, Show } from 'solid-js';
+import { For, Show } from 'solid-js';
 import { SubtaskBar } from './SubtaskBar.jsx';
 
 /**
@@ -12,22 +12,21 @@ import { SubtaskBar } from './SubtaskBar.jsx';
 export function ExpandedTaskContainer(props) {
     // Get task from store
     const task = () => {
-        const taskMap = props.taskStore?.tasks();
-        return taskMap?.get(props.taskId);
+        return props.taskStore?.tasks[props.taskId];
     };
 
     // Get subtasks
-    const subtasks = createMemo(() => {
+    const subtasks = () => {
         const t = task();
         if (!t?._children?.length) return [];
 
-        const taskMap = props.taskStore?.tasks();
-        if (!taskMap) return [];
+        const tasksObj = props.taskStore?.tasks;
+        if (!tasksObj) return [];
 
         return t._children
-            .map((childId) => taskMap.get(childId))
+            .map((childId) => tasksObj[childId])
             .filter((child) => child != null);
-    });
+    };
 
     // Layout mode
     const layout = () => task()?.subtaskLayout || 'sequential';
@@ -91,13 +90,13 @@ export function ExpandedTaskContainer(props) {
     const progressColor = () => task()?.color_progress ?? parentColor();
 
     // Subtask config for SubtaskBar
-    const subtaskConfig = createMemo(() => ({
+    const subtaskConfig = () => ({
         barHeight: barHeight(),
         padding: padding(),
         subtaskHeightRatio: subtaskHeightRatio(),
         cornerRadius: cornerRadius(),
         parentColor: parentColor(),
-    }));
+    });
 
     // Get subtask Y position from rowLayout (computed based on time overlaps)
     const getSubtaskY = (index, subtask) => {

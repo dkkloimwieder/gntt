@@ -119,6 +119,12 @@ export function computeProgressWidth(
 ) {
     const barEnd = barX + barWidth;
 
+    // Pre-compute ignored column indices for O(1) lookups
+    // This changes O(n*m) to O(n+m) where n=iterations, m=ignoredPositions
+    const ignoredColSet = new Set(
+        ignoredPositions.map((pos) => Math.floor(pos / columnWidth))
+    );
+
     // Count ignored columns within bar
     const totalIgnoredInBar = ignoredPositions.reduce((acc, pos) => {
         return acc + (pos >= barX && pos < barEnd ? 1 : 0);
@@ -138,17 +144,16 @@ export function computeProgressWidth(
     // Add back ignored area within progress
     progressWidth += ignoredInProgress * columnWidth;
 
-    // Skip over any ignored regions at the progress end
+    // Skip over any ignored regions at the progress end using O(1) Set lookup
     let currentPos = barX + progressWidth;
-    while (
-        ignoredPositions.some(
-            (pos) =>
-                Math.abs(pos - currentPos) < columnWidth / 2 &&
-                currentPos < barEnd,
-        )
-    ) {
-        progressWidth += columnWidth;
-        currentPos = barX + progressWidth;
+    while (currentPos < barEnd) {
+        const currentCol = Math.floor(currentPos / columnWidth);
+        if (ignoredColSet.has(currentCol)) {
+            progressWidth += columnWidth;
+            currentPos = barX + progressWidth;
+        } else {
+            break;
+        }
     }
 
     // Clamp to bar width
@@ -182,33 +187,6 @@ export function computeExpectedProgress(taskStart, taskEnd, unit, step) {
  */
 export function isIgnoredPosition(x, ignoredPositions, columnWidth) {
     return ignoredPositions.some((pos) => x >= pos && x < pos + columnWidth);
-}
-
-/**
- * Get the next valid (non-ignored) position.
- * @param {number} x - Current X position
- * @param {number[]} ignoredPositions - Array of ignored X positions
- * @param {number} columnWidth - Column width
- * @param {number} direction - 1 for right, -1 for left
- * @returns {number} Next valid position
- */
-export function getNextValidPosition(
-    x,
-    ignoredPositions,
-    columnWidth,
-    direction = 1,
-) {
-    let current = x;
-    const maxIterations = 100; // Safety limit
-
-    for (let i = 0; i < maxIterations; i++) {
-        if (!isIgnoredPosition(current, ignoredPositions, columnWidth)) {
-            return current;
-        }
-        current += direction * columnWidth;
-    }
-
-    return current;
 }
 
 /**
@@ -269,21 +247,11 @@ export function calculateDistance(predBar, succBar) {
 }
 
 /**
- * Validate that successor doesn't start before predecessor.
- * @param {number} succX - Successor X position
- * @param {number} predX - Predecessor X position
- * @returns {boolean} True if valid
- */
-export function validateSuccessorPosition(succX, predX) {
-    return succX >= predX;
-}
-
-/**
  * Compute summary bar bounds from its children's positions.
  * Summary bar spans from earliest child start to latest child end.
  *
  * @param {Object} summaryTask - Summary task with _children array
- * @param {Map<string, Object>} taskMap - Map of task ID to task object
+ * @param {Object} taskMap - Task lookup (Map or plain object)
  * @param {number} minWidth - Minimum width for summary bar (default: 20)
  * @returns {{ x: number, width: number } | null} New bounds or null if no children
  */
@@ -292,11 +260,14 @@ export function computeSummaryBounds(summaryTask, taskMap, minWidth = 20) {
         return null;
     }
 
+    // Helper to get task (supports both Map and plain object)
+    const getTask = taskMap.get ? (id) => taskMap.get(id) : (id) => taskMap[id];
+
     // Collect all descendant bars (recursive) for accurate span calculation
     const descendantBars = [];
     const collectBars = (childIds) => {
         for (const childId of childIds) {
-            const child = taskMap.get(childId);
+            const child = getTask(childId);
             if (!child?.$bar) continue;
 
             // Include this child's bar

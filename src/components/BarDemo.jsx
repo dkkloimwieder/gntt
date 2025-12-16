@@ -178,8 +178,7 @@ export function BarDemo() {
 
     // Get all tasks for rendering
     const allTasks = createMemo(() => {
-        const map = taskStore.tasks();
-        return Array.from(map.values());
+        return Object.values(taskStore.tasks);
     });
 
     // Toggle expected progress

@@ -1,6 +1,6 @@
 # SolidJS Architecture Documentation
 
-**Last Updated**: December 12, 2025 (Repository reorganization - SolidJS is now primary in `src/`)
+**Last Updated**: December 16, 2025 (Drag performance fix - createStore conversion for 60 FPS with 10K tasks)
 
 This document describes the SolidJS implementation of Frappe Gantt, which is now the primary codebase. The vanilla JavaScript implementation has been archived in `vanilla/`.
 
@@ -339,7 +339,21 @@ taskStore.clear();
 ```
 
 **Internal Structure**:
-Uses `createSignal(new Map())` for task storage. Each task includes `$bar` property with position data.
+Uses `createStore({})` for fine-grained reactivity. Each task includes `$bar` property with position data.
+
+**Fine-Grained Reactivity** (December 2025):
+The store uses SolidJS `createStore` instead of `createSignal(Map)` to enable path-level dependency tracking:
+```javascript
+// Reading tasks[taskId].$bar.x only subscribes to that specific path
+// NOT the entire tasks object - critical for drag performance
+const x = () => props.taskStore.tasks[taskId()]?.$bar?.x ?? 0;
+```
+
+This allows dragging a single task to update only:
+- The dragged Bar component
+- Arrows connected to that task
+
+Without affecting the other 400+ tasks in the chart.
 
 ---
 
@@ -713,7 +727,15 @@ Performance testing demo with pre-generated calendar data and stress tests.
 ```bash
 pnpm run generate:calendar              # Generate 200 tasks (default)
 node src/scripts/generateCalendar.js --tasks=500  # Custom count
+node src/scripts/generateCalendar.js --tasks=10000 --resources=100 --dense  # Stress test
 ```
+
+**Dense Mode** (December 2025):
+The `--dense` flag generates tightly packed tasks for stress testing:
+- Back-to-back tasks on each resource (no gaps)
+- All resources start at the same time (maximum viewport density)
+- ~30% cross-row dependencies (arrows spanning multiple rows)
+- Short durations (1-5 hours) for more tasks in viewport
 
 **Run**: `pnpm run dev:solid` → http://localhost:5173/examples/perf.html
 
@@ -936,8 +958,42 @@ See `PERFORMANCE.md` for detailed documentation.
 | Arrow row virtualization | Filters by visible row range |
 | **Unified viewport virtualization** | **10K tasks: ~30ms re-render** |
 | **Item-keyed rendering with `<For>`** | **Smooth scroll, no visual artifacts** |
+| **createStore for task data** | **60 FPS drag with 10K tasks** |
 
 **Total improvement**: 99.5% for 10K tasks (5,519ms → ~30ms re-render)
+
+#### Drag Performance Fix (December 2025)
+
+**Problem**: Dragging tasks dropped to ~10 FPS with 400+ tasks due to reactive cascade.
+
+**Root Cause**:
+```
+User drags task → updateBarPosition() → setTasks(new Map())
+    → tasks() signal fires → ALL 400+ Bars re-evaluate → ALL arrows re-evaluate
+```
+
+**Solution**: Convert `taskStore` from `createSignal(Map)` to `createStore({})`:
+
+| Before | After |
+|--------|-------|
+| `createSignal(new Map())` | `createStore({})` |
+| Reading `tasks()` subscribes to ALL tasks | Reading `tasks[id].$bar.x` subscribes to ONE path |
+| 400+ Bar re-evaluations per frame | 1 Bar re-evaluation per frame |
+| ~10 FPS during drag | 60 FPS during drag |
+
+**Files Modified**:
+- `src/stores/taskStore.js` - Store conversion, path-based updates
+- `src/components/Bar.jsx` - Direct store path access, removed 3 unnecessary memos
+- `src/components/Arrow.jsx` - Direct store path access
+- `src/components/TaskLayer.jsx` - Store object iteration (kept 3 essential memos)
+- `src/components/ArrowLayer.jsx` - Store object iteration
+- `src/components/SummaryBar.jsx` - Removed 2 unnecessary memos
+- `src/components/ExpandedTaskContainer.jsx` - Removed 2 unnecessary memos
+- `src/components/SubtaskBar.jsx` - Removed 1 unnecessary memo
+
+**Memo Strategy**:
+- **Remove**: Memos for simple calculations in render paths (causes reactive subscriptions)
+- **Keep**: Memos for expensive O(n) filtering operations (TaskLayer's `tasksByResource`, `visibleTaskIds`, `splitTaskIds`)
 
 **Virtualization Architecture**:
 ```

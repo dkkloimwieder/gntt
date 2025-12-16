@@ -1,4 +1,3 @@
-import { createMemo } from 'solid-js';
 
 /**
  * Arrow Component - Decorative/Informative Only
@@ -700,33 +699,33 @@ export function Arrow(props) {
         return barPos;
     };
 
-    const fromPosition = createMemo(() => {
+    const fromPosition = () => {
         if (props.from) return props.from;
         if (props.taskStore && props.fromId) {
             return getAdjustedPosition(props.fromId);
         }
         return null;
-    });
+    };
 
-    const toPosition = createMemo(() => {
+    const toPosition = () => {
         if (props.to) return props.to;
         if (props.taskStore && props.toId) {
             return getAdjustedPosition(props.toId);
         }
         return null;
-    });
+    };
 
     // Check if from task is an expanded container (should use 'right' anchor)
-    const fromTaskIsExpanded = createMemo(() => {
+    const fromTaskIsExpanded = () => {
         if (!props.rowLayouts || !props.taskStore || !props.fromId) return false;
         const task = props.taskStore.getTask(props.fromId);
         if (!task) return false;
         const rowLayout = props.rowLayouts.get(task.resource);
         const taskPos = rowLayout?.taskPositions?.get(props.fromId);
         return taskPos?.isExpanded ?? false;
-    });
+    };
 
-    const config = createMemo(() => {
+    const config = () => {
         const isExpanded = fromTaskIsExpanded();
 
         // For expanded containers, force 'right' anchor (override 'auto')
@@ -748,16 +747,16 @@ export function Arrow(props) {
             headFill: props.headFill ?? DEFAULTS.HEAD_FILL,
             dependencyType: props.dependencyType ?? 'FS',
         };
-    });
+    };
 
-    const paths = createMemo(() => {
+    const paths = () => {
         const from = fromPosition();
         const to = toPosition();
 
         if (!from || !to) return { linePath: '', headPath: '' };
 
         return generatePath(from, to, config());
-    });
+    };
 
     const stroke = () => props.stroke ?? DEFAULTS.STROKE;
     const headShape = () => props.headShape ?? DEFAULTS.HEAD_SHAPE;

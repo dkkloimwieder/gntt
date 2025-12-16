@@ -1,27 +1,32 @@
-import { createSignal, createMemo } from 'solid-js';
+import { createSignal } from 'solid-js';
+import { createStore, reconcile, produce } from 'solid-js/store';
 
 /**
  * Reactive task store for tracking task and bar positions.
- * Used by Arrow components to reactively update when task positions change.
+ * Uses createStore for fine-grained reactivity - only components reading
+ * specific task paths re-render when those paths change.
  */
 export function createTaskStore() {
-    // Map of task ID to task data (includes position info)
-    const [tasks, setTasks] = createSignal(new Map());
+    // Object of task ID to task data (includes position info)
+    // Using createStore for fine-grained reactivity (path-level tracking)
+    const [tasks, setTasks] = createStore({});
 
     // Set of collapsed task IDs (tasks whose children are hidden)
     const [collapsedTasks, setCollapsedTasks] = createSignal(new Set());
 
+    // Drag state - used to defer expensive recalculations during drag
+    const [draggingTaskId, setDraggingTaskId] = createSignal(null);
+
     // Get a specific task by ID
-    // Returns raw value - don't create memos in event handlers!
+    // Accessing tasks[id] creates fine-grained dependency on just that task
     const getTask = (id) => {
-        return tasks().get(id);
+        return tasks[id];
     };
 
     // Get bar position for a task
-    // Accesses tasks() signal to ensure reactivity when called inside createMemo
+    // Accessing tasks[id].$bar creates fine-grained dependency
     const getBarPosition = (id) => {
-        const tasksMap = tasks(); // Access signal to track dependency
-        const task = tasksMap.get(id);
+        const task = tasks[id];
         if (!task || !task.$bar) return null;
 
         return {
@@ -33,87 +38,68 @@ export function createTaskStore() {
         };
     };
 
-    // Update task in store
+    // Update task in store (replaces entire task)
     const updateTask = (id, taskData) => {
-        setTasks((prev) => {
-            const next = new Map(prev);
-            next.set(id, taskData);
-            return next;
-        });
+        setTasks(id, taskData);
     };
 
-    // Update bar position for a task
+    // Update bar position for a task (fine-grained path update)
     const updateBarPosition = (id, position) => {
-        setTasks((prev) => {
-            const next = new Map(prev);
-            const task = next.get(id);
-            if (task) {
-                next.set(id, {
-                    ...task,
-                    $bar: {
-                        ...task.$bar,
-                        ...position,
-                    },
-                });
-            }
-            return next;
-        });
+        if (!tasks[id]) return;
+        // Use produce for fine-grained update - only triggers subscribers to changed paths
+        setTasks(
+            produce((state) => {
+                if (state[id]) {
+                    state[id].$bar = { ...state[id].$bar, ...position };
+                }
+            }),
+        );
     };
 
-    // Batch update multiple tasks
+    // Batch update multiple tasks (typically on initial load)
     const updateTasks = (tasksArray) => {
-        setTasks(() => {
-            const next = new Map();
-            tasksArray.forEach((task) => {
-                next.set(task.id, task);
-            });
-            return next;
+        const tasksObj = {};
+        tasksArray.forEach((task) => {
+            tasksObj[task.id] = task;
         });
+        setTasks(reconcile(tasksObj));
     };
 
     // Remove task from store
     const removeTask = (id) => {
-        setTasks((prev) => {
-            const next = new Map(prev);
-            next.delete(id);
-            return next;
-        });
+        setTasks(id, undefined);
     };
 
     // Clear all tasks
     const clear = () => {
-        setTasks(new Map());
+        setTasks(reconcile({}));
     };
 
     // Get all tasks as array
     const getAllTasks = () => {
-        return Array.from(tasks().values());
+        return Object.values(tasks);
     };
 
-    // Get task count
-    const taskCount = createMemo(() => tasks().size);
+    // Get task count (reads all keys, so subscribes to additions/removals)
+    const taskCount = () => Object.keys(tasks).length;
 
     /**
      * Move multiple tasks by deltaX in a single reactive update.
-     * Used for batch drag operations to avoid N separate updates.
+     * Uses produce for fine-grained updates - only affected Bar components re-render.
      *
      * @param {Map<string, {originalX: number}>} taskOriginals - Task ID -> original position
      * @param {number} deltaX - Pixels to move from original position
      */
     const batchMovePositions = (taskOriginals, deltaX) => {
-        setTasks((prev) => {
-            const next = new Map(prev);
-            for (const [id, { originalX }] of taskOriginals) {
-                const task = next.get(id);
-                if (task?.$bar) {
-                    next.set(id, {
-                        ...task,
-                        $bar: { ...task.$bar, x: originalX + deltaX },
-                    });
+        setTasks(
+            produce((state) => {
+                for (const [id, { originalX }] of taskOriginals) {
+                    if (state[id]?.$bar) {
+                        state[id].$bar.x = originalX + deltaX;
+                    }
                 }
-            }
-            return next;
-        });
+            }),
+        );
     };
 
     // --- Subtask Collapse State ---
@@ -179,7 +165,7 @@ export function createTaskStore() {
      */
     const collapseAllTasks = () => {
         const summaryIds = [];
-        for (const task of tasks().values()) {
+        for (const task of Object.values(tasks)) {
             if (task.type === 'summary' || (task._children && task._children.length > 0)) {
                 summaryIds.push(task.id);
             }
@@ -207,5 +193,8 @@ export function createTaskStore() {
         collapseTask,
         expandAllTasks,
         collapseAllTasks,
+        // Drag state - for deferring expensive calculations
+        draggingTaskId,
+        setDraggingTaskId,
     };
 }

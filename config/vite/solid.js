@@ -10,14 +10,18 @@ export default defineConfig({
     build: {
         lib: {
             entry: resolve(root, 'src/index.js'),
-            name: 'Gantt',
-            fileName: 'frappe-gantt',
+            name: 'Ganttss',
+            formats: ['es', 'umd'],
+            fileName: (format) => `ganttss.${format}.js`,
         },
         rollupOptions: {
+            external: ['solid-js', 'solid-js/web'],
             output: {
-                format: 'cjs',
-                assetFileNames: 'frappe-gantt[extname]',
-                entryFileNames: 'frappe-gantt.[format].js'
+                globals: {
+                    'solid-js': 'SolidJS',
+                    'solid-js/web': 'SolidJSWeb',
+                },
+                assetFileNames: 'ganttss[extname]',
             },
         },
     },

@@ -304,6 +304,7 @@ export function generateCalendar(config = {}) {
  * Generate densely packed tasks for stress testing.
  * Creates back-to-back tasks on each resource with FS dependencies per row.
  * All resources start at the same time for maximum viewport density.
+ * Adds cross-row dependencies for realistic arrow stress testing.
  */
 function generateDenseCalendar(cfg, random) {
     const tasks = [];
@@ -368,6 +369,31 @@ function generateDenseCalendar(cfg, random) {
             currentTime = cloneDate(end);
             prevTaskId = `task-${taskNum}`;
             taskNum++;
+        }
+    }
+
+    // Add cross-row dependencies for arrow stress testing
+    // Replace ~30% of same-row deps with cross-row deps
+    const crossRowPercent = 30;
+
+    for (const task of tasks) {
+        // Random chance to replace with cross-row dependency
+        if (random() > crossRowPercent / 100) continue;
+
+        const taskStart = parseDateTime(task.start);
+
+        // Find candidates: different resource, ends before/at this task's start
+        const candidates = tasks.filter((t) => {
+            if (t.resource === task.resource) return false;
+            if (t.id === task.id) return false;
+            const tEnd = parseDateTime(t.end);
+            return tEnd <= taskStart;
+        });
+
+        if (candidates.length > 0) {
+            // Pick a random valid predecessor from another resource
+            const target = candidates[Math.floor(random() * candidates.length)];
+            task.dependencies = target.id;
         }
     }
 

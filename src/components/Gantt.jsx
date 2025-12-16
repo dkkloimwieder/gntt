@@ -18,6 +18,7 @@ import { TaskLayer } from './TaskLayer.jsx';
 import { ArrowLayer } from './ArrowLayer.jsx';
 import { TaskDataPopup } from './TaskDataPopup.jsx';
 import { TaskDataModal } from './TaskDataModal.jsx';
+import { GanttEventsProvider } from '../contexts/GanttEvents.jsx';
 
 /**
  * Gantt - Main orchestrator component for the Gantt chart.
@@ -176,10 +177,15 @@ export function Gantt(props) {
         initializeTasks(props.tasks);
     });
 
-    // Watch for task changes
+    // Consolidated effect: reinitialize tasks when tasks, collapse state, or subtask collapse changes
+    // This replaces 3 separate effects that all called initializeTasks
     createEffect(() => {
+        // Track all dependencies that require task reinitialization
         const tasks = props.tasks;
-        if (tasks) {
+        const _collapsed = resourceStore.collapsedGroups(); // Track resource group collapse
+        const _collapsedTasks = taskStore.collapsedTasks(); // Track subtask collapse
+
+        if (tasks && tasks.length > 0) {
             // Use untrack to prevent initializeTasks from creating reactive dependencies
             untrack(() => initializeTasks(tasks));
         }
@@ -212,8 +218,8 @@ export function Gantt(props) {
 
     // Computed dimensions
     const taskCount = createMemo(() => {
-        const tasks = taskStore.tasks();
-        return tasks ? tasks.size : 0;
+        const tasks = taskStore.tasks;
+        return tasks ? Object.keys(tasks).length : 0;
     });
 
     // Resource count for swimlane rows - use displayResources for collapse support
@@ -221,26 +227,6 @@ export function Gantt(props) {
         const displayCount = resourceStore.displayCount();
         // Fallback to legacy resources if no resourceStore resources
         return displayCount > 0 ? displayCount : legacyResources().length;
-    });
-
-    // Effect: recalculate task positions when resource group collapse state changes
-    createEffect(() => {
-        // Track collapse state
-        const collapsed = resourceStore.collapsedGroups();
-        // Recalculate positions if we have tasks
-        if (props.tasks && props.tasks.length > 0) {
-            untrack(() => initializeTasks(props.tasks));
-        }
-    });
-
-    // Effect: recalculate task positions when subtask collapse state changes
-    createEffect(() => {
-        // Track subtask collapse state
-        const collapsedTasks = taskStore.collapsedTasks();
-        // Recalculate positions if we have tasks
-        if (props.tasks && props.tasks.length > 0) {
-            untrack(() => initializeTasks(props.tasks));
-        }
     });
 
     const gridWidth = createMemo(() => dateStore.gridWidth());
@@ -256,7 +242,7 @@ export function Gantt(props) {
     const rowLayouts = createMemo(() => {
         const resources = resourceStore.displayResources();
         const expandedTasks = ganttConfig.expandedTasks();
-        const taskMap = taskStore.tasks();
+        const taskMap = taskStore.tasks;
 
         if (!resources || resources.length === 0) {
             return new Map();
@@ -395,16 +381,17 @@ export function Gantt(props) {
     // Effect to scroll to first task when tasks are loaded
     // This handles scroll_to: 'start' which depends on tasks being ready
     createEffect(() => {
-        const tasks = taskStore.tasks();
+        const tasks = taskStore.tasks;
         const api = containerApi(); // Access signal to create dependency
+        const taskIds = Object.keys(tasks);
         if (
             !initialScrollDone &&
             api &&
             props.options?.scroll_to === 'start' &&
             tasks &&
-            tasks.size > 0
+            taskIds.length > 0
         ) {
-            const firstTask = tasks.values().next().value;
+            const firstTask = tasks[taskIds[0]];
             if (firstTask?.$bar?.x) {
                 // Scroll to first task with some left margin
                 api.scrollTo(Math.max(0, firstTask.$bar.x - 50), false);
@@ -430,7 +417,14 @@ export function Gantt(props) {
     }));
 
     return (
-        <>
+        <GanttEventsProvider
+            onDateChange={handleDateChange}
+            onProgressChange={handleProgressChange}
+            onResizeEnd={handleResizeEnd}
+            onTaskClick={handleTaskClick}
+            onHover={handleTaskHover}
+            onHoverEnd={handleTaskHoverEnd}
+        >
             <GanttContainer
                 ganttConfig={ganttConfig}
                 svgWidth={gridWidth()}
@@ -525,7 +519,7 @@ export function Gantt(props) {
                 relationships={modalRelationships}
                 onClose={handleModalClose}
             />
-        </>
+        </GanttEventsProvider>
     );
 }
 

@@ -5,13 +5,31 @@
  * Supports expanded tasks that contain subtasks at 50% height.
  */
 
+// Helper to iterate over tasks (supports both Map and plain object)
+function iterateTasks(tasksObj) {
+    if (!tasksObj) return [];
+    if (tasksObj.entries) {
+        // It's a Map
+        return Array.from(tasksObj.entries());
+    }
+    // Plain object
+    return Object.entries(tasksObj);
+}
+
+// Helper to get task by ID (supports both Map and plain object)
+function getTask(tasksObj, id) {
+    if (!tasksObj) return null;
+    if (tasksObj.get) return tasksObj.get(id);
+    return tasksObj[id];
+}
+
 /**
  * Calculate row layouts with variable heights.
  *
  * @param {Array} displayRows - Flat list of rows to display [{id, type, ...}]
  * @param {Object} config - { barHeight, padding, subtaskHeightRatio }
  * @param {Set} expandedTasks - Task IDs that are expanded
- * @param {Map} taskMap - Map of taskId -> task (for subtask lookup)
+ * @param {Object} taskMap - Task lookup (Map or plain object)
  * @returns {Map} rowLayouts - Map<rowId, { y, height, contentY, contentHeight }>
  */
 export function calculateRowLayouts(displayRows, config, expandedTasks, taskMap) {
@@ -27,14 +45,12 @@ export function calculateRowLayouts(displayRows, config, expandedTasks, taskMap)
 
     // Build resource -> tasks lookup for finding expanded tasks per resource
     const tasksByResource = new Map();
-    if (taskMap) {
-        for (const [taskId, task] of taskMap) {
-            if (task.resource) {
-                if (!tasksByResource.has(task.resource)) {
-                    tasksByResource.set(task.resource, []);
-                }
-                tasksByResource.get(task.resource).push(task);
+    for (const [taskId, task] of iterateTasks(taskMap)) {
+        if (task.resource) {
+            if (!tasksByResource.has(task.resource)) {
+                tasksByResource.set(task.resource, []);
             }
+            tasksByResource.get(task.resource).push(task);
         }
     }
 
@@ -171,7 +187,7 @@ export function calculateRowLayouts(displayRows, config, expandedTasks, taskMap)
                     const verticalPadding = (barHeight - subtaskBarHeight) / 2;
 
                     task._children.forEach((childId, index) => {
-                        const child = taskMap?.get(childId);
+                        const child = getTask(taskMap, childId);
                         let childY;
 
                         if (layout === 'sequential') {
@@ -291,7 +307,7 @@ export function calculateExpandedRowHeight(task, config, taskMap) {
  * where it doesn't overlap with existing subtasks.
  *
  * @param {Array} childIds - Array of child task IDs
- * @param {Map} taskMap - Task map
+ * @param {Object} taskMap - Task lookup (Map or plain object)
  * @returns {Map} subtaskId -> computed row index
  */
 function computeSubtaskRows(childIds, taskMap) {
@@ -300,7 +316,7 @@ function computeSubtaskRows(childIds, taskMap) {
 
     // Get subtasks with their time ranges, sorted by order field or start time
     const subtasks = childIds
-        .map(id => taskMap.get(id))
+        .map(id => getTask(taskMap, id))
         .filter(t => t != null)
         .sort((a, b) => {
             // Sort by order field if present, otherwise by start time

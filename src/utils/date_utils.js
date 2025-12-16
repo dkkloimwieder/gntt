@@ -283,6 +283,29 @@ export default {
     get_days_in_year(date) {
         return date.getFullYear() % 4 ? 365 : 366;
     },
+
+    // camelCase aliases for API consistency
+    parseDuration(duration) {
+        return this.parse_duration(duration);
+    },
+    toString(date, withTime = false) {
+        return this.to_string(date, withTime);
+    },
+    startOf(date, scale) {
+        return this.start_of(date, scale);
+    },
+    getDateValues(date) {
+        return this.get_date_values(date);
+    },
+    convertScales(period, toScale) {
+        return this.convert_scales(period, toScale);
+    },
+    getDaysInMonth(date) {
+        return this.get_days_in_month(date);
+    },
+    getDaysInYear(date) {
+        return this.get_days_in_year(date);
+    },
 };
 
 // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/padStart

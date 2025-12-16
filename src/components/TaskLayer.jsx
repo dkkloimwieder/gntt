@@ -153,8 +153,9 @@ export function TaskLayer(props) {
      */
     const handleCollectDescendants = (taskId) => {
         if (!props.taskStore) return new Set();
-        const taskMap = props.taskStore.tasks();
-        return collectDescendants(taskId, taskMap);
+        // tasks is now a store object, not a Map
+        const tasksObj = props.taskStore.tasks;
+        return collectDescendants(taskId, tasksObj);
     };
 
     /**
@@ -248,10 +249,11 @@ export function TaskLayer(props) {
         const regularIds = [];
         const summaryIds = [];
         const expandedIds = [];
-        const taskMap = props.taskStore?.tasks() ?? new Map();
+        // tasks is now a store object, not a Map
+        const tasksObj = props.taskStore?.tasks ?? {};
 
         for (const taskId of visibleTaskIds()) {
-            const task = taskMap.get(taskId);
+            const task = tasksObj[taskId];
             if (!task) continue;
 
             // Check if task has subtasks and is expanded

@@ -1,4 +1,4 @@
 import { render } from 'solid-js/web';
-import GanttSubtaskDemo from '../components/GanttSubtaskDemo.jsx';
+import { GanttProjectDemo } from '../components/GanttProjectDemo.jsx';
 
-render(() => <GanttSubtaskDemo />, document.getElementById('app'));
+render(() => <GanttProjectDemo />, document.getElementById('root'));

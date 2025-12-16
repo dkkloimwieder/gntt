@@ -157,9 +157,6 @@ export function ArrowDemo() {
         { from: 'curve-10-from', to: 'curve-10-to', curveRadius: 10, stroke: '#3498db' },
         { from: 'curve-20-from', to: 'curve-20-to', curveRadius: 20, stroke: '#2ecc71' },
 
-        // Interactive demo - uses global config
-        { from: 'drag-from', to: 'drag-to', useGlobalConfig: true },
-
         // Edge cases
         { from: 'edge-same-from', to: 'edge-same-to', stroke: '#7f8c8d' },
         { from: 'edge-close-from', to: 'edge-close-to', stroke: '#e74c3c' },
@@ -495,35 +492,49 @@ export function ArrowDemo() {
 
                 {/* Arrow layer */}
                 <g class="arrows">
+                    {/* Static arrows */}
                     <For each={arrows}>
-                        {(arrow) => {
-                            const arrowConfig = arrow.useGlobalConfig ? config() : {};
-                            return (
-                                <Arrow
-                                    taskStore={taskStore}
-                                    fromId={arrow.from}
-                                    toId={arrow.to}
-                                    // Anchoring
-                                    startAnchor={arrow.useGlobalConfig ? arrowConfig.startAnchor : (arrow.startAnchor ?? 'auto')}
-                                    startOffset={arrow.useGlobalConfig ? arrowConfig.startOffset : arrow.startOffset}
-                                    endAnchor={arrow.useGlobalConfig ? arrowConfig.endAnchor : (arrow.endAnchor ?? 'left')}
-                                    endOffset={arrow.useGlobalConfig ? arrowConfig.endOffset : arrow.endOffset}
-                                    // Path
-                                    routing={arrow.useGlobalConfig ? arrowConfig.routing : (arrow.routing ?? 'orthogonal')}
-                                    curveRadius={arrow.useGlobalConfig ? arrowConfig.curveRadius : (arrow.curveRadius ?? 8)}
-                                    // Line style
-                                    stroke={arrow.useGlobalConfig ? arrowConfig.stroke : (arrow.stroke ?? '#3498db')}
-                                    strokeWidth={arrow.useGlobalConfig ? arrowConfig.strokeWidth : (arrow.strokeWidth ?? 2)}
-                                    strokeOpacity={arrow.useGlobalConfig ? arrowConfig.strokeOpacity : (arrow.strokeOpacity ?? 1)}
-                                    strokeDasharray={arrow.useGlobalConfig ? arrowConfig.strokeDasharray : arrow.strokeDasharray}
-                                    // Head
-                                    headShape={arrow.useGlobalConfig ? arrowConfig.headShape : (arrow.headShape ?? 'chevron')}
-                                    headSize={arrow.useGlobalConfig ? arrowConfig.headSize : (arrow.headSize ?? 6)}
-                                    headFill={arrow.useGlobalConfig ? arrowConfig.headFill : (arrow.headFill ?? false)}
-                                />
-                            );
-                        }}
+                        {(arrow) => (
+                            <Arrow
+                                taskStore={taskStore}
+                                fromId={arrow.from}
+                                toId={arrow.to}
+                                startAnchor={arrow.startAnchor ?? 'auto'}
+                                startOffset={arrow.startOffset}
+                                endAnchor={arrow.endAnchor ?? 'left'}
+                                endOffset={arrow.endOffset}
+                                routing={arrow.routing ?? 'orthogonal'}
+                                curveRadius={arrow.curveRadius ?? 8}
+                                stroke={arrow.stroke ?? '#3498db'}
+                                strokeWidth={arrow.strokeWidth ?? 2}
+                                strokeOpacity={arrow.strokeOpacity ?? 1}
+                                strokeDasharray={arrow.strokeDasharray}
+                                headShape={arrow.headShape ?? 'chevron'}
+                                headSize={arrow.headSize ?? 6}
+                                headFill={arrow.headFill ?? false}
+                            />
+                        )}
                     </For>
+
+                    {/* Interactive arrow - bound directly to config signal for reactivity */}
+                    <Arrow
+                        taskStore={taskStore}
+                        fromId="drag-from"
+                        toId="drag-to"
+                        startAnchor={config().startAnchor}
+                        startOffset={config().startOffset}
+                        endAnchor={config().endAnchor}
+                        endOffset={config().endOffset}
+                        routing={config().routing}
+                        curveRadius={config().curveRadius}
+                        stroke={config().stroke}
+                        strokeWidth={config().strokeWidth}
+                        strokeOpacity={config().strokeOpacity}
+                        strokeDasharray={config().strokeDasharray}
+                        headShape={config().headShape}
+                        headSize={config().headSize}
+                        headFill={config().headFill}
+                    />
                 </g>
 
                 {/* Task bars */}

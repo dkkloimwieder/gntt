@@ -1,4 +1,4 @@
-import { Show, createMemo } from 'solid-js';
+import { Show } from 'solid-js';
 
 /**
  * SubtaskBar - A compact bar for subtasks (50% height of normal bars).
@@ -36,11 +36,11 @@ export function SubtaskBar(props) {
 
     // Progress
     const progress = () => task()?.progress ?? 0;
-    const progressWidth = createMemo(() => {
+    const progressWidth = () => {
         const w = width();
         const p = progress();
         return Math.max(0, (w * p) / 100);
-    });
+    };
 
     // Label positioning (centered inside bar like normal tasks)
     const labelX = () => x() + width() / 2;

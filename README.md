@@ -25,24 +25,52 @@ We needed a Gantt View for ERPNext. Surprisingly, we couldn't find a visually ap
 - **Configure Anything**: spacing, edit access, labels, you can control it all. Change both the style and functionality to meet your needs.
 - **Multi-lingual Support**: suitable for companies with an international base.
 
-## Usage
+## Usage (SolidJS)
 
-Install with:
+The primary implementation uses SolidJS for reactive state management.
+
 ```bash
-npm install frappe-gantt
+npm install ganttss solid-js
 ```
+
+```jsx
+import { Gantt, createTaskStore, createGanttConfigStore, createGanttDateStore } from 'ganttss';
+
+function App() {
+    const tasks = [
+        { id: '1', name: 'Task 1', start: '2025-01-01', end: '2025-01-05', progress: 50 },
+        { id: '2', name: 'Task 2', start: '2025-01-03', end: '2025-01-08', progress: 0, dependencies: '1' },
+    ];
+
+    const taskStore = createTaskStore();
+    const ganttConfig = createGanttConfigStore();
+    const dateStore = createGanttDateStore();
+
+    return (
+        <Gantt
+            tasks={tasks}
+            taskStore={taskStore}
+            ganttConfig={ganttConfig}
+            dateStore={dateStore}
+            options={{ viewMode: 'Day' }}
+        />
+    );
+}
+```
+
+## Usage (Vanilla JS - Legacy)
 
 Include it in your HTML:
 
 ```html
-<script src="frappe-gantt.umd.js"></script>
-<link rel="stylesheet" href="frappe-gantt.css">
+<script src="ganttss.umd.js"></script>
+<link rel="stylesheet" href="ganttss.css">
 ```
 
 Or from the CDN:
 ```html
-<script src="https://cdn.jsdelivr.net/npm/frappe-gantt/dist/frappe-gantt.umd.js"></script>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/frappe-gantt/dist/frappe-gantt.css">
+<script src="https://cdn.jsdelivr.net/npm/ganttss/dist/ganttss.umd.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ganttss/dist/ganttss.css">
 ```
 
 Start using Gantt:
@@ -145,6 +173,11 @@ If you want to contribute enhancements or fixes:
 4. **SolidJS (primary)**: `pnpm run dev:solid` → Open http://localhost:5173/examples/
 5. **Vanilla JS (legacy)**: `pnpm run build` then open `vanilla/examples/index.html`
 6. Make your code changes and test them.
+
+### Architecture Documentation
+- `docs/ARCHITECTURE.md` - Detailed SolidJS architecture and component structure
+- `docs/SUBTASKS.md` - Subtask feature documentation
+- `CLAUDE.md` - Development guidance and commands
 
 <br />
 <br />

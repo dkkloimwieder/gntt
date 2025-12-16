@@ -5,7 +5,7 @@ import { Gantt } from './Gantt.jsx';
  * GanttDemo - Interactive demo for the main Gantt component.
  */
 export function GanttDemo() {
-    // Sample tasks
+    // Sample tasks - each on its own row via resource
     const [tasks, setTasks] = createSignal([
         {
             id: 'task-1',
@@ -13,6 +13,7 @@ export function GanttDemo() {
             start: '2024-01-01',
             end: '2024-01-05',
             progress: 100,
+            resource: 'Planning',
             color: '#3b82f6',
             color_progress: '#1d4ed8',
         },
@@ -23,26 +24,29 @@ export function GanttDemo() {
             end: '2024-01-12',
             progress: 80,
             dependencies: 'task-1',
+            resource: 'Design',
             color: '#8b5cf6',
             color_progress: '#6d28d9',
         },
         {
             id: 'task-3',
             name: 'Development',
-            start: '2024-01-10',
+            start: '2024-01-13',
             end: '2024-01-25',
             progress: 45,
             dependencies: 'task-2',
+            resource: 'Development',
             color: '#10b981',
             color_progress: '#059669',
         },
         {
             id: 'task-4',
             name: 'Testing',
-            start: '2024-01-20',
+            start: '2024-01-26',
             end: '2024-01-30',
             progress: 20,
             dependencies: 'task-3',
+            resource: 'QA',
             color: '#f59e0b',
             color_progress: '#d97706',
         },
@@ -53,16 +57,18 @@ export function GanttDemo() {
             end: '2024-01-28',
             progress: 30,
             dependencies: 'task-2',
+            resource: 'Docs',
             color: '#ec4899',
             color_progress: '#db2777',
         },
         {
             id: 'task-6',
             name: 'Deployment',
-            start: '2024-01-28',
+            start: '2024-01-31',
             end: '2024-02-02',
             progress: 0,
             dependencies: 'task-4,task-5',
+            resource: 'DevOps',
             color: '#ef4444',
             color_progress: '#dc2626',
         },

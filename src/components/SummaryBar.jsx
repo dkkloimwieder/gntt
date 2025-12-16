@@ -1,4 +1,4 @@
-import { createMemo, Show } from 'solid-js';
+import { Show } from 'solid-js';
 import { useDrag } from '../hooks/useDrag.js';
 import { snapToGrid, computeLabelPosition } from '../utils/barCalculations.js';
 
@@ -18,8 +18,7 @@ export function SummaryBar(props) {
     // Get position from taskStore
     const getPosition = () => {
         if (props.taskStore && taskId()) {
-            const tasksMap = props.taskStore.tasks();
-            const task = tasksMap.get(taskId());
+            const task = props.taskStore.tasks[taskId()];
             if (task?.$bar) {
                 return task.$bar;
             }
@@ -30,8 +29,7 @@ export function SummaryBar(props) {
     // Task data
     const task = () => {
         if (props.taskStore && taskId()) {
-            const tasksMap = props.taskStore.tasks();
-            return tasksMap.get(taskId()) ?? {};
+            return props.taskStore.tasks[taskId()] ?? {};
         }
         return {};
     };
@@ -57,10 +55,10 @@ export function SummaryBar(props) {
     const progressWidth = () => (width() * progress()) / 100;
 
     // Label position
-    const labelPos = createMemo(() => {
+    const labelPos = () => {
         const name = task()?.name ?? '';
         return computeLabelPosition(x(), width(), name, 7);
-    });
+    };
 
     // ═══════════════════════════════════════════════════════════════════════════
     // DRAG SETUP (moves all descendants)
@@ -114,11 +112,11 @@ export function SummaryBar(props) {
     });
 
     // Drag state class
-    const dragStateClass = createMemo(() => {
+    const dragStateClass = () => {
         const state = dragState();
         if (state === 'idle') return '';
         return `dragging ${state}`;
-    });
+    };
 
     // Handle mousedown on bar for drag
     const handleBarMouseDown = (e) => {
