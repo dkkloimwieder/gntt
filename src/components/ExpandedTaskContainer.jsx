@@ -1,6 +1,5 @@
 import { createMemo, For, Show } from 'solid-js';
 import { SubtaskBar } from './SubtaskBar.jsx';
-import { computeSubtaskY } from '../utils/rowLayoutCalculator.js';
 
 /**
  * ExpandedTaskContainer - Renders a parent task with subtasks inside.
@@ -53,24 +52,33 @@ export function ExpandedTaskContainer(props) {
     };
 
     const containerHeight = () => {
+        // Sequential: same height as a regular bar (visually identical)
+        if (layout() === 'sequential') {
+            return barHeight();
+        }
+
+        // For parallel/mixed, use the row layout height
         const rowLayout = props.rowLayout;
         if (rowLayout) {
             return rowLayout.height;
         }
-        // Calculate based on subtask count
+
+        // Fallback calculation with consistent padding
         const subtaskBarHeight = barHeight() * subtaskHeightRatio();
         const subtaskPadding = padding() * 0.4;
-        const subtaskRowHeight = subtaskBarHeight + subtaskPadding;
         const count = subtasks().length;
+        const verticalPadding = (barHeight() - subtaskBarHeight) / 2;
 
-        if (layout() === 'parallel') {
-            return padding() + subtaskBarHeight + padding();
-        }
-        return padding() + count * subtaskRowHeight + padding() / 2;
+        // Stack with same padding as sequential
+        return verticalPadding * 2 + count * subtaskBarHeight + (count - 1) * subtaskPadding;
     };
 
-    // Content area (inside padding)
-    const contentY = () => containerY() + padding() / 2;
+    // Content area - consistent vertical padding for all layouts
+    const contentY = () => {
+        // Use same centering offset for all layouts
+        const subtaskH = barHeight() * subtaskHeightRatio();
+        return containerY() + (barHeight() - subtaskH) / 2;
+    };
 
     // Colors
     const parentColor = () => task()?.color ?? 'var(--g-bar-color, #b8c2cc)';
@@ -85,20 +93,25 @@ export function ExpandedTaskContainer(props) {
         parentColor: parentColor(),
     }));
 
-    // Calculate subtask Y position
+    // Get subtask Y position from rowLayout (computed based on time overlaps)
     const getSubtaskY = (index, subtask) => {
-        const row = subtask?.row ?? index;
-        return computeSubtaskY(
-            index,
-            contentY(),
-            layout(),
-            {
-                barHeight: barHeight(),
-                padding: padding(),
-                subtaskHeightRatio: subtaskHeightRatio(),
-            },
-            row
-        );
+        // Use pre-computed Y from rowLayout if available
+        const rowLayout = props.rowLayout;
+        const taskPos = rowLayout?.taskPositions?.get(subtask?.id);
+        if (taskPos?.y !== undefined) {
+            return taskPos.y;
+        }
+
+        // Fallback: compute with consistent padding
+        const subtaskBarHeight = barHeight() * subtaskHeightRatio();
+        const subtaskPadding = padding() * 0.4;
+        const verticalPadding = (barHeight() - subtaskBarHeight) / 2;
+
+        if (layout() === 'sequential') {
+            return containerY() + verticalPadding;
+        }
+        // Parallel/mixed: stack by index
+        return containerY() + verticalPadding + index * (subtaskBarHeight + subtaskPadding);
     };
 
     return (

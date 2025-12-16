@@ -155,7 +155,7 @@ export function GanttProjectDemo() {
             progress: 40,
             subtaskLayout: 'mixed',
         },
-        // Subtasks for Sprint 1 (mixed layout)
+        // Subtasks for Sprint 1 (mixed layout - rows auto-computed based on time overlap)
         {
             id: 'sprint-docs',
             name: 'Documentation',
@@ -165,7 +165,6 @@ export function GanttProjectDemo() {
             start: '2024-01-08',
             end: '2024-01-11',
             progress: 100,
-            row: 0, // First row
         },
         {
             id: 'sprint-marketing',
@@ -176,7 +175,7 @@ export function GanttProjectDemo() {
             start: '2024-01-09',
             end: '2024-01-13',
             progress: 60,
-            row: 0, // Same row as docs (parallel)
+            // Overlaps with docs - will be auto-placed on different row
         },
         {
             id: 'sprint-deploy',
@@ -187,8 +186,8 @@ export function GanttProjectDemo() {
             start: '2024-01-14',
             end: '2024-01-18',
             progress: 0,
-            row: 1, // Second row (sequential after above)
             dependencies: 'sprint-docs',
+            // No overlap with docs - will share same row
         },
 
         // Regular task
@@ -292,7 +291,7 @@ export function GanttProjectDemo() {
   name: 'Design login UI',
   parentId: 'auth-feature',   // Links to parent task
   resource: 'alice',
-  row: 0                      // For mixed layout only
+  order: 0                    // Optional: controls placement priority
 }`}</pre>
             </div>
         </div>

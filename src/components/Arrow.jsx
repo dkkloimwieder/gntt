@@ -234,6 +234,12 @@ function orthogonalPath(start, end, startAnchor, endAnchor, curveRadius) {
         return straightPath(start, end);
     }
 
+    // Same level (horizontal) - straight line
+    // Use fixed threshold (not dependent on curve radius)
+    if (Math.abs(dy) < 2) {
+        return straightPath(start, end);
+    }
+
     // Limit curve radius to available space
     let curve = Math.min(curveRadius, Math.abs(dx) / 2, Math.abs(dy) / 2);
     if (curve < 1) curve = 0;
@@ -685,6 +691,9 @@ export function Arrow(props) {
                 ...barPos,
                 y: taskPos.y,
                 height: taskPos.height,
+                // Use stored container bounds for expanded tasks (arrows connect to container edge)
+                ...(taskPos.x !== undefined && { x: taskPos.x }),
+                ...(taskPos.width !== undefined && { width: taskPos.width }),
             };
         }
 
@@ -707,18 +716,39 @@ export function Arrow(props) {
         return null;
     });
 
-    const config = createMemo(() => ({
-        startAnchor: props.startAnchor ?? DEFAULTS.START_ANCHOR,
-        startOffset: props.startOffset,
-        endAnchor: props.endAnchor ?? DEFAULTS.END_ANCHOR,
-        endOffset: props.endOffset ?? DEFAULTS.ANCHOR_OFFSET,
-        routing: props.routing ?? DEFAULTS.ROUTING,
-        curveRadius: props.curveRadius ?? DEFAULTS.CURVE_RADIUS,
-        headSize: props.headSize ?? DEFAULTS.HEAD_SIZE,
-        headShape: props.headShape ?? DEFAULTS.HEAD_SHAPE,
-        headFill: props.headFill ?? DEFAULTS.HEAD_FILL,
-        dependencyType: props.dependencyType ?? 'FS',
-    }));
+    // Check if from task is an expanded container (should use 'right' anchor)
+    const fromTaskIsExpanded = createMemo(() => {
+        if (!props.rowLayouts || !props.taskStore || !props.fromId) return false;
+        const task = props.taskStore.getTask(props.fromId);
+        if (!task) return false;
+        const rowLayout = props.rowLayouts.get(task.resource);
+        const taskPos = rowLayout?.taskPositions?.get(props.fromId);
+        return taskPos?.isExpanded ?? false;
+    });
+
+    const config = createMemo(() => {
+        const isExpanded = fromTaskIsExpanded();
+
+        // For expanded containers, force 'right' anchor (override 'auto')
+        // This ensures arrows exit from container's right edge, not bottom
+        let startAnchor = props.startAnchor ?? DEFAULTS.START_ANCHOR;
+        if (isExpanded && startAnchor === 'auto') {
+            startAnchor = 'right';
+        }
+
+        return {
+            startAnchor,
+            startOffset: props.startOffset,
+            endAnchor: props.endAnchor ?? DEFAULTS.END_ANCHOR,
+            endOffset: props.endOffset ?? DEFAULTS.ANCHOR_OFFSET,
+            routing: props.routing ?? DEFAULTS.ROUTING,
+            curveRadius: props.curveRadius ?? DEFAULTS.CURVE_RADIUS,
+            headSize: props.headSize ?? DEFAULTS.HEAD_SIZE,
+            headShape: props.headShape ?? DEFAULTS.HEAD_SHAPE,
+            headFill: props.headFill ?? DEFAULTS.HEAD_FILL,
+            dependencyType: props.dependencyType ?? 'FS',
+        };
+    });
 
     const paths = createMemo(() => {
         const from = fromPosition();

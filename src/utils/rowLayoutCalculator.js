@@ -74,8 +74,9 @@ export function calculateRowLayouts(displayRows, config, expandedTasks, taskMap)
 
         // Compute sub-positions for tasks within this row
         // This positions each task vertically within the resource row
+        // Tasks that don't overlap in time share the same Y position
         const taskPositions = new Map();
-        let subY = cumulativeY + padding / 2;
+        const baseY = cumulativeY + padding / 2;
 
         // Sort resource tasks: project summaries first, then by start date
         const sortedTasks = [...resourceTasks]
@@ -88,17 +89,70 @@ export function calculateRowLayouts(displayRows, config, expandedTasks, taskMap)
                 return (a._start || 0) - (b._start || 0);
             });
 
+        // Track rows (Y levels) and their occupied time ranges
+        // Each row has: { y, height, occupiedRanges: [{start, end}] }
+        const rows = [];
+
+        // Helper to check if a task overlaps with any range in a row
+        const overlapsRow = (task, row) => {
+            const taskStart = task._start ?? task.$bar?.x ?? 0;
+            const taskEnd = task._end ?? (task.$bar?.x + task.$bar?.width) ?? taskStart + 1;
+            for (const range of row.occupiedRanges) {
+                // Overlap if not (taskEnd <= rangeStart OR taskStart >= rangeEnd)
+                if (!(taskEnd <= range.start || taskStart >= range.end)) {
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        // Helper to find or create a row for a task
+        const findRowForTask = (task, taskHeight) => {
+            const taskStart = task._start ?? task.$bar?.x ?? 0;
+            const taskEnd = task._end ?? (task.$bar?.x + task.$bar?.width) ?? taskStart + 1;
+
+            // Try to find an existing row where this task fits (no time overlap)
+            for (const row of rows) {
+                if (!overlapsRow(task, row)) {
+                    row.occupiedRanges.push({ start: taskStart, end: taskEnd });
+                    // Update row height to max of all tasks at this level
+                    row.height = Math.max(row.height, taskHeight);
+                    return row.y;
+                }
+            }
+
+            // No existing row fits, create a new one
+            const newY = rows.length === 0 ? baseY : rows[rows.length - 1].y + rows[rows.length - 1].height;
+            rows.push({
+                y: newY,
+                height: taskHeight,
+                occupiedRanges: [{ start: taskStart, end: taskEnd }],
+            });
+            return newY;
+        };
+
         for (const task of sortedTasks) {
             const isExpanded = expandedTasks?.has(task.id) && task._children?.length > 0;
             let taskHeight;
+            let taskY;
 
             if (isExpanded) {
                 taskHeight = calculateExpandedRowHeight(task, config, taskMap);
+                const layout = task.subtaskLayout || 'sequential';
 
-                // Add parent task position (at top of its container)
+                // For sequential, container is barHeight (same as regular task)
+                // For parallel/mixed, use the full expanded height
+                const containerHeight = layout === 'sequential' ? barHeight : taskHeight;
+                const visualHeight = layout === 'sequential' ? baseRowHeight : taskHeight;
+
+                taskY = findRowForTask(task, visualHeight);
+
                 taskPositions.set(task.id, {
-                    y: subY,
-                    height: taskHeight,
+                    y: taskY,
+                    height: containerHeight,
+                    // Store container x/width for arrow positioning
+                    x: task.$bar?.x,
+                    width: task.$bar?.width,
                     isExpanded,
                 });
 
@@ -106,26 +160,28 @@ export function calculateRowLayouts(displayRows, config, expandedTasks, taskMap)
                 const subtaskBarHeight = barHeight * subtaskHeightRatio;
                 const subtaskPadding = padding * 0.4;
                 const subtaskRowHeight = subtaskBarHeight + subtaskPadding;
-                const layout = task.subtaskLayout || 'sequential';
 
                 if (task._children) {
-                    // contentY matches ExpandedTaskContainer: containerY + padding/2
-                    const contentY = subY + padding / 2;
+                    // For mixed/parallel, compute row assignments based on time overlaps
+                    const rowAssignments = (layout === 'mixed' || layout === 'parallel')
+                        ? computeSubtaskRows(task._children, taskMap)
+                        : null;
+
+                    // Use consistent vertical padding (matches sequential centering)
+                    const verticalPadding = (barHeight - subtaskBarHeight) / 2;
 
                     task._children.forEach((childId, index) => {
                         const child = taskMap?.get(childId);
-                        const subtaskRow = child?.row ?? index;
                         let childY;
 
                         if (layout === 'sequential') {
-                            // Sequential: all subtasks on same Y (they don't overlap in time)
-                            childY = contentY + padding / 2;
-                        } else if (layout === 'mixed') {
-                            // Mixed: use row field for explicit positioning
-                            childY = contentY + padding / 2 + subtaskRow * subtaskRowHeight;
+                            // Sequential: center subtasks in barHeight container
+                            childY = taskY + verticalPadding;
                         } else {
-                            // Parallel: stack by index (they overlap in time, need separate rows)
-                            childY = contentY + padding / 2 + index * subtaskRowHeight;
+                            // Mixed/Parallel: use computed row based on time overlaps
+                            const subtaskRow = rowAssignments?.get(childId) ?? index;
+                            // Stack with same padding as sequential
+                            childY = taskY + verticalPadding + subtaskRow * (subtaskBarHeight + subtaskPadding);
                         }
 
                         taskPositions.set(childId, {
@@ -138,34 +194,42 @@ export function calculateRowLayouts(displayRows, config, expandedTasks, taskMap)
             } else if (task.type === 'project') {
                 // Project summary bars are thin
                 taskHeight = barHeight * 0.6;
+                taskY = findRowForTask(task, taskHeight);
                 taskPositions.set(task.id, {
-                    y: subY,
+                    y: taskY,
                     height: taskHeight,
                     isExpanded: false,
                 });
             } else {
                 taskHeight = baseRowHeight;
+                taskY = findRowForTask(task, taskHeight);
                 taskPositions.set(task.id, {
-                    y: subY,
-                    height: taskHeight,
+                    y: taskY,
+                    height: barHeight, // Use bar height for arrow center calculation
                     isExpanded: false,
                 });
             }
-
-            subY += taskHeight;
         }
+
+        // Calculate total row height from all sub-rows
+        let maxSubY = baseY;
+        for (const subRow of rows) {
+            maxSubY = Math.max(maxSubY, subRow.y + subRow.height);
+        }
+        // Use calculated height (accounts for task packing), ensure at least baseRowHeight
+        const actualRowHeight = Math.max(baseRowHeight, maxSubY - cumulativeY);
 
         layouts.set(row.id, {
             y: cumulativeY,
-            height: rowHeight,
+            height: actualRowHeight,
             contentY: cumulativeY + padding / 2,
-            contentHeight: contentHeight,
+            contentHeight: actualRowHeight - padding,
             type: row.type,
             expandedTasks: expandedTasksInRow.map(t => t.id),
             taskPositions, // Map of taskId -> { y, height, isExpanded }
         });
 
-        cumulativeY += rowHeight;
+        cumulativeY += actualRowHeight;
     }
 
     // Store total height for container sizing
@@ -199,15 +263,17 @@ export function calculateExpandedRowHeight(task, config, taskMap) {
 
     const layout = task.subtaskLayout || 'sequential';
 
-    // Sequential: single row (subtasks don't overlap in time)
+    // Sequential: same height as a normal task row (subtasks fit in same space)
     if (layout === 'sequential') {
-        return padding + subtaskBarHeight + padding;
+        return barHeight + padding;
     }
 
     // Parallel: stack vertically (subtasks overlap in time, need separate rows)
     if (layout === 'parallel') {
-        const subtaskRowHeight = subtaskBarHeight + subtaskPadding;
-        return padding + children.length * subtaskRowHeight + padding / 2;
+        // Use same vertical padding as sequential centering
+        const verticalPadding = (barHeight - subtaskBarHeight) / 2;
+        const rowCount = children.length;
+        return verticalPadding * 2 + rowCount * subtaskBarHeight + (rowCount - 1) * subtaskPadding;
     }
 
     // Mixed: analyze subtask row assignments
@@ -215,14 +281,70 @@ export function calculateExpandedRowHeight(task, config, taskMap) {
         return calculateMixedLayoutHeight(task, config, taskMap);
     }
 
-    // Default to sequential
-    const subtaskRowHeight = subtaskBarHeight + subtaskPadding;
-    return padding + children.length * subtaskRowHeight + padding / 2;
+    // Default to sequential (same height as normal task)
+    return barHeight + padding;
 }
 
 /**
- * Calculate height for mixed layout (some parallel, some sequential).
- * Uses the `row` field on subtasks to determine vertical stacking.
+ * Compute row assignments for subtasks based on time overlaps.
+ * Uses a packing algorithm - places each subtask on the first row
+ * where it doesn't overlap with existing subtasks.
+ *
+ * @param {Array} childIds - Array of child task IDs
+ * @param {Map} taskMap - Task map
+ * @returns {Map} subtaskId -> computed row index
+ */
+function computeSubtaskRows(childIds, taskMap) {
+    const rowAssignments = new Map();
+    if (!childIds?.length || !taskMap) return rowAssignments;
+
+    // Get subtasks with their time ranges, sorted by order field or start time
+    const subtasks = childIds
+        .map(id => taskMap.get(id))
+        .filter(t => t != null)
+        .sort((a, b) => {
+            // Sort by order field if present, otherwise by start time
+            if (a.order !== undefined && b.order !== undefined) {
+                return a.order - b.order;
+            }
+            return (a._start || 0) - (b._start || 0);
+        });
+
+    // Track rows and their occupied time ranges
+    const rows = []; // Array of arrays of {start, end}
+
+    for (const subtask of subtasks) {
+        const start = subtask._start ?? subtask.$bar?.x ?? 0;
+        const end = subtask._end ?? (subtask.$bar?.x + subtask.$bar?.width) ?? start + 1;
+
+        // Find first row where this subtask fits
+        let assignedRow = -1;
+        for (let rowIdx = 0; rowIdx < rows.length; rowIdx++) {
+            const hasOverlap = rows[rowIdx].some(range =>
+                !(end <= range.start || start >= range.end)
+            );
+            if (!hasOverlap) {
+                assignedRow = rowIdx;
+                rows[rowIdx].push({ start, end });
+                break;
+            }
+        }
+
+        // No existing row fits - create new one
+        if (assignedRow === -1) {
+            assignedRow = rows.length;
+            rows.push([{ start, end }]);
+        }
+
+        rowAssignments.set(subtask.id, assignedRow);
+    }
+
+    return rowAssignments;
+}
+
+/**
+ * Calculate height for mixed/parallel layout.
+ * Auto-computes rows based on time overlaps.
  *
  * @param {Object} task - Parent task
  * @param {Object} config - Config
@@ -240,18 +362,18 @@ function calculateMixedLayoutHeight(task, config, taskMap) {
     const subtaskPadding = padding * 0.4;
     const children = task._children || [];
 
-    // Find max row index from subtasks
-    let maxRow = 0;
-    for (const childId of children) {
-        const child = taskMap?.get(childId);
-        if (child && typeof child.row === 'number') {
-            maxRow = Math.max(maxRow, child.row);
-        }
+    if (children.length === 0) {
+        return barHeight + padding;
     }
 
+    // Compute rows automatically based on overlaps
+    const rowAssignments = computeSubtaskRows(children, taskMap);
+    const maxRow = Math.max(0, ...rowAssignments.values());
+
     const rowCount = maxRow + 1;
-    const subtaskRowHeight = subtaskBarHeight + subtaskPadding;
-    return padding + rowCount * subtaskRowHeight + padding / 2;
+    // Use same vertical padding as sequential centering
+    const verticalPadding = (barHeight - subtaskBarHeight) / 2;
+    return verticalPadding * 2 + rowCount * subtaskBarHeight + (rowCount - 1) * subtaskPadding;
 }
 
 /**
@@ -348,9 +470,9 @@ export function computeSubtaskY(subtaskIndex, parentContentY, layout, config, su
     const subtaskPadding = padding * 0.4;
     const subtaskRowHeight = subtaskBarHeight + subtaskPadding;
 
-    // Sequential: all subtasks on same Y (they don't overlap in time)
+    // Sequential: all subtasks on same Y, already centered by parentContentY
     if (layout === 'sequential') {
-        return parentContentY + padding / 2;
+        return parentContentY;
     }
 
     // Mixed: use subtaskRow for explicit positioning
