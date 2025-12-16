@@ -41,10 +41,15 @@ export function ExpandedTaskContainer(props) {
     // Parent bar geometry (from $bar)
     const parentBar = () => task()?.$bar || { x: 0, y: 0, width: 100, height: 30 };
 
-    // Container dimensions (full row height when expanded)
+    // Container dimensions - use task-specific Y from taskPositions (for stacking)
     const containerY = () => {
-        // Use row layout Y if available, otherwise fall back to $bar.y
         const rowLayout = props.rowLayout;
+        // Use task-specific position (handles stacking of overlapping tasks)
+        const taskPos = rowLayout?.taskPositions?.get(props.taskId);
+        if (taskPos?.y !== undefined) {
+            return taskPos.y;
+        }
+        // Fallback to row Y or $bar.y
         if (rowLayout) {
             return rowLayout.y;
         }
@@ -52,15 +57,16 @@ export function ExpandedTaskContainer(props) {
     };
 
     const containerHeight = () => {
+        // Use task-specific height from taskPositions if available
+        const rowLayout = props.rowLayout;
+        const taskPos = rowLayout?.taskPositions?.get(props.taskId);
+        if (taskPos?.height !== undefined) {
+            return taskPos.height;
+        }
+
         // Sequential: same height as a regular bar (visually identical)
         if (layout() === 'sequential') {
             return barHeight();
-        }
-
-        // For parallel/mixed, use the row layout height
-        const rowLayout = props.rowLayout;
-        if (rowLayout) {
-            return rowLayout.height;
         }
 
         // Fallback calculation with consistent padding
