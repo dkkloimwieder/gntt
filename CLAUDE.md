@@ -47,6 +47,7 @@ gantt/
 ├── examples/                   # SolidJS demo HTML files
 │   ├── index.html              # Demo hub
 │   ├── gantt.html              # Main demo
+│   ├── project.html            # Subtask demo (100 tasks with subtasks)
 │   ├── resource-groups.html    # Collapsible resource groups demo
 │   ├── perf.html               # Performance test (200+ tasks)
 │   ├── arrow.html, bar.html    # Component demos
@@ -55,7 +56,8 @@ gantt/
 │   ├── src/                    # Original JS source
 │   └── examples/               # Original demo
 ├── docs/
-│   └── ARCHITECTURE.md         # Detailed SolidJS architecture
+│   ├── ARCHITECTURE.md         # Detailed SolidJS architecture
+│   └── SUBTASKS.md             # Subtask feature documentation
 └── [config files]
 ```
 
@@ -75,10 +77,14 @@ The SolidJS implementation uses reactive stores for state management:
 - `Arrow.jsx` - Dependency visualization
 - `Grid.jsx` - Background grid and time scale
 - `ResourceColumn.jsx` - Resource names column
+- `ExpandedTaskContainer.jsx` - Parent task with subtasks (see [SUBTASKS.md](docs/SUBTASKS.md))
+- `SubtaskBar.jsx` - Individual subtask bars
 
 **Utilities:**
 - `barCalculations.js` - Position/size calculations from dates
 - `constraintResolver.js` - Dependency constraint enforcement (FS/SS/FF/SF)
+- `subtaskGenerator.js` - Generates test data with subtasks
+- `rowLayoutCalculator.js` - Variable row heights for expanded subtasks
 - `createVirtualViewport.js` - Simple 2D viewport virtualization
 - `resourceProcessor.js` - Resource normalization and group display logic
 - `taskGenerator.js` - Test data generation

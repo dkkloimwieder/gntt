@@ -43,6 +43,10 @@ The SolidJS implementation lives in `src/` and provides reactive, fine-grained u
 | Resource Column | Complete | `src/components/ResourceColumn.jsx` |
 | Task Layer | Complete | `src/components/TaskLayer.jsx` |
 | Arrow Layer | Complete | `src/components/ArrowLayer.jsx` |
+| ExpandedTaskContainer | Complete | `src/components/ExpandedTaskContainer.jsx` |
+| SubtaskBar | Complete | `src/components/SubtaskBar.jsx` |
+
+> **See also**: [SUBTASKS.md](./SUBTASKS.md) for comprehensive subtask documentation.
 
 ---
 
@@ -66,7 +70,9 @@ src/
 │   ├── ShowcaseDemo.jsx    # Interactive props showcase
 │   ├── TaskDataModal.jsx   # Debug/detail modal on click
 │   ├── TaskDataPopup.jsx   # Hover tooltip popup
-│   └── TaskLayer.jsx       # Container for all bars
+│   ├── TaskLayer.jsx       # Container for all bars
+│   ├── ExpandedTaskContainer.jsx  # Expanded parent with subtasks
+│   └── SubtaskBar.jsx      # Individual subtask bars (50% height)
 ├── stores/
 │   ├── taskStore.js        # Reactive task state management
 │   ├── ganttConfigStore.js # Configuration state management
@@ -78,13 +84,16 @@ src/
 │   ├── createVirtualViewport.js # Simple 2D viewport virtualization
 │   ├── resourceProcessor.js # Resource normalization and group display
 │   ├── taskProcessor.js    # Task parsing and position computation
-│   └── taskGenerator.js    # Test data generation
+│   ├── taskGenerator.js    # Test data generation
+│   ├── subtaskGenerator.js # Subtask demo data generation
+│   └── rowLayoutCalculator.js # Variable row heights for subtasks
 ├── hooks/
 │   └── useDrag.js          # RAF-based drag state machine
 ├── entries/                # Vite entry points for demos
 │   ├── gantt.jsx
 │   ├── resource-groups.jsx
 │   ├── perf.jsx
+│   ├── project.jsx         # Subtask demo (100 tasks with subtasks)
 │   ├── arrow.jsx
 │   ├── bar.jsx
 │   ├── constraint.jsx
