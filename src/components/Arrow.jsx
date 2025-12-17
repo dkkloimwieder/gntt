@@ -1,3 +1,5 @@
+// Note: createMemo was attempted for optimization but created reactive cascades
+// that hurt scroll performance. Plain functions work better here.
 
 /**
  * Arrow Component - Decorative/Informative Only
@@ -699,6 +701,8 @@ export function Arrow(props) {
         return barPos;
     };
 
+    // Position accessors - plain functions, NOT memos
+    // Memoizing these creates subscriptions to rowLayouts that cascade during scroll
     const fromPosition = () => {
         if (props.from) return props.from;
         if (props.taskStore && props.fromId) {
@@ -725,6 +729,7 @@ export function Arrow(props) {
         return taskPos?.isExpanded ?? false;
     };
 
+    // Config accessor - plain function to avoid subscription cascades
     const config = () => {
         const isExpanded = fromTaskIsExpanded();
 
@@ -749,6 +754,8 @@ export function Arrow(props) {
         };
     };
 
+    // Path generation - plain function (not memo)
+    // Memoization creates reactive subscriptions that cascade during scroll
     const paths = () => {
         const from = fromPosition();
         const to = toPosition();
