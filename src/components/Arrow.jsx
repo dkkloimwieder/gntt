@@ -1,6 +1,8 @@
 // Note: createMemo was attempted for optimization but created reactive cascades
 // that hurt scroll performance. Plain functions work better here.
 
+import { prof } from '../perf/profiler.js';
+
 /**
  * Arrow Component - Decorative/Informative Only
  *
@@ -586,6 +588,8 @@ function getArrowHeadDirection(endAnchor) {
 }
 
 function generatePath(from, to, config) {
+    const endProf = prof.start('Arrow.generatePath');
+
     const {
         startAnchor,
         startOffset,
@@ -654,6 +658,7 @@ function generatePath(from, to, config) {
         headDirection,
     );
 
+    endProf();
     return { linePath, headPath, endPoint: end };
 }
 
@@ -669,9 +674,15 @@ function generatePath(from, to, config) {
  * Renders line and arrow head as separate paths for proper fill support.
  */
 export function Arrow(props) {
-    // Get bar position directly from taskStore
-    // No rowLayouts dependency - avoids reactive cascade on scroll
+    // Get bar position - prefer positionMap (batch cached) over getBarPosition (per-call)
+    // positionMap eliminates 184K getBarPosition calls during V-scroll
     const getAdjustedPosition = (taskId) => {
+        // Use positionMap if available (from ArrowLayer batch optimization)
+        if (props.positionMap) {
+            const pos = props.positionMap.get(taskId);
+            if (pos) return pos; // Already has {x, y, width, height}
+        }
+        // Fallback to getBarPosition
         return props.taskStore?.getBarPosition(taskId) ?? null;
     };
 

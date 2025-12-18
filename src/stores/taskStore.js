@@ -1,5 +1,6 @@
 import { createSignal } from 'solid-js';
 import { createStore, reconcile, produce } from 'solid-js/store';
+import { prof } from '../perf/profiler.js';
 
 /**
  * Reactive task store for tracking task and bar positions.
@@ -26,16 +27,24 @@ export function createTaskStore() {
     // Get bar position for a task
     // Accessing tasks[id].$bar creates fine-grained dependency
     const getBarPosition = (id) => {
-        const task = tasks[id];
-        if (!task || !task.$bar) return null;
+        const endProf = prof.start('taskStore.getBarPosition');
 
-        return {
+        const task = tasks[id];
+        if (!task || !task.$bar) {
+            endProf();
+            return null;
+        }
+
+        const result = {
             x: task.$bar.x,
             y: task.$bar.y,
             width: task.$bar.width,
             height: task.$bar.height,
             index: task._index,
         };
+
+        endProf();
+        return result;
     };
 
     // Update task in store (replaces entire task)

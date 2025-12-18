@@ -1,28 +1,24 @@
 /**
  * Gantt Chart Performance Benchmark Module
  *
- * Provides comprehensive performance profiling for SolidJS Gantt chart:
- * - Frame timing with Long Animation Frames API (Chrome 123+)
- * - Memo/reactive tracking for cascade detection
- * - JSON export for CI/CD integration
+ * QUICK START - Function Profiler:
  *
- * Quick Start:
- *   import { createFrameMetrics, analyzeMemos, downloadJSON } from './perf';
+ *   1. Open browser console
+ *   2. prof.enable()
+ *   3. Scroll the chart
+ *   4. prof.log()
  *
- *   // Start tracking
- *   const tracker = createFrameMetrics();
- *   tracker.startTracking();
+ * Or visit /examples/profiler.html for the visual profiler.
  *
- *   // ... scroll or interact with chart ...
- *
- *   // Stop and analyze
- *   tracker.stopTracking();
- *   const analysis = tracker.analyze();
- *   console.log(analysis.avgFPS);
- *
- *   // Export results
- *   downloadJSON(createBenchmarkResult({ frameAnalysis: analysis }));
+ * The profiler instruments these hot paths:
+ * - taskStore.getBarPosition
+ * - ArrowLayer.visibleDependencies
+ * - TaskLayer.visibleTaskIds
+ * - Arrow.generatePath
  */
+
+// Inline Function Profiler (main tool)
+export { prof } from './profiler.js';
 
 // Frame Metrics
 export {

@@ -1,5 +1,6 @@
-import { For, createMemo, untrack } from 'solid-js';
+import { For, createMemo } from 'solid-js';
 import { Arrow } from './Arrow.jsx';
+import { prof } from '../perf/profiler.js';
 
 /**
  * ArrowLayer - Container for all dependency arrows.
@@ -46,32 +47,56 @@ export function ArrowLayer(props) {
         return result;
     });
 
+    // Batch position lookup - builds a Map once, avoids 184K getBarPosition calls per V-scroll frame
+    // This memo updates when tasks change (via store reactivity), but NOT on every scroll
+    const positionMap = createMemo(() => {
+        const endProf = prof.start('ArrowLayer.positionMap');
+        const positions = new Map();
+        const tasks = props.taskStore?.tasks;
+        if (tasks) {
+            for (const taskId in tasks) {
+                const task = tasks[taskId];
+                if (task?.$bar) {
+                    positions.set(taskId, {
+                        x: task.$bar.x,
+                        y: task.$bar.y,
+                        width: task.$bar.width,
+                        height: task.$bar.height ?? props.taskStore?.rowHeight ?? 38,
+                    });
+                }
+            }
+        }
+        endProf();
+        return positions;
+    });
+
     // Filter to visible arrows - returns SAME cached objects
     // IMPORTANT: Only filter by Y (rows), NOT X position
     // Reading startX/endX creates reactive deps that run O(9353) filter on every H-scroll frame
     // The filter cost is worse than rendering extra off-screen arrows
     const visibleDependencies = createMemo(() => {
+        const endProf = prof.start('ArrowLayer.visibleDependencies');
+
         const all = allDependencies();
         const startY = props.startRow;
         const endY = props.endRow;
 
         // If no viewport bounds, render all
         if (startY === undefined || endY === undefined) {
+            endProf();
             return all;
         }
 
         const rowHeight = props.taskStore?.rowHeight ?? 38;
 
-        return all.filter((dep) => {
-            // Use untrack to prevent reactive cascade - we WANT to re-run
-            // this memo when viewport changes (via startY/endY props)
-            // but NOT when individual task positions change
-            const fromPos = untrack(() =>
-                props.taskStore?.getBarPosition(dep.fromId)
-            );
-            const toPos = untrack(() =>
-                props.taskStore?.getBarPosition(dep.toId)
-            );
+        // Read positionMap OUTSIDE untrack - we want to re-run when positions change
+        // But use untrack for the .get() calls to avoid per-task dependencies
+        const positions = positionMap();
+
+        const result = all.filter((dep) => {
+            // Map.get is O(1) and non-reactive - no store access during filter
+            const fromPos = positions.get(dep.fromId);
+            const toPos = positions.get(dep.toId);
 
             if (!fromPos && !toPos) return false;
 
@@ -88,6 +113,9 @@ export function ArrowLayer(props) {
 
             return true;
         });
+
+        endProf();
+        return result;
     });
 
     // Arrow configuration from props or defaults
@@ -102,6 +130,7 @@ export function ArrowLayer(props) {
                         fromId={dep.fromId}
                         toId={dep.toId}
                         taskStore={props.taskStore}
+                        positionMap={positionMap()}
                         dependencyType={dep.type}
                         startAnchor={
                             dep.startAnchor ||

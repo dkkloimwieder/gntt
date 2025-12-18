@@ -9,6 +9,7 @@ import {
     resolveAfterResize,
 } from '../utils/constraintResolver.js';
 import { collectDescendants } from '../utils/hierarchyProcessor.js';
+import { prof } from '../perf/profiler.js';
 
 /**
  * TaskLayer - Container for all task bars.
@@ -202,6 +203,8 @@ export function TaskLayer(props) {
     // This prevents <For> from recreating Bar components when the store updates during drag,
     // which would kill the document event listeners and break drag functionality.
     const visibleTaskIds = createMemo(() => {
+        const endProf = prof.start('TaskLayer.visibleTaskIds');
+
         const result = [];
         const resList = displayResources();
         const startIdx = startRow();
@@ -233,6 +236,7 @@ export function TaskLayer(props) {
             }
         }
 
+        endProf();
         return result;
     });
 

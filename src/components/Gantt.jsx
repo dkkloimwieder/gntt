@@ -38,6 +38,13 @@ export function Gantt(props) {
     const dateStore = createGanttDateStore(props.options || {});
     const resourceStore = createResourceStore(props.resources || []);
 
+    // Expose for profiling (development only)
+    if (typeof window !== 'undefined') {
+        window.__ganttTaskStore = taskStore;
+        window.__ganttConfig = ganttConfig;
+        window.__ganttDateStore = dateStore;
+    }
+
     // Container reference for scroll control (reactive so effects can depend on it)
     const [containerApi, setContainerApi] = createSignal(null);
 
@@ -275,6 +282,27 @@ export function Gantt(props) {
 
     // Sorted row layouts for binary search in virtualization
     const sortedRowLayouts = createMemo(() => rowLayoutsToSortedArray(rowLayouts()));
+
+    // Sync $bar.y values with row layout positions
+    // This ensures Arrow components (which read from $bar.y) match Bar rendering (which uses taskPosition.y)
+    createEffect(() => {
+        const layouts = rowLayouts();
+        if (!layouts || layouts.size === 0) return;
+
+        // Iterate through all row layouts and update task $bar.y values
+        for (const [resourceId, layout] of layouts) {
+            if (resourceId === '__total__') continue;
+            if (!layout.taskPositions) continue;
+
+            // Update each task's $bar.y to match the calculated position
+            for (const [taskId, taskPos] of layout.taskPositions) {
+                const task = taskStore.tasks[taskId];
+                if (task && task.$bar && task.$bar.y !== taskPos.y) {
+                    taskStore.updateBarPosition(taskId, { y: taskPos.y });
+                }
+            }
+        }
+    });
 
     // Total content height (variable based on expanded rows)
     const totalContentHeight = createMemo(() => {
