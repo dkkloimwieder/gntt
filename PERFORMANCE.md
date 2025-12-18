@@ -166,26 +166,43 @@ const tasksByResource = createMemo(() => {
 
 **Impact**: Foundation for row virtualization (renders all tasks when all rows visible)
 
-### 7. Arrow Virtualization
+### 7. Arrow Rendering - No Scroll-Based Filtering
 
-**Change**: Filter arrows to only render those connected to visible rows.
+**Finding**: Scroll-based arrow filtering actually **hurts** performance due to reactive cascades and array reconciliation.
 
 **File**: `src/components/ArrowLayer.jsx`
 
-```jsx
-const dependencies = createMemo(() => {
-    return allDependencies().filter((dep) => {
-        const fromRow = props.taskStore.getTask(dep.fromId)?._resourceIndex ?? -1;
-        const toRow = props.taskStore.getTask(dep.toId)?._resourceIndex ?? -1;
+**Approach**: Render all arrows statically. Let the browser handle SVG clipping.
 
-        // Include if either endpoint is in visible range
-        return (fromRow >= start - buffer && fromRow <= end + buffer) ||
-               (toRow >= start - buffer && toRow <= end + buffer);
-    });
-});
+```jsx
+// Simple mapping - NO filtering, NO memos that depend on scroll
+const dependencies = () => {
+    const rels = props.relationships || [];
+    return rels.map((rel) => ({
+        id: `${fromId}-${toId}`,
+        fromId,
+        toId,
+        type: rel.type || 'FS',
+        ...rel,
+    }));
+};
 ```
 
-**Impact**: Reduces arrows when viewport shows subset of rows (no effect when all 26 rows visible)
+**Why Filtering Failed**:
+1. `createMemo` depending on scroll position triggers on every frame
+2. New array returned each frame forces `<For>` to reconcile thousands of Arrow components
+3. CSS visibility checks trigger reactive cascades in each Arrow component
+4. All filtering approaches are SLOWER than just rendering all arrows
+
+**Benchmark Results** (4300 tasks, 9353 arrows, Hour view):
+
+| Approach | INP (Interaction to Next Paint) | Notes |
+|----------|--------------------------------|-------|
+| **No filtering** | **148ms** ✅ | Browser SVG clipping |
+| createMemo filtering | 215ms | Array reconciliation overhead |
+| CSS visibility checks | 715ms | Reactive cascades in 9353 components |
+
+**Conclusion**: Browser SVG clipping is more efficient than ANY JavaScript-based filtering for arrows. The simplest approach wins.
 
 ### 8. Unified Viewport Virtualization
 
@@ -197,7 +214,7 @@ const dependencies = createMemo(() => {
 - `src/utils/createVirtualViewport.js` - **NEW** - Simple 2D viewport virtualization utility
 - `src/components/Gantt.jsx` - Uses single viewport for all components
 - `src/components/TaskLayer.jsx` - Filters tasks by row range and X range
-- `src/components/ArrowLayer.jsx` - Filters arrows by row range and X range
+- `src/components/ArrowLayer.jsx` - **No filtering** (see Section 7 - filtering hurts performance)
 
 ```jsx
 // src/utils/createVirtualViewport.js - Simple pattern: offset / itemSize → visible range

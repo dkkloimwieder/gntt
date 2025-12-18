@@ -221,11 +221,11 @@ export function TaskLayer(props) {
             const resourceTaskList = grouped.get(resourceId);
             if (!resourceTaskList) continue;
 
-            // Filter by X range
+            // Filter by X range with 200px buffer for partial visibility
             for (const task of resourceTaskList) {
                 if (ex !== Infinity) {
                     const bar = task.$bar;
-                    if (bar && (bar.x + bar.width < sx || bar.x > ex)) {
+                    if (bar && (bar.x + bar.width < sx - 200 || bar.x > ex + 200)) {
                         continue; // Skip tasks outside X viewport
                     }
                 }
@@ -303,9 +303,9 @@ export function TaskLayer(props) {
     };
 
     return (
-        <g class="task-layer">
+        <g class="task-layer" style="contain: layout style;">
             {/* Summary bars render BEHIND everything */}
-            <g class="summary-layer">
+            <g class="summary-layer" style="contain: layout style;">
                 <For each={splitTaskIds().summaryIds}>
                     {(taskId) => (
                         <SummaryBar
@@ -323,7 +323,7 @@ export function TaskLayer(props) {
             </g>
 
             {/* Expanded task containers (parent + subtasks) */}
-            <g class="expanded-layer">
+            <g class="expanded-layer" style="contain: layout style;">
                 <For each={splitTaskIds().expandedIds}>
                     {(taskId) => (
                         <ExpandedTaskContainer
@@ -337,7 +337,7 @@ export function TaskLayer(props) {
             </g>
 
             {/* Regular task bars render ON TOP */}
-            <g class="task-bars-layer">
+            <g class="task-bars-layer" style="contain: layout style;">
                 <For each={splitTaskIds().regularIds}>
                     {(taskId) => (
                         <Bar

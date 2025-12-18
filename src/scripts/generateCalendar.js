@@ -6,6 +6,7 @@
  *   node src/scripts/generateCalendar.js
  *   node src/scripts/generateCalendar.js --tasks=300 --seed=54321 --ss=30
  *   node src/scripts/generateCalendar.js --tasks=10000 --resources=130
+ *   node src/scripts/generateCalendar.js --tasks=10000 --realistic
  *
  * Options:
  *   --tasks=N     Total number of tasks (default: 200)
@@ -15,6 +16,7 @@
  *   --maxGroup=N  Maximum group size (default: 20)
  *   --start=DATE  Start date YYYY-MM-DD (default: 2025-01-01)
  *   --resources=N Number of resources/rows (default: 26, A-Z)
+ *   --realistic   Generate realistic arrow patterns (75% same-row, 20% adjacent)
  */
 
 import { writeFileSync, mkdirSync } from 'fs';
@@ -62,6 +64,9 @@ function parseArgs(args) {
             case 'dense':
                 config.dense = value === undefined || value === 'true' || value === '1';
                 break;
+            case 'realistic':
+                config.realistic = value === undefined || value === 'true' || value === '1';
+                break;
             case 'help':
             case 'h':
                 console.log(`
@@ -79,6 +84,7 @@ Options:
   --start=DATE  Start date YYYY-MM-DD (default: 2025-01-01)
   --resources=N Number of resources/rows (default: 26, A-Z)
   --dense       Pack tasks tightly (back-to-back, 1-5h, for stress testing)
+  --realistic   Realistic arrow patterns (75% same-row, 20% adjacent, 5% none)
   --help        Show this help message
 `);
                 process.exit(0);

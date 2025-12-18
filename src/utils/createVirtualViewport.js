@@ -140,5 +140,17 @@ export function createVirtualViewport(config) {
         };
     });
 
-    return { colRange, rowRange, xRange };
+    // Y pixel range (for ArrowLayer vertical filtering)
+    const yRange = createMemo(() => {
+        const sy = scrollY();
+        const vh = viewportHeight();
+        const overscanY = overscanRows * (rowHeight?.() || 48); // Convert row overscan to pixels
+
+        return {
+            start: Math.max(0, sy - overscanY),
+            end: sy + vh + overscanY,
+        };
+    });
+
+    return { colRange, rowRange, xRange, yRange };
 }

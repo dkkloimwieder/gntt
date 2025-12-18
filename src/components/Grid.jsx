@@ -126,7 +126,7 @@ export function Grid(props) {
     });
 
     return (
-        <g class="grid">
+        <g class="grid" style="contain: layout style;">
             {/* SVG Pattern definition for vertical grid lines */}
             <defs>
                 <pattern

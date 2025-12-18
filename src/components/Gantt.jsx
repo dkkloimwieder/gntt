@@ -46,6 +46,10 @@ export function Gantt(props) {
     const [viewportWidth, setViewportWidth] = createSignal(0);
     const [viewportHeight, setViewportHeight] = createSignal(0);
 
+    // Fast scroll detection - hide arrows during rapid scrolling for performance
+    const [isScrolling, setIsScrolling] = createSignal(false);
+    let scrollTimeout = null;
+
     // Relationships state
     const [relationships, setRelationships] = createSignal([]);
 
@@ -361,6 +365,30 @@ export function Gantt(props) {
         if (api.scrollTopSignal) {
             createEffect(() => setScrollTop(api.scrollTopSignal()));
         }
+
+        // Fast scroll detection - set isScrolling while scroll events are firing
+        let lastScrollTop = scrollTop();
+        let lastScrollLeft = scrollLeft();
+        createEffect(() => {
+            // Subscribe to both scroll signals
+            const sl = scrollLeft();
+            const st = scrollTop();
+
+            // Only set scrolling if values actually changed (skip first run)
+            if (sl !== lastScrollLeft || st !== lastScrollTop) {
+                lastScrollLeft = sl;
+                lastScrollTop = st;
+
+                // Mark as scrolling
+                setIsScrolling(true);
+
+                // Clear timeout and set new one
+                clearTimeout(scrollTimeout);
+                scrollTimeout = setTimeout(() => {
+                    setIsScrolling(false);
+                }, 150); // Show arrows again 150ms after scroll stops
+            }
+        });
         if (api.containerWidthSignal) {
             createEffect(() => setViewportWidth(api.containerWidthSignal()));
         }
@@ -480,7 +508,6 @@ export function Gantt(props) {
                     endRow={viewport.rowRange().end}
                     startX={viewport.xRange().start}
                     endX={viewport.xRange().end}
-                    rowLayouts={rowLayouts()}
                 />
 
                 {/* Task bars */}

@@ -39,6 +39,7 @@ export const DEFAULT_CONFIG = {
     resourceCount: 26,
     seed: 12345,
     dense: false, // If true, pack tasks tightly for maximum viewport density
+    realistic: false, // If true, generate realistic arrow patterns (75% same-row, 20% adjacent)
 };
 
 /**
@@ -168,10 +169,16 @@ function shuffleArray(random, array) {
  * Ensures no task overlap on the same resource (concurrency = 1).
  *
  * If cfg.dense is true, generates tightly packed tasks for stress testing.
+ * If cfg.realistic is true, generates realistic arrow patterns (75% same-row).
  */
 export function generateCalendar(config = {}) {
     const cfg = { ...DEFAULT_CONFIG, ...config };
     const random = createRandom(cfg.seed);
+
+    // Use realistic mode for realistic arrow patterns
+    if (cfg.realistic) {
+        return generateRealisticCalendar(cfg, random);
+    }
 
     // Use dense mode for tightly packed tasks
     if (cfg.dense) {
@@ -394,6 +401,108 @@ function generateDenseCalendar(cfg, random) {
             // Pick a random valid predecessor from another resource
             const target = candidates[Math.floor(random() * candidates.length)];
             task.dependencies = target.id;
+        }
+    }
+
+    return tasks;
+}
+
+/**
+ * Find a valid predecessor task on the given resource that ends before the specified date.
+ * Returns the most recent valid predecessor or null if none found.
+ */
+function findValidPredecessor(tasks, resource, beforeDate) {
+    const candidates = tasks.filter(
+        (t) => t.resource === resource && parseDateTime(t.end) <= beforeDate
+    );
+    return candidates.length > 0 ? candidates[candidates.length - 1] : null;
+}
+
+/**
+ * Generate tasks with REALISTIC arrow patterns.
+ * - 75% same-row dependencies (sequential tasks on same resource)
+ * - 20% adjacent-row dependencies (1-3 rows away)
+ * - 5% no dependency (parallel work)
+ *
+ * This produces arrow patterns that match real project management:
+ * most dependencies are within a team (same row), with occasional handoffs
+ * to nearby teams (adjacent rows).
+ */
+function generateRealisticCalendar(cfg, random) {
+    const tasks = [];
+
+    // Create array of all resource labels
+    const allResources = [];
+    for (let i = 0; i < cfg.resourceCount; i++) {
+        allResources.push(getResourceLabel(i));
+    }
+
+    // Track when each resource becomes free
+    const resourceFreeAt = {};
+    for (const r of allResources) {
+        resourceFreeAt[r] = parseDateTime(
+            `${cfg.startDate} ${String(cfg.workdayStartHour).padStart(2, '0')}:00`
+        );
+    }
+
+    // Distribute tasks across resources
+    const tasksPerResource = Math.ceil(cfg.totalTasks / cfg.resourceCount);
+    let taskNum = 1;
+
+    for (
+        let resIdx = 0;
+        resIdx < allResources.length && taskNum <= cfg.totalTasks;
+        resIdx++
+    ) {
+        const resource = allResources[resIdx];
+        const color = GROUP_COLORS[resIdx % GROUP_COLORS.length];
+        const progressColor = color + 'cc';
+        let prevTaskId = null;
+
+        for (let i = 0; i < tasksPerResource && taskNum <= cfg.totalTasks; i++) {
+            const duration = randomBetween(random, cfg.minDuration, cfg.maxDuration);
+            const { start, end } = calculateTaskTimes(
+                resourceFreeAt[resource],
+                duration,
+                cfg.workdayStartHour,
+                cfg.workdayEndHour
+            );
+
+            // Determine dependency type based on probability
+            let dependency = undefined;
+            const roll = random();
+
+            if (roll < 0.75 && prevTaskId) {
+                // 75%: Same-row (FS dependency on previous task in this row)
+                dependency = prevTaskId;
+            } else if (roll < 0.95 && resIdx > 0) {
+                // 20%: Adjacent row (1-3 rows away)
+                const maxSpan = Math.min(3, resIdx);
+                const rowOffset = randomBetween(random, 1, maxSpan);
+                const adjacentRes = allResources[resIdx - rowOffset];
+                // Find a task on adjacent resource that ends before this starts
+                const candidate = findValidPredecessor(tasks, adjacentRes, start);
+                if (candidate) {
+                    dependency = candidate.id;
+                }
+            }
+            // 5%: No dependency (parallel work) - already undefined
+
+            tasks.push({
+                id: `task-${taskNum}`,
+                name: `${resource}-${i + 1}`,
+                start: formatDateTime(start),
+                end: formatDateTime(end),
+                progress: Math.floor(random() * 101),
+                color,
+                color_progress: progressColor,
+                dependencies: dependency,
+                resource,
+            });
+
+            resourceFreeAt[resource] = cloneDate(end);
+            prevTaskId = `task-${taskNum}`;
+            taskNum++;
         }
     }
 

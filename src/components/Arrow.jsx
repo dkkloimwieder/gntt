@@ -669,36 +669,10 @@ function generatePath(from, to, config) {
  * Renders line and arrow head as separate paths for proper fill support.
  */
 export function Arrow(props) {
-    // Helper to get adjusted Y position from rowLayouts
-    // Tasks connect to tasks, subtasks connect to subtasks
+    // Get bar position directly from taskStore
+    // No rowLayouts dependency - avoids reactive cascade on scroll
     const getAdjustedPosition = (taskId) => {
-        const barPos = props.taskStore?.getBarPosition(taskId);
-        if (!barPos) return null;
-
-        const rowLayouts = props.rowLayouts;
-        if (!rowLayouts) return barPos;
-
-        const task = props.taskStore?.getTask(taskId);
-        if (!task) return barPos;
-
-        // Get the row layout for this task's resource
-        const rowLayout = rowLayouts.get(task.resource);
-        if (!rowLayout) return barPos;
-
-        // Get task-specific position within the row
-        const taskPos = rowLayout.taskPositions?.get(taskId);
-        if (taskPos) {
-            return {
-                ...barPos,
-                y: taskPos.y,
-                height: taskPos.height,
-                // Use stored container bounds for expanded tasks (arrows connect to container edge)
-                ...(taskPos.x !== undefined && { x: taskPos.x }),
-                ...(taskPos.width !== undefined && { width: taskPos.width }),
-            };
-        }
-
-        return barPos;
+        return props.taskStore?.getBarPosition(taskId) ?? null;
     };
 
     // Position accessors - plain functions, NOT memos
@@ -719,15 +693,8 @@ export function Arrow(props) {
         return null;
     };
 
-    // Check if from task is an expanded container (should use 'right' anchor)
-    const fromTaskIsExpanded = () => {
-        if (!props.rowLayouts || !props.taskStore || !props.fromId) return false;
-        const task = props.taskStore.getTask(props.fromId);
-        if (!task) return false;
-        const rowLayout = props.rowLayouts.get(task.resource);
-        const taskPos = rowLayout?.taskPositions?.get(props.fromId);
-        return taskPos?.isExpanded ?? false;
-    };
+    // No subtasks - always return false for expanded check
+    const fromTaskIsExpanded = () => false;
 
     // Config accessor - plain function to avoid subscription cascades
     const config = () => {
