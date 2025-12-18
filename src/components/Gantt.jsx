@@ -16,6 +16,7 @@ import { DateHeaders } from './DateHeaders.jsx';
 import { ResourceColumn } from './ResourceColumn.jsx';
 import { TaskLayer } from './TaskLayer.jsx';
 import { ArrowLayer } from './ArrowLayer.jsx';
+import { ArrowLayerBatched } from './ArrowLayerBatched.jsx';
 import { TaskDataPopup } from './TaskDataPopup.jsx';
 import { TaskDataModal } from './TaskDataModal.jsx';
 import { GanttEventsProvider } from '../contexts/GanttEvents.jsx';
@@ -499,16 +500,26 @@ export function Gantt(props) {
                     rowLayouts={rowLayouts()}
                 />
 
-                {/* Dependency arrows */}
-                <ArrowLayer
-                    taskStore={taskStore}
-                    relationships={relationships()}
-                    arrowConfig={arrowConfig()}
-                    startRow={viewport.rowRange().start}
-                    endRow={viewport.rowRange().end}
-                    startX={viewport.xRange().start}
-                    endX={viewport.xRange().end}
-                />
+                {/* Dependency arrows - choose renderer based on prop */}
+                {props.arrowRenderer === 'batched' ? (
+                    <ArrowLayerBatched
+                        taskStore={taskStore}
+                        relationships={relationships()}
+                        arrowConfig={arrowConfig()}
+                        startRow={viewport.rowRange().start}
+                        endRow={viewport.rowRange().end}
+                    />
+                ) : (
+                    <ArrowLayer
+                        taskStore={taskStore}
+                        relationships={relationships()}
+                        arrowConfig={arrowConfig()}
+                        startRow={viewport.rowRange().start}
+                        endRow={viewport.rowRange().end}
+                        startX={viewport.xRange().start}
+                        endX={viewport.xRange().end}
+                    />
+                )}
 
                 {/* Task bars */}
                 <TaskLayer

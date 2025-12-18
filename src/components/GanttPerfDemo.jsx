@@ -2,6 +2,16 @@ import { createSignal, createMemo, onMount, onCleanup } from 'solid-js';
 import { createRAF } from '@solid-primitives/raf';
 import { Gantt } from './Gantt.jsx';
 import calendarData from '../data/calendar.json';
+import {
+    createFrameMetrics,
+    startMemoTracking,
+    stopMemoTracking,
+    clearMemoTracking,
+    analyzeMemos,
+    createBenchmarkResult,
+    downloadJSON,
+    generateReport,
+} from '../perf/index.js';
 
 /**
  * GanttPerfDemo - Performance testing component for Gantt chart.
@@ -29,6 +39,12 @@ export function GanttPerfDemo() {
     const [overscanX, setOverscanX] = createSignal(600);
     const [overscanCols, setOverscanCols] = createSignal(5);
     const [heapSize, setHeapSize] = createSignal(null);
+
+    // Advanced perf tracking
+    const [benchmarkRunning, setBenchmarkRunning] = createSignal(false);
+    const [lastBenchmarkResult, setLastBenchmarkResult] = createSignal(null);
+    const [arrowRenderer, setArrowRenderer] = createSignal('individual');
+    let frameTracker = null;
 
     // Frame timing tracking
     let lastFrameTime = performance.now();
@@ -161,6 +177,63 @@ export function GanttPerfDemo() {
         };
 
         fireScrollEvent();
+    };
+
+    // Advanced benchmark: Start collecting detailed metrics
+    const startBenchmark = () => {
+        if (benchmarkRunning()) {
+            stopBenchmark();
+            return;
+        }
+
+        frameTracker = createFrameMetrics();
+        clearMemoTracking();
+        startMemoTracking();
+        frameTracker.startTracking();
+        setBenchmarkRunning(true);
+        frameTimes = [];
+        console.log('Benchmark started - scroll or interact, then click Stop');
+    };
+
+    // Stop and collect results
+    const stopBenchmark = () => {
+        if (!benchmarkRunning()) return;
+
+        frameTracker?.stopTracking();
+        stopMemoTracking();
+        setBenchmarkRunning(false);
+
+        const frameAnalysis = frameTracker?.analyze() || {};
+        const memoAnalysis = analyzeMemos();
+        const timeline = frameTracker?.getFPSTimeline(100) || [];
+
+        const result = createBenchmarkResult({
+            frameAnalysis,
+            memoAnalysis,
+            timeline,
+            config: {
+                taskCount: domStats().tasks,
+                arrowCount: domStats().arrows,
+                viewMode: viewMode(),
+                arrowRenderer: arrowRenderer(),
+                viewportWidth: window.innerWidth,
+                viewportHeight: window.innerHeight,
+                testType: 'manual',
+            },
+        });
+
+        setLastBenchmarkResult(result);
+        console.log('Benchmark complete:', generateReport(result));
+    };
+
+    // Export last benchmark result
+    const exportBenchmark = () => {
+        const result = lastBenchmarkResult();
+        if (result) {
+            downloadJSON(result);
+        } else {
+            console.warn('No benchmark results to export. Run a benchmark first.');
+        }
     };
 
     // Track scroll events
@@ -339,6 +412,31 @@ export function GanttPerfDemo() {
                     >
                         {verticalStressTestRunning() ? 'Stop' : 'V-Scroll'}
                     </button>
+                    <span style={{ color: '#9ca3af', margin: '0 5px' }}>|</span>
+                    <button
+                        onClick={startBenchmark}
+                        style={{ ...styles.button, 'background-color': benchmarkRunning() ? '#ef4444' : '#059669' }}
+                    >
+                        {benchmarkRunning() ? 'Stop Bench' : 'Benchmark'}
+                    </button>
+                    <button
+                        onClick={exportBenchmark}
+                        style={{ ...styles.button, 'background-color': lastBenchmarkResult() ? '#0891b2' : '#6b7280' }}
+                        disabled={!lastBenchmarkResult()}
+                    >
+                        Export JSON
+                    </button>
+                    <label style={{ 'font-size': '13px' }}>
+                        Arrows:
+                        <select
+                            value={arrowRenderer()}
+                            onChange={(e) => setArrowRenderer(e.target.value)}
+                            style={{ ...styles.select, width: '100px', 'margin-left': '5px' }}
+                        >
+                            <option value="individual">Individual</option>
+                            <option value="batched">Batched</option>
+                        </select>
+                    </label>
                 </div>
 
                 <div style={{ display: 'flex', gap: '15px', 'align-items': 'center', 'font-size': '12px', color: '#6b7280' }}>
@@ -371,6 +469,7 @@ export function GanttPerfDemo() {
                     overscanRows={overscanRows()}
                     overscanX={overscanX()}
                     overscanCols={overscanCols()}
+                    arrowRenderer={arrowRenderer()}
                     onDateChange={(id, pos) => console.log('Date changed:', id, pos)}
                     onProgressChange={(id, prog) => console.log('Progress changed:', id, prog)}
                     onTaskClick={(id) => console.log('Task clicked:', id)}
