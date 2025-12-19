@@ -26,7 +26,11 @@ export function Bar(props) {
     const events = useGanttEvents();
 
     // Get task ID - prefer explicit taskId prop, fallback to task.id
-    const taskId = () => props.taskId ?? props.task?.id;
+    // taskId prop can be a value OR an accessor function (for <Index> pooling)
+    const taskId = () => {
+        const id = props.taskId;
+        return typeof id === 'function' ? id() : id ?? props.task?.id;
+    };
 
     // Get position directly from taskStore - plain function for virtualized components
     // Avoids memo subscription churn during scroll (similar to Arrow.jsx approach)

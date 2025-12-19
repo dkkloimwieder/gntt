@@ -123,21 +123,43 @@ function generateLinePath(start, end, startAnchor, endAnchor, curve) {
         const goingDown = startAnchor === 'bottom';
         const enteringLeft = endAnchor === 'left';
         const targetY = end.y;
+        const goingLeft = end.x < start.x;
 
         if (goingDown && enteringLeft) {
-            return `M${start.x},${start.y}V${targetY - curve}a${curve},${curve},0,0,0,${curve},${curve}H${end.x}`;
+            if (goingLeft) {
+                // Down then curve left
+                return `M${start.x},${start.y}V${targetY - curve}a${curve},${curve},0,0,1,${-curve},${curve}H${end.x}`;
+            } else {
+                // Down then curve right
+                return `M${start.x},${start.y}V${targetY - curve}a${curve},${curve},0,0,0,${curve},${curve}H${end.x}`;
+            }
         } else if (!goingDown && enteringLeft) {
-            return `M${start.x},${start.y}V${targetY + curve}a${curve},${curve},0,0,1,${curve},${-curve}H${end.x}`;
+            if (goingLeft) {
+                // Up then curve left
+                return `M${start.x},${start.y}V${targetY + curve}a${curve},${curve},0,0,0,${-curve},${-curve}H${end.x}`;
+            } else {
+                // Up then curve right
+                return `M${start.x},${start.y}V${targetY + curve}a${curve},${curve},0,0,1,${curve},${-curve}H${end.x}`;
+            }
         }
     }
 
     if (isVerticalStart) {
         // Vertical first, then horizontal
         const goingUp = dy < 0;
+        const goingLeft = dx < 0;
         if (goingUp) {
-            return `M${start.x},${start.y}V${end.y + curve}a${curve},${curve},0,0,1,${curve},${-curve}H${end.x}`;
+            if (goingLeft) {
+                return `M${start.x},${start.y}V${end.y + curve}a${curve},${curve},0,0,0,${-curve},${-curve}H${end.x}`;
+            } else {
+                return `M${start.x},${start.y}V${end.y + curve}a${curve},${curve},0,0,1,${curve},${-curve}H${end.x}`;
+            }
         } else {
-            return `M${start.x},${start.y}V${end.y - curve}a${curve},${curve},0,0,0,${curve},${curve}H${end.x}`;
+            if (goingLeft) {
+                return `M${start.x},${start.y}V${end.y - curve}a${curve},${curve},0,0,1,${-curve},${curve}H${end.x}`;
+            } else {
+                return `M${start.x},${start.y}V${end.y - curve}a${curve},${curve},0,0,0,${curve},${curve}H${end.x}`;
+            }
         }
     }
 
@@ -194,6 +216,17 @@ function generateArrow(from, to, depType, curve, headSize) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// PATH CACHING (module-level for persistence across renders)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Per-arrow path cache: arrowIndex → { linePath, headPath }
+let arrowPathCache = new Map();
+// Cached concatenated result
+let cachedResult = { lines: '', heads: '' };
+// Track last visible set to detect changes
+let lastVisibleSet = new Set();
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -233,6 +266,11 @@ export function ArrowLayerBatched(props) {
         // Depend on task count to rebuild when positions become available
         const tc = taskCount();
         if (tc === 0) return { index: new Map(), positions: new Map() };
+
+        // Clear path cache when positions change (task drag, resize, load)
+        arrowPathCache.clear();
+        lastVisibleSet = new Set();
+        cachedResult = { lines: '', heads: '' };
 
         const rh = rowHeight();
         const index = new Map(); // row → Set<relIndex>
@@ -274,7 +312,8 @@ export function ArrowLayerBatched(props) {
 
     /**
      * Build batched paths for visible arrows using spatial index.
-     * O(visible_rows * arrows_per_row) instead of O(total_arrows).
+     * Uses per-arrow path caching to avoid regenerating unchanged arrows.
+     * Only rebuilds when the visible arrow set actually changes.
      */
     const batchedPaths = createMemo(() => {
         const { index, positions } = spatialIndex();
@@ -294,29 +333,46 @@ export function ArrowLayerBatched(props) {
             }
         }
 
+        // Check if visible set is unchanged - return cached result
+        const setsEqual =
+            visibleIndices.size === lastVisibleSet.size &&
+            [...visibleIndices].every((idx) => lastVisibleSet.has(idx));
+
+        if (setsEqual && cachedResult.lines !== '') {
+            return cachedResult;
+        }
+
+        // Update tracking
+        lastVisibleSet = new Set(visibleIndices);
+
+        // Build paths using per-arrow cache
         const lineSegments = [];
         const headSegments = [];
 
         for (const idx of visibleIndices) {
-            const pos = positions.get(idx);
-            if (!pos) continue;
+            // Check per-arrow cache first
+            let cached = arrowPathCache.get(idx);
 
-            const { linePath, headPath } = generateArrow(
-                pos.from,
-                pos.to,
-                pos.type,
-                c,
-                hs,
-            );
+            if (!cached) {
+                const pos = positions.get(idx);
+                if (pos) {
+                    cached = generateArrow(pos.from, pos.to, pos.type, c, hs);
+                    arrowPathCache.set(idx, cached);
+                }
+            }
 
-            lineSegments.push(linePath);
-            if (headPath) headSegments.push(headPath);
+            if (cached) {
+                lineSegments.push(cached.linePath);
+                if (cached.headPath) headSegments.push(cached.headPath);
+            }
         }
 
-        return {
+        cachedResult = {
             lines: lineSegments.join(' '),
             heads: headSegments.join(' '),
         };
+
+        return cachedResult;
     });
 
     return (

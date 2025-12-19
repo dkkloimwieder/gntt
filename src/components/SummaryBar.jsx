@@ -12,8 +12,11 @@ import { snapToGrid, computeLabelPosition } from '../utils/barCalculations.js';
  * Expand/collapse for regular tasks with subtasks will be via context menu.
  */
 export function SummaryBar(props) {
-    // Get task ID
-    const taskId = () => props.taskId;
+    // Get task ID - can be a value OR an accessor function (for <Index> pooling)
+    const taskId = () => {
+        const id = props.taskId;
+        return typeof id === 'function' ? id() : id;
+    };
 
     // Get position directly from taskStore - plain function for virtualized components
     // Avoids memo subscription churn during scroll (similar to Arrow.jsx approach)

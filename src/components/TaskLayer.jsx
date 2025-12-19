@@ -1,4 +1,4 @@
-import { For, createMemo, untrack } from 'solid-js';
+import { For, Index, createMemo, untrack } from 'solid-js';
 import { Bar } from './Bar.jsx';
 import { SummaryBar } from './SummaryBar.jsx';
 import { ExpandedTaskContainer } from './ExpandedTaskContainer.jsx';
@@ -10,6 +10,14 @@ import {
 } from '../utils/constraintResolver.js';
 import { collectDescendants } from '../utils/hierarchyProcessor.js';
 import { prof } from '../perf/profiler.js';
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BAR POOLING: Fixed pool of indices for <Index> to prevent DOM creation/destruction
+// ═══════════════════════════════════════════════════════════════════════════════
+const BAR_POOL_SIZE = 500; // Max bars expected in viewport (increased for dense data)
+const SUMMARY_POOL_SIZE = 100; // Max summary bars expected
+const barPool = Array.from({ length: BAR_POOL_SIZE }, (_, i) => i);
+const summaryPool = Array.from({ length: SUMMARY_POOL_SIZE }, (_, i) => i);
 
 /**
  * TaskLayer - Container for all task bars.
@@ -302,6 +310,25 @@ export function TaskLayer(props) {
         return { regularIds, summaryIds, expandedIds };
     });
 
+    // Pooled task data for <Index> rendering (prevents DOM creation/destruction)
+    const pooledRegularIds = createMemo(() => {
+        const ids = splitTaskIds().regularIds;
+        const result = new Array(BAR_POOL_SIZE);
+        for (let i = 0; i < ids.length && i < BAR_POOL_SIZE; i++) {
+            result[i] = ids[i];
+        }
+        return result;
+    });
+
+    const pooledSummaryIds = createMemo(() => {
+        const ids = splitTaskIds().summaryIds;
+        const result = new Array(SUMMARY_POOL_SIZE);
+        for (let i = 0; i < ids.length && i < SUMMARY_POOL_SIZE; i++) {
+            result[i] = ids[i];
+        }
+        return result;
+    });
+
     // Get task-specific position within its resource row
     const getTaskPosition = (taskId) => {
         const rowLayouts = props.rowLayouts;
@@ -341,20 +368,26 @@ export function TaskLayer(props) {
         <g class="task-layer" style="contain: layout style;">
             {/* Summary bars render BEHIND everything */}
             <g class="summary-layer" style="contain: layout style;">
-                <For each={splitTaskIds().summaryIds}>
-                    {(taskId) => (
-                        <SummaryBar
-                            taskId={taskId}
-                            taskStore={props.taskStore}
-                            ganttConfig={props.ganttConfig}
-                            taskPosition={getTaskPosition(taskId)}
-                            onCollectDescendants={handleCollectDescendants}
-                            onClampBatchDelta={handleClampBatchDelta}
-                            onToggleCollapse={handleToggleCollapse}
-                            onDragEnd={handleResizeEnd}
-                        />
-                    )}
-                </For>
+                <Index each={summaryPool}>
+                    {(_, slotIndex) => {
+                        // Pass accessor function for reactive updates when pool changes
+                        const getTaskId = () => pooledSummaryIds()[slotIndex];
+                        return (
+                            <g style={{ display: getTaskId() ? 'block' : 'none' }}>
+                                <SummaryBar
+                                    taskId={getTaskId}
+                                    taskStore={props.taskStore}
+                                    ganttConfig={props.ganttConfig}
+                                    taskPosition={getTaskPosition(getTaskId())}
+                                    onCollectDescendants={handleCollectDescendants}
+                                    onClampBatchDelta={handleClampBatchDelta}
+                                    onToggleCollapse={handleToggleCollapse}
+                                    onDragEnd={handleResizeEnd}
+                                />
+                            </g>
+                        );
+                    }}
+                </Index>
             </g>
 
             {/* Expanded task containers (parent + subtasks) */}
@@ -373,26 +406,32 @@ export function TaskLayer(props) {
 
             {/* Regular task bars render ON TOP */}
             <g class="task-bars-layer" style="contain: layout style;">
-                <For each={splitTaskIds().regularIds}>
-                    {(taskId) => (
-                        <Bar
-                            taskId={taskId}
-                            taskStore={props.taskStore}
-                            ganttConfig={props.ganttConfig}
-                            taskPosition={getTaskPosition(taskId)}
-                            onConstrainPosition={handleConstrainPosition}
-                            onCollectDependents={handleCollectDependents}
-                            onCollectDescendants={handleCollectDescendants}
-                            onClampBatchDelta={handleClampBatchDelta}
-                            onDateChange={handleDateChange}
-                            onProgressChange={handleProgressChange}
-                            onResizeEnd={handleResizeEnd}
-                            onHover={handleHover}
-                            onHoverEnd={handleHoverEnd}
-                            onTaskClick={handleTaskClick}
-                        />
-                    )}
-                </For>
+                <Index each={barPool}>
+                    {(_, slotIndex) => {
+                        // Pass accessor function for reactive updates when pool changes
+                        const getTaskId = () => pooledRegularIds()[slotIndex];
+                        return (
+                            <g style={{ display: getTaskId() ? 'block' : 'none' }}>
+                                <Bar
+                                    taskId={getTaskId}
+                                    taskStore={props.taskStore}
+                                    ganttConfig={props.ganttConfig}
+                                    taskPosition={getTaskPosition(getTaskId())}
+                                    onConstrainPosition={handleConstrainPosition}
+                                    onCollectDependents={handleCollectDependents}
+                                    onCollectDescendants={handleCollectDescendants}
+                                    onClampBatchDelta={handleClampBatchDelta}
+                                    onDateChange={handleDateChange}
+                                    onProgressChange={handleProgressChange}
+                                    onResizeEnd={handleResizeEnd}
+                                    onHover={handleHover}
+                                    onHoverEnd={handleHoverEnd}
+                                    onTaskClick={handleTaskClick}
+                                />
+                            </g>
+                        );
+                    }}
+                </Index>
             </g>
         </g>
     );
