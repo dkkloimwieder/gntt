@@ -10,6 +10,12 @@ const MILLISECOND = 'millisecond';
 // Key: locale, Value: { long: DateTimeFormat, short: DateTimeFormat }
 const formatterCache = new Map();
 
+// Pre-compiled regex for parse_duration (avoid recompilation on each call)
+const DURATION_REGEX = /([0-9]+)(y|min|ms|m|d|h|s)/gm;
+
+// Pre-sorted format keys (longest first) for format() function
+const FORMAT_KEYS_SORTED = ['YYYY', 'MMMM', 'MMM', 'SSS', 'MM', 'DD', 'HH', 'mm', 'ss', 'D'];
+
 function getFormatters(lang) {
     if (!formatterCache.has(lang)) {
         formatterCache.set(lang, {
@@ -22,8 +28,8 @@ function getFormatters(lang) {
 
 export default {
     parse_duration(duration) {
-        const regex = /([0-9]+)(y|min|ms|m|d|h|s)/gm;
-        const matches = regex.exec(duration);
+        DURATION_REGEX.lastIndex = 0; // Reset regex state for global flag
+        const matches = DURATION_REGEX.exec(duration);
         if (matches !== null) {
             if (matches[2] === 'y') {
                 return { duration: parseInt(matches[1]), scale: `year` };
@@ -116,14 +122,13 @@ export default {
         let str = date_format;
         const formatted_values = [];
 
-        Object.keys(format_map)
-            .sort((a, b) => b.length - a.length) // big string first
-            .forEach((key) => {
-                if (str.includes(key)) {
-                    str = str.replaceAll(key, `$${formatted_values.length}`);
-                    formatted_values.push(format_map[key]);
-                }
-            });
+        // Use pre-sorted keys (longest first) to avoid sorting on each call
+        FORMAT_KEYS_SORTED.forEach((key) => {
+            if (str.includes(key)) {
+                str = str.replaceAll(key, `$${formatted_values.length}`);
+                formatted_values.push(format_map[key]);
+            }
+        });
 
         formatted_values.forEach((value, i) => {
             str = str.replaceAll(`$${i}`, value);

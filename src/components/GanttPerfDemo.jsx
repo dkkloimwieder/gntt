@@ -43,7 +43,7 @@ export function GanttPerfDemo() {
     // Advanced perf tracking
     const [benchmarkRunning, setBenchmarkRunning] = createSignal(false);
     const [lastBenchmarkResult, setLastBenchmarkResult] = createSignal(null);
-    const [arrowRenderer, setArrowRenderer] = createSignal('individual');
+    const [arrowRenderer, setArrowRenderer] = createSignal('batched');
     let frameTracker = null;
 
     // Frame timing tracking

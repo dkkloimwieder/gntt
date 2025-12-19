@@ -1,38 +1,5 @@
 import { createMemo } from 'solid-js';
-
-/**
- * Binary search to find the row index at a given Y position.
- * Used for variable row height virtualization.
- *
- * @param {Array} sortedRows - Array of {y, height} sorted by y
- * @param {number} targetY - Y position to find
- * @returns {number} Index of row containing targetY
- */
-function findRowAtY(sortedRows, targetY) {
-    if (sortedRows.length === 0) return 0;
-    if (targetY < 0) return 0;
-
-    let left = 0;
-    let right = sortedRows.length - 1;
-
-    while (left <= right) {
-        const mid = Math.floor((left + right) / 2);
-        const row = sortedRows[mid];
-
-        if (targetY >= row.y && targetY < row.y + row.height) {
-            return mid;
-        }
-
-        if (targetY < row.y) {
-            right = mid - 1;
-        } else {
-            left = mid + 1;
-        }
-    }
-
-    // Return closest row if beyond all rows
-    return Math.min(left, sortedRows.length - 1);
-}
+import { findRowAtY } from './rowLayoutCalculator.js';
 
 /**
  * createVirtualViewport - Simple 2D viewport virtualization.

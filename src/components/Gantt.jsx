@@ -289,19 +289,21 @@ export function Gantt(props) {
         const layouts = rowLayouts();
         if (!layouts || layouts.size === 0) return;
 
-        // Iterate through all row layouts and update task $bar.y values
-        for (const [resourceId, layout] of layouts) {
-            if (resourceId === '__total__') continue;
-            if (!layout.taskPositions) continue;
+        // Use untrack to avoid subscribing to individual task changes
+        // This effect should only re-run when rowLayouts() changes, not when tasks change
+        untrack(() => {
+            for (const [resourceId, layout] of layouts) {
+                if (resourceId === '__total__') continue;
+                if (!layout.taskPositions) continue;
 
-            // Update each task's $bar.y to match the calculated position
-            for (const [taskId, taskPos] of layout.taskPositions) {
-                const task = taskStore.tasks[taskId];
-                if (task && task.$bar && task.$bar.y !== taskPos.y) {
-                    taskStore.updateBarPosition(taskId, { y: taskPos.y });
+                for (const [taskId, taskPos] of layout.taskPositions) {
+                    const task = taskStore.tasks[taskId];
+                    if (task && task.$bar && task.$bar.y !== taskPos.y) {
+                        taskStore.updateBarPosition(taskId, { y: taskPos.y });
+                    }
                 }
             }
-        }
+        });
     });
 
     // Total content height (variable based on expanded rows)

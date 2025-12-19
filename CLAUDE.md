@@ -36,10 +36,10 @@ Only one test file exists (`tests/date_utils.test.js`) but no test runner is con
 gantt/
 ├── src/                        # SolidJS (primary)
 │   ├── components/             # UI components (Gantt, Bar, Arrow, Grid, etc.)
-│   ├── stores/                 # Reactive stores (ganttStore, ganttConfigStore, ganttDateStore)
+│   ├── stores/                 # Reactive stores (taskStore, ganttConfigStore, ganttDateStore)
 │   ├── utils/                  # Utilities (barCalculations, constraintResolver, etc.)
 │   ├── hooks/                  # useDrag
-│   ├── adapters/               # Data adapters
+│   ├── contexts/               # React-style contexts (GanttEvents)
 │   ├── entries/                # Entry points for each demo
 │   ├── scripts/                # CLI tools (generateCalendar.js)
 │   ├── data/                   # Generated test data
@@ -47,9 +47,10 @@ gantt/
 ├── examples/                   # SolidJS demo HTML files
 │   ├── index.html              # Demo hub
 │   ├── gantt.html              # Main demo
-│   ├── project.html            # Subtask demo (100 tasks with subtasks)
+│   ├── subtask.html            # Subtask demo (parent tasks with children)
 │   ├── resource-groups.html    # Collapsible resource groups demo
 │   ├── perf.html               # Performance test (200+ tasks)
+│   ├── profiler.html           # Performance profiling tool
 │   ├── arrow.html, bar.html    # Component demos
 │   └── constraint.html, showcase.html
 ├── vanilla/                    # Legacy vanilla JS (archived)
@@ -76,8 +77,11 @@ The SolidJS implementation uses reactive stores for state management:
 **Components:**
 - `Gantt.jsx` - Main container component
 - `Bar.jsx` - Task bars with drag/resize/progress handles
-- `Arrow.jsx` - Dependency visualization
+- `SummaryBar.jsx` - Parent/summary task bars (simplified Bar)
+- `Arrow.jsx` - Dependency visualization (single arrow)
+- `ArrowLayerBatched.jsx` - Batched arrow rendering for performance
 - `Grid.jsx` - Background grid and time scale
+- `TaskLayer.jsx` - Orchestrates task bar rendering
 - `ResourceColumn.jsx` - Resource names column
 - `ExpandedTaskContainer.jsx` - Parent task with subtasks (see [SUBTASKS.md](docs/SUBTASKS.md))
 - `SubtaskBar.jsx` - Individual subtask bars
@@ -85,11 +89,15 @@ The SolidJS implementation uses reactive stores for state management:
 **Utilities:**
 - `barCalculations.js` - Position/size calculations from dates
 - `constraintResolver.js` - Dependency constraint enforcement (FS/SS/FF/SF)
-- `subtaskGenerator.js` - Generates test data with subtasks
+- `hierarchyProcessor.js` - Task hierarchy building and traversal
 - `rowLayoutCalculator.js` - Variable row heights for expanded subtasks
 - `createVirtualViewport.js` - Simple 2D viewport virtualization
 - `resourceProcessor.js` - Resource normalization and group display logic
+- `taskProcessor.js` - Task normalization and dependency parsing
 - `taskGenerator.js` - Test data generation
+- `subtaskGenerator.js` - Generates test data with subtasks
+- `date_utils.js` - Date parsing, formatting, and calculations
+- `defaults.js` - Default view mode configurations
 
 See `docs/ARCHITECTURE.md` for detailed documentation.
 

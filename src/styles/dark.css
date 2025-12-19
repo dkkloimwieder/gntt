@@ -52,21 +52,21 @@
     & .bar-wrapper {
         &:hover {
             .bar {
-                fill: lighten(var(--g-bar-color-dark, 5));
+                fill: color-mix(in srgb, var(--g-bar-color-dark) 80%, white 20%);
             }
 
             & .bar-progress {
-                fill: lighten(var(--g-progress-color, 5));
+                fill: color-mix(in srgb, var(--g-progress-color) 80%, white 20%);
             }
         }
 
         &.active {
             .bar {
-                fill: lighten(var(--g-bar-color-dark, 5));
+                fill: color-mix(in srgb, var(--g-bar-color-dark) 70%, white 30%);
             }
 
             & .bar-progress {
-                fill: lighten(var(--g-progress-color, 5));
+                fill: color-mix(in srgb, var(--g-progress-color) 70%, white 30%);
             }
         }
     }
@@ -81,7 +81,7 @@
         background-color: #333;
 
         & .title {
-            border-color: lighten(var(--g-progress-color, 5));
+            border-color: color-mix(in srgb, var(--g-progress-color) 80%, white 20%);
         }
     }
 }

@@ -1,4 +1,4 @@
-import { For, createMemo } from 'solid-js';
+import { For, createMemo, untrack } from 'solid-js';
 import { Arrow } from './Arrow.jsx';
 import { prof } from '../perf/profiler.js';
 
@@ -47,60 +47,69 @@ export function ArrowLayer(props) {
         return result;
     });
 
-    // Batch position lookup - builds a Map once, avoids 184K getBarPosition calls per V-scroll frame
-    // This memo updates when tasks change (via store reactivity), but NOT on every scroll
+    // Cache for filtering during drag - keeps last good positions for visibility checks
+    let cachedPositionsForFilter = new Map();
+
+    // Batch position lookup - builds a Map for arrow position lookups
+    // PERFORMANCE: During drag, return cached map for filtering but Arrow components
+    // use getBarPosition() fallback for actual rendering positions
     const positionMap = createMemo(() => {
         const endProf = prof.start('ArrowLayer.positionMap');
+
+        // During drag, return cached positions for filtering (avoids arrow flash)
+        // Arrow components will use getBarPosition() fallback for actual positions
+        const isDragging = props.taskStore?.draggingTaskId?.();
+        if (isDragging && cachedPositionsForFilter.size > 0) {
+            endProf();
+            return cachedPositionsForFilter;
+        }
+
         const positions = new Map();
         const tasks = props.taskStore?.tasks;
         if (tasks) {
-            for (const taskId in tasks) {
-                const task = tasks[taskId];
-                if (task?.$bar) {
-                    positions.set(taskId, {
-                        x: task.$bar.x,
-                        y: task.$bar.y,
-                        width: task.$bar.width,
-                        height: task.$bar.height ?? props.taskStore?.rowHeight ?? 38,
-                    });
+            // Untrack position reads to prevent cascade on position changes
+            // Memo still depends on task additions/removals via Object.keys iteration
+            untrack(() => {
+                for (const taskId in tasks) {
+                    const task = tasks[taskId];
+                    if (task?.$bar) {
+                        positions.set(taskId, {
+                            x: task.$bar.x,
+                            y: task.$bar.y,
+                            width: task.$bar.width,
+                            height: task.$bar.height ?? props.taskStore?.rowHeight ?? 38,
+                        });
+                    }
                 }
-            }
+            });
         }
+        cachedPositionsForFilter = positions;
         endProf();
         return positions;
     });
 
     // Filter to visible arrows - returns SAME cached objects
-    // IMPORTANT: Only filter by Y (rows), NOT X position
-    // Reading startX/endX creates reactive deps that run O(9353) filter on every H-scroll frame
-    // The filter cost is worse than rendering extra off-screen arrows
+    // NOTE: For high arrow counts (>500), use ArrowLayerBatched instead.
+    // This layer keeps individual Arrow components for per-arrow styling/interaction.
     const visibleDependencies = createMemo(() => {
-        const endProf = prof.start('ArrowLayer.visibleDependencies');
-
         const all = allDependencies();
         const startY = props.startRow;
         const endY = props.endRow;
 
         // If no viewport bounds, render all
         if (startY === undefined || endY === undefined) {
-            endProf();
             return all;
         }
 
         const rowHeight = props.taskStore?.rowHeight ?? 38;
-
-        // Read positionMap OUTSIDE untrack - we want to re-run when positions change
-        // But use untrack for the .get() calls to avoid per-task dependencies
         const positions = positionMap();
 
-        const result = all.filter((dep) => {
-            // Map.get is O(1) and non-reactive - no store access during filter
+        return all.filter((dep) => {
             const fromPos = positions.get(dep.fromId);
             const toPos = positions.get(dep.toId);
 
             if (!fromPos && !toPos) return false;
 
-            // Check Y range (row-based) only
             const fromRow = fromPos
                 ? Math.floor(fromPos.y / rowHeight)
                 : Infinity;
@@ -108,18 +117,20 @@ export function ArrowLayer(props) {
             const minRow = Math.min(fromRow, toRow);
             const maxRow = Math.max(fromRow, toRow);
 
-            // Buffer of 3 rows for arrows that span across visible area
             if (maxRow < startY - 3 || minRow > endY + 3) return false;
-
             return true;
         });
-
-        endProf();
-        return result;
     });
 
     // Arrow configuration from props or defaults
     const arrowConfig = () => props.arrowConfig || {};
+
+    // Position map for Arrow components - null during drag so they use getBarPosition()
+    // This ensures arrows render at current positions, not stale cached ones
+    const arrowPositionMap = () => {
+        const isDragging = props.taskStore?.draggingTaskId?.();
+        return isDragging ? null : positionMap();
+    };
 
     return (
         <g class="arrow-layer">
@@ -130,7 +141,7 @@ export function ArrowLayer(props) {
                         fromId={dep.fromId}
                         toId={dep.toId}
                         taskStore={props.taskStore}
-                        positionMap={positionMap()}
+                        positionMap={arrowPositionMap()}
                         dependencyType={dep.type}
                         startAnchor={
                             dep.startAnchor ||

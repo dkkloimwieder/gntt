@@ -1,4 +1,4 @@
-import { For, createMemo } from 'solid-js';
+import { For, createMemo, untrack } from 'solid-js';
 import { Bar } from './Bar.jsx';
 import { SummaryBar } from './SummaryBar.jsx';
 import { ExpandedTaskContainer } from './ExpandedTaskContainer.jsx';
@@ -227,7 +227,9 @@ export function TaskLayer(props) {
             // Filter by X range with 200px buffer for partial visibility
             for (const task of resourceTaskList) {
                 if (ex !== Infinity) {
-                    const bar = task.$bar;
+                    // Untrack $bar access to prevent cascade during drag
+                    // We still want this memo to update when tasks are added/removed
+                    const bar = untrack(() => task.$bar);
                     if (bar && (bar.x + bar.width < sx - 200 || bar.x > ex + 200)) {
                         continue; // Skip tasks outside X viewport
                     }

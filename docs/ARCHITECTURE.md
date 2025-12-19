@@ -50,6 +50,44 @@ The SolidJS implementation lives in `src/` and provides reactive, fine-grained u
 
 ---
 
+## Public API (`src/index.js`)
+
+The library exports the following from `src/index.js`:
+
+### Main Component
+- `Gantt` - Main Gantt chart component
+
+### Store Factories
+- `createTaskStore()` - Creates reactive task state management
+- `createGanttConfigStore(config)` - Creates configuration store
+- `createGanttDateStore()` - Creates date/timeline calculation store
+- `createResourceStore()` - Creates resource group store
+
+### Context API
+- `GanttEventsProvider` - Wraps Gantt to provide event handlers via context
+- `useGanttEvents()` - Hook to access event handlers (`onDateChange`, `onProgressChange`, `onTaskClick`, etc.)
+
+### Constraint Functions
+- `resolveMovement(taskId, deltaX, taskStore, options)` - Resolve drag movement with dependency constraints
+- `detectCycles(taskId, taskStore)` - Check for circular dependencies
+
+### Hierarchy Functions
+- `buildHierarchy(tasks)` - Build parent-child task tree from flat array
+- `collectDescendants(taskId, taskStore)` - Get all descendant task IDs
+
+### Generator Functions
+- `generateSubtaskDemo(config)` - Generate test data with parent/child tasks
+
+### Date Utilities (re-exported from `date_utils.js`)
+- `parse(date)` - Parse date string to Date object
+- `format(date, formatString)` - Format Date to string
+- `diff(date1, date2, scale)` - Calculate difference between dates
+- `add(date, qty, scale)` - Add time to date
+- `start_of(date, scale)` - Get start of time period
+- `parse_duration(duration)` - Parse duration string (e.g., "2d", "4h")
+
+---
+
 ## Directory Structure
 
 ```
@@ -64,8 +102,10 @@ src/
 │   ├── GanttDemo.jsx       # Full Gantt demo page
 │   ├── GanttPerfDemo.jsx   # Performance testing demo
 │   ├── GanttResourceGroupsDemo.jsx  # Resource groups demo
-│   ├── Grid.jsx            # Background grid with rows
-│   ├── GridTicks.jsx       # Vertical grid lines only
+│   ├── Grid.jsx            # Background grid with rows and ticks
+│   ├── Arrow.jsx           # Single dependency arrow
+│   ├── ArrowLayerBatched.jsx # Batched arrow rendering
+│   ├── SummaryBar.jsx      # Parent/summary task bars
 │   ├── ResourceColumn.jsx  # Sticky left column (swimlanes)
 │   ├── ShowcaseDemo.jsx    # Interactive props showcase
 │   ├── TaskDataModal.jsx   # Debug/detail modal on click
@@ -284,24 +324,17 @@ dependencies: [
 
 ---
 
-### Popup Component (`Popup.jsx`)
+### TaskDataPopup Component (`TaskDataPopup.jsx`)
 
-**Purpose**: Displays task detail tooltips.
-
-**Variants**:
-- `Popup` - Simple HTML content popup
-- `StructuredPopup` - Title/subtitle/details/actions layout
+**Purpose**: Displays task detail tooltips on hover.
 
 **Props**:
 | Prop | Type | Description |
 |------|------|-------------|
 | `visible` | `() => boolean` | Visibility signal |
-| `position` | `() => {x, y}` | Position signal |
-| `content` | `() => string` | HTML content |
-| `title` | `() => string` | (StructuredPopup) Title |
-| `subtitle` | `() => string` | (StructuredPopup) Subtitle |
-| `details` | `() => string` | (StructuredPopup) Details |
-| `actions` | `() => Action[]` | (StructuredPopup) Button actions |
+| `position` | `() => {x, y}` | Position signal (client coordinates) |
+| `task` | `() => Object` | Task data object |
+| `barPosition` | `() => {x, y, width, height}` | Bar position data |
 
 ---
 
@@ -1042,5 +1075,5 @@ With 10K tasks: 10,000 bars → ~11 rendered, 9,179 arrows → ~11 rendered
 | Add/modify resource groups | `resourceStore.js`, `resourceProcessor.js` |
 | Update Gantt demo tasks | `GanttDemo.jsx` tasks signal |
 | Update showcase presets | `ShowcaseDemo.jsx` PRESETS object |
-| Modify grid rendering | `Grid.jsx`, `GridTicks.jsx` |
+| Modify grid rendering | `Grid.jsx` |
 | Change header rendering | `DateHeaders.jsx` |

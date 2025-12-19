@@ -51,7 +51,7 @@
             border-right: 1px solid var(--g-text-light);
 
             &:hover {
-                background-color: brightness(97%);
+                filter: brightness(97%);
             }
 
             &:first-child {

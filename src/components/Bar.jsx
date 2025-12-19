@@ -28,11 +28,11 @@ export function Bar(props) {
     // Get task ID - prefer explicit taskId prop, fallback to task.id
     const taskId = () => props.taskId ?? props.task?.id;
 
-    // Get position directly from taskStore - reads from store path for fine-grained reactivity
-    // Accessing tasks[id].$bar only subscribes to that specific task's bar position
+    // Get position directly from taskStore - plain function for virtualized components
+    // Avoids memo subscription churn during scroll (similar to Arrow.jsx approach)
+    // Store access creates fine-grained dependency in calling context
     const getPosition = () => {
         if (props.taskStore && taskId()) {
-            // Access store path directly - fine-grained reactivity
             const task = props.taskStore.tasks[taskId()];
             if (task?.$bar) {
                 return task.$bar;
@@ -64,7 +64,7 @@ export function Bar(props) {
         return props.task ?? {};
     };
 
-    // Derived values - call getPosition() each time to track signal
+    // Derived position values - call getPosition() for fine-grained store tracking
     const x = () => getPosition()?.x ?? 0;
     // Use taskPosition Y if provided (for variable row heights), else fall back to $bar.y
     const y = () => props.taskPosition?.y ?? getPosition()?.y ?? 0;

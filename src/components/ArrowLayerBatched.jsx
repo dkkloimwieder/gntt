@@ -212,55 +212,101 @@ export function ArrowLayerBatched(props) {
     const endRow = () => props.endRow ?? Infinity;
     const rowHeight = () => props.taskStore?.rowHeight ?? 38;
 
+    // Track task count to rebuild index when tasks are loaded
+    const taskCount = () => {
+        const tasks = props.taskStore?.tasks;
+        return tasks ? Object.keys(tasks).length : 0;
+    };
+
     /**
-     * Build batched paths for all visible arrows.
-     *
-     * This memo runs on every scroll frame that changes startRow/endRow.
-     * The O(n) iteration is acceptable because we avoid component reconciliation.
+     * SPATIAL INDEX: Map row → Set<relationship indices>
+     * Rebuilt when relationships change or task count changes (positions ready).
+     * Enables O(visible_rows) lookup instead of O(total_arrows) iteration.
      */
-    const batchedPaths = createMemo(() => {
+    const spatialIndex = createMemo(() => {
         const rels = props.relationships || [];
-        if (rels.length === 0) return { lines: '', heads: '' };
+        if (rels.length === 0) return { index: new Map(), positions: new Map() };
 
         const store = props.taskStore;
-        if (!store) return { lines: '', heads: '' };
+        if (!store) return { index: new Map(), positions: new Map() };
 
-        const sr = startRow();
-        const er = endRow();
+        // Depend on task count to rebuild when positions become available
+        const tc = taskCount();
+        if (tc === 0) return { index: new Map(), positions: new Map() };
+
         const rh = rowHeight();
-        const c = curve();
-        const hs = headSize();
+        const index = new Map(); // row → Set<relIndex>
+        const positions = new Map(); // relIndex → {from, to, type}
 
-        const lineSegments = [];
-        const headSegments = [];
-
-        for (const rel of rels) {
+        for (let i = 0; i < rels.length; i++) {
+            const rel = rels[i];
             const fromId = rel.from ?? rel.predecessorId;
             const toId = rel.to ?? rel.successorId;
 
-            // Get positions (untrack to avoid reactive cascade on individual task changes)
+            // Use untrack for individual position reads to avoid per-task deps
             const fromPos = untrack(() => store.getBarPosition(fromId));
             const toPos = untrack(() => store.getBarPosition(toId));
 
             if (!fromPos || !toPos) continue;
 
-            // Filter by row range (Y virtualization)
+            // Cache positions for this relationship
+            positions.set(i, {
+                from: fromPos,
+                to: toPos,
+                type: rel.type || 'FS',
+            });
+
+            // Index by row range
             const fromRow = Math.floor(fromPos.y / rh);
             const toRow = Math.floor(toPos.y / rh);
             const minRow = Math.min(fromRow, toRow);
             const maxRow = Math.max(fromRow, toRow);
 
-            // Buffer of 3 rows
-            if (maxRow < sr - 3 || minRow > er + 3) continue;
+            // Add to all rows this arrow spans
+            for (let row = minRow; row <= maxRow; row++) {
+                if (!index.has(row)) index.set(row, new Set());
+                index.get(row).add(i);
+            }
+        }
 
-            // Generate arrow
-            const depType = rel.type || 'FS';
+        return { index, positions };
+    });
+
+    /**
+     * Build batched paths for visible arrows using spatial index.
+     * O(visible_rows * arrows_per_row) instead of O(total_arrows).
+     */
+    const batchedPaths = createMemo(() => {
+        const { index, positions } = spatialIndex();
+        if (positions.size === 0) return { lines: '', heads: '' };
+
+        const sr = startRow();
+        const er = endRow();
+        const c = curve();
+        const hs = headSize();
+
+        // Collect visible relationship indices from spatial index
+        const visibleIndices = new Set();
+        for (let row = sr - 3; row <= er + 3; row++) {
+            const rowRels = index.get(row);
+            if (rowRels) {
+                for (const idx of rowRels) visibleIndices.add(idx);
+            }
+        }
+
+        const lineSegments = [];
+        const headSegments = [];
+
+        for (const idx of visibleIndices) {
+            const pos = positions.get(idx);
+            if (!pos) continue;
+
             const { linePath, headPath } = generateArrow(
-                fromPos,
-                toPos,
-                depType,
+                pos.from,
+                pos.to,
+                pos.type,
                 c,
-                hs
+                hs,
             );
 
             lineSegments.push(linePath);

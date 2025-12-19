@@ -206,7 +206,7 @@ Run the subtask demo:
 
 ```bash
 pnpm run dev:solid
-# Open http://localhost:5173/examples/project.html
+# Open http://localhost:5173/examples/subtask.html
 ```
 
 ## Component Architecture

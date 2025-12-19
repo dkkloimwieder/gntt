@@ -15,7 +15,8 @@ export function SummaryBar(props) {
     // Get task ID
     const taskId = () => props.taskId;
 
-    // Get position from taskStore
+    // Get position directly from taskStore - plain function for virtualized components
+    // Avoids memo subscription churn during scroll (similar to Arrow.jsx approach)
     const getPosition = () => {
         if (props.taskStore && taskId()) {
             const task = props.taskStore.tasks[taskId()];
@@ -34,7 +35,7 @@ export function SummaryBar(props) {
         return {};
     };
 
-    // Position values
+    // Position values - call getPosition() for fine-grained store tracking
     const x = () => getPosition()?.x ?? 0;
     // Use taskPosition Y if provided (for variable row heights), else fall back to $bar.y
     const y = () => props.taskPosition?.y ?? getPosition()?.y ?? 0;
