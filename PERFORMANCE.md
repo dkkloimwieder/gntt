@@ -422,6 +422,78 @@ if (bar && (bar.x + bar.width < sx - 200 || bar.x > ex + 200)) continue;
 
 **Impact**: Drag performance improved from ~15 FPS to ~60 FPS.
 
+### 12. Simple vs Detailed View Modes
+
+**Problem**: Variable row height calculations and subtask expansion logic add overhead, even when not needed for simple flat task lists.
+
+**Solution**: Add `renderMode` config option to switch between rendering modes:
+- **`simple`** (default): Flat task list, static row heights, no subtask expansion
+- **`detailed`**: Full hierarchy, variable row heights, subtask support
+
+**Files**:
+- `src/stores/ganttConfigStore.js` - `renderMode` signal
+- `src/utils/rowLayoutCalculator.js` - `calculateSimpleRowLayouts()` function
+- `src/components/Gantt.jsx` - Conditional layout calculation
+- `src/components/TaskLayer.jsx` - Skip subtask logic in simple mode
+
+**Architecture**:
+
+```javascript
+// ganttConfigStore.js - New renderMode signal
+const [renderMode, setRenderMode] = createSignal(options.renderMode || 'simple');
+
+// rowLayoutCalculator.js - Fast path for simple mode
+export function calculateSimpleRowLayouts(displayRows, config) {
+    const { barHeight = 30, padding = 18 } = config;
+    const rowHeight = barHeight + padding;
+    const layouts = new Map();
+
+    for (let i = 0; i < displayRows.length; i++) {
+        layouts.set(displayRows[i].id, {
+            y: i * rowHeight,
+            height: rowHeight,
+            contentY: i * rowHeight + padding / 2,
+            contentHeight: barHeight,
+        });
+    }
+    layouts.set('__total__', { height: displayRows.length * rowHeight });
+    return layouts;
+}
+
+// Gantt.jsx - Conditional layout
+const rowLayouts = createMemo(() => {
+    const mode = ganttConfig.renderMode();
+    if (mode === 'simple') {
+        return calculateSimpleRowLayouts(displayRows, config);
+    }
+    return calculateRowLayouts(displayRows, config, expandedTasks, taskMap);
+});
+
+// TaskLayer.jsx - Skip subtasks in simple mode
+if (simpleMode) {
+    if (task.parentId) continue; // Skip subtasks
+    regularIds.push(taskId);
+    continue;
+}
+```
+
+**Usage**:
+```jsx
+<Gantt options={{ renderMode: 'simple' }} ... />
+// or
+<Gantt options={{ renderMode: 'detailed' }} ... />
+```
+
+**Benefits**:
+| Aspect | Simple Mode | Detailed Mode |
+|--------|-------------|---------------|
+| Row height calc | O(n) static | O(n × subtasks) variable |
+| Subtask rendering | Skipped | Full hierarchy |
+| Expansion UI | None | Toggle support |
+| Use case | Performance testing, flat lists | Hierarchical projects |
+
+**GanttPerfDemo**: Added "Mode" dropdown to toggle between simple/detailed for performance comparison.
+
 ---
 
 ## Future Optimizations

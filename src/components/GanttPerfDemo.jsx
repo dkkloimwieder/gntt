@@ -44,6 +44,8 @@ export function GanttPerfDemo() {
     const [benchmarkRunning, setBenchmarkRunning] = createSignal(false);
     const [lastBenchmarkResult, setLastBenchmarkResult] = createSignal(null);
     const [arrowRenderer, setArrowRenderer] = createSignal('batched');
+    // Render mode: 'simple' (flat tasks, static heights) or 'detailed' (hierarchy, subtasks)
+    const [renderMode, setRenderMode] = createSignal('simple');
     let frameTracker = null;
 
     // Frame timing tracking
@@ -249,6 +251,7 @@ export function GanttPerfDemo() {
     // Gantt options
     const options = createMemo(() => ({
         view_mode: viewMode(),
+        renderMode: renderMode(), // simple or detailed
         bar_height: 20,
         padding: 8,
         column_width: viewMode() === 'Hour' ? 25 : 30,
@@ -435,6 +438,17 @@ export function GanttPerfDemo() {
                         >
                             <option value="individual">Individual</option>
                             <option value="batched">Batched</option>
+                        </select>
+                    </label>
+                    <label style={{ 'font-size': '13px' }}>
+                        Mode:
+                        <select
+                            value={renderMode()}
+                            onChange={(e) => setRenderMode(e.target.value)}
+                            style={{ ...styles.select, width: '100px', 'margin-left': '5px' }}
+                        >
+                            <option value="simple">Simple</option>
+                            <option value="detailed">Detailed</option>
                         </select>
                     </label>
                 </div>

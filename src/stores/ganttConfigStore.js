@@ -37,7 +37,11 @@ export function createGanttConfigStore(options = {}) {
         options.subtaskHeightRatio || 0.5
     );
 
-    // Expanded tasks (for variable row heights)
+    // Render mode: 'simple' (flat tasks, static heights) or 'detailed' (hierarchy, variable heights)
+    // Simple mode skips subtask/expansion logic for maximum performance
+    const [renderMode, setRenderMode] = createSignal(options.renderMode || 'simple');
+
+    // Expanded tasks (for variable row heights) - only used in detailed mode
     const [expandedTasks, setExpandedTasks] = createSignal(
         new Set(options.expandedTasks || [])
     );
@@ -103,6 +107,7 @@ export function createGanttConfigStore(options = {}) {
         if (newOptions.ignoredFunction !== undefined) setIgnoredFunction(newOptions.ignoredFunction);
         if (newOptions.ignoredPositions !== undefined) setIgnoredPositions(newOptions.ignoredPositions);
         if (newOptions.subtaskHeightRatio !== undefined) setSubtaskHeightRatio(newOptions.subtaskHeightRatio);
+        if (newOptions.renderMode !== undefined) setRenderMode(newOptions.renderMode);
         if (newOptions.expandedTasks !== undefined) setExpandedTasks(new Set(newOptions.expandedTasks));
     };
 
@@ -126,6 +131,7 @@ export function createGanttConfigStore(options = {}) {
         ignoredFunction: ignoredFunction(),
         ignoredPositions: ignoredPositions(),
         subtaskHeightRatio: subtaskHeightRatio(),
+        renderMode: renderMode(),
         expandedTasks: expandedTasks(),
     });
 
@@ -149,6 +155,7 @@ export function createGanttConfigStore(options = {}) {
         ignoredFunction,
         ignoredPositions,
         subtaskHeightRatio,
+        renderMode,
         expandedTasks,
 
         // Setters
@@ -170,6 +177,7 @@ export function createGanttConfigStore(options = {}) {
         setIgnoredFunction,
         setIgnoredPositions,
         setSubtaskHeightRatio,
+        setRenderMode,
         setExpandedTasks,
 
         // Task expansion methods

@@ -500,8 +500,43 @@ export function computeSubtaskY(subtaskIndex, parentContentY, layout, config, su
     return parentContentY + padding / 2 + subtaskIndex * subtaskRowHeight;
 }
 
+/**
+ * Calculate simple row layouts with static heights.
+ * Used in 'simple' view mode for maximum performance.
+ * Skips all subtask/expansion logic - every row is the same height.
+ *
+ * @param {Array} displayRows - Flat list of rows [{id, type, ...}]
+ * @param {Object} config - { barHeight, padding }
+ * @returns {Map} rowLayouts - Map<rowId, { y, height, contentY, contentHeight }>
+ */
+export function calculateSimpleRowLayouts(displayRows, config) {
+    const { barHeight = 30, padding = 18 } = config;
+    const rowHeight = barHeight + padding;
+    const layouts = new Map();
+
+    for (let i = 0; i < displayRows.length; i++) {
+        const row = displayRows[i];
+        const y = i * rowHeight;
+
+        layouts.set(row.id, {
+            y,
+            height: rowHeight,
+            contentY: y + padding / 2,
+            contentHeight: barHeight,
+            type: row.type,
+            // No taskPositions needed - all tasks use static Y from row index
+        });
+    }
+
+    // Store total height
+    layouts.set('__total__', { height: displayRows.length * rowHeight });
+
+    return layouts;
+}
+
 export default {
     calculateRowLayouts,
+    calculateSimpleRowLayouts,
     calculateExpandedRowHeight,
     findRowAtY,
     rowLayoutsToSortedArray,

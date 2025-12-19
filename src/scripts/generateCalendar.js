@@ -67,6 +67,12 @@ function parseArgs(args) {
             case 'realistic':
                 config.realistic = value === undefined || value === 'true' || value === '1';
                 break;
+            case 'minDuration':
+                config.minDuration = parseInt(value, 10);
+                break;
+            case 'maxDuration':
+                config.maxDuration = parseInt(value, 10);
+                break;
             case 'help':
             case 'h':
                 console.log(`

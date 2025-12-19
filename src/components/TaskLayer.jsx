@@ -247,22 +247,41 @@ export function TaskLayer(props) {
         return props.ganttConfig?.isTaskExpanded?.(taskId) ?? false;
     };
 
+    // Check if we're in simple mode (no expansion/subtasks)
+    const isSimpleMode = () => props.ganttConfig?.renderMode?.() === 'simple';
+
     // Split visible tasks into three categories:
     // 1. expandedIds - tasks with subtasks that are expanded (render as ExpandedTaskContainer)
     // 2. summaryIds - project-level summary bars (render as SummaryBar)
     // 3. regularIds - normal tasks (render as Bar)
+    //
+    // In simple mode: skip all expansion logic, render all tasks as regular or summary
     const splitTaskIds = createMemo(() => {
         const regularIds = [];
         const summaryIds = [];
         const expandedIds = [];
         // tasks is now a store object, not a Map
         const tasksObj = props.taskStore?.tasks ?? {};
+        const simpleMode = isSimpleMode();
 
         for (const taskId of visibleTaskIds()) {
             const task = tasksObj[taskId];
             if (!task) continue;
 
-            // Check if task has subtasks and is expanded
+            // Simple mode: skip subtasks entirely, render only top-level tasks
+            if (simpleMode) {
+                // Skip subtasks in simple mode
+                if (task.parentId) continue;
+
+                if (task.type === 'summary' || task.type === 'project') {
+                    summaryIds.push(taskId);
+                } else {
+                    regularIds.push(taskId);
+                }
+                continue;
+            }
+
+            // Detailed mode: full expansion logic
             const hasSubtasks = task._children && task._children.length > 0;
             const expanded = isTaskExpanded(taskId);
 
@@ -293,7 +312,17 @@ export function TaskLayer(props) {
         const rowLayout = rowLayouts.get(task.resource);
         if (!rowLayout) return null;
 
-        // Get task-specific position from taskPositions map
+        // Simple mode: no taskPositions map, use static row position
+        if (isSimpleMode()) {
+            return {
+                ...rowLayout,
+                y: rowLayout.contentY,
+                height: rowLayout.contentHeight,
+                isExpanded: false,
+            };
+        }
+
+        // Detailed mode: get task-specific position from taskPositions map
         const taskPos = rowLayout.taskPositions?.get(taskId);
         if (taskPos) {
             return {

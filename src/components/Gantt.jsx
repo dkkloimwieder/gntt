@@ -8,7 +8,7 @@ import { extractResourcesFromTasks } from '../utils/resourceProcessor.js';
 import { createVirtualViewport } from '../utils/createVirtualViewport.js';
 import { buildHierarchy, isHiddenByCollapsedAncestor } from '../utils/hierarchyProcessor.js';
 import { recomputeAllSummaryBounds } from '../utils/barCalculations.js';
-import { calculateRowLayouts, rowLayoutsToSortedArray } from '../utils/rowLayoutCalculator.js';
+import { calculateRowLayouts, calculateSimpleRowLayouts, rowLayoutsToSortedArray } from '../utils/rowLayoutCalculator.js';
 
 import { GanttContainer } from './GanttContainer.jsx';
 import { Grid } from './Grid.jsx';
@@ -249,12 +249,12 @@ export function Gantt(props) {
     // Row height for viewport calculations (base height)
     const rowHeight = createMemo(() => ganttConfig.barHeight() + ganttConfig.padding());
 
-    // Compute variable row layouts based on expanded tasks
-    // This enables rows to have different heights when tasks are expanded
+    // Compute row layouts based on render mode
+    // Simple mode: static heights, maximum performance
+    // Detailed mode: variable heights based on expanded tasks
     const rowLayouts = createMemo(() => {
         const resources = resourceStore.displayResources();
-        const expandedTasks = ganttConfig.expandedTasks();
-        const taskMap = taskStore.tasks;
+        const mode = ganttConfig.renderMode();
 
         if (!resources || resources.length === 0) {
             return new Map();
@@ -268,16 +268,21 @@ export function Gantt(props) {
             taskId: r.taskId, // If resource row has associated task
         }));
 
-        return calculateRowLayouts(
-            displayRows,
-            {
-                barHeight: ganttConfig.barHeight(),
-                padding: ganttConfig.padding(),
-                subtaskHeightRatio: ganttConfig.subtaskHeightRatio(),
-            },
-            expandedTasks,
-            taskMap
-        );
+        const config = {
+            barHeight: ganttConfig.barHeight(),
+            padding: ganttConfig.padding(),
+            subtaskHeightRatio: ganttConfig.subtaskHeightRatio(),
+        };
+
+        // Simple mode: skip all subtask/expansion logic
+        if (mode === 'simple') {
+            return calculateSimpleRowLayouts(displayRows, config);
+        }
+
+        // Detailed mode: full layout with variable heights
+        const expandedTasks = ganttConfig.expandedTasks();
+        const taskMap = taskStore.tasks;
+        return calculateRowLayouts(displayRows, config, expandedTasks, taskMap);
     });
 
     // Sorted row layouts for binary search in virtualization
