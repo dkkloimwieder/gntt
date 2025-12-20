@@ -11,13 +11,10 @@ import {
 import { collectDescendants } from '../utils/hierarchyProcessor.js';
 import { prof } from '../perf/profiler.js';
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// BAR POOLING: Fixed pool of indices for <Index> to prevent DOM creation/destruction
-// ═══════════════════════════════════════════════════════════════════════════════
-const BAR_POOL_SIZE = 500; // Max bars expected in viewport (increased for dense data)
-const SUMMARY_POOL_SIZE = 100; // Max summary bars expected
-const barPool = Array.from({ length: BAR_POOL_SIZE }, (_, i) => i);
-const summaryPool = Array.from({ length: SUMMARY_POOL_SIZE }, (_, i) => i);
+// Pool sizing: We maintain a pool slightly larger than visible count.
+// This provides buffer for smooth scrolling while avoiding constant DOM creation.
+// Pool only grows (never shrinks) to prevent thrashing during scroll.
+const POOL_BUFFER = 50; // Extra slots beyond visible count
 
 /**
  * TaskLayer - Container for all task bars.
@@ -245,7 +242,6 @@ export function TaskLayer(props) {
                 result.push(task.id); // Push ID, not task object - keeps references stable
             }
         }
-
         endProf();
         return result;
     });
@@ -310,11 +306,20 @@ export function TaskLayer(props) {
         return { regularIds, summaryIds, expandedIds };
     });
 
-    // Pooled task data for <Index> rendering (prevents DOM creation/destruction)
+    // Pool sizing: track max seen count to prevent shrinking
+    let maxRegularCount = 0;
+    let maxSummaryCount = 0;
+
+    // Pooled arrays for <Index> - sized to max(seen) + buffer
+    // Pool only grows, never shrinks, to prevent DOM thrashing
     const pooledRegularIds = createMemo(() => {
         const ids = splitTaskIds().regularIds;
-        const result = new Array(BAR_POOL_SIZE);
-        for (let i = 0; i < ids.length && i < BAR_POOL_SIZE; i++) {
+        maxRegularCount = Math.max(maxRegularCount, ids.length);
+        const poolSize = maxRegularCount + POOL_BUFFER;
+
+        // Create array with pool size, fill with IDs, rest are undefined
+        const result = new Array(poolSize);
+        for (let i = 0; i < ids.length; i++) {
             result[i] = ids[i];
         }
         return result;
@@ -322,8 +327,11 @@ export function TaskLayer(props) {
 
     const pooledSummaryIds = createMemo(() => {
         const ids = splitTaskIds().summaryIds;
-        const result = new Array(SUMMARY_POOL_SIZE);
-        for (let i = 0; i < ids.length && i < SUMMARY_POOL_SIZE; i++) {
+        maxSummaryCount = Math.max(maxSummaryCount, ids.length);
+        const poolSize = maxSummaryCount + POOL_BUFFER;
+
+        const result = new Array(poolSize);
+        for (let i = 0; i < ids.length; i++) {
             result[i] = ids[i];
         }
         return result;
@@ -368,25 +376,20 @@ export function TaskLayer(props) {
         <g class="task-layer" style="contain: layout style;">
             {/* Summary bars render BEHIND everything */}
             <g class="summary-layer" style="contain: layout style;">
-                <Index each={summaryPool}>
-                    {(_, slotIndex) => {
-                        // Pass accessor function for reactive updates when pool changes
-                        const getTaskId = () => pooledSummaryIds()[slotIndex];
-                        return (
-                            <g style={{ display: getTaskId() ? 'block' : 'none' }}>
-                                <SummaryBar
-                                    taskId={getTaskId}
-                                    taskStore={props.taskStore}
-                                    ganttConfig={props.ganttConfig}
-                                    taskPosition={getTaskPosition(getTaskId())}
-                                    onCollectDescendants={handleCollectDescendants}
-                                    onClampBatchDelta={handleClampBatchDelta}
-                                    onToggleCollapse={handleToggleCollapse}
-                                    onDragEnd={handleResizeEnd}
-                                />
-                            </g>
-                        );
-                    }}
+                <Index each={pooledSummaryIds()}>
+                    {(taskId) => (
+                        <g style={{ display: taskId() ? 'block' : 'none' }}>
+                            <SummaryBar
+                                taskId={taskId}
+                                taskStore={props.taskStore}
+                                ganttConfig={props.ganttConfig}
+                                onCollectDescendants={handleCollectDescendants}
+                                onClampBatchDelta={handleClampBatchDelta}
+                                onToggleCollapse={handleToggleCollapse}
+                                onDragEnd={handleResizeEnd}
+                            />
+                        </g>
+                    )}
                 </Index>
             </g>
 
@@ -406,31 +409,26 @@ export function TaskLayer(props) {
 
             {/* Regular task bars render ON TOP */}
             <g class="task-bars-layer" style="contain: layout style;">
-                <Index each={barPool}>
-                    {(_, slotIndex) => {
-                        // Pass accessor function for reactive updates when pool changes
-                        const getTaskId = () => pooledRegularIds()[slotIndex];
-                        return (
-                            <g style={{ display: getTaskId() ? 'block' : 'none' }}>
-                                <Bar
-                                    taskId={getTaskId}
-                                    taskStore={props.taskStore}
-                                    ganttConfig={props.ganttConfig}
-                                    taskPosition={getTaskPosition(getTaskId())}
-                                    onConstrainPosition={handleConstrainPosition}
-                                    onCollectDependents={handleCollectDependents}
-                                    onCollectDescendants={handleCollectDescendants}
-                                    onClampBatchDelta={handleClampBatchDelta}
-                                    onDateChange={handleDateChange}
-                                    onProgressChange={handleProgressChange}
-                                    onResizeEnd={handleResizeEnd}
-                                    onHover={handleHover}
-                                    onHoverEnd={handleHoverEnd}
-                                    onTaskClick={handleTaskClick}
-                                />
-                            </g>
-                        );
-                    }}
+                <Index each={pooledRegularIds()}>
+                    {(taskId) => (
+                        <g style={{ display: taskId() ? 'block' : 'none' }}>
+                            <Bar
+                                taskId={taskId}
+                                taskStore={props.taskStore}
+                                ganttConfig={props.ganttConfig}
+                                onConstrainPosition={handleConstrainPosition}
+                                onCollectDependents={handleCollectDependents}
+                                onCollectDescendants={handleCollectDescendants}
+                                onClampBatchDelta={handleClampBatchDelta}
+                                onDateChange={handleDateChange}
+                                onProgressChange={handleProgressChange}
+                                onResizeEnd={handleResizeEnd}
+                                onHover={handleHover}
+                                onHoverEnd={handleHoverEnd}
+                                onTaskClick={handleTaskClick}
+                            />
+                        </g>
+                    )}
                 </Index>
             </g>
         </g>

@@ -71,7 +71,11 @@ export function Bar(props) {
     // Derived position values - call getPosition() for fine-grained store tracking
     const x = () => getPosition()?.x ?? 0;
     // Use taskPosition Y if provided (for variable row heights), else fall back to $bar.y
-    const y = () => props.taskPosition?.y ?? getPosition()?.y ?? 0;
+    // taskPosition can be a value OR accessor (for <Index> pooling reactivity)
+    const y = () => {
+        const pos = typeof props.taskPosition === 'function' ? props.taskPosition() : props.taskPosition;
+        return pos?.y ?? getPosition()?.y ?? 0;
+    };
     const width = () => getPosition()?.width ?? 100;
     const height = () => getPosition()?.height ?? 30;
 

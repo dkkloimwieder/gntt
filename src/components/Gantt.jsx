@@ -535,8 +535,8 @@ export function Gantt(props) {
                     rowLayouts={rowLayouts()}
                 />
 
-                {/* Dependency arrows - choose renderer based on prop */}
-                {props.arrowRenderer === 'batched' ? (
+                {/* Dependency arrows - DISABLED for task rendering test */}
+                {/* {props.arrowRenderer === 'batched' ? (
                     <ArrowLayerBatched
                         taskStore={taskStore}
                         relationships={relationships()}
@@ -554,7 +554,7 @@ export function Gantt(props) {
                         startX={viewport.xRange().start}
                         endX={viewport.xRange().end}
                     />
-                )}
+                )} */}
 
                 {/* Task bars */}
                 <TaskLayer
