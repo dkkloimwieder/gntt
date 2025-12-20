@@ -1,5 +1,9 @@
-import { createSignal, onMount, onCleanup } from 'solid-js';
-import { throttle } from '@solid-primitives/scheduled';
+import { createSignal, onMount, onCleanup, batch } from 'solid-js';
+
+// Throttle interval for scroll signal updates
+// Longer interval = fewer reactive updates = better scroll performance
+// But too long = visible blank areas during fast scroll
+const SCROLL_THROTTLE_MS = 100; // 10 updates/second max
 
 // Global debug object for scroll timing (accessible by perf demo)
 if (typeof window !== 'undefined') {
@@ -49,23 +53,18 @@ export function GanttContainer(props) {
         return 60;
     };
 
-    // Throttled scroll position updates for virtualization (16ms = 60fps)
-    // This reduces recalculation overhead while maintaining smooth scrolling
-    const throttledSetScrollLeft = throttle(setScrollLeft, 16);
-    const throttledSetScrollTop = throttle(setScrollTop, 16);
-
-    // Track worst timing for reporting
-    let worstScrollTotal = 0;
+    // Simple throttling for scroll signal updates
+    let lastUpdateTime = 0;
+    let pendingUpdate = null;
+    let latestScrollX = 0;
+    let latestScrollY = 0;
 
     // Handle scroll in main scroll area - sync other panels
     const handleScroll = (e) => {
-        const t0 = performance.now();
-
         const { scrollLeft: sl, scrollTop: st } = e.target;
 
         // IMPORTANT: Direct DOM sync FIRST for visual smoothness
         // This must happen BEFORE reactive updates to avoid forced reflows
-        // (reactive updates may modify DOM, causing layout invalidation)
         if (dateHeadersRef) {
             dateHeadersRef.scrollLeft = sl;
         }
@@ -73,44 +72,26 @@ export function GanttContainer(props) {
             resourceBodyRef.scrollTop = st;
         }
 
-        const t1 = performance.now();
+        // Store latest position
+        latestScrollX = sl;
+        latestScrollY = st;
 
-        // Throttle signal updates (triggers virtualization recalc)
-        // These come AFTER DOM sync to avoid layout thrashing
-        throttledSetScrollLeft(sl);
-        throttledSetScrollTop(st);
-
-        const t2 = performance.now();
+        // Throttle reactive updates
+        const now = performance.now();
+        if (now - lastUpdateTime >= SCROLL_THROTTLE_MS) {
+            lastUpdateTime = now;
+            setScrollLeft(sl);
+            setScrollTop(st);
+        } else if (!pendingUpdate) {
+            pendingUpdate = setTimeout(() => {
+                pendingUpdate = null;
+                lastUpdateTime = performance.now();
+                setScrollLeft(latestScrollX);
+                setScrollTop(latestScrollY);
+            }, SCROLL_THROTTLE_MS - (now - lastUpdateTime));
+        }
 
         props.onScroll?.(sl, st);
-
-        const t3 = performance.now();
-
-        // Update timing stats
-        const domSync = t1 - t0;
-        const signalUpdate = t2 - t1;
-        const total = t3 - t0;
-
-        if (total > worstScrollTotal) {
-            worstScrollTotal = total;
-        }
-
-        // Update global debug object for perf demo
-        if (typeof window !== 'undefined' && window.__ganttScrollDebug) {
-            window.__ganttScrollDebug.domSync = domSync;
-            window.__ganttScrollDebug.signalUpdate = signalUpdate;
-            window.__ganttScrollDebug.total = total;
-            window.__ganttScrollDebug.worstTotal = worstScrollTotal;
-            window.__ganttScrollDebug.callCount++;
-        }
-
-        // Only update signal every 100ms to avoid overhead
-        setScrollTiming({
-            domSync: domSync.toFixed(2),
-            signalUpdate: signalUpdate.toFixed(2),
-            total: total.toFixed(2),
-            worstTotal: worstScrollTotal.toFixed(2),
-        });
     };
 
     // Set scroll position programmatically
@@ -161,7 +142,7 @@ export function GanttContainer(props) {
             // Debug timing signal
             scrollTimingSignal: scrollTiming,
             resetWorstTiming: () => {
-                worstScrollTotal = 0;
+                // No-op - timing tracking removed for chunk-based scrolling
             },
         });
     });
@@ -256,7 +237,7 @@ export function GanttContainer(props) {
                 {props.resourceColumn}
             </div>
 
-            {/* Bottom-right: Main SVG scroll area */}
+            {/* Bottom-right: Main scroll area with layered SVG + HTML */}
             <div
                 ref={scrollAreaRef}
                 class="gantt-scroll-area"
@@ -267,20 +248,47 @@ export function GanttContainer(props) {
                 }}
                 onScroll={handleScroll}
             >
-                <svg
-                    ref={svgRef}
-                    class="gantt"
-                    width={props.svgWidth || '100%'}
-                    height={props.svgHeight || 300}
+                {/* Content wrapper - holds both SVG and HTML layers */}
+                <div
+                    class="gantt-content"
                     style={{
-                        display: 'block',
-                        'min-width': props.svgWidth
-                            ? `${props.svgWidth}px`
-                            : undefined,
+                        position: 'relative',
+                        width: props.svgWidth ? `${props.svgWidth}px` : '100%',
+                        height: `${props.svgHeight || 300}px`,
+                        'min-width': props.svgWidth ? `${props.svgWidth}px` : undefined,
                     }}
                 >
-                    {props.children}
-                </svg>
+                    {/* SVG layer - Grid, Arrows (vector graphics) */}
+                    <svg
+                        ref={svgRef}
+                        class="gantt"
+                        width="100%"
+                        height="100%"
+                        style={{
+                            display: 'block',
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                        }}
+                    >
+                        {props.children}
+                    </svg>
+
+                    {/* HTML layer - Task bars (GPU-accelerated transforms) */}
+                    <div
+                        class="gantt-bars-layer"
+                        style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: '100%',
+                            'pointer-events': 'none',
+                        }}
+                    >
+                        {props.barsLayer}
+                    </div>
+                </div>
             </div>
 
             {/* Overlay slot - for popups, modals, etc. */}

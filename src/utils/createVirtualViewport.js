@@ -1,6 +1,9 @@
 import { createMemo } from 'solid-js';
 import { findRowAtY } from './rowLayoutCalculator.js';
 
+// Custom equals function for range objects - compare by value, not reference
+const rangeEquals = (a, b) => a?.start === b?.start && a?.end === b?.end;
+
 /**
  * createVirtualViewport - Simple 2D viewport virtualization.
  *
@@ -9,8 +12,6 @@ import { findRowAtY } from './rowLayoutCalculator.js';
  *
  * Supports both fixed row heights and variable row heights.
  * For variable heights, pass sortedRowLayouts (pre-sorted array).
- *
- * No throttling, no hysteresis - just pure reactive calculations.
  *
  * @param {Object} config
  * @param {Accessor<number>} config.scrollX - Horizontal scroll position
@@ -22,13 +23,10 @@ import { findRowAtY } from './rowLayoutCalculator.js';
  * @param {Accessor<number>} config.totalRows - Total number of rows
  * @param {Accessor<Array>} [config.sortedRowLayouts] - Sorted array of {y, height} for variable heights
  * @param {number} [config.overscanCols=5] - Extra columns to render outside viewport
- * @param {number} [config.overscanRows=3] - Extra rows to render outside viewport
- * @param {number} [config.overscanX=600] - Extra pixels for X range filtering
+ * @param {number} [config.overscanRows=20] - Extra rows to render outside viewport (~1000px buffer)
+ * @param {number} [config.overscanX=2500] - Extra pixels for X range filtering
  *
  * @returns {Object} Reactive viewport ranges
- * @returns {Accessor<{start: number, end: number}>} colRange - Visible column range
- * @returns {Accessor<{start: number, end: number}>} rowRange - Visible row range
- * @returns {Accessor<{start: number, end: number}>} xRange - Visible X pixel range
  */
 export function createVirtualViewport(config) {
     const {
@@ -41,11 +39,11 @@ export function createVirtualViewport(config) {
         totalRows,
         sortedRowLayouts,
         overscanCols = 5,
-        overscanRows = 3,
-        overscanX = 600,
+        overscanRows = 20, // ~1000px at 48px/row - moderate buffer for deferred updates
+        overscanX = 2500, // buffer for horizontal scrolling
     } = config;
 
-    // Column range (for DateHeaders)
+    // Column range (for DateHeaders) - uses value equality to prevent spurious updates
     const colRange = createMemo(() => {
         const cw = columnWidth();
         const sx = scrollX();
@@ -59,10 +57,9 @@ export function createVirtualViewport(config) {
             start: Math.max(0, Math.floor(sx / cw) - overscanCols),
             end: Math.ceil((sx + vw) / cw) + overscanCols,
         };
-    });
+    }, undefined, { equals: rangeEquals });
 
-    // Row range (for Grid, TaskLayer, ArrowLayer)
-    // Supports both fixed and variable row heights
+    // Row range (for Grid, TaskLayer, ArrowLayer) - uses value equality
     const rowRange = createMemo(() => {
         const sy = scrollY();
         const vh = viewportHeight();
@@ -94,30 +91,33 @@ export function createVirtualViewport(config) {
             start: Math.max(0, Math.floor(sy / rh) - overscanRows),
             end: Math.min(total, Math.ceil((sy + vh) / rh) + overscanRows),
         };
-    });
+    }, undefined, { equals: rangeEquals });
 
-    // X pixel range (for TaskLayer, ArrowLayer horizontal filtering)
+    // X pixel range (for TaskLayer, ArrowLayer horizontal filtering) - uses value equality
+    // Quantized to 100px to reduce update frequency during horizontal scroll
+    const X_QUANT = 100;
     const xRange = createMemo(() => {
         const sx = scrollX();
         const vw = viewportWidth();
 
         return {
-            start: Math.max(0, sx - overscanX),
-            end: sx + vw + overscanX,
+            start: Math.max(0, Math.floor((sx - overscanX) / X_QUANT) * X_QUANT),
+            end: Math.ceil((sx + vw + overscanX) / X_QUANT) * X_QUANT,
         };
-    });
+    }, undefined, { equals: rangeEquals });
 
-    // Y pixel range (for ArrowLayer vertical filtering)
+    // Y pixel range (for ArrowLayer vertical filtering) - uses value equality
     const yRange = createMemo(() => {
         const sy = scrollY();
         const vh = viewportHeight();
-        const overscanY = overscanRows * (rowHeight?.() || 48); // Convert row overscan to pixels
+        const rh = rowHeight?.() || 48;
+        const overscanY = overscanRows * rh;
 
         return {
             start: Math.max(0, sy - overscanY),
             end: sy + vh + overscanY,
         };
-    });
+    }, undefined, { equals: rangeEquals });
 
     return { colRange, rowRange, xRange, yRange };
 }

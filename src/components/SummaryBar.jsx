@@ -1,4 +1,4 @@
-import { Show } from 'solid-js';
+import { createMemo, untrack } from 'solid-js';
 import { useDrag } from '../hooks/useDrag.js';
 import { snapToGrid, computeLabelPosition } from '../utils/barCalculations.js';
 
@@ -19,10 +19,10 @@ export function SummaryBar(props) {
     };
 
     // Get position directly from taskStore - plain function for virtualized components
-    // Avoids memo subscription churn during scroll (similar to Arrow.jsx approach)
     const getPosition = () => {
-        if (props.taskStore && taskId()) {
-            const task = props.taskStore.tasks[taskId()];
+        const id = taskId();
+        if (props.taskStore && id) {
+            const task = props.taskStore.tasks[id];
             if (task?.$bar) {
                 return task.$bar;
             }
@@ -32,27 +32,29 @@ export function SummaryBar(props) {
 
     // Task data
     const task = () => {
-        if (props.taskStore && taskId()) {
-            return props.taskStore.tasks[taskId()] ?? {};
+        const id = taskId();
+        if (props.taskStore && id) {
+            return props.taskStore.tasks[id] ?? {};
         }
         return {};
     };
 
-    // Position values - call getPosition() for fine-grained store tracking
-    const x = () => getPosition()?.x ?? 0;
+    // OPTIMIZATION: Single memoized position read instead of 4 separate store reads
+    const position = createMemo(() => getPosition());
+    const x = () => position()?.x ?? 0;
     // Use taskPosition Y if provided (for variable row heights), else fall back to $bar.y
     // taskPosition can be a value OR accessor (for <Index> pooling reactivity)
     const y = () => {
         const pos = typeof props.taskPosition === 'function' ? props.taskPosition() : props.taskPosition;
-        return pos?.y ?? getPosition()?.y ?? 0;
+        return pos?.y ?? position()?.y ?? 0;
     };
-    const width = () => getPosition()?.width ?? 100;
-    const height = () => getPosition()?.height ?? 30;
+    const width = () => position()?.width ?? 100;
+    const height = () => position()?.height ?? 30;
 
-    // Configuration
-    const columnWidth = () => props.ganttConfig?.columnWidth?.() ?? 45;
-    const readonly = () => props.ganttConfig?.readonly?.() ?? false;
-    const cornerRadius = () => props.ganttConfig?.barCornerRadius?.() ?? 3;
+    // Configuration - OPTIMIZED: memoize config accessors
+    const columnWidth = createMemo(() => props.ganttConfig?.columnWidth?.() ?? 45);
+    const readonly = createMemo(() => props.ganttConfig?.readonly?.() ?? false);
+    const cornerRadius = createMemo(() => props.ganttConfig?.barCornerRadius?.() ?? 3);
 
     // Colors
     const barColor = () => task()?.color ?? 'var(--g-bar-color, #b8c2cc)';
@@ -62,11 +64,11 @@ export function SummaryBar(props) {
     // Progress bar width
     const progressWidth = () => (width() * progress()) / 100;
 
-    // Label position
-    const labelPos = () => {
+    // Label position - OPTIMIZED: memoized
+    const labelPos = createMemo(() => {
         const name = task()?.name ?? '';
         return computeLabelPosition(x(), width(), name, 7);
-    };
+    });
 
     // ═══════════════════════════════════════════════════════════════════════════
     // DRAG SETUP (moves all descendants)
@@ -134,75 +136,95 @@ export function SummaryBar(props) {
         startDrag(e, 'dragging_bar');
     };
 
+    // GPU-accelerated transform for positioning
+    const barTransform = () => `translate(${x()}px, ${y()}px)`;
+
     return (
-        <g
+        <div
             class={`summary-bar-wrapper bar-wrapper ${dragStateClass()}`}
             data-id={taskId()}
             data-type="summary"
+            onMouseDown={handleBarMouseDown}
+            style={{
+                position: 'absolute',
+                transform: barTransform(),
+                width: `${width()}px`,
+                height: `${height()}px`,
+                cursor: readonly() ? 'default' : 'grab',
+                'will-change': 'transform',
+                'pointer-events': 'auto',
+            }}
         >
-            {/* Main bar */}
-            <g
-                class="bar-group"
-                onMouseDown={handleBarMouseDown}
-                style={{ cursor: readonly() ? 'default' : 'grab' }}
+            {/* Background bar */}
+            <div
+                class="bar"
+                style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    'border-radius': `${cornerRadius()}px`,
+                    'background-color': isDragging() ? '#2c3e50' : barColor(),
+                    'box-sizing': 'border-box',
+                    transition: isDragging() ? 'none' : 'background-color 0.1s ease',
+                }}
+            />
+
+            {/* Progress bar - CSS display instead of Show to avoid unmount/remount */}
+            <div
+                class="bar-progress"
+                style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: `${progressWidth()}px`,
+                    height: '100%',
+                    'border-radius': `${cornerRadius()}px`,
+                    'background-color': progressColor(),
+                    'pointer-events': 'none',
+                    display: progress() > 0 ? 'block' : 'none',
+                }}
+            />
+
+            {/* Label */}
+            <div
+                class="bar-label"
+                style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: labelPos().position === 'inside' ? '50%' : `${width() + 8}px`,
+                    transform: labelPos().position === 'inside'
+                        ? 'translate(-50%, -50%)'
+                        : 'translateY(-50%)',
+                    'font-size': '12px',
+                    'font-weight': '500',
+                    color: labelPos().position === 'inside' ? '#fff' : '#333',
+                    'pointer-events': 'none',
+                    'user-select': 'none',
+                    'white-space': 'nowrap',
+                }}
             >
-                {/* Background bar */}
-                <rect
-                    class="bar"
-                    x={x()}
-                    y={y()}
-                    width={width()}
-                    height={height()}
-                    rx={cornerRadius()}
-                    ry={cornerRadius()}
-                    fill={isDragging() ? '#2c3e50' : barColor()}
-                    stroke="var(--g-bar-stroke, #8a8aff)"
-                    stroke-width="0"
-                    style={{ transition: isDragging() ? 'none' : 'fill 0.1s ease' }}
-                />
+                {task()?.name ?? ''}
+            </div>
 
-                {/* Progress bar */}
-                <Show when={progress() > 0}>
-                    <rect
-                        class="bar-progress"
-                        x={x()}
-                        y={y()}
-                        width={progressWidth()}
-                        height={height()}
-                        rx={cornerRadius()}
-                        ry={cornerRadius()}
-                        fill={progressColor()}
-                        style={{ 'pointer-events': 'none' }}
-                    />
-                </Show>
-
-                {/* Label inside bar */}
-                <text
-                    x={labelPos().position === 'inside' ? labelPos().x : labelPos().x}
-                    y={y() + height() / 2 + 4}
-                    text-anchor={labelPos().position === 'inside' ? 'middle' : 'start'}
-                    font-size="12"
-                    font-weight="500"
-                    fill={labelPos().position === 'inside' ? '#fff' : '#333'}
-                    style={{ 'pointer-events': 'none', 'user-select': 'none' }}
-                >
-                    {task()?.name ?? ''}
-                </text>
-
-                {/* Child count indicator (optional) */}
-                <Show when={task()?._children?.length > 0}>
-                    <text
-                        x={x() + width() + 8}
-                        y={y() + height() / 2 + 4}
-                        font-size="10"
-                        fill="#888"
-                        style={{ 'pointer-events': 'none' }}
-                    >
-                        ({task()._children.length})
-                    </text>
-                </Show>
-            </g>
-        </g>
+            {/* Child count indicator (optional) - CSS display instead of Show */}
+            <div
+                style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: `${width() + 8 + (task()?.name?.length ?? 0) * 7}px`,
+                    transform: 'translateY(-50%)',
+                    'font-size': '10px',
+                    color: '#888',
+                    'pointer-events': 'none',
+                    'white-space': 'nowrap',
+                    display: task()?._children?.length > 0 ? 'block' : 'none',
+                }}
+            >
+                ({task()?._children?.length ?? 0})
+            </div>
+        </div>
     );
 }
 

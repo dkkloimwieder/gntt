@@ -1,4 +1,4 @@
-import { createSignal, Show, onCleanup } from 'solid-js';
+import { createMemo, onCleanup, untrack } from 'solid-js';
 import {
     computeProgressWidth,
     computeExpectedProgress,
@@ -33,11 +33,10 @@ export function Bar(props) {
     };
 
     // Get position directly from taskStore - plain function for virtualized components
-    // Avoids memo subscription churn during scroll (similar to Arrow.jsx approach)
-    // Store access creates fine-grained dependency in calling context
     const getPosition = () => {
-        if (props.taskStore && taskId()) {
-            const task = props.taskStore.tasks[taskId()];
+        const id = taskId();
+        if (props.taskStore && id) {
+            const task = props.taskStore.tasks[id];
             if (task?.$bar) {
                 return task.$bar;
             }
@@ -51,39 +50,41 @@ export function Bar(props) {
         };
     };
 
-    // Configuration - inline accessors (no memo needed for rarely-changing values)
-    const barCornerRadius = () => props.ganttConfig?.barCornerRadius?.() ?? props.cornerRadius ?? 3;
-    const readonly = () => props.ganttConfig?.readonly?.() ?? props.readonly ?? false;
-    const readonlyDates = () => props.ganttConfig?.readonlyDates?.() ?? props.readonlyDates ?? false;
-    const readonlyProgress = () => props.ganttConfig?.readonlyProgress?.() ?? props.readonlyProgress ?? false;
-    const showExpectedProgress = () => props.ganttConfig?.showExpectedProgress?.() ?? props.showExpectedProgress ?? false;
-    const columnWidth = () => props.ganttConfig?.columnWidth?.() ?? props.columnWidth ?? 45;
-    const ignoredPositions = () => props.ganttConfig?.ignoredPositions?.() ?? props.ignoredPositions ?? [];
+    // Configuration - OPTIMIZED: memoize config accessors to avoid repeated optional chaining
+    const barCornerRadius = createMemo(() => props.ganttConfig?.barCornerRadius?.() ?? props.cornerRadius ?? 3);
+    const readonly = createMemo(() => props.ganttConfig?.readonly?.() ?? props.readonly ?? false);
+    const readonlyDates = createMemo(() => props.ganttConfig?.readonlyDates?.() ?? props.readonlyDates ?? false);
+    const readonlyProgress = createMemo(() => props.ganttConfig?.readonlyProgress?.() ?? props.readonlyProgress ?? false);
+    const showExpectedProgress = createMemo(() => props.ganttConfig?.showExpectedProgress?.() ?? props.showExpectedProgress ?? false);
+    const columnWidth = createMemo(() => props.ganttConfig?.columnWidth?.() ?? props.columnWidth ?? 45);
+    const ignoredPositions = createMemo(() => props.ganttConfig?.ignoredPositions?.() ?? props.ignoredPositions ?? []);
 
     // Task data - read fresh from store if available
     const task = () => {
-        if (props.taskStore && taskId()) {
-            return props.taskStore.tasks[taskId()] ?? props.task ?? {};
+        const id = taskId();
+        if (props.taskStore && id) {
+            return props.taskStore.tasks[id] ?? props.task ?? {};
         }
         return props.task ?? {};
     };
 
-    // Derived position values - call getPosition() for fine-grained store tracking
-    const x = () => getPosition()?.x ?? 0;
+    // OPTIMIZATION: Single memoized position read instead of 4 separate store reads
+    const position = createMemo(() => getPosition());
+    const x = () => position()?.x ?? 0;
     // Use taskPosition Y if provided (for variable row heights), else fall back to $bar.y
     // taskPosition can be a value OR accessor (for <Index> pooling reactivity)
     const y = () => {
         const pos = typeof props.taskPosition === 'function' ? props.taskPosition() : props.taskPosition;
-        return pos?.y ?? getPosition()?.y ?? 0;
+        return pos?.y ?? position()?.y ?? 0;
     };
-    const width = () => getPosition()?.width ?? 100;
-    const height = () => getPosition()?.height ?? 30;
+    const width = () => position()?.width ?? 100;
+    const height = () => position()?.height ?? 30;
 
     // Minimum bar width (one column)
     const minWidth = () => columnWidth();
 
-    // Track if a drag occurred (to distinguish click from drag)
-    const [didDrag, setDidDrag] = createSignal(false);
+    // OPTIMIZATION: Track if a drag occurred in non-reactive variable (avoids 60fps signal updates)
+    let didDragFlag = false;
 
     // ═══════════════════════════════════════════════════════════════════════════
     // DRAG SETUP
@@ -91,6 +92,8 @@ export function Bar(props) {
 
     const { dragState, isDragging, startDrag } = useDrag({
         onDragStart: (data, state) => {
+            // Reset drag flag at start
+            didDragFlag = false;
             // Store original values
             data.originalX = x();
             data.originalY = y();
@@ -139,7 +142,7 @@ export function Bar(props) {
             }
 
             // Mark that a drag occurred (used to distinguish click from drag)
-            setDidDrag(true);
+            didDragFlag = true;
 
             const colWidth = columnWidth();
             const ignored = ignoredPositions();
@@ -333,7 +336,7 @@ export function Bar(props) {
             return;
         }
 
-        setDidDrag(false); // Reset drag flag on mousedown
+        didDragFlag = false; // Reset drag flag on mousedown
         startDrag(e, 'dragging_bar', { taskId: task().id });
     };
 
@@ -355,7 +358,7 @@ export function Bar(props) {
     // Click handler for task data modal (only fires if no drag occurred)
     const handleClick = (e) => {
         const onTaskClick = props.onTaskClick ?? events.onTaskClick;
-        if (!didDrag() && onTaskClick) {
+        if (!didDragFlag && onTaskClick) {
             e.stopPropagation();
             onTaskClick(task().id, e);
         }
@@ -381,11 +384,11 @@ export function Bar(props) {
     };
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // COMPUTED VALUES
+    // COMPUTED VALUES - OPTIMIZED: memoized to avoid recalculation on every render
     // ═══════════════════════════════════════════════════════════════════════════
 
     // Progress width calculation
-    const progressWidth = () => {
+    const progressWidth = createMemo(() => {
         const progress = task().progress ?? 0;
         return computeProgressWidth(
             x(),
@@ -394,10 +397,10 @@ export function Bar(props) {
             ignoredPositions(),
             columnWidth(),
         );
-    };
+    });
 
     // Expected progress width (if enabled)
-    const expectedProgressWidth = () => {
+    const expectedProgressWidth = createMemo(() => {
         if (!showExpectedProgress()) return 0;
 
         const taskStart = task()._start ?? task().start;
@@ -418,13 +421,13 @@ export function Bar(props) {
             ignoredPositions(),
             columnWidth(),
         );
-    };
+    });
 
     // Label positioning
-    const labelInfo = () => {
+    const labelInfo = createMemo(() => {
         const name = task().name ?? '';
         return computeLabelPosition(x(), width(), name);
-    };
+    });
 
     // Colors
     const barColor = () => task().color ?? 'var(--g-bar-color, #b8c2cc)';
@@ -461,8 +464,11 @@ export function Bar(props) {
     // Visibility prop for virtualization - hidden bars stay in DOM but are not painted
     const visible = () => props.visible ?? true;
 
+    // GPU-accelerated transform for positioning
+    const barTransform = () => `translate(${x()}px, ${y()}px)`;
+
     return (
-        <g
+        <div
             class={`bar-wrapper ${customClass()} ${isInvalid() ? 'invalid' : ''} ${isLocked() ? 'locked' : ''} ${dragClass()}`}
             data-id={task().id}
             onMouseDown={handleBarMouseDown}
@@ -470,161 +476,166 @@ export function Bar(props) {
             onMouseLeave={handleMouseLeave}
             onClick={handleClick}
             style={{
+                position: 'absolute',
+                transform: barTransform(),
+                width: `${width()}px`,
+                height: `${height()}px`,
                 cursor: isLocked()
                     ? 'not-allowed'
                     : readonly()
                       ? 'default'
                       : 'move',
                 visibility: visible() ? 'visible' : 'hidden',
+                'will-change': 'transform',
             }}
         >
-            {/* Main bar group */}
-            <g class="bar-group">
-                {/* Main bar rectangle - outline style with subtle fill for non-subtask tasks */}
-                <rect
-                    x={x()}
-                    y={y()}
-                    width={width()}
-                    height={height()}
-                    rx={barCornerRadius()}
-                    ry={barCornerRadius()}
-                    class="bar"
-                    style={{
-                        fill: isLocked()
-                            ? '#7f8c8d'
-                            : isDragging()
-                              ? '#2c3e50'
-                              : barColor(),
-                        'fill-opacity': isLocked() || isDragging()
-                            ? 1
-                            : hasSubtasks()
-                              ? 0
-                              : 0.1,
-                        stroke: isLocked()
-                            ? '#c0392b'
-                            : barColor(),
-                        'stroke-width': isLocked() ? '2' : '1.5',
-                        'stroke-dasharray': isLocked() ? '4,4' : 'none',
-                        transition: isDragging() ? 'none' : 'fill 0.1s ease',
-                    }}
-                />
+            {/* Main bar - outline style with subtle fill */}
+            <div
+                class="bar"
+                style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    'border-radius': `${barCornerRadius()}px`,
+                    'background-color': isLocked()
+                        ? '#7f8c8d'
+                        : isDragging()
+                          ? '#2c3e50'
+                          : barColor(),
+                    opacity: isLocked() || isDragging()
+                        ? 1
+                        : hasSubtasks()
+                          ? 0
+                          : 0.1,
+                    border: `${isLocked() ? '2px' : '1.5px'} solid ${isLocked() ? '#c0392b' : barColor()}`,
+                    'border-style': isLocked() ? 'dashed' : 'solid',
+                    'box-sizing': 'border-box',
+                    transition: isDragging() ? 'none' : 'background-color 0.1s ease',
+                }}
+            />
 
-                {/* Expected progress bar (behind actual progress) */}
-                <Show
-                    when={
-                        showExpectedProgress() &&
-                        expectedProgressWidth() > 0
-                    }
-                >
-                    <rect
-                        x={x()}
-                        y={y()}
-                        width={expectedProgressWidth()}
-                        height={height()}
-                        rx={barCornerRadius()}
-                        ry={barCornerRadius()}
-                        class="bar-expected-progress"
-                        style={{ fill: expectedProgressColor() }}
-                    />
-                </Show>
+            {/* Expected progress bar (behind actual progress) - use CSS display instead of Show to avoid unmount/remount */}
+            <div
+                class="bar-expected-progress"
+                style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: `${expectedProgressWidth()}px`,
+                    height: '100%',
+                    'border-radius': `${barCornerRadius()}px`,
+                    'background-color': expectedProgressColor(),
+                    display: showExpectedProgress() && expectedProgressWidth() > 0 ? 'block' : 'none',
+                }}
+            />
 
-                {/* Progress bar - subtle fill to match outline style */}
-                <rect
-                    x={x()}
-                    y={y()}
-                    width={progressWidth()}
-                    height={height()}
-                    rx={barCornerRadius()}
-                    ry={barCornerRadius()}
-                    class="bar-progress"
-                    style={{ fill: progressColor(), 'fill-opacity': 0.3 }}
-                />
+            {/* Progress bar - subtle fill */}
+            <div
+                class="bar-progress"
+                style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: `${progressWidth()}px`,
+                    height: '100%',
+                    'border-radius': `${barCornerRadius()}px`,
+                    'background-color': progressColor(),
+                    opacity: 0.3,
+                }}
+            />
 
-                {/* Label */}
-                <text
-                    x={labelInfo().x}
-                    y={y() + height() / 2}
-                    class={`bar-label ${labelInfo().position}`}
-                    dominant-baseline="middle"
-                    text-anchor={
-                        labelInfo().position === 'inside' ? 'middle' : 'start'
-                    }
-                    style={{ 'pointer-events': 'none' }}
-                >
-                    {task().name ?? ''}
-                </text>
+            {/* Label */}
+            <div
+                class={`bar-label ${labelInfo().position}`}
+                style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: labelInfo().position === 'inside' ? '50%' : `${width() + 5}px`,
+                    transform: labelInfo().position === 'inside'
+                        ? 'translate(-50%, -50%)'
+                        : 'translateY(-50%)',
+                    'white-space': 'nowrap',
+                    'pointer-events': 'none',
+                    'font-size': '12px',
+                    color: labelInfo().position === 'inside' ? '#fff' : '#333',
+                }}
+            >
+                {task().name ?? ''}
+            </div>
 
-                {/* Lock icon for locked tasks */}
-                <Show when={isLocked()}>
-                    <text
-                        x={x() + width() - 12}
-                        y={y() + 12}
-                        font-size="10"
-                        style={{ 'pointer-events': 'none' }}
-                    >
-                        🔒
-                    </text>
-                </Show>
-            </g>
+            {/* Lock icon for locked tasks - CSS display instead of Show to avoid unmount/remount */}
+            <div
+                style={{
+                    position: 'absolute',
+                    top: '2px',
+                    right: '4px',
+                    'font-size': '10px',
+                    'pointer-events': 'none',
+                    display: isLocked() ? 'block' : 'none',
+                }}
+            >
+                🔒
+            </div>
 
-            {/* Resize handles group */}
-            <Show when={showHandles() && !isLocked()}>
-                <g class="handle-group">
-                    {/* Left resize handle */}
-                    <Show when={showDateHandles()}>
-                        <rect
-                            x={x() - 2}
-                            y={y() + height() / 4}
-                            width={4}
-                            height={height() / 2}
-                            rx={1}
-                            class="handle handle-left"
-                            onMouseDown={handleLeftHandleMouseDown}
-                            style={{
-                                fill: 'var(--g-handle-color, #ddd)',
-                                cursor: 'ew-resize',
-                                opacity: 0,
-                            }}
-                        />
-                    </Show>
+            {/* Resize handles - CSS display instead of Show to avoid unmount/remount */}
+            {/* Left resize handle */}
+            <div
+                class="handle handle-left"
+                onMouseDown={handleLeftHandleMouseDown}
+                style={{
+                    position: 'absolute',
+                    left: '-2px',
+                    top: '25%',
+                    width: '4px',
+                    height: '50%',
+                    'border-radius': '1px',
+                    'background-color': 'var(--g-handle-color, #ddd)',
+                    cursor: 'ew-resize',
+                    opacity: 0,
+                    display: showHandles() && !isLocked() && showDateHandles() ? 'block' : 'none',
+                }}
+            />
 
-                    {/* Right resize handle */}
-                    <Show when={showDateHandles()}>
-                        <rect
-                            x={x() + width() - 2}
-                            y={y() + height() / 4}
-                            width={4}
-                            height={height() / 2}
-                            rx={1}
-                            class="handle handle-right"
-                            onMouseDown={handleRightHandleMouseDown}
-                            style={{
-                                fill: 'var(--g-handle-color, #ddd)',
-                                cursor: 'ew-resize',
-                                opacity: 0,
-                            }}
-                        />
-                    </Show>
+            {/* Right resize handle */}
+            <div
+                class="handle handle-right"
+                onMouseDown={handleRightHandleMouseDown}
+                style={{
+                    position: 'absolute',
+                    right: '-2px',
+                    top: '25%',
+                    width: '4px',
+                    height: '50%',
+                    'border-radius': '1px',
+                    'background-color': 'var(--g-handle-color, #ddd)',
+                    cursor: 'ew-resize',
+                    opacity: 0,
+                    display: showHandles() && !isLocked() && showDateHandles() ? 'block' : 'none',
+                }}
+            />
 
-                    {/* Progress handle (circle) */}
-                    <Show when={showProgressHandle() && progressWidth() > 0}>
-                        <circle
-                            cx={x() + progressWidth()}
-                            cy={y() + height() / 2}
-                            r={5}
-                            class="handle handle-progress"
-                            onMouseDown={handleProgressMouseDown}
-                            style={{
-                                fill: 'var(--g-progress-handle-color, #fff)',
-                                stroke: progressColor(),
-                                'stroke-width': 2,
-                                cursor: 'ew-resize',
-                                opacity: 0,
-                            }}
-                        />
-                    </Show>
-                </g>
-            </Show>
-        </g>
+            {/* Progress handle (circle) */}
+            <div
+                class="handle handle-progress"
+                onMouseDown={handleProgressMouseDown}
+                style={{
+                    position: 'absolute',
+                    left: `${progressWidth() - 5}px`,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    width: '10px',
+                    height: '10px',
+                    'border-radius': '50%',
+                    'background-color': 'var(--g-progress-handle-color, #fff)',
+                    border: `2px solid ${progressColor()}`,
+                    cursor: 'ew-resize',
+                    opacity: 0,
+                    'box-sizing': 'border-box',
+                    display: showHandles() && !isLocked() && showProgressHandle() && progressWidth() > 0 ? 'block' : 'none',
+                }}
+            />
+        </div>
     );
 }

@@ -10,7 +10,7 @@
     "devtools": "node scripts/devtools.mjs"
   },
   "dependencies": {
-    "chrome-devtools-mcp": "^0.12.1"
+    "ws": "^8.18.0"
   },
   "engines": {
     "node": ">=20"

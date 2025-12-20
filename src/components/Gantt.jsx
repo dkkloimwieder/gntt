@@ -1,4 +1,4 @@
-import { createSignal, createMemo, createEffect, onMount, untrack } from 'solid-js';
+import { createSignal, createMemo, createEffect, onMount, untrack, batch } from 'solid-js';
 import { createTaskStore } from '../stores/taskStore.js';
 import { createGanttConfigStore } from '../stores/ganttConfigStore.js';
 import { createGanttDateStore } from '../stores/ganttDateStore.js';
@@ -394,12 +394,23 @@ export function Gantt(props) {
         setViewportWidth(api.getContainerWidth());
         setViewportHeight(api.getContainerHeight());
 
-        // Subscribe to reactive signals from container
-        if (api.scrollLeftSignal) {
-            createEffect(() => setScrollLeft(api.scrollLeftSignal()));
-        }
-        if (api.scrollTopSignal) {
-            createEffect(() => setScrollTop(api.scrollTopSignal()));
+        // Subscribe to reactive signals from container - batch to avoid double cascade
+        if (api.scrollLeftSignal && api.scrollTopSignal) {
+            createEffect(() => {
+                const sl = api.scrollLeftSignal();
+                const st = api.scrollTopSignal();
+                batch(() => {
+                    setScrollLeft(sl);
+                    setScrollTop(st);
+                });
+            });
+        } else {
+            if (api.scrollLeftSignal) {
+                createEffect(() => setScrollLeft(api.scrollLeftSignal()));
+            }
+            if (api.scrollTopSignal) {
+                createEffect(() => setScrollTop(api.scrollTopSignal()));
+            }
         }
 
         // Fast scroll detection - set isScrolling while scroll events are firing
@@ -518,6 +529,25 @@ export function Gantt(props) {
                         endCol={viewport.colRange().end}
                     />
                 }
+                barsLayer={
+                    <TaskLayer
+                        taskStore={taskStore}
+                        ganttConfig={ganttConfig}
+                        relationships={relationships()}
+                        resourceStore={resourceStore}
+                        onDateChange={handleDateChange}
+                        onProgressChange={handleProgressChange}
+                        onResizeEnd={handleResizeEnd}
+                        onTaskClick={handleTaskClick}
+                        onHover={handleTaskHover}
+                        onHoverEnd={handleTaskHoverEnd}
+                        startRow={viewport.rowRange().start}
+                        endRow={viewport.rowRange().end}
+                        startX={viewport.xRange().start}
+                        endX={viewport.xRange().end}
+                        rowLayouts={rowLayouts()}
+                    />
+                }
             >
                 {/* Grid background, rows, and vertical lines (via SVG pattern) */}
                 <Grid
@@ -555,25 +585,6 @@ export function Gantt(props) {
                         endX={viewport.xRange().end}
                     />
                 )} */}
-
-                {/* Task bars */}
-                <TaskLayer
-                    taskStore={taskStore}
-                    ganttConfig={ganttConfig}
-                    relationships={relationships()}
-                    resourceStore={resourceStore}
-                    onDateChange={handleDateChange}
-                    onProgressChange={handleProgressChange}
-                    onResizeEnd={handleResizeEnd}
-                    onTaskClick={handleTaskClick}
-                    onHover={handleTaskHover}
-                    onHoverEnd={handleTaskHoverEnd}
-                    startRow={viewport.rowRange().start}
-                    endRow={viewport.rowRange().end}
-                    startX={viewport.xRange().start}
-                    endX={viewport.xRange().end}
-                    rowLayouts={rowLayouts()}
-                />
             </GanttContainer>
 
             {/* Hover popup */}

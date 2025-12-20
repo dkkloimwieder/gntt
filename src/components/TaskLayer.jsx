@@ -14,7 +14,7 @@ import { prof } from '../perf/profiler.js';
 // Pool sizing: We maintain a pool slightly larger than visible count.
 // This provides buffer for smooth scrolling while avoiding constant DOM creation.
 // Pool only grows (never shrinks) to prevent thrashing during scroll.
-const POOL_BUFFER = 50; // Extra slots beyond visible count
+const POOL_BUFFER = 5; // Reduced from 50 - with Index, we don't create DOM during scroll
 
 /**
  * TaskLayer - Container for all task bars.
@@ -183,21 +183,39 @@ export function TaskLayer(props) {
     const startX = () => props.startX ?? 0;
     const endX = () => props.endX ?? Infinity;
 
-    // Group tasks by resource for row-level rendering
-    const tasksByResource = createMemo(() => {
-        const grouped = new Map();
-        for (const task of tasks()) {
-            // Skip hidden tasks (in collapsed groups)
-            if (task._isHidden) continue;
+    // Group tasks by resource - CACHED to avoid O(10K) iteration on every scroll
+    // Only rebuilds when task count changes (add/remove tasks)
+    let cachedGrouping = null;
+    let cachedTaskCount = -1;
 
-            const resource = task.resource || 'Unassigned';
-            if (!grouped.has(resource)) {
-                grouped.set(resource, []);
-            }
-            grouped.get(resource).push(task);
+    const tasksByResource = () => {
+        const tasksObj = props.taskStore?.tasks;
+        if (!tasksObj) return new Map();
+
+        // Check if we need to rebuild (task count changed)
+        const taskKeys = untrack(() => Object.keys(tasksObj));
+        if (taskKeys.length === cachedTaskCount && cachedGrouping) {
+            return cachedGrouping;
         }
+
+        // Rebuild grouping
+        cachedTaskCount = taskKeys.length;
+        const grouped = new Map();
+        untrack(() => {
+            for (const taskId of taskKeys) {
+                const task = tasksObj[taskId];
+                if (!task || task._isHidden) continue;
+
+                const resource = task.resource || 'Unassigned';
+                if (!grouped.has(resource)) {
+                    grouped.set(resource, []);
+                }
+                grouped.get(resource).push(task);
+            }
+        });
+        cachedGrouping = grouped;
         return grouped;
-    });
+    };
 
     // FLAT VIRTUALIZATION with both row AND X filtering
     // Key insight: Keeping DOM size small (~300-500 tasks) is more important than
@@ -208,41 +226,42 @@ export function TaskLayer(props) {
     // This prevents <For> from recreating Bar components when the store updates during drag,
     // which would kill the document event listeners and break drag functionality.
     const visibleTaskIds = createMemo(() => {
-        const endProf = prof.start('TaskLayer.visibleTaskIds');
-
         const result = [];
         const resList = displayResources();
+        const grouped = tasksByResource();
         const startIdx = startRow();
         const endIdx = endRow();
-        const grouped = tasksByResource();
         const sx = startX();
         const ex = endX();
 
-        // Filter by row range
+        // Filter by row range (typically 20-50 rows with overscan)
         for (let i = startIdx; i < endIdx && i < resList.length; i++) {
             const item = resList[i];
-
-            // Skip group rows - they have no tasks directly assigned
             if (item.type === 'group') continue;
 
-            const resourceId = item.id;
-            const resourceTaskList = grouped.get(resourceId);
+            const resourceTaskList = grouped.get(item.id);
             if (!resourceTaskList) continue;
 
-            // Filter by X range with 200px buffer for partial visibility
-            for (const task of resourceTaskList) {
-                if (ex !== Infinity) {
-                    // Untrack $bar access to prevent cascade during drag
-                    // We still want this memo to update when tasks are added/removed
-                    const bar = untrack(() => task.$bar);
-                    if (bar && (bar.x + bar.width < sx - 200 || bar.x > ex + 200)) {
-                        continue; // Skip tasks outside X viewport
+            // Filter by X range - untrack to prevent O(n) subscriptions
+            // Tasks in resourceTaskList are store proxies - accessing $bar would create subscriptions
+            untrack(() => {
+                if (ex === Infinity) {
+                    // No X filtering - just collect IDs
+                    for (let j = 0; j < resourceTaskList.length; j++) {
+                        result.push(resourceTaskList[j].id);
+                    }
+                } else {
+                    // X filtering enabled
+                    for (let j = 0; j < resourceTaskList.length; j++) {
+                        const task = resourceTaskList[j];
+                        const bar = task.$bar;
+                        if (!bar || (bar.x + bar.width >= sx - 200 && bar.x <= ex + 200)) {
+                            result.push(task.id);
+                        }
                     }
                 }
-                result.push(task.id); // Push ID, not task object - keeps references stable
-            }
+            });
         }
-        endProf();
         return result;
     });
 
@@ -261,49 +280,60 @@ export function TaskLayer(props) {
     //
     // In simple mode: skip all expansion logic, render all tasks as regular or summary
     const splitTaskIds = createMemo(() => {
-        const regularIds = [];
-        const summaryIds = [];
-        const expandedIds = [];
-        // tasks is now a store object, not a Map
-        const tasksObj = props.taskStore?.tasks ?? {};
         const simpleMode = isSimpleMode();
+        const visibleIds = visibleTaskIds();
 
-        for (const taskId of visibleTaskIds()) {
-            const task = tasksObj[taskId];
-            if (!task) continue;
+        // Untrack task store access to avoid per-task subscriptions
+        return untrack(() => {
+            const regularIds = [];
+            const summaryIds = [];
+            const expandedIds = [];
+            const tasksObj = props.taskStore?.tasks ?? {};
 
-            // Simple mode: skip subtasks entirely, render only top-level tasks
-            if (simpleMode) {
-                // Skip subtasks in simple mode
-                if (task.parentId) continue;
+            // Cache isTaskExpanded results to avoid repeated calls
+            const expandedCache = new Map();
+            const checkExpanded = (id) => {
+                if (!expandedCache.has(id)) {
+                    expandedCache.set(id, isTaskExpanded(id));
+                }
+                return expandedCache.get(id);
+            };
 
-                if (task.type === 'summary' || task.type === 'project') {
+            for (const taskId of visibleIds) {
+                const task = tasksObj[taskId];
+                if (!task) continue;
+
+                const parentId = task.parentId;
+                const taskType = task.type;
+                const children = task._children;
+
+                // Simple mode: skip subtasks entirely, render only top-level tasks
+                if (simpleMode) {
+                    if (parentId) continue;
+
+                    if (taskType === 'summary' || taskType === 'project') {
+                        summaryIds.push(taskId);
+                    } else {
+                        regularIds.push(taskId);
+                    }
+                    continue;
+                }
+
+                // Detailed mode: full expansion logic
+                const hasSubtasks = children && children.length > 0;
+                const expanded = checkExpanded(taskId);
+
+                if (hasSubtasks && expanded) {
+                    expandedIds.push(taskId);
+                } else if (taskType === 'summary' || taskType === 'project') {
                     summaryIds.push(taskId);
-                } else {
+                } else if (!parentId || !checkExpanded(parentId)) {
                     regularIds.push(taskId);
                 }
-                continue;
             }
 
-            // Detailed mode: full expansion logic
-            const hasSubtasks = task._children && task._children.length > 0;
-            const expanded = isTaskExpanded(taskId);
-
-            if (hasSubtasks && expanded) {
-                // Expanded task with visible subtasks - use ExpandedTaskContainer
-                expandedIds.push(taskId);
-            } else if (task.type === 'summary' || task.type === 'project') {
-                // Project-level summary bar
-                summaryIds.push(taskId);
-            } else if (!task.parentId || !isTaskExpanded(task.parentId)) {
-                // Regular task (not a subtask of an expanded parent)
-                // Subtasks of expanded parents are rendered inside ExpandedTaskContainer
-                regularIds.push(taskId);
-            }
-            // else: subtask of expanded parent - skip, rendered by ExpandedTaskContainer
-        }
-
-        return { regularIds, summaryIds, expandedIds };
+            return { regularIds, summaryIds, expandedIds };
+        });
     });
 
     // Pool sizing: track max seen count to prevent shrinking
@@ -373,12 +403,12 @@ export function TaskLayer(props) {
     };
 
     return (
-        <g class="task-layer" style="contain: layout style;">
+        <div class="task-layer" style={{ contain: 'layout style', position: 'relative', width: '100%', height: '100%' }}>
             {/* Summary bars render BEHIND everything */}
-            <g class="summary-layer" style="contain: layout style;">
+            <div class="summary-layer" style={{ contain: 'layout style' }}>
                 <Index each={pooledSummaryIds()}>
                     {(taskId) => (
-                        <g style={{ display: taskId() ? 'block' : 'none' }}>
+                        <div style={{ display: taskId() ? 'block' : 'none' }}>
                             <SummaryBar
                                 taskId={taskId}
                                 taskStore={props.taskStore}
@@ -388,13 +418,13 @@ export function TaskLayer(props) {
                                 onToggleCollapse={handleToggleCollapse}
                                 onDragEnd={handleResizeEnd}
                             />
-                        </g>
+                        </div>
                     )}
                 </Index>
-            </g>
+            </div>
 
             {/* Expanded task containers (parent + subtasks) */}
-            <g class="expanded-layer" style="contain: layout style;">
+            <div class="expanded-layer" style={{ contain: 'layout style' }}>
                 <For each={splitTaskIds().expandedIds}>
                     {(taskId) => (
                         <ExpandedTaskContainer
@@ -405,13 +435,13 @@ export function TaskLayer(props) {
                         />
                     )}
                 </For>
-            </g>
+            </div>
 
             {/* Regular task bars render ON TOP */}
-            <g class="task-bars-layer" style="contain: layout style;">
+            <div class="task-bars-layer" style={{ contain: 'layout style' }}>
                 <Index each={pooledRegularIds()}>
                     {(taskId) => (
-                        <g style={{ display: taskId() ? 'block' : 'none' }}>
+                        <div style={{ display: taskId() ? 'block' : 'none', 'pointer-events': 'auto' }}>
                             <Bar
                                 taskId={taskId}
                                 taskStore={props.taskStore}
@@ -427,11 +457,11 @@ export function TaskLayer(props) {
                                 onHoverEnd={handleHoverEnd}
                                 onTaskClick={handleTaskClick}
                             />
-                        </g>
+                        </div>
                     )}
                 </Index>
-            </g>
-        </g>
+            </div>
+        </div>
     );
 }
 
