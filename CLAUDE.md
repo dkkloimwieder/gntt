@@ -175,3 +175,44 @@ node src/scripts/generateCalendar.js --tasks=10000 --resources=100 --dense  # St
 - 4-space indentation, single quotes
 - ESLint + Prettier configured
 - JSX for SolidJS components
+
+## Browser Automation (chrome-devtools-cli skill)
+
+For browser automation, screenshots, or performance profiling, use the chrome-devtools-cli skill.
+
+### Critical: Browser Persistence
+
+Each `devtools.mjs` command spawns a NEW Chrome instance. For multi-step workflows (navigate → click → capture), use ONE of these approaches:
+
+**Option A: workflow.mjs (preferred for multi-step)**
+```bash
+cat > /tmp/workflow.json << 'EOF'
+{
+  "url": "https://example.com",
+  "headless": true,
+  "steps": [
+    { "action": "snapshot" },
+    { "action": "click", "uid": "button-id" },
+    { "action": "perf-trace", "duration": 5000 }
+  ]
+}
+EOF
+node ~/.claude/skills/chrome-devtools-cli/scripts/workflow.mjs /tmp/workflow.json
+```
+
+**Option B: Persistent browser**
+```bash
+google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome &
+sleep 2
+node ~/.claude/skills/chrome-devtools-cli/scripts/devtools.mjs --browserUrl=http://127.0.0.1:9222 navigate https://example.com
+node ~/.claude/skills/chrome-devtools-cli/scripts/devtools.mjs --browserUrl=http://127.0.0.1:9222 click btn-id
+```
+
+### Quick Reference
+
+| Task | Command |
+|------|---------|
+| Screenshot | `node scripts/devtools.mjs --headless navigate URL && node scripts/devtools.mjs --headless screenshot --filePath=/tmp/shot.png` |
+| Get element IDs | `node scripts/devtools.mjs --headless snapshot` |
+| Deep profiling | `node scripts/profile.mjs capture --url URL --duration 5000` |
+| Multi-step | Use `workflow.mjs` with JSON |

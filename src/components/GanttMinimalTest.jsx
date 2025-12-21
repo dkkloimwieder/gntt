@@ -1,4 +1,4 @@
-import { createSignal, createMemo, onMount, Index } from 'solid-js';
+import { createSignal, createMemo, onMount, onCleanup, Index } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import calendarData from '../data/calendar.json';
 import { useGanttEvents, GanttEventsProvider } from '../contexts/GanttEvents.jsx';
@@ -7,6 +7,8 @@ import { GanttContainer } from './GanttContainer.jsx';
 import { Grid } from './Grid.jsx';
 import { DateHeaders } from './DateHeaders.jsx';
 import { ResourceColumn } from './ResourceColumn.jsx';
+import date_utils from '../utils/date_utils.js';
+import { computeX, computeWidth } from '../utils/barCalculations.js';
 // import { ArrowLayerBatched } from './ArrowLayerBatched.jsx'; // Removed - causes 21% perf regression
 
 /**
@@ -14,32 +16,40 @@ import { ResourceColumn } from './ResourceColumn.jsx';
  */
 
 // ═══════════════════════════════════════════════════════════════════════════
-// EXACTLY LIKE indexTest.jsx
+// HORIZONTAL + VERTICAL SCROLL TEST (100 columns)
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Layout constants
-const COLS = 4;
-const ROWS = 85;
-const SLOT_WIDTH = 180;
+// Layout constants - 100 columns for horizontal scroll testing
+const TOTAL_COLS = 100;          // Total columns in grid
+const TOTAL_ROWS = Math.ceil(calendarData.tasks.length / TOTAL_COLS);
+const SLOT_WIDTH = 120;
 const SLOT_HEIGHT = 28;
 const GAP = 4;
-const VISIBLE_COUNT = COLS * ROWS; // 340 visible slots
 const HEADER_HEIGHT = 50;
+const OVERSCAN = 2;              // Extra rows/cols for smooth scrolling
 
-// Mock dateInfos for DateHeaders (one per column)
+// Total dimensions
+const TOTAL_WIDTH = TOTAL_COLS * (SLOT_WIDTH + GAP);
+const TOTAL_HEIGHT = TOTAL_ROWS * (SLOT_HEIGHT + GAP);
+
+console.log(`Grid: ${TOTAL_COLS}x${TOTAL_ROWS} = ${calendarData.tasks.length} tasks`);
+console.log(`Total size: ${TOTAL_WIDTH}px x ${TOTAL_HEIGHT}px`);
+console.log(`Visible: calculated from viewport size + ${OVERSCAN} overscan`);
+
+// Mock dateInfos for DateHeaders (all columns for scrolling)
 const mockDateInfos = [];
-for (let i = 0; i < COLS; i++) {
+for (let i = 0; i < TOTAL_COLS; i++) {
     mockDateInfos.push({
         x: i * (SLOT_WIDTH + GAP),
         width: SLOT_WIDTH + GAP,
-        upperText: i === 0 ? 'Week 1' : '',  // Only show on first column
+        upperText: i % 10 === 0 ? `Week ${Math.floor(i/10) + 1}` : '',
         lowerText: `Col ${i + 1}`,
-        isThickLine: i === 0,
+        isThickLine: i % 10 === 0,
     });
 }
 
 // Mock resources (one per row)
-const ROW_COUNT = Math.ceil(calendarData.tasks.length / COLS);
+const ROW_COUNT = TOTAL_ROWS;
 const mockResources = [];
 for (let i = 0; i < ROW_COUNT; i++) {
     mockResources.push({
@@ -61,32 +71,49 @@ const mockGanttConfig = {
     padding: () => GAP,
 };
 
-// Fixed slot positions for rendering (indexTest pattern)
-const slotPositions = [];
-for (let row = 0; row < ROWS; row++) {
-    for (let col = 0; col < COLS; col++) {
-        slotPositions.push({
-            x: col * (SLOT_WIDTH + GAP),
-            y: row * (SLOT_HEIGHT + GAP),
-        });
-    }
+// Slot position helper - computes screen position from slot index
+// slotIndex = row * visibleCols + col (within visible window)
+function getSlotPosition(slotIndex, visibleCols) {
+    const row = Math.floor(slotIndex / visibleCols);
+    const col = slotIndex % visibleCols;
+    return {
+        x: col * (SLOT_WIDTH + GAP),
+        y: row * (SLOT_HEIGHT + GAP),
+    };
 }
 
-// Pre-process tasks with $bar positions
+// Step 15: Date-based position calculation
+const UNIT = 'hour';
+const STEP = 1;
+const COLUMN_WIDTH = 30; // 30px per hour
+
+// Parse all dates and find ganttStart (earliest date)
+const parsedTasks = calendarData.tasks.map(task => ({
+    ...task,
+    _start: date_utils.parse(task.start),
+    _end: date_utils.parse(task.end),
+}));
+const ganttStart = new Date(Math.min(...parsedTasks.map(t => t._start.getTime())));
+
+// Pre-process tasks with $bar positions from dates
 const initialTasks = (() => {
     const result = {};
-    calendarData.tasks.forEach((task, i) => {
-        const row = Math.floor(i / COLS);
-        const col = i % COLS;
+    parsedTasks.forEach((task, i) => {
+        const row = Math.floor(i / TOTAL_COLS);
+        const col = i % TOTAL_COLS;
+
+        // Compute x and width from dates
+        const x = computeX(task._start, ganttStart, UNIT, STEP, COLUMN_WIDTH);
+        const width = computeWidth(task._start, task._end, UNIT, STEP, COLUMN_WIDTH);
 
         result[task.id] = {
             ...task,
             locked: i % 7 === 0,
             progress: task.progress || 0,
             $bar: {
-                x: col * (SLOT_WIDTH + GAP),
+                x: Math.max(0, x), // Ensure non-negative
                 y: row * (SLOT_HEIGHT + GAP),
-                width: SLOT_WIDTH,
+                width: Math.max(width, 20), // Minimum 20px width
                 height: SLOT_HEIGHT,
             },
         };
@@ -94,13 +121,17 @@ const initialTasks = (() => {
     return result;
 })();
 
-// Bar component - Step 1: Read $bar properties (but use slot position for rendering)
+// Calculate total timeline width
+const maxX = Math.max(...Object.values(initialTasks).map(t => t.$bar.x + t.$bar.width));
+const TIMELINE_WIDTH = Math.ceil(maxX / 100) * 100; // Round up to nearest 100
+console.log('Timeline width:', TIMELINE_WIDTH, 'px');
+
+// Bar component - renders at screen position based on slot index
 function TestBar(props) {
-    // Step 7: Context access
     const events = useGanttEvents();
     const getTask = () => typeof props.task === 'function' ? props.task() : props.task;
-    // Slot position for rendering (fixed DOM positions like indexTest)
-    const pos = () => slotPositions[props.slotIndex] ?? { x: 0, y: 0 };
+    // Slot position for rendering (computed from slotIndex and visibleCols)
+    const pos = () => getSlotPosition(props.slotIndex, props.visibleCols);
 
     // Step 2: Read task properties
     const t = createMemo(() => {
@@ -189,26 +220,58 @@ function TestBar(props) {
 }
 
 export function GanttMinimalTest() {
-    // EXACTLY like indexTest
     const [tasks] = createStore(initialTasks);
     const allTaskIds = Object.keys(tasks);
 
-    // Current visible window offset (EXACTLY like indexTest)
-    const [offset, setOffset] = createSignal(0);
-    // Sub-row scroll offset for smooth scrolling (fraction within a row)
+    // Viewport size (updated on mount and resize)
+    const [viewportWidth, setViewportWidth] = createSignal(1200);
+    const [viewportHeight, setViewportHeight] = createSignal(800);
+
+    // Calculate visible cols/rows from viewport size + overscan
+    const visibleCols = createMemo(() =>
+        Math.ceil(viewportWidth() / (SLOT_WIDTH + GAP)) + OVERSCAN
+    );
+    const visibleRows = createMemo(() =>
+        Math.ceil(viewportHeight() / (SLOT_HEIGHT + GAP)) + OVERSCAN
+    );
+
+    // 2D scroll offsets
+    const [rowOffset, setRowOffset] = createSignal(0);
+    const [colOffset, setColOffset] = createSignal(0);
+    // Sub-offsets for smooth scrolling
     const [subRowOffset, setSubRowOffset] = createSignal(0);
+    const [subColOffset, setSubColOffset] = createSignal(0);
+
     // Visible row range for ResourceColumn virtualization
     const visibleRowRange = createMemo(() => {
-        const startRow = Math.floor(offset() / COLS);
-        const endRow = startRow + ROWS + 1; // +1 for partial row
-        return { start: startRow, end: Math.min(endRow, ROW_COUNT) };
+        const startRow = rowOffset();
+        const endRow = startRow + visibleRows() + 1;
+        return { start: startRow, end: Math.min(endRow, TOTAL_ROWS) };
     });
 
-    // Visible tasks (EXACTLY like indexTest)
+    // Visible column range
+    const visibleColRange = createMemo(() => {
+        const startCol = colOffset();
+        const endCol = startCol + visibleCols() + 1;
+        return { start: startCol, end: Math.min(endCol, TOTAL_COLS) };
+    });
+
+    // Visible tasks (2D window based on viewport)
     const visibleTasks = createMemo(() => {
-        const start = offset();
-        const end = Math.min(start + VISIBLE_COUNT, allTaskIds.length);
-        return allTaskIds.slice(start, end).map(id => tasks[id]);
+        const sr = rowOffset();
+        const sc = colOffset();
+        const vRows = visibleRows();
+        const vCols = visibleCols();
+        const result = [];
+        for (let r = 0; r < vRows && sr + r < TOTAL_ROWS; r++) {
+            for (let c = 0; c < vCols && sc + c < TOTAL_COLS; c++) {
+                const taskIndex = (sr + r) * TOTAL_COLS + (sc + c);
+                if (taskIndex < allTaskIds.length) {
+                    result.push(tasks[allTaskIds[taskIndex]]);
+                }
+            }
+        }
+        return result;
     });
 
     // FPS tracking
@@ -223,54 +286,95 @@ export function GanttMinimalTest() {
     let scrollRef;
     let containerRef;
 
-    // Stress test
+    // Stress test modes: 'vertical' | 'horizontal' | 'both'
+    const [testMode, setTestMode] = createSignal(null);
     let stressAbort = null;
-    const runStressTest = () => {
+
+    const runStressTest = (mode) => {
         if (running()) {
             if (stressAbort) stressAbort.abort = true;
             setRunning(false);
+            setTestMode(null);
             return;
         }
 
         setRunning(true);
+        setTestMode(mode);
         frameTimes = [];
         const controller = { abort: false };
         stressAbort = controller;
 
-        let direction = 1;
+        let vDirection = 1;
+        let hDirection = 1;
         const duration = 10000;
         const startTime = performance.now();
 
         const tick = () => {
             if (controller.abort || performance.now() - startTime > duration) {
                 setRunning(false);
-                console.log('Test complete:', { fps: fps(), worst: worstFrame(), avg: avgFrame() });
+                setTestMode(null);
+                console.log(`${mode} test complete:`, { fps: fps(), worst: worstFrame(), avg: avgFrame() });
                 return;
             }
 
-            // Find scroll area inside GanttContainer
             const scrollArea = containerRef?.querySelector('.gantt-scroll-area') || scrollRef;
             if (scrollArea) {
-                const maxScroll = scrollArea.scrollHeight - scrollArea.clientHeight;
-                let currentScroll = scrollArea.scrollTop;
-                currentScroll += direction * 100; // Fast scroll like perf demo
-
-                if (currentScroll >= maxScroll) {
-                    direction = -1;
-                    currentScroll = maxScroll;
-                } else if (currentScroll <= 0) {
-                    direction = 1;
-                    currentScroll = 0;
+                // Vertical scroll
+                if (mode === 'vertical' || mode === 'both') {
+                    const maxScrollV = scrollArea.scrollHeight - scrollArea.clientHeight;
+                    let currentScrollV = scrollArea.scrollTop;
+                    currentScrollV += vDirection * 100;
+                    if (currentScrollV >= maxScrollV) { vDirection = -1; currentScrollV = maxScrollV; }
+                    else if (currentScrollV <= 0) { vDirection = 1; currentScrollV = 0; }
+                    scrollArea.scrollTop = currentScrollV;
                 }
-                scrollArea.scrollTop = currentScroll;
+
+                // Horizontal scroll
+                if (mode === 'horizontal' || mode === 'both') {
+                    const maxScrollH = scrollArea.scrollWidth - scrollArea.clientWidth;
+                    let currentScrollH = scrollArea.scrollLeft;
+                    currentScrollH += hDirection * 150;
+                    if (currentScrollH >= maxScrollH) { hDirection = -1; currentScrollH = maxScrollH; }
+                    else if (currentScrollH <= 0) { hDirection = 1; currentScrollH = 0; }
+                    scrollArea.scrollLeft = currentScrollH;
+                }
             }
             requestAnimationFrame(tick);
         };
         requestAnimationFrame(tick);
     };
 
-    // FPS counter
+    const stopTest = () => {
+        if (stressAbort) stressAbort.abort = true;
+        setRunning(false);
+        setTestMode(null);
+    };
+
+    // FPS counter + viewport tracking
     onMount(() => {
+        // Track viewport size
+        const updateViewport = () => {
+            if (containerRef) {
+                const scrollArea = containerRef.querySelector('.gantt-scroll-area');
+                if (scrollArea) {
+                    setViewportWidth(scrollArea.clientWidth);
+                    setViewportHeight(scrollArea.clientHeight);
+                }
+            }
+        };
+
+        // Initial size
+        setTimeout(updateViewport, 100);
+
+        // Resize observer
+        const resizeObserver = new ResizeObserver(updateViewport);
+        if (containerRef) {
+            resizeObserver.observe(containerRef);
+        }
+
+        onCleanup(() => resizeObserver.disconnect());
+
+        // FPS measurement
         const measureFrame = (timestamp) => {
             frameCount++;
             const frameTime = timestamp - lastFrameTime;
@@ -295,38 +399,69 @@ export function GanttMinimalTest() {
         requestAnimationFrame(measureFrame);
     });
 
-    const totalHeight = Math.ceil(allTaskIds.length / COLS) * (SLOT_HEIGHT + GAP);
     const fpsColor = () => fps() >= 55 ? '#10b981' : fps() >= 30 ? '#f59e0b' : '#ef4444';
 
     return (
         <GanttEventsProvider>
         <div style={{ height: '100vh', display: 'flex', 'flex-direction': 'column', padding: '10px', 'font-family': 'system-ui', background: '#1a1a1a', color: '#fff' }}>
-            <div style={{ 'margin-bottom': '10px', display: 'flex', gap: '20px', 'align-items': 'center' }}>
-                <h2 style={{ margin: 0 }}>DOM Optimization Test</h2>
-                <div style={{ display: 'flex', gap: '15px', padding: '8px 12px', background: '#1f2937', color: '#fff', 'border-radius': '6px', 'font-size': '13px', 'font-family': 'monospace' }}>
+            <div style={{ 'margin-bottom': '10px', display: 'flex', gap: '20px', 'align-items': 'center', 'flex-wrap': 'wrap' }}>
+                <h2 style={{ margin: 0 }}>2D Scroll Test ({TOTAL_COLS}x{TOTAL_ROWS})</h2>
+                <div style={{ display: 'flex', gap: '12px', padding: '8px 12px', background: '#1f2937', color: '#fff', 'border-radius': '6px', 'font-size': '12px', 'font-family': 'monospace' }}>
                     <span>Tasks: <b style={{ color: '#10b981' }}>{allTaskIds.length}</b></span>
                     <span>Visible: <b style={{ color: '#10b981' }}>{visibleTasks().length}</b></span>
-                    <span>Offset: <b>{offset()}</b></span>
+                    <span>Row: <b>{rowOffset()}</b></span>
+                    <span>Col: <b>{colOffset()}</b></span>
                     <span>FPS: <b style={{ color: fpsColor() }}>{fps()}</b></span>
                     <span>Worst: <b>{worstFrame()}ms</b></span>
                     <span>Avg: <b>{avgFrame()}ms</b></span>
                 </div>
-                <button
-                    onClick={runStressTest}
-                    style={{
-                        padding: '8px 16px',
-                        background: running() ? '#ef4444' : '#8b5cf6',
-                        color: '#fff',
-                        border: 'none',
-                        'border-radius': '4px',
-                        cursor: 'pointer'
-                    }}
-                >
-                    {running() ? 'Stop' : 'Scroll Test'}
-                </button>
+                {running() ? (
+                    <button
+                        onClick={stopTest}
+                        style={{
+                            padding: '8px 16px',
+                            background: '#ef4444',
+                            color: '#fff',
+                            border: 'none',
+                            'border-radius': '4px',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        Stop ({testMode()})
+                    </button>
+                ) : (
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                            onClick={() => runStressTest('vertical')}
+                            style={{
+                                padding: '8px 12px',
+                                background: '#8b5cf6',
+                                color: '#fff',
+                                border: 'none',
+                                'border-radius': '4px',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            ↕ Vertical
+                        </button>
+                        <button
+                            onClick={() => runStressTest('horizontal')}
+                            style={{
+                                padding: '8px 12px',
+                                background: '#3b82f6',
+                                color: '#fff',
+                                border: 'none',
+                                'border-radius': '4px',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            ↔ Horizontal
+                        </button>
+                    </div>
+                )}
             </div>
 
-            {/* Step 10: GanttContainer */}
+            {/* GanttContainer with 2D scrolling */}
             <div ref={containerRef} style={{
                 flex: 1,
                 border: '1px solid #333',
@@ -343,24 +478,30 @@ export function GanttMinimalTest() {
                 '--g-grid-bg-color': '#1a1a1a',
             }}>
                 <GanttContainer
-                    svgWidth={COLS * (SLOT_WIDTH + GAP)}
-                    svgHeight={totalHeight}
+                    svgWidth={TOTAL_WIDTH}
+                    svgHeight={TOTAL_HEIGHT}
                     resourceColumnWidth={60}
                     headerHeight={HEADER_HEIGHT}
                     onScroll={(sl, st) => {
                         const rowHeight = SLOT_HEIGHT + GAP;
+                        const colWidth = SLOT_WIDTH + GAP;
+                        const vRows = visibleRows();
+                        const vCols = visibleCols();
+                        // Row offset
                         const rowIndex = st / rowHeight;
-                        const newOffset = Math.floor(rowIndex) * COLS;
-                        setOffset(Math.max(0, Math.min(newOffset, allTaskIds.length - VISIBLE_COUNT)));
-                        // Sub-row offset for smooth scrolling (0 to rowHeight)
+                        setRowOffset(Math.max(0, Math.min(Math.floor(rowIndex), TOTAL_ROWS - vRows)));
                         setSubRowOffset((rowIndex % 1) * rowHeight);
+                        // Column offset
+                        const colIndex = sl / colWidth;
+                        setColOffset(Math.max(0, Math.min(Math.floor(colIndex), TOTAL_COLS - vCols)));
+                        setSubColOffset((colIndex % 1) * colWidth);
                     }}
                     onContainerReady={(api) => { scrollRef = api; }}
                     header={
                         <DateHeaders
                             dateInfos={mockDateInfos}
                             columnWidth={SLOT_WIDTH + GAP}
-                            gridWidth={COLS * (SLOT_WIDTH + GAP)}
+                            gridWidth={TOTAL_WIDTH}
                             upperHeaderHeight={25}
                             lowerHeaderHeight={25}
                         />
@@ -378,23 +519,24 @@ export function GanttMinimalTest() {
                         <div style={{
                             position: 'sticky',
                             top: 0,
-                            width: `${COLS * (SLOT_WIDTH + GAP)}px`,
-                            height: `${ROWS * (SLOT_HEIGHT + GAP)}px`,
+                            left: 0,
+                            width: `${visibleCols() * (SLOT_WIDTH + GAP)}px`,
+                            height: `${visibleRows() * (SLOT_HEIGHT + GAP)}px`,
                             'pointer-events': 'auto',
-                            transform: `translateY(${-subRowOffset()}px)`,
+                            transform: `translate(${-subColOffset()}px, ${-subRowOffset()}px)`,
                         }}>
                             <Index each={visibleTasks()}>
                                 {(task, slotIndex) => (
-                                    <TestBar task={task} slotIndex={slotIndex} />
+                                    <TestBar task={task} slotIndex={slotIndex} visibleCols={visibleCols()} />
                                 )}
                             </Index>
                         </div>
                     }
                 >
-                    {/* Step 11: Grid SVG background - vertical lines only, no row rects */}
+                    {/* Grid SVG background - vertical lines for 100 columns */}
                     <Grid
-                        width={COLS * (SLOT_WIDTH + GAP)}
-                        height={totalHeight}
+                        width={TOTAL_WIDTH}
+                        height={TOTAL_HEIGHT}
                         barHeight={SLOT_HEIGHT}
                         padding={GAP}
                         taskCount={0}

@@ -22,6 +22,30 @@ export const GROUP_COLORS = [
     '#e11d48',
 ];
 
+/**
+ * Convert hex color to rgba string.
+ * Pre-computed at generation time to avoid runtime conversion.
+ */
+function hexToRgba(hex, alpha) {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r},${g},${b},${alpha})`;
+}
+
+/**
+ * Pre-compute all rgba variants for a hex color.
+ * Returns object with all color values needed for rendering.
+ */
+function computeColorVariants(hex) {
+    return {
+        color: hex,
+        color_progress: hex + 'cc',
+        color_bg: hexToRgba(hex, 0.15),      // Background fill
+        color_fill: hexToRgba(hex, 0.3),     // Progress fill
+    };
+}
+
 // Default configuration for calendar generation
 export const DEFAULT_CONFIG = {
     totalTasks: 200,
@@ -217,9 +241,8 @@ export function generateCalendar(config = {}) {
         // Shuffle resources for this group - each task gets a different resource
         const shuffledResources = shuffleArray(random, allResources);
 
-        // Pick a color for this dependency chain (group)
-        const color = GROUP_COLORS[groupIndex % GROUP_COLORS.length];
-        const progressColor = color + 'cc';
+        // Pick a color for this dependency chain (group) - pre-compute all variants
+        const colors = computeColorVariants(GROUP_COLORS[groupIndex % GROUP_COLORS.length]);
 
         groupIndex++;
 
@@ -288,8 +311,7 @@ export function generateCalendar(config = {}) {
                 start: formatDateTime(start),
                 end: formatDateTime(end),
                 progress: Math.floor(random() * 101),
-                color: color,
-                color_progress: progressColor,
+                ...colors,
                 dependencies: dependency,
                 resource: resource,
             });
@@ -335,8 +357,7 @@ function generateDenseCalendar(cfg, random) {
     // Generate tasks for each resource
     for (let resourceIndex = 0; resourceIndex < allResources.length && taskNum <= cfg.totalTasks; resourceIndex++) {
         const resource = allResources[resourceIndex];
-        const color = GROUP_COLORS[resourceIndex % GROUP_COLORS.length];
-        const progressColor = color + 'cc';
+        const colors = computeColorVariants(GROUP_COLORS[resourceIndex % GROUP_COLORS.length]);
 
         let currentTime = cloneDate(baseStart);
         let prevTaskId = null;
@@ -366,8 +387,7 @@ function generateDenseCalendar(cfg, random) {
                 start: formatDateTime(start),
                 end: formatDateTime(end),
                 progress: Math.floor(random() * 101),
-                color: color,
-                color_progress: progressColor,
+                ...colors,
                 dependencies: dependency,
                 resource: resource,
             });
@@ -455,8 +475,7 @@ function generateRealisticCalendar(cfg, random) {
         resIdx++
     ) {
         const resource = allResources[resIdx];
-        const color = GROUP_COLORS[resIdx % GROUP_COLORS.length];
-        const progressColor = color + 'cc';
+        const colors = computeColorVariants(GROUP_COLORS[resIdx % GROUP_COLORS.length]);
         let prevTaskId = null;
 
         for (let i = 0; i < tasksPerResource && taskNum <= cfg.totalTasks; i++) {
@@ -494,8 +513,7 @@ function generateRealisticCalendar(cfg, random) {
                 start: formatDateTime(start),
                 end: formatDateTime(end),
                 progress: Math.floor(random() * 101),
-                color,
-                color_progress: progressColor,
+                ...colors,
                 dependencies: dependency,
                 resource,
             });
