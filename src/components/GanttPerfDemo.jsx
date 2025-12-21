@@ -46,6 +46,8 @@ export function GanttPerfDemo() {
     const [arrowRenderer, setArrowRenderer] = createSignal('batched');
     // Render mode: 'simple' (flat tasks, static heights) or 'detailed' (hierarchy, subtasks)
     const [renderMode, setRenderMode] = createSignal('simple');
+    // Task layer mode: 'full' (TaskLayer with all features) or 'minimal' (TaskLayerMinimal matching V7j)
+    const [taskLayerMode, setTaskLayerMode] = createSignal('full');
     let frameTracker = null;
 
     // Frame timing tracking
@@ -114,7 +116,7 @@ export function GanttPerfDemo() {
         const controller = { abort: false };
         stressTestAbort = controller;
 
-        const duration = 5000;
+        const duration = 30000; // 30 seconds for better trace capture
         const startTime = performance.now();
         let direction = 1;
         let scrollPos = scrollArea.scrollLeft;
@@ -132,10 +134,11 @@ export function GanttPerfDemo() {
             else if (scrollPos < 500) direction = 1;
             scrollArea.scrollLeft = scrollPos;
 
-            setTimeout(fireScrollEvent, 4);
+            // Use RAF for vsync-aligned updates (eliminates tearing)
+            requestAnimationFrame(fireScrollEvent);
         };
 
-        fireScrollEvent();
+        requestAnimationFrame(fireScrollEvent);
     };
 
     // Vertical scroll stress test
@@ -157,7 +160,7 @@ export function GanttPerfDemo() {
         const controller = { abort: false };
         verticalStressTestAbort = controller;
 
-        const duration = 5000;
+        const duration = 30000; // 30 seconds for better trace capture
         const startTime = performance.now();
         let direction = 1;
         let scrollPos = scrollArea.scrollTop;
@@ -175,10 +178,11 @@ export function GanttPerfDemo() {
             else if (scrollPos < 200) direction = 1;
             scrollArea.scrollTop = scrollPos;
 
-            setTimeout(fireScrollEvent, 4);
+            // Use RAF for vsync-aligned updates (eliminates tearing)
+            requestAnimationFrame(fireScrollEvent);
         };
 
-        fireScrollEvent();
+        requestAnimationFrame(fireScrollEvent);
     };
 
     // Advanced benchmark: Start collecting detailed metrics
@@ -238,7 +242,7 @@ export function GanttPerfDemo() {
         }
     };
 
-    // Track scroll events
+    // Track scroll events and log perf stats
     onMount(() => {
         const scrollArea = document.querySelector('.gantt-scroll-area');
         if (scrollArea) {
@@ -246,6 +250,25 @@ export function GanttPerfDemo() {
             scrollArea.addEventListener('scroll', trackScroll, { passive: true });
             onCleanup(() => scrollArea.removeEventListener('scroll', trackScroll));
         }
+
+        // Perf stats logger - logs every 2 seconds during stress test
+        let lastLogTime = 0;
+        const logInterval = setInterval(() => {
+            if (stressTestRunning() || verticalStressTestRunning()) {
+                const now = performance.now();
+                if (now - lastLogTime > 2000) {
+                    lastLogTime = now;
+                    console.log('[PERF]', {
+                        fps: fps(),
+                        avgFrame: avgFrameTime() + 'ms',
+                        worstFrame: worstFrameTime() + 'ms',
+                        scrollEvents: scrollEventsPerSec() + '/sec',
+                        heap: heapSize() + 'MB',
+                    });
+                }
+            }
+        }, 500);
+        onCleanup(() => clearInterval(logInterval));
     });
 
     // Gantt options
@@ -451,6 +474,17 @@ export function GanttPerfDemo() {
                             <option value="detailed">Detailed</option>
                         </select>
                     </label>
+                    <label style={{ 'font-size': '13px' }}>
+                        TaskLayer:
+                        <select
+                            value={taskLayerMode()}
+                            onChange={(e) => setTaskLayerMode(e.target.value)}
+                            style={{ ...styles.select, width: '100px', 'margin-left': '5px' }}
+                        >
+                            <option value="full">Full</option>
+                            <option value="minimal">Minimal (V7j)</option>
+                        </select>
+                    </label>
                 </div>
 
                 <div style={{ display: 'flex', gap: '15px', 'align-items': 'center', 'font-size': '12px', color: '#6b7280' }}>
@@ -484,6 +518,7 @@ export function GanttPerfDemo() {
                     overscanX={overscanX()}
                     overscanCols={overscanCols()}
                     arrowRenderer={arrowRenderer()}
+                    taskLayerMode={taskLayerMode()}
                     onDateChange={(id, pos) => console.log('Date changed:', id, pos)}
                     onProgressChange={(id, prog) => console.log('Progress changed:', id, prog)}
                     onTaskClick={(id) => console.log('Task clicked:', id)}

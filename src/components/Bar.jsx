@@ -1,4 +1,4 @@
-import { createMemo, onCleanup, untrack } from 'solid-js';
+import { createMemo, onCleanup, untrack, createEffect } from 'solid-js';
 import {
     computeProgressWidth,
     computeExpectedProgress,
@@ -25,24 +25,20 @@ export function Bar(props) {
     // Get event handlers from context (fallback to props for backwards compatibility)
     const events = useGanttEvents();
 
-    // Get task ID - prefer explicit taskId prop, fallback to task.id
-    // taskId prop can be a value OR an accessor function (for <Index> pooling)
-    const taskId = () => {
-        const id = props.taskId;
-        return typeof id === 'function' ? id() : id ?? props.task?.id;
+    // Get task - props.task can be a value OR an accessor function (for <Index> pooling)
+    // Returns the store proxy for reactive position updates during drag
+    const getTask = () => {
+        const t = props.task;
+        return typeof t === 'function' ? t() : t;
     };
 
-    // Get position directly from taskStore - plain function for virtualized components
+    // Get task ID from the task object
+    const taskId = () => getTask()?.id ?? '';
+
+    // Get position directly from task's $bar - keeps reactivity for drag updates
     const getPosition = () => {
-        const id = taskId();
-        if (props.taskStore && id) {
-            const task = props.taskStore.tasks[id];
-            if (task?.$bar) {
-                return task.$bar;
-            }
-        }
-        // Fallback to direct props
-        return {
+        const task = getTask();
+        return task?.$bar ?? {
             x: props.x ?? 0,
             y: props.y ?? 0,
             width: props.width ?? 100,
@@ -59,14 +55,38 @@ export function Bar(props) {
     const columnWidth = createMemo(() => props.ganttConfig?.columnWidth?.() ?? props.columnWidth ?? 45);
     const ignoredPositions = createMemo(() => props.ganttConfig?.ignoredPositions?.() ?? props.ignoredPositions ?? []);
 
-    // Task data - read fresh from store if available
-    const task = () => {
-        const id = taskId();
-        if (props.taskStore && id) {
-            return props.taskStore.tasks[id] ?? props.task ?? {};
-        }
-        return props.task ?? {};
-    };
+    // OPTIMIZATION: Single memo batching all task property reads
+    // This reduces reactive overhead from 34 separate task() accesses to 1 memo evaluation
+    // Position ($bar) is NOT included here - it's read directly in getPosition() for drag reactivity
+    const t = createMemo(() => {
+        const task = getTask();
+        if (!task) return {
+            id: '',
+            name: '',
+            color: '#b8c2cc',
+            colorProgress: '#a3a3ff',
+            progress: 0,
+            locked: false,
+            invalid: false,
+            customClass: '',
+            hasChildren: false,
+            start: null,
+            end: null,
+        };
+        return {
+            id: task.id ?? '',
+            name: task.name ?? '',
+            color: task.color ?? '#b8c2cc',
+            colorProgress: task.color_progress ?? '#a3a3ff',
+            progress: task.progress ?? 0,
+            locked: task.constraints?.locked ?? false,
+            invalid: task.invalid ?? false,
+            customClass: task.custom_class ?? '',
+            hasChildren: (task._children?.length ?? 0) > 0,
+            start: task._start ?? task.start ?? null,
+            end: task._end ?? task.end ?? null,
+        };
+    });
 
     // OPTIMIZATION: Single memoized position read instead of 4 separate store reads
     const position = createMemo(() => getPosition());
@@ -98,10 +118,10 @@ export function Bar(props) {
             data.originalX = x();
             data.originalY = y();
             data.originalWidth = width();
-            data.originalProgress = task().progress ?? 0;
+            data.originalProgress = t().progress;
 
             // Signal that a drag is in progress (defers expensive recalculations)
-            props.taskStore?.setDraggingTaskId?.(task().id);
+            props.taskStore?.setDraggingTaskId?.(t().id);
 
             // For bar dragging: collect dependent tasks AND descendants ONCE at drag start
             // This enables batch updates during drag for better performance
@@ -111,7 +131,7 @@ export function Bar(props) {
 
                 // Add dependency chain (tasks that depend on this one)
                 if (props.onCollectDependents) {
-                    const dependentIds = props.onCollectDependents(task().id);
+                    const dependentIds = props.onCollectDependents(t().id);
                     for (const id of dependentIds) {
                         tasksToMove.add(id);
                     }
@@ -119,7 +139,7 @@ export function Bar(props) {
 
                 // Add descendants (child tasks for summary bars)
                 if (props.onCollectDescendants) {
-                    const descendantIds = props.onCollectDescendants(task().id);
+                    const descendantIds = props.onCollectDescendants(t().id);
                     for (const id of descendantIds) {
                         tasksToMove.add(id);
                     }
@@ -137,7 +157,7 @@ export function Bar(props) {
         },
 
         onDragMove: (move, data, state) => {
-            if (!props.taskStore || !task().id) {
+            if (!props.taskStore || !t().id) {
                 return;
             }
 
@@ -181,14 +201,14 @@ export function Bar(props) {
                     // Fallback: apply constraints and update single task
                     if (props.onConstrainPosition) {
                         const constrained = props.onConstrainPosition(
-                            task().id,
+                            t().id,
                             newX,
                             y(),
                         );
                         if (constrained === null) return; // Movement blocked
                         newX = constrained.x ?? newX;
                     }
-                    props.taskStore.updateBarPosition(task().id, { x: newX });
+                    props.taskStore.updateBarPosition(t().id, { x: newX });
                 }
             } else if (state === 'dragging_left') {
                 // Left handle - resize from start
@@ -210,7 +230,7 @@ export function Bar(props) {
                 // Apply constraints if provided - prevent moving start before predecessor's end
                 if (props.onConstrainPosition) {
                     const constrained = props.onConstrainPosition(
-                        task().id,
+                        t().id,
                         newX,
                         y(),
                     );
@@ -222,7 +242,7 @@ export function Bar(props) {
                     }
                 }
 
-                props.taskStore.updateBarPosition(task().id, {
+                props.taskStore.updateBarPosition(t().id, {
                     x: newX,
                     width: newWidth,
                 });
@@ -236,7 +256,7 @@ export function Bar(props) {
                 // Enforce minimum width
                 newWidth = Math.max(minWidth(), newWidth);
 
-                props.taskStore.updateBarPosition(task().id, {
+                props.taskStore.updateBarPosition(t().id, {
                     width: newWidth,
                 });
             } else if (state === 'dragging_progress') {
@@ -279,9 +299,9 @@ export function Bar(props) {
 
                 // Update task progress
                 if (props.taskStore) {
-                    const currentTask = props.taskStore.getTask(task().id);
+                    const currentTask = props.taskStore.getTask(t().id);
                     if (currentTask) {
-                        props.taskStore.updateTask(task().id, {
+                        props.taskStore.updateTask(t().id, {
                             ...currentTask,
                             progress: newProgress,
                         });
@@ -305,18 +325,18 @@ export function Bar(props) {
                 state === 'dragging_left' ||
                 state === 'dragging_right'
             ) {
-                const pos = props.taskStore?.getBarPosition(task().id);
-                onDateChange?.(task().id, {
+                const pos = props.taskStore?.getBarPosition(t().id);
+                onDateChange?.(t().id, {
                     x: pos?.x ?? x(),
                     width: pos?.width ?? width(),
                 });
 
                 // Trigger constraint resolution after resize (width changed)
                 if (state === 'dragging_left' || state === 'dragging_right') {
-                    onResizeEnd?.(task().id);
+                    onResizeEnd?.(t().id);
                 }
             } else if (state === 'dragging_progress') {
-                onProgressChange?.(task().id, task().progress);
+                onProgressChange?.(t().id, t().progress);
             }
         },
     });
@@ -337,14 +357,14 @@ export function Bar(props) {
         }
 
         didDragFlag = false; // Reset drag flag on mousedown
-        startDrag(e, 'dragging_bar', { taskId: task().id });
+        startDrag(e, 'dragging_bar', { taskId: t().id });
     };
 
     // Hover handlers for task data popup (use context with props fallback)
     const handleMouseEnter = (e) => {
         const onHover = props.onHover ?? events.onHover;
         if (onHover && !isDragging()) {
-            onHover(task().id, e.clientX, e.clientY);
+            onHover(t().id, e.clientX, e.clientY);
         }
     };
 
@@ -360,27 +380,27 @@ export function Bar(props) {
         const onTaskClick = props.onTaskClick ?? events.onTaskClick;
         if (!didDragFlag && onTaskClick) {
             e.stopPropagation();
-            onTaskClick(task().id, e);
+            onTaskClick(t().id, e);
         }
     };
 
     const handleLeftHandleMouseDown = (e) => {
         if (readonly() || readonlyDates() || isLocked()) return;
         e.stopPropagation();
-        startDrag(e, 'dragging_left', { taskId: task().id });
+        startDrag(e, 'dragging_left', { taskId: t().id });
     };
 
     const handleRightHandleMouseDown = (e) => {
         if (readonly() || readonlyDates() || isLocked()) return;
         e.stopPropagation();
-        startDrag(e, 'dragging_right', { taskId: task().id });
+        startDrag(e, 'dragging_right', { taskId: t().id });
     };
 
     const handleProgressMouseDown = (e) => {
         if (readonly() || readonlyProgress() || isLocked())
             return;
         e.stopPropagation();
-        startDrag(e, 'dragging_progress', { taskId: task().id });
+        startDrag(e, 'dragging_progress', { taskId: t().id });
     };
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -389,11 +409,10 @@ export function Bar(props) {
 
     // Progress width calculation
     const progressWidth = createMemo(() => {
-        const progress = task().progress ?? 0;
         return computeProgressWidth(
             x(),
             width(),
-            progress,
+            t().progress,
             ignoredPositions(),
             columnWidth(),
         );
@@ -403,8 +422,8 @@ export function Bar(props) {
     const expectedProgressWidth = createMemo(() => {
         if (!showExpectedProgress()) return 0;
 
-        const taskStart = task()._start ?? task().start;
-        const taskEnd = task()._end ?? task().end;
+        const taskStart = t().start;
+        const taskEnd = t().end;
         if (!taskStart || !taskEnd) return 0;
 
         const expectedPercent = computeExpectedProgress(
@@ -425,25 +444,23 @@ export function Bar(props) {
 
     // Label positioning
     const labelInfo = createMemo(() => {
-        const name = task().name ?? '';
-        return computeLabelPosition(x(), width(), name);
+        return computeLabelPosition(x(), width(), t().name);
     });
 
-    // Colors
-    const barColor = () => task().color ?? 'var(--g-bar-color, #b8c2cc)';
-    const progressColor = () =>
-        task().color_progress ?? 'var(--g-bar-progress-color, #a3a3ff)';
+    // Colors - use t() memo values
+    const barColor = () => t().color;
+    const progressColor = () => t().colorProgress;
     const expectedProgressColor = () =>
         'var(--g-expected-progress-color, rgba(0,0,0,0.2))';
 
     // Check if task has subtasks (for fill opacity)
-    const hasSubtasks = () => task()._children?.length > 0;
+    const hasSubtasks = () => t().hasChildren;
 
     // Invalid state
-    const isInvalid = () => task().invalid ?? false;
+    const isInvalid = () => t().invalid;
 
     // Custom class
-    const customClass = () => task().custom_class ?? '';
+    const customClass = () => t().customClass;
 
     // Handle visibility (show when not fully readonly)
     const showHandles = () => !readonly();
@@ -452,10 +469,22 @@ export function Bar(props) {
         showHandles() && !readonlyProgress();
 
     // Locked state (from constraint system)
-    const isLocked = () => task().constraints?.locked ?? false;
+    const isLocked = () => t().locked;
 
     // Drag state class
     const dragClass = () => (isDragging() ? `dragging ${dragState()}` : '');
+
+    // DEBUG: Track what's causing color flicker
+    const computedBgColor = () => isLocked() ? '#7f8c8d' : isDragging() ? '#2c3e50' : barColor();
+    const computedOpacity = () => (isLocked() || isDragging()) ? 1 : hasSubtasks() ? 0 : 0.1;
+    createEffect(() => {
+        const id = t().id;
+        const bg = computedBgColor();
+        const op = computedOpacity();
+        if (id === 'task-0') { // Only log first task
+            console.log('[Bar task-0]', { bg, op, locked: isLocked(), dragging: isDragging(), hasSubtasks: hasSubtasks() });
+        }
+    });
 
     // ═══════════════════════════════════════════════════════════════════════════
     // RENDER
@@ -470,7 +499,7 @@ export function Bar(props) {
     return (
         <div
             class={`bar-wrapper ${customClass()} ${isInvalid() ? 'invalid' : ''} ${isLocked() ? 'locked' : ''} ${dragClass()}`}
-            data-id={task().id}
+            data-id={t().id}
             onMouseDown={handleBarMouseDown}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
@@ -486,7 +515,6 @@ export function Bar(props) {
                       ? 'default'
                       : 'move',
                 visibility: visible() ? 'visible' : 'hidden',
-                'will-change': 'transform',
             }}
         >
             {/* Main bar - outline style with subtle fill */}
@@ -562,7 +590,7 @@ export function Bar(props) {
                     color: labelInfo().position === 'inside' ? '#fff' : '#333',
                 }}
             >
-                {task().name ?? ''}
+                {t().name}
             </div>
 
             {/* Lock icon for locked tasks - CSS display instead of Show to avoid unmount/remount */}

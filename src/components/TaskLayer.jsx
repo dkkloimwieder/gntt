@@ -355,6 +355,14 @@ export function TaskLayer(props) {
         return result;
     });
 
+    // OPTIMIZATION: Pass task objects directly instead of IDs + store lookup
+    // This reduces per-component overhead from multiple store.tasks[id] accesses
+    const pooledRegularTasks = createMemo(() => {
+        const ids = pooledRegularIds();
+        const tasksObj = props.taskStore?.tasks ?? {};
+        return untrack(() => ids.map(id => id ? tasksObj[id] : undefined));
+    });
+
     const pooledSummaryIds = createMemo(() => {
         const ids = splitTaskIds().summaryIds;
         maxSummaryCount = Math.max(maxSummaryCount, ids.length);
@@ -439,11 +447,11 @@ export function TaskLayer(props) {
 
             {/* Regular task bars render ON TOP */}
             <div class="task-bars-layer" style={{ contain: 'layout style' }}>
-                <Index each={pooledRegularIds()}>
-                    {(taskId) => (
-                        <div style={{ display: taskId() ? 'block' : 'none', 'pointer-events': 'auto' }}>
+                <Index each={pooledRegularTasks()}>
+                    {(task) => (
+                        <div style={{ display: task() ? 'block' : 'none', 'pointer-events': 'auto' }}>
                             <Bar
-                                taskId={taskId}
+                                task={task}
                                 taskStore={props.taskStore}
                                 ganttConfig={props.ganttConfig}
                                 onConstrainPosition={handleConstrainPosition}

@@ -15,6 +15,7 @@ import { Grid } from './Grid.jsx';
 import { DateHeaders } from './DateHeaders.jsx';
 import { ResourceColumn } from './ResourceColumn.jsx';
 import { TaskLayer } from './TaskLayer.jsx';
+import { TaskLayerMinimal } from './TaskLayerMinimal.jsx';
 import { ArrowLayer } from './ArrowLayer.jsx';
 import { ArrowLayerBatched } from './ArrowLayerBatched.jsx';
 import { TaskDataPopup } from './TaskDataPopup.jsx';
@@ -530,23 +531,35 @@ export function Gantt(props) {
                     />
                 }
                 barsLayer={
-                    <TaskLayer
-                        taskStore={taskStore}
-                        ganttConfig={ganttConfig}
-                        relationships={relationships()}
-                        resourceStore={resourceStore}
-                        onDateChange={handleDateChange}
-                        onProgressChange={handleProgressChange}
-                        onResizeEnd={handleResizeEnd}
-                        onTaskClick={handleTaskClick}
-                        onHover={handleTaskHover}
-                        onHoverEnd={handleTaskHoverEnd}
-                        startRow={viewport.rowRange().start}
-                        endRow={viewport.rowRange().end}
-                        startX={viewport.xRange().start}
-                        endX={viewport.xRange().end}
-                        rowLayouts={rowLayouts()}
-                    />
+                    props.taskLayerMode === 'minimal' ? (
+                        <TaskLayerMinimal
+                            taskStore={taskStore}
+                            ganttConfig={ganttConfig}
+                            resourceStore={resourceStore}
+                            startRow={viewport.rowRange().start}
+                            endRow={viewport.rowRange().end}
+                            startX={viewport.xRange().start}
+                            endX={viewport.xRange().end}
+                        />
+                    ) : (
+                        <TaskLayer
+                            taskStore={taskStore}
+                            ganttConfig={ganttConfig}
+                            relationships={relationships()}
+                            resourceStore={resourceStore}
+                            onDateChange={handleDateChange}
+                            onProgressChange={handleProgressChange}
+                            onResizeEnd={handleResizeEnd}
+                            onTaskClick={handleTaskClick}
+                            onHover={handleTaskHover}
+                            onHoverEnd={handleTaskHoverEnd}
+                            startRow={viewport.rowRange().start}
+                            endRow={viewport.rowRange().end}
+                            startX={viewport.xRange().start}
+                            endX={viewport.xRange().end}
+                            rowLayouts={rowLayouts()}
+                        />
+                    )
                 }
             >
                 {/* Grid background, rows, and vertical lines (via SVG pattern) */}
