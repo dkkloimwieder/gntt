@@ -1,4 +1,4 @@
-import { createSignal, createMemo, onMount, onCleanup, Index } from 'solid-js';
+import { createSignal, createMemo, onMount, onCleanup, Index, untrack } from 'solid-js';
 import { Dynamic } from 'solid-js/web';
 import { createStore } from 'solid-js/store';
 import calendarData from '../data/calendar.json';
@@ -496,12 +496,56 @@ export function GanttExperiments() {
         return ids.map(id => tasks[id]);
     });
 
+    // UNTRACKED: Same as combined but with untrack() to prevent subscriptions
+    const visibleTasksUntracked = createMemo(() => {
+        const rowRange = visibleRowRange();
+        const xRange = visibleXRange();
+
+        return untrack(() => {
+            const result = [];
+            for (let row = rowRange.start; row < rowRange.end; row++) {
+                const rowTaskIds = taskIdsByRow[row] || [];
+                for (const id of rowTaskIds) {
+                    const task = tasks[id];
+                    const bar = task?.$bar;
+                    if (!bar) continue;
+                    const taskEnd = bar.x + bar.width;
+                    if (taskEnd >= xRange.start && bar.x <= xRange.end) {
+                        result.push(task);
+                    }
+                }
+            }
+            return result;
+        });
+    });
+
+    // PLAIN LOOKUP: Use initialTasks (plain object) for filtering, no store subscriptions
+    const visibleTasksPlainLookup = createMemo(() => {
+        const rowRange = visibleRowRange();
+        const xRange = visibleXRange();
+        const result = [];
+
+        for (let row = rowRange.start; row < rowRange.end; row++) {
+            const rowTaskIds = taskIdsByRow[row] || [];
+            for (const id of rowTaskIds) {
+                const bar = initialTasks[id].$bar;  // Plain object - no subscription
+                const taskEnd = bar.x + bar.width;
+                if (taskEnd >= xRange.start && bar.x <= xRange.end) {
+                    result.push(tasks[id]);  // Store ref for rendering
+                }
+            }
+        }
+        return result;
+    });
+
     // Select virtualization mode
     const visibleTasks = () => {
         const mode = virtMode();
         if (mode === 'xySplit') return visibleTasksXYSplit();
         if (mode === 'smartCache') return visibleTasksSmartCache();
         if (mode === 'splitEquals') return visibleTasksSplitEquals();
+        if (mode === 'untracked') return visibleTasksUntracked();
+        if (mode === 'plainLookup') return visibleTasksPlainLookup();
         return visibleTasksCombined();
     };
 
@@ -610,6 +654,8 @@ export function GanttExperiments() {
                     <option value="xySplit">xySplit (X/Y separate)</option>
                     <option value="smartCache">smartCache (skip unchanged)</option>
                     <option value="splitEquals">splitEquals (custom equality)</option>
+                    <option value="untracked">untracked (no subscriptions)</option>
+                    <option value="plainLookup">plainLookup (initialTasks)</option>
                 </select>
                 <span style={{ 'font-size': '11px', color: '#888' }}>Visible: {visibleTasks().length}</span>
 

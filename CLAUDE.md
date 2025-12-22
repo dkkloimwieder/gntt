@@ -176,43 +176,235 @@ node src/scripts/generateCalendar.js --tasks=10000 --resources=100 --dense  # St
 - ESLint + Prettier configured
 - JSX for SolidJS components
 
-## Browser Automation (chrome-devtools-cli skill)
+# CLAUDE.md
 
-For browser automation, screenshots, or performance profiling, use the chrome-devtools-cli skill.
+## Browser Automation & Performance Profiling
 
-### Critical: Browser Persistence
+This project uses the `chrome-devtools-cli` skill for browser automation and performance analysis.
 
-Each `devtools.mjs` command spawns a NEW Chrome instance. For multi-step workflows (navigate → click → capture), use ONE of these approaches:
+**Skill location:** `~/.claude/skills/chrome-devtools-cli/`
 
-**Option A: workflow.mjs (preferred for multi-step)**
+---
+
+## Quick Reference
+
+| Task | Command |
+|------|---------|
+| Performance profile | `node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs <url>` |
+| Benchmark (5 runs) | `node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs <url> --iterations 5` |
+| Click then profile | `node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs <url> --click "#btn"` |
+| Multi-step workflow | `node ~/.claude/skills/chrome-devtools-cli/scripts/workflow.mjs <workflow.json>` |
+
+---
+
+## Performance Profiling
+
+**Always use `perf.mjs` for performance work.** It handles Chrome automatically.
+
+### Single Profile
+
+```bash
+# Basic profile (5 seconds)
+node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs https://example.com
+
+# Longer duration
+node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs https://example.com --duration 10000
+
+# Click element first, then profile
+node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs https://example.com --click "#load-button" --duration 5000
+
+# Save results to file
+node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs https://example.com --output /tmp/perf.json
+```
+
+### Benchmarking (Multiple Iterations)
+
+```bash
+# Run 5 iterations, report mean/median/min/max/stddev
+node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs https://example.com --iterations 5
+
+# With warmup runs (discarded before measuring)
+node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs https://example.com --iterations 10 --warmup 2
+
+# Benchmark a user interaction
+node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs https://example.com --click "#submit-btn" --iterations 5 --duration 3000
+
+# Save full benchmark data
+node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs https://example.com --iterations 5 --output /tmp/benchmark.json
+```
+
+### What perf.mjs Does
+
+1. Starts Chrome in **normal mode** (not headless) — required for accurate rendering
+2. Navigates to URL and waits for load
+3. Clicks element if `--click` specified
+4. Captures CPU profile, rendering stats, metrics
+5. For benchmarks: reloads page between iterations
+6. Reports statistics (mean, median, stddev, etc.)
+
+---
+
+## Multi-Step Workflows
+
+For navigate → interact → screenshot flows, use `workflow.mjs`:
+
 ```bash
 cat > /tmp/workflow.json << 'EOF'
 {
   "url": "https://example.com",
-  "headless": true,
+  "headless": false,
   "steps": [
     { "action": "snapshot" },
-    { "action": "click", "uid": "button-id" },
-    { "action": "perf-trace", "duration": 5000 }
+    { "action": "click", "uid": "login-btn" },
+    { "action": "fill", "uid": "email-input", "value": "user@example.com" },
+    { "action": "fill", "uid": "password-input", "value": "password123" },
+    { "action": "click", "uid": "submit-btn" },
+    { "action": "wait", "text": "Dashboard" },
+    { "action": "screenshot", "path": "/tmp/logged-in.png" }
   ]
 }
 EOF
+
 node ~/.claude/skills/chrome-devtools-cli/scripts/workflow.mjs /tmp/workflow.json
 ```
 
-**Option B: Persistent browser**
+### Workflow Actions
+
+| Action | Parameters | Example |
+|--------|------------|---------|
+| `navigate` | `url` | `{ "action": "navigate", "url": "https://..." }` |
+| `snapshot` | `verbose` (optional) | `{ "action": "snapshot" }` |
+| `click` | `uid` | `{ "action": "click", "uid": "btn-id" }` |
+| `fill` | `uid`, `value` | `{ "action": "fill", "uid": "input-id", "value": "text" }` |
+| `hover` | `uid` | `{ "action": "hover", "uid": "menu-id" }` |
+| `press-key` | `key` | `{ "action": "press-key", "key": "Enter" }` |
+| `screenshot` | `path`, `fullPage` | `{ "action": "screenshot", "path": "/tmp/shot.png" }` |
+| `wait` | `text`, `timeout` | `{ "action": "wait", "text": "Success" }` |
+| `eval` | `expression` | `{ "action": "eval", "expression": "document.title" }` |
+| `sleep` | `duration` (ms) | `{ "action": "sleep", "duration": 2000 }` |
+| `perf-trace` | `duration` | `{ "action": "perf-trace", "duration": 5000 }` |
+
+### Getting Element UIDs
+
+First run snapshot to see available element UIDs:
+
 ```bash
-google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome &
-sleep 2
-node ~/.claude/skills/chrome-devtools-cli/scripts/devtools.mjs --browserUrl=http://127.0.0.1:9222 navigate https://example.com
-node ~/.claude/skills/chrome-devtools-cli/scripts/devtools.mjs --browserUrl=http://127.0.0.1:9222 click btn-id
+# Start Chrome if not running
+node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs https://example.com --duration 1000
+
+# Then get snapshot (Chrome stays open on port 9222)
+node ~/.claude/skills/chrome-devtools-cli/scripts/devtools.mjs --browserUrl=http://127.0.0.1:9222 snapshot
 ```
 
-### Quick Reference
+---
 
-| Task | Command |
-|------|---------|
-| Screenshot | `node scripts/devtools.mjs --headless navigate URL && node scripts/devtools.mjs --headless screenshot --filePath=/tmp/shot.png` |
-| Get element IDs | `node scripts/devtools.mjs --headless snapshot` |
-| Deep profiling | `node scripts/profile.mjs capture --url URL --duration 5000` |
-| Multi-step | Use `workflow.mjs` with JSON |
+## Common Mistakes — DO NOT DO THESE
+
+### ❌ WRONG: Using headless mode for performance
+
+```bash
+# WRONG - headless has no real rendering, metrics are meaningless
+node scripts/devtools.mjs --headless navigate https://example.com
+node scripts/devtools.mjs --headless perf-start
+```
+
+**✅ RIGHT:** Use `perf.mjs` which runs Chrome in normal mode automatically.
+
+---
+
+### ❌ WRONG: Multiple devtools.mjs commands without --browserUrl
+
+```bash
+# WRONG - each command spawns a NEW browser instance
+node scripts/devtools.mjs navigate https://example.com   # Browser 1
+node scripts/devtools.mjs click btn-submit               # Browser 2 (blank!)
+node scripts/devtools.mjs screenshot                      # Browser 3 (blank!)
+```
+
+**✅ RIGHT:** Use `workflow.mjs` for multi-step, or `--browserUrl`:
+
+```bash
+# Option A: workflow.mjs (preferred)
+node scripts/workflow.mjs /tmp/my-workflow.json
+
+# Option B: persistent browser
+node scripts/perf.mjs https://example.com --duration 1000  # starts Chrome
+node scripts/devtools.mjs --browserUrl=http://127.0.0.1:9222 click btn-submit
+node scripts/devtools.mjs --browserUrl=http://127.0.0.1:9222 screenshot
+```
+
+---
+
+### ❌ WRONG: Manually starting Chrome for perf.mjs
+
+```bash
+# WRONG - unnecessary, perf.mjs handles this
+google-chrome --remote-debugging-port=9222 &
+node scripts/perf.mjs https://example.com
+```
+
+**✅ RIGHT:** Just run perf.mjs, it starts Chrome automatically:
+
+```bash
+node scripts/perf.mjs https://example.com
+```
+
+---
+
+### ❌ WRONG: Using profile.mjs for simple traces
+
+```bash
+# WRONG - profile.mjs is low-level and requires manual Chrome setup
+node scripts/profile.mjs capture --url https://example.com
+```
+
+**✅ RIGHT:** Use perf.mjs:
+
+```bash
+node scripts/perf.mjs https://example.com
+```
+
+---
+
+## Files in the Skill
+
+| Script | Purpose | When to Use |
+|--------|---------|-------------|
+| `perf.mjs` | Performance profiling & benchmarking | **Any performance work** |
+| `workflow.mjs` | Multi-step browser automation | Navigate → interact → screenshot flows |
+| `devtools.mjs` | Single browser commands | Only with `--browserUrl` for one-off commands |
+| `profile.mjs` | Low-level CDP profiling | Advanced use only |
+
+---
+
+## Troubleshooting
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| "Chrome not found" | Chrome not installed | `apt install google-chrome-stable` |
+| "ECONNREFUSED 9222" | Chrome not running | Let `perf.mjs` handle it, or start manually |
+| "Cannot find module" | npm install not run | `cd ~/.claude/skills/chrome-devtools-cli && npm install` |
+| Blank screenshots | Commands used separate browsers | Use `workflow.mjs` or `--browserUrl` |
+| No rendering metrics | Used `--headless` | Use `perf.mjs` (never headless for perf) |
+
+---
+
+## Example: Full Performance Audit
+
+```bash
+# 1. Single profile to identify issues
+node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs https://myapp.com --duration 10000
+
+# 2. Benchmark to get stable measurements
+node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs https://myapp.com --iterations 5 --warmup 1
+
+# 3. Profile a specific interaction
+node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs https://myapp.com --click "#load-data" --iterations 5
+
+# 4. Save results for comparison
+node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs https://myapp.com --iterations 5 --output /tmp/baseline.json
+
+# ... make changes ...
+
+node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs https://myapp.com --iterations 5 --output /tmp/after-fix.json
+```
