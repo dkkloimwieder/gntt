@@ -271,88 +271,30 @@ Expected: xySplit faster for horizontal scroll (skips row recalc), similar for v
 
 ---
 
-## Current Variants Summary
+## GanttExperiments Comprehensive Documentation
 
-### Bar Variants
-| Variant | Description | Status |
-|---------|-------------|--------|
-| baseline | Single memo batching all props | ✓ Best performer |
-| noMemos | Direct store access | ✓ 3-5% slower |
-| splitMemo | Static + dynamic separation | Implemented |
-| minimal | Bare minimum rendering | Implemented |
+### Overview
 
-### Virtualization Modes
-| Mode | Description | Status |
-|------|-------------|--------|
-| combined | Single memo for row + X filtering | ✓ Best performer |
-| xySplit | Separate row and X memos | ✓ 2-3% slower |
+`GanttExperiments.jsx` is the performance testing harness for comparing SolidJS reactive patterns at scale. It renders 10,000 tasks and measures performance during stress tests (continuous scrolling).
 
 ### URL Parameters
+
 ```
-?variant=baseline|noMemos|splitMemo|minimal
-&virt=combined|xySplit
-&test=horizontal|vertical|both
+http://localhost:5173/examples/experiments.html
+  ?variant=baseline|noMemos|splitMemo|minimal
+  &virt=combined|xySplit|smartCache|splitEquals
+  &test=horizontal|vertical|both
 ```
 
 ---
 
-## Hot Functions Analysis (Latest Profiles)
+## Bar Variants
 
-| Function | % Time | Notes |
-|----------|--------|-------|
-| (program) | ~30% | Browser overhead |
-| set scrollLeft/Top | ~26% | DOM scroll (unavoidable) |
-| setProperty | ~7% | CSS style updates |
-| updateComputation | ~6% | SolidJS reactive updates |
-| get (store) | ~3% | Store proxy reads |
-| cleanNode | ~2% | Reactive cleanup |
+Each bar variant tests a different SolidJS reactive pattern for rendering individual task bars.
 
-**Main bottleneck**: DOM operations (scroll + setProperty) account for ~33% of time. JavaScript reactive overhead is ~11%.
+### 1. baseline (Best Performer)
 
----
-
-## Comprehensive Benchmark Results (2025-12-21)
-
-### Test Configuration
-- Duration: 5 seconds per run
-- Runs: 5 per variant per direction
-- Total: 40 benchmark runs
-- Tasks: 10,000
-- Virtualization: combined mode
-
-### Results (5-run averages)
-
-| Variant | H-Scroll (ms) | V-Scroll (ms) | vs Baseline H | vs Baseline V |
-|---------|---------------|---------------|---------------|---------------|
-| **baseline** | **2286** | **2435** | - | - |
-| noMemos | 2408 | 2589 | +5.4% | +6.3% |
-| splitMemo | 2450 | 2590 | +7.2% | +6.4% |
-| minimal | 2508 | 2784 | +9.7% | +14.3% |
-
-### Analysis
-
-**baseline wins across all tests.** The single memo pattern that batches all props is the most efficient approach.
-
-**Why baseline is fastest:**
-1. Single memo read per render vs multiple store accesses
-2. Memo caching prevents redundant computations
-3. Object allocation overhead is outweighed by cache benefits
-
-**Why minimal is slowest:**
-- "Minimal" removes drag handlers but still has full reactivity
-- Removing handlers doesn't help - the overhead is in style updates
-- Every bar still updates styles on scroll
-
-### Ranking (Best to Worst)
-
-1. **baseline** - Single memo batching all props ✓
-2. **noMemos** - Direct store access (+5-6%)
-3. **splitMemo** - Static/dynamic separation (+6-7%)
-4. **minimal** - Bare minimum rendering (+10-14%)
-
-### Recommendation
-
-**Use the baseline pattern for production:**
+Single memo that batches all props into one cached object.
 
 ```javascript
 const t = createMemo(() => {
@@ -364,7 +306,377 @@ const t = createMemo(() => {
         width: bar?.width ?? 40,
         height: bar?.height ?? 28,
         name: task?.name ?? '',
-        // ... all props in one memo
+        colorBg: task?.color_bg,
+        colorFill: task?.color_fill,
     };
 });
+
+// Usage in JSX
+<div style={{ transform: `translate(${t().x}px, ${t().y}px)` }}>
 ```
+
+**Pros:**
+- Single memo read per render
+- Cached value prevents redundant store proxy accesses
+- Fewer effect re-runs
+
+**Cons:**
+- Object allocation on each memo update
+- GC pressure (minor at scale)
+
+### 2. noMemos (+5-6% slower)
+
+Direct store access without memos. Reads store properties directly in effects.
+
+```javascript
+// Direct access in effect
+createEffect(() => {
+    const task = getTask();
+    const bar = task?.$bar;
+    element.style.transform = `translate(${bar?.x ?? 0}px, ${bar?.y ?? 0}px)`;
+    element.style.width = `${bar?.width ?? 40}px`;
+});
+```
+
+**Pros:**
+- No object allocation
+- Simpler code
+
+**Cons:**
+- Multiple store proxy reads per render
+- 2.6x more effect execution (each store access triggers tracking)
+- More `cleanNode` calls
+
+### 3. splitMemo (+6-7% slower)
+
+Separates static props (name, colors) from dynamic props (x, y, width).
+
+```javascript
+const staticProps = createMemo(() => ({
+    name: task?.name ?? '',
+    colorBg: task?.color_bg,
+}));
+
+const dynamicProps = createMemo(() => ({
+    x: bar?.x ?? 0,
+    y: bar?.y ?? 0,
+    width: bar?.width ?? 40,
+}));
+```
+
+**Pros:**
+- Static props cached separately (don't recompute on scroll)
+
+**Cons:**
+- Two memo reads per render
+- Extra overhead outweighs benefit
+
+### 4. minimal (+10-14% slower)
+
+Bare minimum rendering with no drag handlers. Still has full reactivity.
+
+**Why it's slowest:**
+- Calls `bar()` and `getTask()` multiple times per render without caching
+- No memo means repeated store proxy traversal
+- "Minimal features" ≠ "minimal overhead"
+
+---
+
+## Virtualization Modes
+
+Each mode tests a different strategy for filtering visible tasks during scroll.
+
+### 1. combined (Simple & Fast)
+
+Single memo that filters by row (Y) AND X range together in one pass.
+
+```javascript
+const visibleTasksCombined = createMemo(() => {
+    const rowRange = visibleRowRange();  // depends on scrollY
+    const xRange = visibleXRange();       // depends on scrollX
+    const result = [];
+
+    for (let row = rowRange.start; row < rowRange.end; row++) {
+        for (const id of taskIdsByRow[row] || []) {
+            const task = tasks[id];
+            const bar = task?.$bar;
+            if (bar && bar.x + bar.width >= xRange.start && bar.x <= xRange.end) {
+                result.push(task);
+            }
+        }
+    }
+    return result;
+});
+```
+
+**Behavior:**
+- Runs on ANY scroll (X or Y change)
+- Single tight loop with early filtering
+- Returns new array every time
+
+### 2. xySplit (+2-3% slower)
+
+Two-stage filtering: Stage 1 caches row tasks, Stage 2 filters by X.
+
+```javascript
+// Stage 1: All tasks in visible rows (only depends on Y)
+const visibleRowTasks = createMemo(() => {
+    const rowRange = visibleRowRange();
+    const result = [];
+    for (let row = rowRange.start; row < rowRange.end; row++) {
+        for (const id of taskIdsByRow[row] || []) {
+            result.push(tasks[id]);
+        }
+    }
+    return result;
+});
+
+// Stage 2: Filter by X range
+const visibleTasksXYSplit = createMemo(() => {
+    const rowTasks = visibleRowTasks();  // cached on X scroll?
+    const xRange = visibleXRange();
+    // ... filter by X
+});
+```
+
+**Why it failed:**
+- `visibleRowTasks` returns a NEW array every time (different reference)
+- SolidJS default equality is `===` (reference check)
+- Stage 2 thinks input changed on every scroll → runs anyway
+- Extra memo overhead with no benefit
+
+### 3. smartCache (Marginal Improvement)
+
+Manual tracking of X/Y changes with conditional execution.
+
+```javascript
+let smartCacheRowTasks = [];
+let smartLastYStart = -1, smartLastYEnd = -1;
+let smartLastXStart = -1, smartLastXEnd = -1;
+
+const visibleTasksSmartCache = createMemo(() => {
+    const rowRange = visibleRowRange();
+    const xRange = visibleXRange();
+
+    const yChanged = rowRange.start !== smartLastYStart || rowRange.end !== smartLastYEnd;
+    const xChanged = xRange.start !== smartLastXStart || xRange.end !== smartLastXEnd;
+
+    if (yChanged) {
+        // Rebuild row tasks
+        smartCacheRowTasks = [];
+        for (let row = rowRange.start; row < rowRange.end; row++) {
+            for (const id of taskIdsByRow[row] || []) {
+                smartCacheRowTasks.push(tasks[id]);
+            }
+        }
+    }
+
+    if (yChanged || xChanged) {
+        // Re-filter by X
+        smartCacheResult = [];
+        for (const task of smartCacheRowTasks) {
+            // ... filter
+        }
+    }
+
+    return smartCacheResult;
+});
+```
+
+**Why it's limited:**
+- Memo still RUNS on every scroll (reads both ranges)
+- Conditional logic saves work inside, but memo invocation cost remains
+- ~1-3% improvement (within noise margin)
+
+### 4. splitEquals (Custom Equality)
+
+Uses SolidJS custom equality to prevent unnecessary downstream updates.
+
+```javascript
+// Custom equality for ID arrays
+const idsEqual = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
+
+// Stage 1: Row task IDs (only depends on Y) with custom equality
+const visibleRowTaskIds = createMemo(() => {
+    const rowRange = visibleRowRange();
+    const ids = [];
+    for (let row = rowRange.start; row < rowRange.end; row++) {
+        for (const id of taskIdsByRow[row] || []) {
+            ids.push(id);
+        }
+    }
+    return ids;
+}, { equals: idsEqual });
+
+// Stage 2: Visible IDs (filter by X) with custom equality
+const visibleTaskIdsSplitEquals = createMemo(() => {
+    const ids = visibleRowTaskIds();
+    const xRange = visibleXRange();
+    const result = [];
+    for (const id of ids) {
+        const task = tasks[id];
+        const bar = task?.$bar;
+        if (bar && bar.x + bar.width >= xRange.start && bar.x <= xRange.end) {
+            result.push(id);  // Return ID, not task object
+        }
+    }
+    return result;
+}, { equals: idsEqual });
+
+// Stage 3: Map IDs to tasks (only runs when IDs change)
+const visibleTasksSplitEquals = createMemo(() => {
+    const ids = visibleTaskIdsSplitEquals();
+    return ids.map(id => tasks[id]);
+});
+```
+
+**How it works:**
+1. On horizontal scroll:
+   - `visibleRowRange` doesn't change (only depends on scrollY)
+   - `visibleRowTaskIds` returns cached value (no recompute)
+   - `visibleTaskIdsSplitEquals` recomputes, but if same tasks visible, custom equality returns `true`
+   - `visibleTasksSplitEquals` doesn't run (input didn't change)
+
+2. Custom equality compares ID arrays element-by-element
+3. Only triggers downstream updates when visible task IDs actually change
+
+**Results (initial fix):**
+- cleanNode: 31.4% → 3.0% (92% reduction!)
+- Script time: 3550ms → 2597ms (27% faster)
+
+---
+
+## Benchmark Methodology
+
+### Prerequisites
+
+1. Start Chrome with remote debugging:
+```bash
+google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-profile &
+```
+
+2. Start dev server:
+```bash
+pnpm run dev:solid
+```
+
+### Running Benchmarks
+
+**Single run:**
+```bash
+# Navigate to test page
+node .claude/skills/chrome-devtools-cli/scripts/devtools.mjs \
+  --browserUrl=http://127.0.0.1:9222 \
+  navigate "http://localhost:5173/examples/experiments.html?variant=baseline&virt=combined&test=horizontal"
+
+# Wait for page load
+sleep 1
+
+# Capture 5-second profile
+node .claude/skills/chrome-devtools-cli/scripts/profile.mjs capture \
+  --browserUrl=http://127.0.0.1:9222 \
+  --duration=5000 \
+  --output=perf-traces/runs/test.json
+```
+
+**Full matrix benchmark:**
+```bash
+./run-virt-bench.sh
+```
+
+This runs:
+- 2 bar variants (baseline, noMemos) × 3 virt modes (combined, smartCache, splitEquals)
+- × 2 scroll directions (horizontal, vertical)
+- × 3 runs each
+- = 36 total benchmark runs
+- 5 seconds per run, 1 second delay before capture
+
+**Analyze results:**
+```bash
+./analyze-bench.sh
+```
+
+### Benchmark Scripts
+
+**run-virt-bench.sh:**
+```bash
+#!/bin/bash
+for variant in baseline noMemos; do
+  for virt in combined smartCache splitEquals; do
+    for test in horizontal vertical; do
+      for i in 1 2 3; do
+        name="bench-${variant}-${virt}-${t}-${i}"
+        # Navigate, wait, capture profile
+      done
+    done
+  done
+done
+```
+
+**analyze-bench.sh:**
+```bash
+#!/bin/bash
+for variant in baseline noMemos; do
+  for virt in combined smartCache splitEquals; do
+    # Parse JSON files, calculate averages
+    for f in perf-traces/runs/bench-${variant}-${virt}-*.json; do
+      script=$(cat "$f" | node -e "...")
+    done
+  done
+done
+```
+
+### Profile Output
+
+Each profile captures:
+- **Script Duration**: Total JavaScript execution time
+- **Layout Duration**: Browser layout/reflow time
+- **Hot Functions**: Top functions by self-time (%)
+- **Call Tree**: Function hierarchy with % breakdown
+- **Metrics**: DOM nodes, event listeners, heap size
+
+---
+
+## Latest Benchmark Results (2025-12-21)
+
+### Full Matrix: Bar Variants × Virtualization Modes
+
+| Config | H-Scroll (ms) | V-Scroll (ms) |
+|--------|---------------|---------------|
+| **baseline + combined** | **2981** | **3160** |
+| baseline + smartCache | 2889 (-3.1%) | 3215 (+1.7%) |
+| baseline + splitEquals | 3235 (+8.5%)* | 3128 (-1.0%) |
+| noMemos + combined | 3128 (+4.9%) | 3336 (+5.6%) |
+| noMemos + smartCache | 3149 (+5.6%) | 3244 (+2.7%) |
+| noMemos + splitEquals | 3220 (+8.0%)* | 3289 (+4.1%) |
+
+*splitEquals was slower due to cleanNode bug (fixed below)
+
+### splitEquals Fix Results
+
+After adding custom equality to Stage 2:
+
+| Metric | Before Fix | After Fix | Change |
+|--------|------------|-----------|--------|
+| Script Duration | 3550ms | 2597ms | **-27%** |
+| cleanNode | 31.4% (1901ms) | 3.0% (159ms) | **-92%** |
+
+### Hot Functions Comparison (H-Scroll)
+
+| Function | combined | splitEquals (broken) | splitEquals (fixed) |
+|----------|----------|---------------------|---------------------|
+| (program) | 33% | 31% | ~30% |
+| cleanNode | **1.9%** | **31.4%** | **3.0%** |
+| set scrollLeft | 14% | 14% | 14% |
+| setProperty | 4% | 4% | 4% |
+
+---
+
+## Key Findings
+
+1. **baseline bar pattern wins** - 5-6% faster than noMemos
+2. **Custom equality is crucial** - Without it, returning new arrays triggers massive cleanup
+3. **DOM is the floor** - ~30% of time is unavoidable (scrollLeft + setProperty)
+4. **Reactive overhead is ~10%** - updateComputation + cleanNode + store.get
+5. **splitEquals with custom equality** - Best for horizontal scroll when visible tasks don't change
+
