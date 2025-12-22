@@ -16,9 +16,8 @@ import date_utils from './date_utils.js';
  */
 export function computeX(taskStart, ganttStart, unit, step, columnWidth) {
     const diff = date_utils.diff(taskStart, ganttStart, unit) / step;
-    // Round to nearest column boundary, subtract 0.5 to align with grid lines
-    // Grid lines are at (index+1)*colWidth - 0.5, so bar starts at index*colWidth - 0.5
-    return Math.round(diff) * columnWidth - 0.5;
+    // Use exact position, no rounding - rounding causes adjacent tasks to overlap
+    return diff * columnWidth;
 }
 
 /**
@@ -49,8 +48,8 @@ export function computeY(taskIndex, barHeight, padding) {
  */
 export function computeWidth(taskStart, taskEnd, unit, step, columnWidth) {
     const diff = date_utils.diff(taskEnd, taskStart, unit) / step;
-    // Round to nearest column boundary
-    return Math.round(diff) * columnWidth;
+    // Use exact width, no rounding - rounding causes adjacent tasks to overlap
+    return diff * columnWidth;
 }
 
 /**

@@ -9,115 +9,142 @@ import { Grid } from './Grid.jsx';
 import { DateHeaders } from './DateHeaders.jsx';
 import { ResourceColumn } from './ResourceColumn.jsx';
 import date_utils from '../utils/date_utils.js';
-import { computeX, computeWidth } from '../utils/barCalculations.js';
 
 /**
- * GanttExperiments - Copy of GanttMinimalTest with variant switching
+ * GanttExperiments - Performance testing harness with date-based positioning
  * Use Chrome DevTools for performance measurement
  */
 
-// Layout constants (copied from GanttMinimalTest)
-const TOTAL_COLS = 100;
-const TOTAL_ROWS = Math.ceil(calendarData.tasks.length / TOTAL_COLS);
-const SLOT_WIDTH = 120;
-const SLOT_HEIGHT = 28;
+// Layout constants
+const ROW_HEIGHT = 28;
 const GAP = 4;
 const HEADER_HEIGHT = 50;
-const OVERSCAN = 2;
+const OVERSCAN_ROWS = 2;
+const OVERSCAN_PX = 200; // Horizontal overscan in pixels
 
-const TOTAL_WIDTH = TOTAL_COLS * (SLOT_WIDTH + GAP);
-const TOTAL_HEIGHT = TOTAL_ROWS * (SLOT_HEIGHT + GAP);
+// Timeline: 6px per hour, 144px per day
+const COLUMN_WIDTH = 6;
+const DAY_WIDTH = 144;
 
-// Mock data (copied from GanttMinimalTest)
-const mockDateInfos = [];
-for (let i = 0; i < TOTAL_COLS; i++) {
-    mockDateInfos.push({
-        x: i * (SLOT_WIDTH + GAP),
-        width: SLOT_WIDTH + GAP,
-        upperText: i % 10 === 0 ? `Week ${Math.floor(i/10) + 1}` : '',
-        lowerText: `Col ${i + 1}`,
-        isThickLine: i % 10 === 0,
-    });
+// Parse date string as UTC: "YYYY-MM-DD HH:MM" -> Date
+function parseUTC(str) {
+    const [datePart, timePart] = str.split(' ');
+    const [y, m, d] = datePart.split('-').map(Number);
+    const [h, min] = (timePart || '00:00').split(':').map(Number);
+    return new Date(Date.UTC(y, m - 1, d, h, min));
 }
 
-const mockResources = [];
-for (let i = 0; i < TOTAL_ROWS; i++) {
-    mockResources.push({
-        id: `row-${i}`,
-        name: `Row ${i + 1}`,
-        type: 'resource',
-        displayIndex: i,
-    });
-}
-
-const mockResourceStore = { displayResources: () => mockResources };
-const mockGanttConfig = { barHeight: () => SLOT_HEIGHT, padding: () => GAP };
-
-function getSlotPosition(slotIndex, visibleCols) {
-    const row = Math.floor(slotIndex / visibleCols);
-    const col = slotIndex % visibleCols;
-    return {
-        x: col * (SLOT_WIDTH + GAP),
-        y: row * (SLOT_HEIGHT + GAP),
-    };
-}
-
-// Date parsing (copied from GanttMinimalTest)
-const UNIT = 'hour';
-const STEP = 1;
-const COLUMN_WIDTH = 30;
-
+// Parse tasks as UTC
 const parsedTasks = calendarData.tasks.map(task => ({
     ...task,
-    _start: date_utils.parse(task.start),
-    _end: date_utils.parse(task.end),
+    _start: parseUTC(task.start),
+    _end: parseUTC(task.end),
 }));
-const ganttStart = new Date(Math.min(...parsedTasks.map(t => t._start.getTime())));
 
+// Find earliest/latest and snap to midnight UTC
+const minMs = Math.min(...parsedTasks.map(t => t._start.getTime()));
+const maxMs = Math.max(...parsedTasks.map(t => t._end.getTime()));
+const minDate = new Date(minMs);
+const maxDate = new Date(maxMs);
+const ganttStart = new Date(Date.UTC(minDate.getUTCFullYear(), minDate.getUTCMonth(), minDate.getUTCDate()));
+const ganttEnd = new Date(Date.UTC(maxDate.getUTCFullYear(), maxDate.getUTCMonth(), maxDate.getUTCDate() + 1));
+
+// Resources
+const uniqueResources = [...new Set(parsedTasks.map(t => t.resource))].sort();
+const resourceToRow = {};
+uniqueResources.forEach((res, i) => { resourceToRow[res] = i; });
+
+// Dimensions
+const TOTAL_ROWS = uniqueResources.length;
+const TOTAL_DAYS = Math.round((ganttEnd - ganttStart) / (24 * 60 * 60 * 1000));
+const TOTAL_WIDTH = TOTAL_DAYS * DAY_WIDTH;
+const TOTAL_HEIGHT = TOTAL_ROWS * (ROW_HEIGHT + GAP);
+
+// Date headers - one per day at exact day boundaries
+const dateInfos = [];
+for (let d = 0; d < TOTAL_DAYS; d++) {
+    const dayDate = new Date(ganttStart.getTime() + d * 24 * 60 * 60 * 1000);
+    dateInfos.push({
+        x: d * DAY_WIDTH,
+        width: DAY_WIDTH,
+        upperText: d === 0 ? date_utils.format(dayDate, 'MMM YYYY') : (dayDate.getUTCDay() === 1 ? `W${Math.ceil((d + 1) / 7)}` : ''),
+        lowerText: dayDate.getUTCDate().toString(),
+        isThickLine: dayDate.getUTCDay() === 1,
+    });
+}
+
+// Generate resource list for display
+const resources = uniqueResources.map((res, i) => ({
+    id: res,
+    name: res,
+    type: 'resource',
+    displayIndex: i,
+}));
+
+const mockResourceStore = { displayResources: () => resources };
+const mockGanttConfig = { barHeight: () => ROW_HEIGHT, padding: () => GAP };
+
+// Build tasks with pixel positions computed directly from hours
 const initialTasks = (() => {
     const result = {};
+    const ganttStartMs = ganttStart.getTime();
     parsedTasks.forEach((task, i) => {
-        const row = Math.floor(i / TOTAL_COLS);
-        const x = computeX(task._start, ganttStart, UNIT, STEP, COLUMN_WIDTH);
-        const width = computeWidth(task._start, task._end, UNIT, STEP, COLUMN_WIDTH);
+        const row = resourceToRow[task.resource] ?? 0;
+        // Exact hour difference from ganttStart (midnight UTC)
+        const startHours = (task._start.getTime() - ganttStartMs) / (1000 * 60 * 60);
+        const endHours = (task._end.getTime() - ganttStartMs) / (1000 * 60 * 60);
+        const x = startHours * COLUMN_WIDTH;
+        const width = (endHours - startHours) * COLUMN_WIDTH;
         result[task.id] = {
             ...task,
             locked: i % 7 === 0,
             progress: task.progress || 0,
             $bar: {
-                x: Math.max(0, x),
-                y: row * (SLOT_HEIGHT + GAP),
-                width: Math.max(width, 20),
-                height: SLOT_HEIGHT,
+                x,
+                y: row * (ROW_HEIGHT + GAP),
+                width: Math.max(width, 6),
+                height: ROW_HEIGHT,
             },
         };
     });
     return result;
 })();
 
+// Pre-index tasks by row for fast lookup during virtualization
+const taskIdsByRow = (() => {
+    const byRow = {};
+    for (let r = 0; r < TOTAL_ROWS; r++) byRow[r] = [];
+    Object.entries(initialTasks).forEach(([id, task]) => {
+        const row = resourceToRow[task.resource] ?? 0;
+        byRow[row].push(id);
+    });
+    return byRow;
+})();
+
 // ═══════════════════════════════════════════════════════════════════════════
 // TESTBAR VARIANTS
 // ═══════════════════════════════════════════════════════════════════════════
 
-/** Baseline - Current GanttMinimalTest pattern (single memo) */
+/** Baseline - Single memo for all props, uses $bar for position */
 function TestBarBaseline(props) {
     const events = useGanttEvents();
     const getTask = () => typeof props.task === 'function' ? props.task() : props.task;
-    const pos = () => getSlotPosition(props.slotIndex, props.visibleCols);
 
     const t = createMemo(() => {
         const task = getTask();
         const bar = task?.$bar;
         const progress = task?.progress ?? 0;
-        const width = bar?.width ?? SLOT_WIDTH;
+        const width = bar?.width ?? 40;
         return {
             colorBg: task?.color_bg ?? 'rgba(59,130,246,0.15)',
             colorFill: task?.color_fill ?? 'rgba(59,130,246,0.3)',
             locked: task?.locked ?? false,
             name: task?.name ?? '',
             id: task?.id ?? '',
+            x: bar?.x ?? 0,
+            y: bar?.y ?? 0,
             width,
-            height: bar?.height ?? SLOT_HEIGHT,
+            height: bar?.height ?? ROW_HEIGHT,
             pw: (width * progress) / 100,
         };
     });
@@ -138,16 +165,16 @@ function TestBarBaseline(props) {
             onMouseDown={(e) => startDrag(e, 'dragging_bar', { taskId: t().id })}
             style={{
                 position: 'absolute',
-                transform: `translate(${pos().x}px, ${pos().y}px)`,
+                transform: `translate(${t().x}px, ${t().y}px)`,
                 width: `${t().width}px`,
                 height: `${t().height}px`,
                 cursor: isDragging() ? 'grabbing' : 'grab',
                 background: bg(),
                 'border-radius': '3px',
                 color: '#fff',
-                'font-size': '12px',
+                'font-size': '11px',
                 'line-height': `${t().height}px`,
-                'padding-left': '8px',
+                'padding-left': '4px',
                 overflow: 'hidden',
                 'white-space': 'nowrap',
                 'text-overflow': 'ellipsis',
@@ -160,11 +187,10 @@ function TestBarBaseline(props) {
     );
 }
 
-/** NoMemos - Direct store access */
+/** NoMemos - Direct store access, uses $bar for position */
 function TestBarNoMemos(props) {
     const events = useGanttEvents();
     const getTask = () => typeof props.task === 'function' ? props.task() : props.task;
-    const pos = () => getSlotPosition(props.slotIndex, props.visibleCols);
 
     const colorBg = () => getTask()?.color_bg ?? 'rgba(59,130,246,0.15)';
     const colorFill = () => getTask()?.color_fill ?? 'rgba(59,130,246,0.3)';
@@ -172,8 +198,10 @@ function TestBarNoMemos(props) {
     const id = () => getTask()?.id ?? '';
     const progress = () => getTask()?.progress ?? 0;
     const locked = () => getTask()?.locked ?? false;
-    const width = () => getTask()?.$bar?.width ?? SLOT_WIDTH;
-    const height = () => getTask()?.$bar?.height ?? SLOT_HEIGHT;
+    const x = () => getTask()?.$bar?.x ?? 0;
+    const y = () => getTask()?.$bar?.y ?? 0;
+    const width = () => getTask()?.$bar?.width ?? 40;
+    const height = () => getTask()?.$bar?.height ?? ROW_HEIGHT;
     const pw = () => (width() * progress()) / 100;
 
     const bg = () => {
@@ -193,16 +221,16 @@ function TestBarNoMemos(props) {
             onMouseDown={(e) => startDrag(e, 'dragging_bar', { taskId: id() })}
             style={{
                 position: 'absolute',
-                transform: `translate(${pos().x}px, ${pos().y}px)`,
+                transform: `translate(${x()}px, ${y()}px)`,
                 width: `${width()}px`,
                 height: `${height()}px`,
                 cursor: isDragging() ? 'grabbing' : 'grab',
                 background: bg(),
                 'border-radius': '3px',
                 color: '#fff',
-                'font-size': '12px',
+                'font-size': '11px',
                 'line-height': `${height()}px`,
-                'padding-left': '8px',
+                'padding-left': '4px',
                 overflow: 'hidden',
                 'white-space': 'nowrap',
                 'text-overflow': 'ellipsis',
@@ -215,11 +243,10 @@ function TestBarNoMemos(props) {
     );
 }
 
-/** SplitMemo - Separate static and dynamic memos */
+/** SplitMemo - Separate static and dynamic memos, uses $bar for position */
 function TestBarSplitMemo(props) {
     const events = useGanttEvents();
     const getTask = () => typeof props.task === 'function' ? props.task() : props.task;
-    const pos = () => getSlotPosition(props.slotIndex, props.visibleCols);
 
     const staticProps = createMemo(() => {
         const task = getTask();
@@ -230,8 +257,8 @@ function TestBarSplitMemo(props) {
         const task = getTask();
         const bar = task?.$bar;
         const progress = task?.progress ?? 0;
-        const width = bar?.width ?? SLOT_WIDTH;
-        return { width, height: bar?.height ?? SLOT_HEIGHT, pw: (width * progress) / 100 };
+        const width = bar?.width ?? 40;
+        return { x: bar?.x ?? 0, y: bar?.y ?? 0, width, height: bar?.height ?? ROW_HEIGHT, pw: (width * progress) / 100 };
     });
 
     const bg = () => {
@@ -250,16 +277,16 @@ function TestBarSplitMemo(props) {
             onMouseDown={(e) => startDrag(e, 'dragging_bar', { taskId: staticProps().id })}
             style={{
                 position: 'absolute',
-                transform: `translate(${pos().x}px, ${pos().y}px)`,
+                transform: `translate(${dynamicProps().x}px, ${dynamicProps().y}px)`,
                 width: `${dynamicProps().width}px`,
                 height: `${dynamicProps().height}px`,
                 cursor: isDragging() ? 'grabbing' : 'grab',
                 background: bg(),
                 'border-radius': '3px',
                 color: '#fff',
-                'font-size': '12px',
+                'font-size': '11px',
                 'line-height': `${dynamicProps().height}px`,
-                'padding-left': '8px',
+                'padding-left': '4px',
                 overflow: 'hidden',
                 'white-space': 'nowrap',
                 'text-overflow': 'ellipsis',
@@ -272,24 +299,24 @@ function TestBarSplitMemo(props) {
     );
 }
 
-/** Minimal - No handlers, no memos */
+/** Minimal - No handlers, no memos, uses $bar for position */
 function TestBarMinimal(props) {
     const getTask = () => typeof props.task === 'function' ? props.task() : props.task;
-    const pos = () => getSlotPosition(props.slotIndex, props.visibleCols);
+    const bar = () => getTask()?.$bar;
 
     return (
         <div style={{
             position: 'absolute',
-            transform: `translate(${pos().x}px, ${pos().y}px)`,
-            width: `${SLOT_WIDTH}px`,
-            height: `${SLOT_HEIGHT}px`,
+            transform: `translate(${bar()?.x ?? 0}px, ${bar()?.y ?? 0}px)`,
+            width: `${bar()?.width ?? 40}px`,
+            height: `${bar()?.height ?? ROW_HEIGHT}px`,
             background: getTask()?.color ?? '#3b82f6',
             opacity: 0.5,
             'border-radius': '3px',
             color: '#fff',
-            'font-size': '12px',
-            'line-height': `${SLOT_HEIGHT}px`,
-            'padding-left': '8px',
+            'font-size': '11px',
+            'line-height': `${ROW_HEIGHT}px`,
+            'padding-left': '4px',
             overflow: 'hidden',
         }}>
             {getTask()?.name ?? ''}
@@ -312,46 +339,171 @@ export function GanttExperiments() {
     const [tasks] = createStore(initialTasks);
     const allTaskIds = Object.keys(tasks);
 
-    // URL params: ?variant=noMemos&test=vertical
+    // URL params: ?variant=noMemos&test=vertical&virt=xySplit
     const params = new URLSearchParams(window.location.search);
     const initialVariant = params.get('variant') || 'baseline';
     const autoTest = params.get('test'); // 'vertical' | 'horizontal' | 'both'
+    const initialVirt = params.get('virt') || 'combined'; // 'combined' | 'xySplit'
 
     const [barVariant, setBarVariant] = createSignal(initialVariant);
+    const [virtMode, setVirtMode] = createSignal(initialVirt);
 
     const [viewportWidth, setViewportWidth] = createSignal(1200);
     const [viewportHeight, setViewportHeight] = createSignal(800);
 
-    const visibleCols = createMemo(() => Math.ceil(viewportWidth() / (SLOT_WIDTH + GAP)) + OVERSCAN);
-    const visibleRows = createMemo(() => Math.ceil(viewportHeight() / (SLOT_HEIGHT + GAP)) + OVERSCAN);
+    // Scroll position in pixels
+    const [scrollX, setScrollX] = createSignal(0);
+    const [scrollY, setScrollY] = createSignal(0);
 
-    const [rowOffset, setRowOffset] = createSignal(0);
-    const [colOffset, setColOffset] = createSignal(0);
-    const [subRowOffset, setSubRowOffset] = createSignal(0);
-    const [subColOffset, setSubColOffset] = createSignal(0);
-
+    // Visible row range (Y virtualization)
     const visibleRowRange = createMemo(() => {
-        const startRow = rowOffset();
-        const endRow = startRow + visibleRows() + 1;
-        return { start: startRow, end: Math.min(endRow, TOTAL_ROWS) };
+        const y = scrollY();
+        const startRow = Math.floor(y / (ROW_HEIGHT + GAP));
+        const endRow = Math.ceil((y + viewportHeight()) / (ROW_HEIGHT + GAP)) + OVERSCAN_ROWS;
+        return { start: Math.max(0, startRow - OVERSCAN_ROWS), end: Math.min(endRow, TOTAL_ROWS) };
     });
 
-    const visibleTasks = createMemo(() => {
-        const sr = rowOffset();
-        const sc = colOffset();
-        const vRows = visibleRows();
-        const vCols = visibleCols();
+    // Visible X range (horizontal virtualization)
+    const visibleXRange = createMemo(() => {
+        const x = scrollX();
+        return { start: Math.max(0, x - OVERSCAN_PX), end: x + viewportWidth() + OVERSCAN_PX };
+    });
+
+    // COMBINED: Get visible tasks by filtering on row and X range together
+    const visibleTasksCombined = createMemo(() => {
+        const rowRange = visibleRowRange();
+        const xRange = visibleXRange();
         const result = [];
-        for (let r = 0; r < vRows && sr + r < TOTAL_ROWS; r++) {
-            for (let c = 0; c < vCols && sc + c < TOTAL_COLS; c++) {
-                const taskIndex = (sr + r) * TOTAL_COLS + (sc + c);
-                if (taskIndex < allTaskIds.length) {
-                    result.push(tasks[allTaskIds[taskIndex]]);
+
+        for (let row = rowRange.start; row < rowRange.end; row++) {
+            const rowTaskIds = taskIdsByRow[row] || [];
+            for (const id of rowTaskIds) {
+                const task = tasks[id];
+                const bar = task?.$bar;
+                if (!bar) continue;
+                // Check if task overlaps visible X range
+                const taskEnd = bar.x + bar.width;
+                if (taskEnd >= xRange.start && bar.x <= xRange.end) {
+                    result.push(task);
                 }
             }
         }
         return result;
     });
+
+    // XYSPLIT: Stage 1 - Get all tasks in visible rows (only recalcs on Y scroll)
+    const visibleRowTasks = createMemo(() => {
+        const rowRange = visibleRowRange();
+        const result = [];
+        for (let row = rowRange.start; row < rowRange.end; row++) {
+            const rowTaskIds = taskIdsByRow[row] || [];
+            for (const id of rowTaskIds) {
+                result.push(tasks[id]);
+            }
+        }
+        return result;
+    });
+
+    // XYSPLIT: Stage 2 - Filter by X range (recalcs on X scroll, uses cached row tasks)
+    const visibleTasksXYSplit = createMemo(() => {
+        const xRange = visibleXRange();
+        const rowTasks = visibleRowTasks();
+        const result = [];
+        for (const task of rowTasks) {
+            const bar = task?.$bar;
+            if (!bar) continue;
+            const taskEnd = bar.x + bar.width;
+            if (taskEnd >= xRange.start && bar.x <= xRange.end) {
+                result.push(task);
+            }
+        }
+        return result;
+    });
+
+    // SMARTCACHE: Only recalc what changed (Y = rebuild rows, X = just filter)
+    let smartCacheRowTasks = [];
+    let smartCacheResult = [];
+    let smartLastYStart = -1, smartLastYEnd = -1;
+    let smartLastXStart = -1, smartLastXEnd = -1;
+
+    const visibleTasksSmartCache = createMemo(() => {
+        const rowRange = visibleRowRange();
+        const xRange = visibleXRange();
+
+        const yChanged = rowRange.start !== smartLastYStart || rowRange.end !== smartLastYEnd;
+        const xChanged = xRange.start !== smartLastXStart || xRange.end !== smartLastXEnd;
+
+        if (yChanged) {
+            smartCacheRowTasks = [];
+            for (let row = rowRange.start; row < rowRange.end; row++) {
+                for (const id of taskIdsByRow[row] || []) {
+                    smartCacheRowTasks.push(tasks[id]);
+                }
+            }
+            smartLastYStart = rowRange.start;
+            smartLastYEnd = rowRange.end;
+        }
+
+        if (yChanged || xChanged) {
+            smartCacheResult = [];
+            for (const task of smartCacheRowTasks) {
+                const bar = task?.$bar;
+                if (bar && bar.x + bar.width >= xRange.start && bar.x <= xRange.end) {
+                    smartCacheResult.push(task);
+                }
+            }
+            smartLastXStart = xRange.start;
+            smartLastXEnd = xRange.end;
+        }
+
+        return smartCacheResult;
+    });
+
+    // SPLITEQUALS: Use custom equality to prevent unnecessary downstream updates
+    // Custom equality for ID arrays
+    const idsEqual = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
+
+    // Stage 1: Get visible row task IDs (only depends on Y)
+    const visibleRowTaskIds = createMemo(() => {
+        const rowRange = visibleRowRange();
+        const ids = [];
+        for (let row = rowRange.start; row < rowRange.end; row++) {
+            for (const id of taskIdsByRow[row] || []) {
+                ids.push(id);
+            }
+        }
+        return ids;
+    }, { equals: idsEqual });
+
+    // Stage 2: Filter by X range and return VISIBLE IDs (with custom equality)
+    const visibleTaskIdsSplitEquals = createMemo(() => {
+        const ids = visibleRowTaskIds();
+        const xRange = visibleXRange();
+        const result = [];
+        for (const id of ids) {
+            const task = tasks[id];
+            const bar = task?.$bar;
+            if (bar && bar.x + bar.width >= xRange.start && bar.x <= xRange.end) {
+                result.push(id);  // Return ID, not task object
+            }
+        }
+        return result;
+    }, { equals: idsEqual });
+
+    // Stage 3: Map IDs to tasks (only reruns when visible IDs actually change)
+    const visibleTasksSplitEquals = createMemo(() => {
+        const ids = visibleTaskIdsSplitEquals();
+        return ids.map(id => tasks[id]);
+    });
+
+    // Select virtualization mode
+    const visibleTasks = () => {
+        const mode = virtMode();
+        if (mode === 'xySplit') return visibleTasksXYSplit();
+        if (mode === 'smartCache') return visibleTasksSmartCache();
+        if (mode === 'splitEquals') return visibleTasksSplitEquals();
+        return visibleTasksCombined();
+    };
 
     let containerRef;
     let stressAbort = null;
@@ -438,7 +590,7 @@ export function GanttExperiments() {
         <GanttEventsProvider>
         <div style={{ height: '100vh', display: 'flex', 'flex-direction': 'column', padding: '10px', 'font-family': 'system-ui', background: '#1a1a1a', color: '#fff' }}>
             <div style={{ 'margin-bottom': '10px', display: 'flex', gap: '15px', 'align-items': 'center' }}>
-                <h2 style={{ margin: 0, 'font-size': '16px' }}>Experiments ({TOTAL_COLS}x{TOTAL_ROWS} = {allTaskIds.length} tasks)</h2>
+                <h2 style={{ margin: 0, 'font-size': '16px' }}>Experiments ({TOTAL_DAYS} days × {TOTAL_ROWS} rows = {allTaskIds.length} tasks)</h2>
                 <select
                     value={barVariant()}
                     onChange={(e) => setBarVariant(e.target.value)}
@@ -448,6 +600,16 @@ export function GanttExperiments() {
                     <option value="noMemos">noMemos (direct access)</option>
                     <option value="splitMemo">splitMemo (static+dynamic)</option>
                     <option value="minimal">minimal (no handlers)</option>
+                </select>
+                <select
+                    value={virtMode()}
+                    onChange={(e) => setVirtMode(e.target.value)}
+                    style={{ padding: '6px 10px', 'border-radius': '4px', border: '1px solid #444', background: '#2d4444', color: '#fff', 'font-size': '12px' }}
+                >
+                    <option value="combined">combined (single memo)</option>
+                    <option value="xySplit">xySplit (X/Y separate)</option>
+                    <option value="smartCache">smartCache (skip unchanged)</option>
+                    <option value="splitEquals">splitEquals (custom equality)</option>
                 </select>
                 <span style={{ 'font-size': '11px', color: '#888' }}>Visible: {visibleTasks().length}</span>
 
@@ -485,21 +647,13 @@ export function GanttExperiments() {
                     resourceColumnWidth={60}
                     headerHeight={HEADER_HEIGHT}
                     onScroll={(sl, st) => {
-                        const rowHeight = SLOT_HEIGHT + GAP;
-                        const colWidth = SLOT_WIDTH + GAP;
-                        const vRows = visibleRows();
-                        const vCols = visibleCols();
-                        const rowIndex = st / rowHeight;
-                        setRowOffset(Math.max(0, Math.min(Math.floor(rowIndex), TOTAL_ROWS - vRows)));
-                        setSubRowOffset((rowIndex % 1) * rowHeight);
-                        const colIndex = sl / colWidth;
-                        setColOffset(Math.max(0, Math.min(Math.floor(colIndex), TOTAL_COLS - vCols)));
-                        setSubColOffset((colIndex % 1) * colWidth);
+                        setScrollX(sl);
+                        setScrollY(st);
                     }}
                     header={
                         <DateHeaders
-                            dateInfos={mockDateInfos}
-                            columnWidth={SLOT_WIDTH + GAP}
+                            dateInfos={dateInfos}
+                            columnWidth={DAY_WIDTH}
                             gridWidth={TOTAL_WIDTH}
                             upperHeaderHeight={25}
                             lowerHeaderHeight={25}
@@ -516,21 +670,18 @@ export function GanttExperiments() {
                     }
                     barsLayer={
                         <div style={{
-                            position: 'sticky',
+                            position: 'absolute',
                             top: 0,
                             left: 0,
-                            width: `${visibleCols() * (SLOT_WIDTH + GAP)}px`,
-                            height: `${visibleRows() * (SLOT_HEIGHT + GAP)}px`,
+                            width: `${TOTAL_WIDTH}px`,
+                            height: `${TOTAL_HEIGHT}px`,
                             'pointer-events': 'auto',
-                            transform: `translate(${-subColOffset()}px, ${-subRowOffset()}px)`,
                         }}>
                             <Index each={visibleTasks()}>
-                                {(task, slotIndex) => (
+                                {(task) => (
                                     <Dynamic
                                         component={BarComponent()}
                                         task={task}
-                                        slotIndex={slotIndex}
-                                        visibleCols={visibleCols()}
                                     />
                                 )}
                             </Index>
@@ -540,10 +691,10 @@ export function GanttExperiments() {
                     <Grid
                         width={TOTAL_WIDTH}
                         height={TOTAL_HEIGHT}
-                        barHeight={SLOT_HEIGHT}
+                        barHeight={ROW_HEIGHT}
                         padding={GAP}
                         taskCount={0}
-                        columnWidth={SLOT_WIDTH + GAP}
+                        columnWidth={DAY_WIDTH}
                         lines="vertical"
                         backgroundColor="#1a1a1a"
                         lineColor="#333"

@@ -1,0 +1,637 @@
+{
+  "url": "http://localhost:5173/examples/experiments.html?variant=noMemos&virt=combined&test=vertical",
+  "capturedAt": "2025-12-22T04:36:54.503Z",
+  "duration": "5000ms",
+  "metrics": {
+    "navigationStart": 226629.317945,
+    "domContentLoaded": 226634.112047,
+    "documents": 2,
+    "frames": 1,
+    "jsEventListeners": 3781,
+    "nodes": 7548,
+    "layoutCount": 17,
+    "recalcStyleCount": 17,
+    "layoutDuration": "721.27ms",
+    "recalcStyleDuration": "391.60ms",
+    "scriptDuration": "3491.07ms",
+    "taskDuration": "6595.29ms",
+    "jsHeapSizeUsed": "161.69 MB",
+    "jsHeapSizeTotal": "251.17 MB"
+  },
+  "cpu": {
+    "hotFunctions": [
+      {
+        "function": "(program)",
+        "selfTime": "1889.98ms",
+        "selfPercent": "30.6%",
+        "totalTime": "1889.98ms",
+        "location": "(native)",
+        "hits": 5664
+      },
+      {
+        "function": "updateComputation",
+        "selfTime": "1436.76ms",
+        "selfPercent": "23.2%",
+        "totalTime": "1621.85ms",
+        "location": "http://localhost:5173/node_modules/.vite/deps/chunk-NKR2X3CR.js?v=cdabc3f4:712:26",
+        "hits": 8833
+      },
+      {
+        "function": "set scrollTop",
+        "selfTime": "1003.36ms",
+        "selfPercent": "16.2%",
+        "totalTime": "1003.36ms",
+        "location": "(native)",
+        "hits": 5640
+      },
+      {
+        "function": "setProperty",
+        "selfTime": "213.62ms",
+        "selfPercent": "3.5%",
+        "totalTime": "213.62ms",
+        "location": "(native)",
+        "hits": 1120
+      },
+      {
+        "function": "updateComputation",
+        "selfTime": "125.62ms",
+        "selfPercent": "2.0%",
+        "totalTime": "647.53ms",
+        "location": "http://localhost:5173/node_modules/.vite/deps/chunk-NKR2X3CR.js?v=cdabc3f4:712:26",
+        "hits": 653
+      },
+      {
+        "function": "get",
+        "selfTime": "83.41ms",
+        "selfPercent": "1.3%",
+        "totalTime": "167.18ms",
+        "location": "http://localhost:5173/node_modules/.vite/deps/solid-js_store.js?v=ec587242:98:5",
+        "hits": 397
+      },
+      {
+        "function": "setProperty",
+        "selfTime": "74.16ms",
+        "selfPercent": "1.2%",
+        "totalTime": "74.16ms",
+        "location": "(native)",
+        "hits": 397
+      },
+      {
+        "function": "cleanNode",
+        "selfTime": "72.82ms",
+        "selfPercent": "1.2%",
+        "totalTime": "72.82ms",
+        "location": "http://localhost:5173/node_modules/.vite/deps/chunk-NKR2X3CR.js?v=cdabc3f4:968:18",
+        "hits": 364
+      },
+      {
+        "function": "cleanNode",
+        "selfTime": "69.36ms",
+        "selfPercent": "1.1%",
+        "totalTime": "73.54ms",
+        "location": "http://localhost:5173/node_modules/.vite/deps/chunk-NKR2X3CR.js?v=cdabc3f4:968:18",
+        "hits": 387
+      },
+      {
+        "function": "updateComputation",
+        "selfTime": "49.36ms",
+        "selfPercent": "0.8%",
+        "totalTime": "667.72ms",
+        "location": "http://localhost:5173/node_modules/.vite/deps/chunk-NKR2X3CR.js?v=cdabc3f4:712:26",
+        "hits": 275
+      },
+      {
+        "function": "get",
+        "selfTime": "47.44ms",
+        "selfPercent": "0.8%",
+        "totalTime": "88.72ms",
+        "location": "http://localhost:5173/node_modules/.vite/deps/solid-js_store.js?v=ec587242:98:5",
+        "hits": 222
+      },
+      {
+        "function": "readSignal",
+        "selfTime": "46.45ms",
+        "selfPercent": "0.8%",
+        "totalTime": "46.45ms",
+        "location": "http://localhost:5173/node_modules/.vite/deps/chunk-NKR2X3CR.js?v=cdabc3f4:646:19",
+        "hits": 228
+      },
+      {
+        "function": "get",
+        "selfTime": "40.65ms",
+        "selfPercent": "0.7%",
+        "totalTime": "74.65ms",
+        "location": "http://localhost:5173/node_modules/.vite/deps/solid-js_store.js?v=ec587242:98:5",
+        "hits": 215
+      },
+      {
+        "function": "(anonymous)",
+        "selfTime": "38.50ms",
+        "selfPercent": "0.6%",
+        "totalTime": "113.55ms",
+        "location": "http://localhost:5173/src/components/GanttExperiments.jsx?t=1766376482026:456:44",
+        "hits": 176
+      },
+      {
+        "function": "runUserEffects",
+        "selfTime": "35.44ms",
+        "selfPercent": "0.6%",
+        "totalTime": "721.88ms",
+        "location": "http://localhost:5173/node_modules/.vite/deps/chunk-NKR2X3CR.js?v=cdabc3f4:919:23",
+        "hits": 198
+      },
+      {
+        "function": "get",
+        "selfTime": "33.27ms",
+        "selfPercent": "0.5%",
+        "totalTime": "80.96ms",
+        "location": "http://localhost:5173/node_modules/.vite/deps/solid-js_store.js?v=ec587242:98:5",
+        "hits": 181
+      },
+      {
+        "function": "TestBarNoMemos2._$effect.e",
+        "selfTime": "30.51ms",
+        "selfPercent": "0.5%",
+        "totalTime": "423.30ms",
+        "location": "http://localhost:5173/src/components/GanttExperiments.jsx?t=1766376482026:172:13",
+        "hits": 176
+      },
+      {
+        "function": "insertExpression",
+        "selfTime": "28.81ms",
+        "selfPercent": "0.5%",
+        "totalTime": "87.34ms",
+        "location": "http://localhost:5173/node_modules/.vite/deps/chunk-47G5IZ3Y.js?v=cdabc3f4:945:25",
+        "hits": 163
+      },
+      {
+        "function": "set data",
+        "selfTime": "28.20ms",
+        "selfPercent": "0.5%",
+        "totalTime": "28.20ms",
+        "location": "(native)",
+        "hits": 158
+      },
+      {
+        "function": "(garbage collector)",
+        "selfTime": "26.08ms",
+        "selfPercent": "0.4%",
+        "totalTime": "26.08ms",
+        "location": "(native)",
+        "hits": 78
+      }
+    ],
+    "callTree": {
+      "tree": {
+        "name": "(root)",
+        "selfTime": 0,
+        "totalTime": 6181407,
+        "selfPercent": "0.0",
+        "totalPercent": "100.0",
+        "location": null,
+        "children": [
+          {
+            "name": "handleScroll",
+            "selfTime": 0,
+            "totalTime": 3247052,
+            "selfPercent": "0.0",
+            "totalPercent": "52.5",
+            "location": "http://localhost:5173/src/components/GanttContainer.jsx:46",
+            "children": [
+              {
+                "name": "onScroll",
+                "selfTime": 0,
+                "totalTime": 3245647,
+                "selfPercent": "0.0",
+                "totalPercent": "52.5",
+                "location": "http://localhost:5173/src/components/GanttExperiments.jsx?t=1766376482026:631",
+                "children": [
+                  {
+                    "name": "setter",
+                    "selfTime": 0,
+                    "totalTime": 3245647,
+                    "selfPercent": "0.0",
+                    "totalPercent": "52.5",
+                    "location": "http://localhost:5173/node_modules/.vite/deps/chunk-NKR2X3CR.js?v=cdabc3f4:218",
+                    "children": [
+                      {
+                        "name": "writeSignal",
+                        "selfTime": 159,
+                        "totalTime": 3245647,
+                        "selfPercent": "0.0",
+                        "totalPercent": "52.5",
+                        "location": "http://localhost:5173/node_modules/.vite/deps/chunk-NKR2X3CR.js?v=cdabc3f4:677",
+                        "children": [
+                          {
+                            "name": "completeUpdates",
+                            "selfTime": 0,
+                            "totalTime": 1875727,
+                            "selfPercent": "0.0",
+                            "totalPercent": "30.3",
+                            "location": "http://localhost:5173/node_modules/.vite/deps/chunk-NKR2X3CR.js?v=cdabc3f4:852",
+                            "children": [
+                              {
+                                "name": "runQueue",
+                                "selfTime": 193,
+                                "totalTime": 1622038,
+                                "selfPercent": "0.0",
+                                "totalPercent": "26.2",
+                                "location": "http://localhost:5173/node_modules/.vite/deps/chunk-NKR2X3CR.js?v=cdabc3f4:899",
+                                "children": [
+                                  {
+                                    "name": "runTop",
+                                    "selfTime": 0,
+                                    "totalTime": 1621845,
+                                    "selfPercent": "0.0",
+                                    "totalPercent": "26.2",
+                                    "location": "http://localhost:5173/node_modules/.vite/deps/chunk-NKR2X3CR.js?v=cdabc3f4:807",
+                                    "children": [
+                                      {
+                                        "name": "updateComputation",
+                                        "selfTime": 1436760,
+                                        "totalTime": 1621845,
+                                        "selfPercent": "23.2",
+                                        "totalPercent": "26.2",
+                                        "location": "http://localhost:5173/node_modules/.vite/deps/chunk-NKR2X3CR.js?v=cdabc3f4:712",
+                                        "children": [
+                                          {
+                                            "name": "get",
+                                            "selfTime": 47440,
+                                            "totalTime": 88715,
+                                            "selfPercent": "0.8",
+                                            "totalPercent": "1.4",
+                                            "location": "http://localhost:5173/node_modules/.vite/deps/solid-js_store.js?v=ec587242:98"
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "name": "runUpdates",
+                                "selfTime": 0,
+                                "totalTime": 253529,
+                                "selfPercent": "0.0",
+                                "totalPercent": "4.1",
+                                "location": "http://localhost:5173/node_modules/.vite/deps/chunk-NKR2X3CR.js?v=cdabc3f4:835",
+                                "children": [
+                                  {
+                                    "name": "(anonymous)",
+                                    "selfTime": 0,
+                                    "totalTime": 253529,
+                                    "selfPercent": "0.0",
+                                    "totalPercent": "4.1",
+                                    "location": "http://localhost:5173/node_modules/.vite/deps/chunk-NKR2X3CR.js?v=cdabc3f4:895",
+                                    "children": [
+                                      {
+                                        "name": "runUserEffects",
+                                        "selfTime": 15751,
+                                        "totalTime": 253529,
+                                        "selfPercent": "0.3",
+                                        "totalPercent": "4.1",
+                                        "location": "http://localhost:5173/node_modules/.vite/deps/chunk-NKR2X3CR.js?v=cdabc3f4:919",
+                                        "children": [
+                                          {
+                                            "name": "runTop",
+                                            "selfTime": 3356,
+                                            "totalTime": 237778,
+                                            "selfPercent": "0.1",
+                                            "totalPercent": "3.8",
+                                            "location": "http://localhost:5173/node_modules/.vite/deps/chunk-NKR2X3CR.js?v=cdabc3f4:807",
+                                            "children": [
+                                              {
+                                                "name": "updateComputation",
+                                                "selfTime": 16239,
+                                                "totalTime": 234422,
+                                                "selfPercent": "0.3",
+                                                "totalPercent": "3.8",
+                                                "location": "http://localhost:5173/node_modules/.vite/deps/chunk-NKR2X3CR.js?v=cdabc3f4:712",
+                                                "children": [
+                                                  {
+                                                    "name": "TestBarNoMemos2._$effect.e",
+                                                    "selfTime": 12003,
+                                                    "totalTime": 152721,
+                                                    "selfPercent": "0.2",
+                                                    "totalPercent": "2.5",
+                                                    "location": "http://localhost:5173/src/components/GanttExperiments.jsx?t=1766376482026:172",
+                                                    "children": [
+                                                      {
+                                                        "name": "setStyleProperty",
+                                                        "selfTime": 6807,
+                                                        "totalTime": 80967,
+                                                        "selfPercent": "0.1",
+                                                        "totalPercent": "1.3",
+                                                        "location": "http://localhost:5173/node_modules/.vite/deps/chunk-47G5IZ3Y.js?v=cdabc3f4:715",
+                                                        "children": [
+                                                          {
+                                                            "name": "setProperty",
+                                                            "selfTime": 74160,
+                                                            "totalTime": 74160,
+                                                            "selfPercent": "1.2",
+                                                            "totalPercent": "1.2",
+                                                            "location": null
+                                                          }
+                                                        ]
+                                                      }
+                                                    ]
+                                                  }
+                                                ]
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "name": "runUpdates",
+                            "selfTime": 0,
+                            "totalTime": 1369761,
+                            "selfPercent": "0.0",
+                            "totalPercent": "22.2",
+                            "location": "http://localhost:5173/node_modules/.vite/deps/chunk-NKR2X3CR.js?v=cdabc3f4:835",
+                            "children": [
+                              {
+                                "name": "completeUpdates",
+                                "selfTime": 0,
+                                "totalTime": 1369573,
+                                "selfPercent": "0.0",
+                                "totalPercent": "22.2",
+                                "location": "http://localhost:5173/node_modules/.vite/deps/chunk-NKR2X3CR.js?v=cdabc3f4:852",
+                                "children": [
+                                  {
+                                    "name": "runUpdates",
+                                    "selfTime": 0,
+                                    "totalTime": 721884,
+                                    "selfPercent": "0.0",
+                                    "totalPercent": "11.7",
+                                    "location": "http://localhost:5173/node_modules/.vite/deps/chunk-NKR2X3CR.js?v=cdabc3f4:835",
+                                    "children": [
+                                      {
+                                        "name": "(anonymous)",
+                                        "selfTime": 0,
+                                        "totalTime": 721884,
+                                        "selfPercent": "0.0",
+                                        "totalPercent": "11.7",
+                                        "location": "http://localhost:5173/node_modules/.vite/deps/chunk-NKR2X3CR.js?v=cdabc3f4:895",
+                                        "children": [
+                                          {
+                                            "name": "runUserEffects",
+                                            "selfTime": 35441,
+                                            "totalTime": 721884,
+                                            "selfPercent": "0.6",
+                                            "totalPercent": "11.7",
+                                            "location": "http://localhost:5173/node_modules/.vite/deps/chunk-NKR2X3CR.js?v=cdabc3f4:919",
+                                            "children": [
+                                              {
+                                                "name": "runTop",
+                                                "selfTime": 18724,
+                                                "totalTime": 686443,
+                                                "selfPercent": "0.3",
+                                                "totalPercent": "11.1",
+                                                "location": "http://localhost:5173/node_modules/.vite/deps/chunk-NKR2X3CR.js?v=cdabc3f4:807",
+                                                "children": [
+                                                  {
+                                                    "name": "updateComputation",
+                                                    "selfTime": 49358,
+                                                    "totalTime": 667719,
+                                                    "selfPercent": "0.8",
+                                                    "totalPercent": "10.8",
+                                                    "location": "http://localhost:5173/node_modules/.vite/deps/chunk-NKR2X3CR.js?v=cdabc3f4:712",
+                                                    "children": [
+                                                      {
+                                                        "name": "TestBarNoMemos2._$effect.e",
+                                                        "selfTime": 30508,
+                                                        "totalTime": 423297,
+                                                        "selfPercent": "0.5",
+                                                        "totalPercent": "6.8",
+                                                        "location": "http://localhost:5173/src/components/GanttExperiments.jsx?t=1766376482026:172",
+                                                        "children": [
+                                                          {
+                                                            "name": "setStyleProperty",
+                                                            "selfTime": 13075,
+                                                            "totalTime": 226694,
+                                                            "selfPercent": "0.2",
+                                                            "totalPercent": "3.7",
+                                                            "location": "http://localhost:5173/node_modules/.vite/deps/chunk-47G5IZ3Y.js?v=cdabc3f4:715",
+                                                            "children": [
+                                                              {
+                                                                "name": "setProperty",
+                                                                "selfTime": 213619,
+                                                                "totalTime": 213619,
+                                                                "selfPercent": "3.5",
+                                                                "totalPercent": "3.5",
+                                                                "location": null
+                                                              }
+                                                            ]
+                                                          },
+                                                          {
+                                                            "name": "bg",
+                                                            "selfTime": 4338,
+                                                            "totalTime": 64432,
+                                                            "selfPercent": "0.1",
+                                                            "totalPercent": "1.0",
+                                                            "location": "http://localhost:5173/src/components/GanttExperiments.jsx?t=1766376482026:134"
+                                                          }
+                                                        ]
+                                                      },
+                                                      {
+                                                        "name": "(anonymous)",
+                                                        "selfTime": 5545,
+                                                        "totalTime": 120852,
+                                                        "selfPercent": "0.1",
+                                                        "totalPercent": "2.0",
+                                                        "location": "http://localhost:5173/node_modules/.vite/deps/chunk-47G5IZ3Y.js?v=cdabc3f4:743",
+                                                        "children": [
+                                                          {
+                                                            "name": "insertExpression",
+                                                            "selfTime": 28814,
+                                                            "totalTime": 87340,
+                                                            "selfPercent": "0.5",
+                                                            "totalPercent": "1.4",
+                                                            "location": "http://localhost:5173/node_modules/.vite/deps/chunk-47G5IZ3Y.js?v=cdabc3f4:945"
+                                                          }
+                                                        ]
+                                                      },
+                                                      {
+                                                        "name": "cleanNode",
+                                                        "selfTime": 69364,
+                                                        "totalTime": 73538,
+                                                        "selfPercent": "1.1",
+                                                        "totalPercent": "1.2",
+                                                        "location": "http://localhost:5173/node_modules/.vite/deps/chunk-NKR2X3CR.js?v=cdabc3f4:968"
+                                                      }
+                                                    ]
+                                                  }
+                                                ]
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "name": "runQueue",
+                                    "selfTime": 161,
+                                    "totalTime": 647689,
+                                    "selfPercent": "0.0",
+                                    "totalPercent": "10.5",
+                                    "location": "http://localhost:5173/node_modules/.vite/deps/chunk-NKR2X3CR.js?v=cdabc3f4:899",
+                                    "children": [
+                                      {
+                                        "name": "runTop",
+                                        "selfTime": 0,
+                                        "totalTime": 647528,
+                                        "selfPercent": "0.0",
+                                        "totalPercent": "10.5",
+                                        "location": "http://localhost:5173/node_modules/.vite/deps/chunk-NKR2X3CR.js?v=cdabc3f4:807",
+                                        "children": [
+                                          {
+                                            "name": "updateComputation",
+                                            "selfTime": 125623,
+                                            "totalTime": 647528,
+                                            "selfPercent": "2.0",
+                                            "totalPercent": "10.5",
+                                            "location": "http://localhost:5173/node_modules/.vite/deps/chunk-NKR2X3CR.js?v=cdabc3f4:712",
+                                            "children": [
+                                              {
+                                                "name": "get",
+                                                "selfTime": 83413,
+                                                "totalTime": 167179,
+                                                "selfPercent": "1.3",
+                                                "totalPercent": "2.7",
+                                                "location": "http://localhost:5173/node_modules/.vite/deps/solid-js_store.js?v=ec587242:98"
+                                              },
+                                              {
+                                                "name": "(anonymous)",
+                                                "selfTime": 38503,
+                                                "totalTime": 113547,
+                                                "selfPercent": "0.6",
+                                                "totalPercent": "1.8",
+                                                "location": "http://localhost:5173/src/components/GanttExperiments.jsx?t=1766376482026:456",
+                                                "children": [
+                                                  {
+                                                    "name": "get",
+                                                    "selfTime": 40646,
+                                                    "totalTime": 74650,
+                                                    "selfPercent": "0.7",
+                                                    "totalPercent": "1.2",
+                                                    "location": "http://localhost:5173/node_modules/.vite/deps/solid-js_store.js?v=ec587242:98"
+                                                  }
+                                                ]
+                                              },
+                                              {
+                                                "name": "(anonymous)",
+                                                "selfTime": 25461,
+                                                "totalTime": 106417,
+                                                "selfPercent": "0.4",
+                                                "totalPercent": "1.7",
+                                                "location": "http://localhost:5173/src/components/GanttExperiments.jsx?t=1766376482026:409",
+                                                "children": [
+                                                  {
+                                                    "name": "get",
+                                                    "selfTime": 33273,
+                                                    "totalTime": 80956,
+                                                    "selfPercent": "0.5",
+                                                    "totalPercent": "1.3",
+                                                    "location": "http://localhost:5173/node_modules/.vite/deps/solid-js_store.js?v=ec587242:98"
+                                                  }
+                                                ]
+                                              },
+                                              {
+                                                "name": "cleanNode",
+                                                "selfTime": 72818,
+                                                "totalTime": 72818,
+                                                "selfPercent": "1.2",
+                                                "totalPercent": "1.2",
+                                                "location": "http://localhost:5173/node_modules/.vite/deps/chunk-NKR2X3CR.js?v=cdabc3f4:968"
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "(program)",
+            "selfTime": 1889978,
+            "totalTime": 1889978,
+            "selfPercent": "30.6",
+            "totalPercent": "30.6",
+            "location": null
+          },
+          {
+            "name": "tick",
+            "selfTime": 92,
+            "totalTime": 1007608,
+            "selfPercent": "0.0",
+            "totalPercent": "16.3",
+            "location": "http://localhost:5173/src/components/GanttExperiments.jsx?t=1766376482026:543",
+            "children": [
+              {
+                "name": "set scrollTop",
+                "selfTime": 1003362,
+                "totalTime": 1003362,
+                "selfPercent": "16.2",
+                "totalPercent": "16.2",
+                "location": null
+              }
+            ]
+          }
+        ]
+      },
+      "totalTime": 6181407,
+      "duration": "6181.41ms"
+    }
+  },
+  "rendering": {
+    "frames": {
+      "count": 0,
+      "avgFrameTime": "0.00ms",
+      "fps": "N/A",
+      "jank": 0
+    },
+    "paints": {
+      "count": 0,
+      "totalTime": "0.00ms",
+      "avgTime": "0ms"
+    },
+    "layouts": {
+      "count": 0,
+      "totalTime": "0.00ms",
+      "avgTime": "0ms"
+    },
+    "scripts": {
+      "count": 0,
+      "totalTime": "0.00ms"
+    },
+    "gc": {
+      "count": 0,
+      "totalTime": "0.00ms"
+    },
+    "longTasks": {
+      "count": 0,
+      "totalTime": "0.00ms",
+      "tasks": []
+    }
+  },
+  "traceEventCount": 0
+}
