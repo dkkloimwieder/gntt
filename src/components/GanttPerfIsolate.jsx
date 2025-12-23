@@ -1,4 +1,4 @@
-import { createSignal, createMemo, onMount, onCleanup, For, Show } from 'solid-js';
+import { createSignal, createMemo, onMount, onCleanup, Index, For, Show } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import calendarData from '../data/calendar.json';
 import date_utils from '../utils/date_utils.js';
@@ -506,7 +506,7 @@ export function GanttPerfIsolate() {
     // URL param to enable dummy memos - use a signal so guards create subscriptions
     const [dummyMemosActive] = createSignal(params.get('memos') === '1' ? 'active' : 'off');
 
-    // 2D virtualization - same as GanttExperiments
+    // 2D virtualization - returns tasks for Index
     const visibleTasks = createMemo(() => {
         const xRange = visibleXRange();
         const rowRange = visibleRowRange();
