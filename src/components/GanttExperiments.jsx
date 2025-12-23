@@ -121,6 +121,63 @@ const taskIdsByRow = (() => {
     return byRow;
 })();
 
+// X-bucket spatial index for fast horizontal filtering (1 bucket = 1 day = DAY_WIDTH px)
+const X_BUCKET_SIZE = DAY_WIDTH;
+
+// Original xBucket: task appears in ALL buckets it spans (causes duplicates)
+const taskIdsByXBucket = (() => {
+    const index = {};
+    Object.entries(initialTasks).forEach(([id, task]) => {
+        const bar = task.$bar;
+        const startBucket = Math.floor(bar.x / X_BUCKET_SIZE);
+        const endBucket = Math.floor((bar.x + bar.width) / X_BUCKET_SIZE);
+        for (let b = startBucket; b <= endBucket; b++) {
+            (index[b] = index[b] || []).push(id);
+        }
+    });
+    return index;
+})();
+
+// Task -> row index for fast row filtering
+const taskRowIndex = Object.fromEntries(
+    Object.entries(initialTasks).map(([id, task]) => [id, resourceToRow[task.resource] ?? 0])
+);
+
+// xBucketStart: task only in START bucket + store endBucket for filtering
+// This avoids duplicates entirely
+const tasksByStartBucket = (() => {
+    const index = {};
+    Object.entries(initialTasks).forEach(([id, task]) => {
+        const bar = task.$bar;
+        const startBucket = Math.floor(bar.x / X_BUCKET_SIZE);
+        const endBucket = Math.floor((bar.x + bar.width) / X_BUCKET_SIZE);
+        const row = resourceToRow[task.resource] ?? 0;
+        (index[startBucket] = index[startBucket] || []).push({ id, endBucket, row });
+    });
+    return index;
+})();
+
+// Find max task width to know how far back to look for tasks
+const maxTaskBuckets = Math.ceil(
+    Math.max(...Object.values(initialTasks).map(t => t.$bar.width)) / X_BUCKET_SIZE
+) + 1;
+
+// 2D index: taskIds2D[row][xBucket] = [taskIds...] - no dedup needed within same (row,bucket)
+const taskIds2D = (() => {
+    const index = {};
+    Object.entries(initialTasks).forEach(([id, task]) => {
+        const row = resourceToRow[task.resource] ?? 0;
+        const bar = task.$bar;
+        const startBucket = Math.floor(bar.x / X_BUCKET_SIZE);
+        const endBucket = Math.floor((bar.x + bar.width) / X_BUCKET_SIZE);
+        if (!index[row]) index[row] = {};
+        for (let b = startBucket; b <= endBucket; b++) {
+            (index[row][b] = index[row][b] || []).push(id);
+        }
+    });
+    return index;
+})();
+
 // ═══════════════════════════════════════════════════════════════════════════
 // TESTBAR VARIANTS
 // ═══════════════════════════════════════════════════════════════════════════
@@ -370,7 +427,11 @@ export function GanttExperiments() {
     });
 
     // COMBINED: Get visible tasks by filtering on row and X range together
+    // Cache for selected mode to avoid running all memos
+    let cachedVisibleTasks = [];
+
     const visibleTasksCombined = createMemo(() => {
+        if (virtMode() !== 'combined') return cachedVisibleTasks;
         const rowRange = visibleRowRange();
         const xRange = visibleXRange();
         const result = [];
@@ -393,6 +454,7 @@ export function GanttExperiments() {
 
     // XYSPLIT: Stage 1 - Get all tasks in visible rows (only recalcs on Y scroll)
     const visibleRowTasks = createMemo(() => {
+        if (virtMode() !== 'xySplit') return [];
         const rowRange = visibleRowRange();
         const result = [];
         for (let row = rowRange.start; row < rowRange.end; row++) {
@@ -406,6 +468,7 @@ export function GanttExperiments() {
 
     // XYSPLIT: Stage 2 - Filter by X range (recalcs on X scroll, uses cached row tasks)
     const visibleTasksXYSplit = createMemo(() => {
+        if (virtMode() !== 'xySplit') return [];
         const xRange = visibleXRange();
         const rowTasks = visibleRowTasks();
         const result = [];
@@ -427,6 +490,7 @@ export function GanttExperiments() {
     let smartLastXStart = -1, smartLastXEnd = -1;
 
     const visibleTasksSmartCache = createMemo(() => {
+        if (virtMode() !== 'smartCache') return [];
         const rowRange = visibleRowRange();
         const xRange = visibleXRange();
 
@@ -465,6 +529,7 @@ export function GanttExperiments() {
 
     // Stage 1: Get visible row task IDs (only depends on Y)
     const visibleRowTaskIds = createMemo(() => {
+        if (virtMode() !== 'splitEquals') return [];
         const rowRange = visibleRowRange();
         const ids = [];
         for (let row = rowRange.start; row < rowRange.end; row++) {
@@ -477,6 +542,7 @@ export function GanttExperiments() {
 
     // Stage 2: Filter by X range and return VISIBLE IDs (with custom equality)
     const visibleTaskIdsSplitEquals = createMemo(() => {
+        if (virtMode() !== 'splitEquals') return [];
         const ids = visibleRowTaskIds();
         const xRange = visibleXRange();
         const result = [];
@@ -492,12 +558,14 @@ export function GanttExperiments() {
 
     // Stage 3: Map IDs to tasks (only reruns when visible IDs actually change)
     const visibleTasksSplitEquals = createMemo(() => {
+        if (virtMode() !== 'splitEquals') return [];
         const ids = visibleTaskIdsSplitEquals();
         return ids.map(id => tasks[id]);
     });
 
     // UNTRACKED: Same as combined but with untrack() to prevent subscriptions
     const visibleTasksUntracked = createMemo(() => {
+        if (virtMode() !== 'untracked') return [];
         const rowRange = visibleRowRange();
         const xRange = visibleXRange();
 
@@ -521,6 +589,7 @@ export function GanttExperiments() {
 
     // PLAIN LOOKUP: Use initialTasks (plain object) for filtering, no store subscriptions
     const visibleTasksPlainLookup = createMemo(() => {
+        if (virtMode() !== 'plainLookup') return [];
         const rowRange = visibleRowRange();
         const xRange = visibleXRange();
         const result = [];
@@ -538,6 +607,85 @@ export function GanttExperiments() {
         return result;
     });
 
+    // X-BUCKET: Query spatial index instead of iterating all tasks
+    // Uses Object for dedup (faster than Set for numeric keys)
+    const visibleTasksXBucket = createMemo(() => {
+        if (virtMode() !== 'xBucket') return [];
+        const xRange = visibleXRange();
+        const rowRange = visibleRowRange();
+
+        const startBucket = Math.floor(xRange.start / X_BUCKET_SIZE);
+        const endBucket = Math.floor(xRange.end / X_BUCKET_SIZE);
+
+        const seen = {};  // Object faster than Set for numeric keys
+        const result = [];
+
+        for (let b = startBucket; b <= endBucket; b++) {
+            for (const id of (taskIdsByXBucket[b] || [])) {
+                if (seen[id]) continue;
+                seen[id] = 1;
+
+                const row = taskRowIndex[id];
+                if (row >= rowRange.start && row < rowRange.end) {
+                    result.push(tasks[id]);
+                }
+            }
+        }
+        return result;
+    });
+
+    // X-BUCKET-START: Tasks only in START bucket, no deduplication needed
+    // Look backwards by maxTaskBuckets to catch tasks extending into view
+    const visibleTasksXBucketStart = createMemo(() => {
+        if (virtMode() !== 'xBucketStart') return [];
+        const xRange = visibleXRange();
+        const rowRange = visibleRowRange();
+
+        const visibleStart = Math.floor(xRange.start / X_BUCKET_SIZE);
+        const visibleEnd = Math.floor(xRange.end / X_BUCKET_SIZE);
+        // Look back to catch tasks that START earlier but EXTEND into view
+        const searchStart = Math.max(0, visibleStart - maxTaskBuckets);
+
+        const result = [];
+
+        for (let b = searchStart; b <= visibleEnd; b++) {
+            for (const { id, endBucket, row } of (tasksByStartBucket[b] || [])) {
+                // Task visible if: starts before visible end AND ends after visible start
+                if (endBucket >= visibleStart && row >= rowRange.start && row < rowRange.end) {
+                    result.push(tasks[id]);
+                }
+            }
+        }
+        return result;
+    });
+
+    // 2D: Filter by row first, then by bucket - minimal iterations
+    const visibleTasks2D = createMemo(() => {
+        if (virtMode() !== '2D') return [];
+        const xRange = visibleXRange();
+        const rowRange = visibleRowRange();
+
+        const startBucket = Math.floor(xRange.start / X_BUCKET_SIZE);
+        const endBucket = Math.floor(xRange.end / X_BUCKET_SIZE);
+
+        const result = [];
+
+        for (let row = rowRange.start; row < rowRange.end; row++) {
+            const rowIndex = taskIds2D[row];
+            if (!rowIndex) continue;
+
+            const seenInRow = {};  // Dedup only within this row
+            for (let b = startBucket; b <= endBucket; b++) {
+                for (const id of (rowIndex[b] || [])) {
+                    if (seenInRow[id]) continue;
+                    seenInRow[id] = 1;
+                    result.push(tasks[id]);
+                }
+            }
+        }
+        return result;
+    });
+
     // Select virtualization mode
     const visibleTasks = () => {
         const mode = virtMode();
@@ -546,6 +694,9 @@ export function GanttExperiments() {
         if (mode === 'splitEquals') return visibleTasksSplitEquals();
         if (mode === 'untracked') return visibleTasksUntracked();
         if (mode === 'plainLookup') return visibleTasksPlainLookup();
+        if (mode === 'xBucket') return visibleTasksXBucket();
+        if (mode === 'xBucketStart') return visibleTasksXBucketStart();
+        if (mode === '2D') return visibleTasks2D();
         return visibleTasksCombined();
     };
 
@@ -656,6 +807,9 @@ export function GanttExperiments() {
                     <option value="splitEquals">splitEquals (custom equality)</option>
                     <option value="untracked">untracked (no subscriptions)</option>
                     <option value="plainLookup">plainLookup (initialTasks)</option>
+                    <option value="xBucket">xBucket (spatial index)</option>
+                    <option value="xBucketStart">xBucketStart (no dedup)</option>
+                    <option value="2D">2D (row+bucket)</option>
                 </select>
                 <span style={{ 'font-size': '11px', color: '#888' }}>Visible: {visibleTasks().length}</span>
 

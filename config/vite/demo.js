@@ -12,6 +12,8 @@ export default defineConfig({
         rollupOptions: {
             input: {
                 perf: resolve(root, 'examples/perf.html'),
+                'perf-isolate': resolve(root, 'examples/perf-isolate.html'),
+                experiments: resolve(root, 'examples/experiments.html'),
             },
         },
     },

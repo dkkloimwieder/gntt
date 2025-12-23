@@ -19,16 +19,30 @@ export function DateHeaders(props) {
     const startCol = () => props.startCol ?? 0;
     const endCol = () => props.endCol ?? dateInfos().length;
 
-    // Group upper text entries (only render when text changes)
-    // Pre-compute ALL entries for proper grouping, then filter visible
-    const allUpperTextEntries = createMemo(() => {
+    // Group upper text entries - only process visible range + find group boundaries
+    const upperTextEntries = createMemo(() => {
         const infos = dateInfos();
+        const start = Math.max(0, startCol());
+        const end = Math.min(infos.length, endCol());
+        if (start >= end) return [];
+
         const entries = [];
+
+        // Find the start of the group containing startCol by scanning backwards
+        let groupStart = start;
+        const startText = infos[start]?.upperText;
+        if (startText) {
+            while (groupStart > 0 && infos[groupStart - 1]?.upperText === startText) {
+                groupStart--;
+            }
+        }
+
+        // Now scan forward from groupStart to end, building entries
         let currentText = null;
         let startX = 0;
         let startIndex = 0;
 
-        for (let i = 0; i < infos.length; i++) {
+        for (let i = groupStart; i < end; i++) {
             const info = infos[i];
 
             if (info.upperText && info.upperText !== currentText) {
@@ -49,29 +63,23 @@ export function DateHeaders(props) {
             }
         }
 
-        // Add final entry
+        // Add final entry - find where this group ends
         if (currentText !== null) {
+            let groupEnd = end;
+            while (groupEnd < infos.length && infos[groupEnd]?.upperText === currentText) {
+                groupEnd++;
+            }
+            const endX = groupEnd < infos.length ? infos[groupEnd].x : gridWidth();
             entries.push({
                 text: currentText,
                 x: startX,
-                width: gridWidth() - startX,
+                width: endX - startX,
                 startIndex,
-                endIndex: infos.length - 1,
+                endIndex: groupEnd - 1,
             });
         }
 
         return entries;
-    });
-
-    // Filter upper entries to only those overlapping visible range
-    const upperTextEntries = createMemo(() => {
-        const all = allUpperTextEntries();
-        const start = startCol();
-        const end = endCol();
-
-        return all.filter(
-            (entry) => entry.endIndex >= start && entry.startIndex <= end,
-        );
     });
 
     // Lower text entries - VIRTUALIZED: only visible range
