@@ -1,5 +1,16 @@
 # GanttMinimalTest - Performance-First Rendering Engine
 
+> **⚠️ Historical Document**
+>
+> This documents an earlier experimental harness using **slot-based grids**. For current best practices with **timeline-based positioning**, see:
+> - [perf-traces/ANALYSIS.md](../perf-traces/ANALYSIS.md) - Current benchmarks and recommendations
+> - [docs/EXPERIMENTS.md](./EXPERIMENTS.md) - GanttExperiments reactive pattern testing
+> - `GanttPerfIsolate.jsx` - Progressive feature testing harness
+>
+> The component `GanttMinimalTest.jsx` still exists for reference but active development uses the newer harnesses.
+
+---
+
 ## 1. Purpose & Goals
 
 ### Why It Exists

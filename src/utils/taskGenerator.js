@@ -64,6 +64,8 @@ export const DEFAULT_CONFIG = {
     seed: 12345,
     dense: false, // If true, pack tasks tightly for maximum viewport density
     realistic: false, // If true, generate realistic arrow patterns (75% same-row, 20% adjacent)
+    arrowDensity: 20, // Percentage of tasks with cross-row dependencies (dense mode)
+    maxRowDistance: 2, // Max row distance for cross-row dependencies (dense mode)
 };
 
 /**
@@ -331,9 +333,9 @@ export function generateCalendar(config = {}) {
 
 /**
  * Generate densely packed tasks for stress testing.
- * Creates back-to-back tasks on each resource with FS dependencies per row.
+ * Creates back-to-back tasks on each resource WITHOUT default dependencies.
  * All resources start at the same time for maximum viewport density.
- * Adds cross-row dependencies for realistic arrow stress testing.
+ * Then adds arrowDensity% deps within maxRowDistance rows.
  */
 function generateDenseCalendar(cfg, random) {
     const tasks = [];
@@ -343,6 +345,10 @@ function generateDenseCalendar(cfg, random) {
     for (let i = 0; i < cfg.resourceCount; i++) {
         allResources.push(getResourceLabel(i));
     }
+
+    // Build resource index map for row distance calculation
+    const resourceIndex = {};
+    allResources.forEach((r, i) => resourceIndex[r] = i);
 
     // Calculate tasks per resource (distribute evenly)
     const tasksPerResource = Math.ceil(cfg.totalTasks / cfg.resourceCount);
@@ -354,13 +360,12 @@ function generateDenseCalendar(cfg, random) {
 
     let taskNum = 1;
 
-    // Generate tasks for each resource
-    for (let resourceIndex = 0; resourceIndex < allResources.length && taskNum <= cfg.totalTasks; resourceIndex++) {
-        const resource = allResources[resourceIndex];
-        const colors = computeColorVariants(GROUP_COLORS[resourceIndex % GROUP_COLORS.length]);
+    // Generate tasks for each resource - NO dependencies yet
+    for (let resourceIdx = 0; resourceIdx < allResources.length && taskNum <= cfg.totalTasks; resourceIdx++) {
+        const resource = allResources[resourceIdx];
+        const colors = computeColorVariants(GROUP_COLORS[resourceIdx % GROUP_COLORS.length]);
 
         let currentTime = cloneDate(baseStart);
-        let prevTaskId = null;
 
         // Generate back-to-back tasks for this resource
         for (let i = 0; i < tasksPerResource && taskNum <= cfg.totalTasks; i++) {
@@ -375,12 +380,6 @@ function generateDenseCalendar(cfg, random) {
                 cfg.workdayEndHour
             );
 
-            // FS dependency on previous task in same row
-            let dependency = undefined;
-            if (prevTaskId) {
-                dependency = prevTaskId;
-            }
-
             tasks.push({
                 id: `task-${taskNum}`,
                 name: `${resource}-${i + 1}`,
@@ -388,40 +387,81 @@ function generateDenseCalendar(cfg, random) {
                 end: formatDateTime(end),
                 progress: Math.floor(random() * 101),
                 ...colors,
-                dependencies: dependency,
+                dependencies: undefined, // No default dep - added below
                 resource: resource,
+                _rowIdx: resourceIdx, // Store for quick lookup
             });
 
             // Next task starts immediately after this one
             currentTime = cloneDate(end);
-            prevTaskId = `task-${taskNum}`;
             taskNum++;
         }
     }
 
-    // Add cross-row dependencies for arrow stress testing
-    // Replace ~30% of same-row deps with cross-row deps
-    const crossRowPercent = 30;
+    // Add dependencies: arrowDensity% of tasks get a dep within maxRowDistance
+    // Simple: iterate in time order, pick 1 out of every N tasks
+    const maxRowDist = cfg.maxRowDistance;
+    const pickInterval = Math.floor(100 / cfg.arrowDensity); // 20% = 1 in 5
 
-    for (const task of tasks) {
-        // Random chance to replace with cross-row dependency
-        if (random() > crossRowPercent / 100) continue;
+    // Sort tasks by start time
+    const tasksByTime = [...tasks].sort((a, b) => {
+        return parseDateTime(a.start).getTime() - parseDateTime(b.start).getTime();
+    });
 
+    let depCount = 0;
+
+    for (let i = 0; i < tasksByTime.length; i++) {
+        // Pick 1 out of every N tasks
+        if (i % pickInterval !== 0) continue;
+
+        const task = tasksByTime[i];
+        const taskRowIdx = task._rowIdx;
+
+        // Find a valid source: ends before this task starts, 1-maxRowDistance away
         const taskStart = parseDateTime(task.start);
-
-        // Find candidates: different resource, ends before/at this task's start
         const candidates = tasks.filter((t) => {
-            if (t.resource === task.resource) return false;
             if (t.id === task.id) return false;
+            const rowDist = Math.abs(t._rowIdx - taskRowIdx);
+            if (rowDist < 1 || rowDist > maxRowDist) return false;
             const tEnd = parseDateTime(t.end);
             return tEnd <= taskStart;
         });
 
         if (candidates.length > 0) {
-            // Pick a random valid predecessor from another resource
-            const target = candidates[Math.floor(random() * candidates.length)];
-            task.dependencies = target.id;
+            const source = candidates[Math.floor(random() * candidates.length)];
+            task.dependencies = source.id;
+            depCount++;
         }
+    }
+
+    // Verify and log row distances
+    let violations = 0;
+    const resourceToRow = {};
+    allResources.forEach((r, i) => resourceToRow[r] = i);
+
+    for (const task of tasks) {
+        if (task.dependencies) {
+            const depTask = tasks.find(t => t.id === task.dependencies);
+            if (depTask) {
+                const fromRow = resourceToRow[depTask.resource];
+                const toRow = resourceToRow[task.resource];
+                const dist = Math.abs(toRow - fromRow);
+                if (dist > maxRowDist) {
+                    violations++;
+                    if (violations <= 5) {
+                        console.log(`VIOLATION: ${depTask.id} (row ${fromRow}) -> ${task.id} (row ${toRow}), dist=${dist}`);
+                    }
+                }
+            }
+        }
+    }
+    if (violations > 0) {
+        console.log(`Total row distance violations: ${violations}`);
+    }
+
+    // Clean up temp field
+    for (const task of tasks) {
+        delete task._rowIdx;
     }
 
     return tasks;

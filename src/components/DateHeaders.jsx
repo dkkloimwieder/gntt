@@ -5,9 +5,9 @@ import { createMemo, For, Show } from 'solid-js';
  * Uses HTML divs for sticky positioning (not SVG).
  */
 export function DateHeaders(props) {
-    // Configuration
-    const upperHeaderHeight = () => props.upperHeaderHeight || 45;
-    const lowerHeaderHeight = () => props.lowerHeaderHeight || 30;
+    // Configuration - use ?? to allow 0 values
+    const upperHeaderHeight = () => props.upperHeaderHeight ?? 45;
+    const lowerHeaderHeight = () => props.lowerHeaderHeight ?? 30;
     const totalHeaderHeight = () => upperHeaderHeight() + lowerHeaderHeight();
     const columnWidth = () => props.columnWidth || 45;
     const gridWidth = () => props.gridWidth || 1000;
@@ -162,21 +162,23 @@ export function DateHeaders(props) {
 
     return (
         <div class="gantt-headers" style={headerContainerStyle()}>
-            {/* Upper header (month/year labels) */}
-            <div class="upper-header" style={upperHeaderStyle()}>
-                <For each={upperTextEntries()}>
-                    {(entry) => (
-                        <Show when={entry.text}>
-                            <div
-                                class="upper-text"
-                                style={upperTextStyle(entry)}
-                            >
-                                {entry.text}
-                            </div>
-                        </Show>
-                    )}
-                </For>
-            </div>
+            {/* Upper header (month/year labels) - skip if height is 0 */}
+            <Show when={upperHeaderHeight() > 0}>
+                <div class="upper-header" style={upperHeaderStyle()}>
+                    <For each={upperTextEntries()}>
+                        {(entry) => (
+                            <Show when={entry.text}>
+                                <div
+                                    class="upper-text"
+                                    style={upperTextStyle(entry)}
+                                >
+                                    {entry.text}
+                                </div>
+                            </Show>
+                        )}
+                    </For>
+                </div>
+            </Show>
 
             {/* Lower header (day numbers) */}
             <div class="lower-header" style={lowerHeaderStyle()}>

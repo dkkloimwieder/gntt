@@ -73,6 +73,12 @@ function parseArgs(args) {
             case 'maxDuration':
                 config.maxDuration = parseInt(value, 10);
                 break;
+            case 'arrowDensity':
+                config.arrowDensity = parseInt(value, 10);
+                break;
+            case 'maxRowDistance':
+                config.maxRowDistance = parseInt(value, 10);
+                break;
             case 'help':
             case 'h':
                 console.log(`

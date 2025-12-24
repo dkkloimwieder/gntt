@@ -157,7 +157,26 @@ export function Grid(props) {
                 class="grid-background"
             />
 
-            {/* Vertical grid lines via pattern (1 element instead of thousands) */}
+            {/* Row rects - rendered before vertical lines so lines show on top */}
+            <For each={rows()}>
+                {(row) => (
+                    <rect
+                        x={0}
+                        y={row.y}
+                        width={gridWidth()}
+                        height={row.height}
+                        fill={rowColor(row)}
+                        stroke="var(--g-grid-line-color, #e0e0e0)"
+                        stroke-width="0.5"
+                        class={`grid-row ${row.type === 'group' ? 'grid-row-group' : ''}`}
+                        data-row-index={row.index}
+                        data-row-type={row.type}
+                        data-row-id={row.id}
+                    />
+                )}
+            </For>
+
+            {/* Vertical grid lines via pattern - rendered AFTER rows so visible on top */}
             <Show when={showVertical()}>
                 <rect
                     x={0}
@@ -179,25 +198,6 @@ export function Grid(props) {
                     class="grid-thick-lines"
                 />
             </Show>
-
-            {/* Row rects */}
-            <For each={rows()}>
-                {(row) => (
-                    <rect
-                        x={0}
-                        y={row.y}
-                        width={gridWidth()}
-                        height={row.height}
-                        fill={rowColor(row)}
-                        stroke="var(--g-grid-line-color, #e0e0e0)"
-                        stroke-width="0.5"
-                        class={`grid-row ${row.type === 'group' ? 'grid-row-group' : ''}`}
-                        data-row-index={row.index}
-                        data-row-type={row.type}
-                        data-row-id={row.id}
-                    />
-                )}
-            </For>
         </g>
     );
 }

@@ -17,8 +17,33 @@ The library provides drag & drop task management, dependency visualization, cons
 - `pnpm run dev:solid` - Start SolidJS demo server at http://localhost:5173/examples/
 - `pnpm run generate:calendar` - Generate test calendar data (see Performance Testing below)
 - `pnpm build:solid` - Build SolidJS production bundle
+- `pnpm build:demo` - Build demo pages to `dist-demo/`
 - `pnpm dev` - Start vanilla JS dev server (legacy)
 - `pnpm build` - Build vanilla JS bundle
+
+### Serving Built Demos for Benchmarking
+
+When benchmarking with built demos (not dev server), use `npx serve dist-demo`:
+
+```bash
+pnpm build:demo
+npx serve dist-demo -l 5174 &
+```
+
+**IMPORTANT: URL format issue with `serve`**
+
+The `serve` package redirects `.html` URLs to clean URLs, **stripping query parameters** in the process:
+
+```bash
+# ❌ WRONG - serve redirects and loses query params
+http://localhost:5174/examples/perf-isolate.html?bar=nochildren&test=horizontal
+# → 301 redirects to /examples/perf-isolate (params lost!)
+
+# ✅ CORRECT - use clean URLs without .html
+http://localhost:5174/examples/perf-isolate?bar=nochildren&test=horizontal
+```
+
+This affects all benchmark URLs. Always omit the `.html` extension when using `serve`.
 
 ### Code Quality
 - `pnpm lint` - Lint JavaScript files
@@ -139,7 +164,9 @@ node src/scripts/generateCalendar.js --tasks=10000 --resources=100 --dense  # St
 | `--maxGroup=N` | 20 | Maximum tasks per dependency group |
 | `--start=DATE` | 2025-01-01 | Start date (YYYY-MM-DD) |
 | `--resources=N` | 26 | Number of resources (A-Z, AA, AB, etc.) |
-| `--dense` | false | Dense mode: tightly packed tasks with ~30% cross-row deps |
+| `--dense` | false | Dense mode: tightly packed tasks for stress testing |
+| `--arrowDensity=N` | 20 | Percentage of tasks with dependencies (dense mode) |
+| `--maxRowDistance=N` | 2 | Max row distance for dependencies (dense mode) |
 
 **Generated Data Structure:**
 ```javascript
@@ -162,6 +189,35 @@ node src/scripts/generateCalendar.js --tasks=10000 --resources=100 --dense  # St
 - `src/data/calendar.json` - Generated test data
 - `src/components/GanttPerfDemo.jsx` - Performance test UI
 
+### Perf-Isolate (Feature Isolation Testing)
+
+For progressive performance testing, use the perf-isolate harness:
+
+```bash
+pnpm run dev:solid
+# Open http://localhost:5173/examples/perf-isolate.html?bar=nochildren&test=horizontal
+```
+
+**URL Parameters:**
+| Param | Values | Description |
+|-------|--------|-------------|
+| `bar` | nochildren, combined, minimal, etc. | Bar component variant |
+| `grid` | 0, 1 | Show SVG grid |
+| `headers` | 0, 1 | Show date headers |
+| `resources` | 0, 1 | Show resource column |
+| `test` | horizontal, vertical, both | Auto-scroll stress test |
+
+**Example:** Test headers overhead:
+```bash
+# Baseline (no headers)
+?bar=nochildren&test=horizontal
+
+# With headers
+?bar=nochildren&headers=1&test=horizontal
+```
+
+See `perf-traces/ANALYSIS.md` for current best practices and benchmark results.
+
 ## Development Workflow
 
 1. Clone and run `pnpm i`
@@ -176,7 +232,7 @@ node src/scripts/generateCalendar.js --tasks=10000 --resources=100 --dense  # St
 - ESLint + Prettier configured
 - JSX for SolidJS components
 
-# CLAUDE.md
+---
 
 ## Browser Automation & Performance Profiling
 

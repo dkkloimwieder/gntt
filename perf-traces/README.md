@@ -1,87 +1,76 @@
-# Performance Profiling Workflow
+# Performance Profiling
 
-## Prerequisites
-
-Chrome must be running with remote debugging enabled:
+## Quick Start
 
 ```bash
-google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-profile
+# Build and serve the demo
+pnpm build:demo
+npx serve dist-demo -l 5174 &
+
+# Profile with automatic Chrome handling
+node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs \
+  'http://localhost:5174/examples/perf-isolate?bar=nochildren&test=horizontal' \
+  --iterations 3 --warmup 1 --duration 3000
+
+# Save results to file
+node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs \
+  'http://localhost:5174/examples/perf-isolate?bar=nochildren&headers=1&test=horizontal' \
+  --iterations 3 --output perf-traces/runs/my-test.json
 ```
 
-## Profiling Commands
+---
 
-All commands use the chrome-devtools-cli skill located at:
-`.claude/skills/chrome-devtools-cli/scripts/`
+## Important: URL Format
 
-### Navigate to Test URL
+**Use clean URLs without `.html` extension.** The `serve` package redirects `.html` to clean URLs, stripping query parameters:
 
 ```bash
-node .claude/skills/chrome-devtools-cli/scripts/devtools.mjs \
-  --browserUrl=http://127.0.0.1:9222 \
-  navigate "http://localhost:5173/examples/experiments.html?variant=baseline&test=vertical"
+# WRONG - params get stripped via 301 redirect
+http://localhost:5174/examples/perf-isolate.html?bar=nochildren&test=horizontal
+
+# CORRECT - params preserved
+http://localhost:5174/examples/perf-isolate?bar=nochildren&test=horizontal
 ```
 
-URL Parameters:
-- `variant`: baseline | noMemos | splitMemo | minimal
-- `test`: vertical | horizontal | both
+---
 
-Test auto-starts 500ms after page load and runs for 10 seconds.
-
-### Capture Profile
+## Common Commands
 
 ```bash
-node .claude/skills/chrome-devtools-cli/scripts/profile.mjs capture \
-  --browserUrl=http://127.0.0.1:9222 \
-  --duration=3000 \
-  --output=/path/to/output.json \
-  --format=json
+# Quick single profile
+node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs <url> --duration 3000
+
+# Benchmark with statistics
+node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs <url> --iterations 5 --warmup 1
+
+# Profile after clicking an element
+node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs <url> --click "#start-btn" --duration 5000
 ```
 
-Options:
-- `--duration`: Capture duration in ms (recommend 3000)
-- `--output`: Output file path
-- `--format`: json or summary
+---
 
-### Profile Types
+## Test Harnesses
 
-```bash
-# Full capture (CPU + metrics)
-profile.mjs capture --duration=3000
+| URL | Purpose |
+|-----|---------|
+| `/examples/perf-isolate?bar=nochildren&test=horizontal` | Progressive feature testing |
+| `/examples/experiments?variant=baseline&test=horizontal` | Reactive pattern comparison |
+| `/examples/perf` | Full Gantt stress test |
 
-# CPU profile only
-profile.mjs cpu --duration=3000
+### Perf-Isolate Parameters
 
-# Timeline trace
-profile.mjs trace --duration=3000
+| Param | Values | Description |
+|-------|--------|-------------|
+| `bar` | nochildren, combined, minimal, etc. | Bar component variant |
+| `grid` | 0, 1 | Show SVG grid |
+| `headers` | 0, 1 | Show date headers |
+| `resources` | 0, 1 | Show resource column |
+| `test` | horizontal, vertical, both | Auto-scroll direction |
 
-# Heap snapshot
-profile.mjs heap
+---
 
-# Current metrics
-profile.mjs metrics
-```
+## See Also
 
-## Benchmarking Protocol
-
-For reliable results:
-
-1. **Multiple runs**: Capture 3 profiles per variant, use average
-2. **Consistent timing**: Navigate, wait 1s for test to start, then capture 3s
-3. **Isolated browser**: Use `--user-data-dir=/tmp/chrome-profile` to avoid extension interference
-4. **Same conditions**: Close other apps, same Chrome window position
-
-## Combined Navigate + Profile
-
-```bash
-node .claude/skills/chrome-devtools-cli/scripts/devtools.mjs \
-  --browserUrl=http://127.0.0.1:9222 \
-  navigate "URL" && \
-sleep 1 && \
-node .claude/skills/chrome-devtools-cli/scripts/profile.mjs capture \
-  --browserUrl=http://127.0.0.1:9222 \
-  --duration=3000 \
-  --output=output.json \
-  --format=json
-```
-
-The 1s sleep ensures the stress test has started before profiling begins.
+- [ANALYSIS.md](./ANALYSIS.md) - Current best practices and benchmark summaries
+- [HISTORY.md](./HISTORY.md) - Investigation logs and historical data
+- [CLAUDE.md](../CLAUDE.md) - Full Chrome DevTools CLI reference

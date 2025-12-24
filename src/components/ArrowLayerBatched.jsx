@@ -240,10 +240,14 @@ export function ArrowLayerBatched(props) {
     const strokeOpacity = () =>
         props.arrowConfig?.strokeOpacity ?? DEFAULTS.STROKE_OPACITY;
 
-    // Viewport bounds for filtering
+    // Viewport bounds for filtering (Y-axis)
     const startRow = () => props.startRow ?? 0;
     const endRow = () => props.endRow ?? Infinity;
     const rowHeight = () => props.taskStore?.rowHeight ?? 38;
+
+    // Viewport bounds for filtering (X-axis)
+    const startX = () => props.startX ?? 0;
+    const endX = () => props.endX ?? Infinity;
 
     // Track task count to rebuild index when tasks are loaded
     const taskCount = () => {
@@ -321,15 +325,35 @@ export function ArrowLayerBatched(props) {
 
         const sr = startRow();
         const er = endRow();
+        const sx = startX();
+        const ex = endX();
         const c = curve();
         const hs = headSize();
 
-        // Collect visible relationship indices from spatial index
-        const visibleIndices = new Set();
+        // Collect visible relationship indices from spatial index (Y-axis filter)
+        const rowFilteredIndices = new Set();
         for (let row = sr - 3; row <= er + 3; row++) {
             const rowRels = index.get(row);
             if (rowRels) {
-                for (const idx of rowRels) visibleIndices.add(idx);
+                for (const idx of rowRels) rowFilteredIndices.add(idx);
+            }
+        }
+
+        // Apply X-axis filter: only include arrows where source OR target is in view
+        const visibleIndices = new Set();
+        for (const idx of rowFilteredIndices) {
+            const pos = positions.get(idx);
+            if (!pos) continue;
+
+            const fromRight = pos.from.x + pos.from.width;
+            const toRight = pos.to.x + pos.to.width;
+
+            // Arrow visible if source or target overlaps X range
+            const sourceInView = fromRight >= sx && pos.from.x <= ex;
+            const targetInView = toRight >= sx && pos.to.x <= ex;
+
+            if (sourceInView || targetInView) {
+                visibleIndices.add(idx);
             }
         }
 
