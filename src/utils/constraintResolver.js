@@ -276,6 +276,15 @@ export function calculatePushAmount(type, predTask, succTask, lagPx, predNewX) {
  *   - { type: 'batch', updates: [...] } for fixed batch update
  *   - null if movement is blocked (locked task or cycle detected)
  */
+// Helper to get bar position - uses getBarPosition if available, falls back to $bar
+function getBar(taskStore, taskId) {
+    if (taskStore.getBarPosition) {
+        return taskStore.getBarPosition(taskId);
+    }
+    const task = taskStore.getTask(taskId);
+    return task?.$bar;
+}
+
 export function resolveMovement(
     taskId,
     newX,
@@ -298,7 +307,8 @@ export function resolveMovement(
     const { pixelsPerTimeUnit = 1 } = options;
 
     const task = taskStore.getTask(taskId);
-    if (!task) return null;
+    const taskBar = getBar(taskStore, taskId);
+    if (!task || !taskBar) return null;
 
     // Locked tasks cannot move
     if (task.constraints?.locked) {
@@ -319,18 +329,18 @@ export function resolveMovement(
         }
 
         // Calculate delta and move all linked tasks
-        const deltaX = newX - task.$bar.x;
-        const deltaY = newY - task.$bar.y;
+        const deltaX = newX - taskBar.x;
+        const deltaY = newY - taskBar.y;
 
         const updates = [{ taskId, x: newX, y: newY }];
 
         fixedLinks.forEach((link) => {
-            const linkedTask = taskStore.getTask(link.taskId);
-            if (linkedTask) {
+            const linkedBar = getBar(taskStore, link.taskId);
+            if (linkedBar) {
                 updates.push({
                     taskId: link.taskId,
-                    x: linkedTask.$bar.x + deltaX,
-                    y: linkedTask.$bar.y + deltaY,
+                    x: linkedBar.x + deltaX,
+                    y: linkedBar.y + deltaY,
                 });
             }
         });
@@ -349,7 +359,8 @@ export function resolveMovement(
 
         const otherTaskId = isPredecessor ? rel.to : rel.from;
         const otherTask = taskStore.getTask(otherTaskId);
-        if (!otherTask) continue;
+        const otherBar = getBar(taskStore, otherTaskId);
+        if (!otherTask || !otherBar) continue;
 
         const type = rel.type || DEPENDENCY_TYPES.FS;
         const lag = rel.lag ?? DEFAULT_LAG;
@@ -616,17 +627,33 @@ export function resolveAfterResize(
     relationships,
     options = {},
 ) {
-    const { pixelsPerTimeUnit = 1 } = options;
+    const { pixelsPerTimeUnit = 1, newX, newWidth } = options;
     const task = taskStore.getTask(taskId);
-    if (!task) return;
+    console.log('[resolveAfterResize] taskId:', taskId, 'newX:', newX, 'newWidth:', newWidth);
+    if (!task) {
+        console.log('[resolveAfterResize] task not found!');
+        return;
+    }
+
+    // Use passed newX/newWidth if provided (to avoid store read timing issues)
+    const predX = newX ?? task.$bar?.x ?? 0;
+    const predWidth = newWidth ?? task.$bar?.width ?? 0;
+    const predEnd = predX + predWidth;
+    console.log('[resolveAfterResize] predX:', predX, 'predWidth:', predWidth, 'predEnd:', predEnd);
 
     // Find all relationships where this task is the predecessor
     // (width change affects where successor must be)
+    let foundRel = false;
     for (const rel of relationships) {
         if (rel.from !== taskId) continue;
+        foundRel = true;
 
+        console.log('[resolveAfterResize] Found successor rel:', rel);
         const succTask = taskStore.getTask(rel.to);
-        if (!succTask || succTask.constraints?.locked) continue;
+        // Use getBarPosition to get computed position (handles store proxy issues)
+        const succBar = taskStore.getBarPosition ? taskStore.getBarPosition(rel.to) : succTask?.$bar;
+        console.log('[resolveAfterResize] succTask:', rel.to, 'succBar:', succBar);
+        if (!succTask || !succBar || succTask.constraints?.locked) continue;
 
         const type = rel.type || DEPENDENCY_TYPES.FS;
         const lag = rel.lag ?? DEFAULT_LAG;
@@ -634,18 +661,35 @@ export function resolveAfterResize(
         const elastic = rel.elastic !== false;
 
         if (elastic) {
-            // For elastic relationships, push if needed
-            const minSuccX = calculateMinSuccessorX(
-                type,
-                task,
-                succTask,
-                lagPx,
-            );
-            if (succTask.$bar.x < minSuccX) {
+            // Calculate minSuccX using the explicit new position/width
+            let minSuccX;
+            const succWidth = succBar.width ?? 0;
+            const succX = succBar.x ?? 0;
+            const succY = succBar.y ?? 0;
+
+            switch (type) {
+                case DEPENDENCY_TYPES.FS:
+                    minSuccX = predEnd + lagPx;
+                    break;
+                case DEPENDENCY_TYPES.SS:
+                    minSuccX = predX + lagPx;
+                    break;
+                case DEPENDENCY_TYPES.FF:
+                    minSuccX = predEnd - succWidth + lagPx;
+                    break;
+                case DEPENDENCY_TYPES.SF:
+                    minSuccX = predX - succWidth + lagPx;
+                    break;
+                default:
+                    minSuccX = predEnd + lagPx;
+            }
+
+            console.log('[resolveAfterResize] minSuccX:', minSuccX, 'succX:', succX, 'needs push:', succX < minSuccX);
+            if (succX < minSuccX) {
                 const result = resolveMovement(
                     rel.to,
                     minSuccX,
-                    succTask.$bar.y,
+                    succY,
                     taskStore,
                     relationships,
                     options,
@@ -675,6 +719,9 @@ export function resolveAfterResize(
             );
             taskStore.updateBarPosition(rel.to, { x: fixedSuccX });
         }
+    }
+    if (!foundRel) {
+        console.log('[resolveAfterResize] No successor relationships found for', taskId);
     }
 
     // For FF and SF types, we also need to check relationships where this task

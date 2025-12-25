@@ -1,6 +1,7 @@
 import { createSignal, createMemo, onMount, onCleanup, Index, For, Show } from 'solid-js';
 import { createStore, produce } from 'solid-js/store';
 import calendarData from '../data/calendar.json';
+import constraintTestData from '../data/constraint-test.json';
 import date_utils from '../utils/date_utils.js';
 import { useGanttEvents, GanttEventsProvider } from '../contexts/GanttEvents.jsx';
 import { useDrag } from '../hooks/useDrag.js';
@@ -11,6 +12,188 @@ import { ResourceColumn } from './ResourceColumn.jsx';
 import { ArrowLayerBatched } from './ArrowLayerBatched.jsx';
 import { TaskDataPopup } from './TaskDataPopup.jsx';
 import { TaskDataModal } from './TaskDataModal.jsx';
+// Note: constraintResolver.js still has utilities but we use simple inline helpers now
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SIMPLE REACTIVE CONSTRAINT HELPERS
+// Read from getBarPosition(), write via updateBarPosition(), let reactivity propagate
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Get minimum X this task can be at based on predecessor constraints.
+ * Uses getBarPosition() to always get correct values.
+ */
+function getMinXFromPredecessors(taskId, relationships, getBarPosition, pixelsPerHour, taskWidth = 0) {
+    let minX = 0;
+    for (const rel of relationships) {
+        if (rel.to !== taskId) continue;
+
+        const predBar = getBarPosition(rel.from);
+        if (!predBar) continue;
+
+        const type = rel.type || 'FS';
+        const lag = (rel.lag ?? 0) * pixelsPerHour;
+
+        let constraint;
+        switch (type) {
+            case 'FS':
+                constraint = predBar.x + predBar.width + lag;
+                break;
+            case 'SS':
+                constraint = predBar.x + lag;
+                break;
+            case 'FF':
+                // Finish-to-Finish: successor end >= predecessor end + lag
+                // So successor.x >= predecessor.x + predecessor.width - successor.width + lag
+                constraint = predBar.x + predBar.width - taskWidth + lag;
+                break;
+            case 'SF':
+                // Start-to-Finish: successor end >= predecessor start + lag
+                // So successor.x >= predecessor.x - successor.width + lag
+                constraint = predBar.x - taskWidth + lag;
+                break;
+            default:
+                constraint = predBar.x + predBar.width + lag;
+        }
+        minX = Math.max(minX, constraint);
+    }
+    return minX;
+}
+
+/**
+ * Get maximum end position (x + width) this task can have based on LOCKED successor constraints.
+ * Locked successors cannot be pushed, so the predecessor must not exceed their constraint boundary.
+ */
+function getMaxEndFromLockedSuccessors(taskId, relationships, getBarPosition, getTask, pixelsPerHour) {
+    let maxEnd = Infinity;
+    for (const rel of relationships) {
+        if (rel.from !== taskId) continue;
+
+        const succTask = getTask?.(rel.to);
+        const isLocked = succTask?.constraints?.locked || succTask?.locked;
+        if (!isLocked) continue;  // Only care about locked successors
+
+        const succBar = getBarPosition(rel.to);
+        if (!succBar) continue;
+
+        const type = rel.type || 'FS';
+        const lag = (rel.lag ?? 0) * pixelsPerHour;
+
+        let constraint;
+        switch (type) {
+            case 'FS':
+                // predecessor.end <= successor.start - lag
+                constraint = succBar.x - lag;
+                break;
+            case 'SS':
+                // predecessor.start <= successor.start - lag (doesn't constrain end)
+                continue;
+            case 'FF':
+                // predecessor.end <= successor.end - lag
+                constraint = succBar.x + succBar.width - lag;
+                break;
+            case 'SF':
+                // predecessor.start <= successor.end - lag (doesn't constrain end)
+                continue;
+            default:
+                constraint = succBar.x - lag;
+        }
+        maxEnd = Math.min(maxEnd, constraint);
+    }
+    return maxEnd;
+}
+
+/**
+ * Get maximum start position this task can have based on LOCKED successor constraints.
+ * For SS and SF types where the successor's position depends on predecessor's start.
+ */
+function getMaxXFromLockedSuccessors(taskId, relationships, getBarPosition, getTask, pixelsPerHour) {
+    let maxX = Infinity;
+    for (const rel of relationships) {
+        if (rel.from !== taskId) continue;
+
+        const succTask = getTask?.(rel.to);
+        const isLocked = succTask?.constraints?.locked || succTask?.locked;
+        if (!isLocked) continue;
+
+        const succBar = getBarPosition(rel.to);
+        if (!succBar) continue;
+
+        const type = rel.type || 'FS';
+        const lag = (rel.lag ?? 0) * pixelsPerHour;
+
+        let constraint;
+        switch (type) {
+            case 'SS':
+                // predecessor.start <= successor.start - lag
+                constraint = succBar.x - lag;
+                break;
+            case 'SF':
+                // predecessor.start <= successor.end - lag
+                constraint = succBar.x + succBar.width - lag;
+                break;
+            default:
+                continue;  // FS and FF don't constrain start position
+        }
+        maxX = Math.min(maxX, constraint);
+    }
+    return maxX;
+}
+
+/**
+ * Recursively push successors if they violate constraints after a task position change.
+ * Updates store directly - SolidJS reactivity propagates changes to Bar components.
+ * Locked tasks block the push chain.
+ */
+function pushSuccessorsIfNeeded(taskId, relationships, getBarPosition, updateBarPosition, pixelsPerHour, getTask, visited = new Set()) {
+    // Prevent infinite loops in case of circular dependencies
+    if (visited.has(taskId)) return;
+    visited.add(taskId);
+
+    const taskBar = getBarPosition(taskId);
+    if (!taskBar) return;
+
+    for (const rel of relationships) {
+        if (rel.from !== taskId) continue;
+
+        const succTask = getTask?.(rel.to);
+        const succBar = getBarPosition(rel.to);
+        if (!succBar) continue;
+
+        // Locked tasks cannot be pushed - they block the chain
+        const isLocked = succTask?.constraints?.locked || succTask?.locked;
+        if (isLocked) continue;
+
+        const type = rel.type || 'FS';
+        const lag = (rel.lag ?? 0) * pixelsPerHour;
+
+        let minSuccX;
+        switch (type) {
+            case 'FS':
+                minSuccX = taskBar.x + taskBar.width + lag;
+                break;
+            case 'SS':
+                minSuccX = taskBar.x + lag;
+                break;
+            case 'FF':
+                minSuccX = taskBar.x + taskBar.width - succBar.width + lag;
+                break;
+            case 'SF':
+                minSuccX = taskBar.x - succBar.width + lag;
+                break;
+            default:
+                minSuccX = taskBar.x + taskBar.width + lag;
+        }
+
+        if (succBar.x < minSuccX) {
+            // Push successor - this triggers its Bar to re-render via store reactivity
+            updateBarPosition(rel.to, { x: minSuccX });
+
+            // Recursively push this successor's successors
+            pushSuccessorsIfNeeded(rel.to, relationships, getBarPosition, updateBarPosition, pixelsPerHour, getTask, visited);
+        }
+    }
+}
 
 /**
  * GanttPerfIsolate - Stripped down to find the 6x overhead
@@ -30,8 +213,13 @@ const DAYS_VISIBLE = 7;  // Target: show ~1 week in viewport
 const OVERSCAN_ROWS = 2;
 const OVERSCAN_PX = 200;
 
+// Select data source based on URL param: ?data=constraint
+const urlParams = new URLSearchParams(window.location.search);
+const dataSource = urlParams.get('data') || 'calendar';
+const sourceData = dataSource === 'constraint' ? constraintTestData : calendarData;
+
 // Parse tasks and compute TIME-based positions (hours from start)
-const parsedTasks = calendarData.tasks.map(task => ({
+const parsedTasks = sourceData.tasks.map(task => ({
     ...task,
     _start: date_utils.parse(task.start),
     _end: date_utils.parse(task.end),
@@ -43,7 +231,7 @@ const ganttStartMs = ganttStart.getTime();
 // DO NOT sort alphabetically - that breaks row distance calculations
 const seenResources = new Set();
 const uniqueResources = [];
-for (const t of calendarData.tasks) {
+for (const t of sourceData.tasks) {
     if (!seenResources.has(t.resource)) {
         seenResources.add(t.resource);
         uniqueResources.push(t.resource);
@@ -59,21 +247,27 @@ const TOTAL_DAYS = Math.ceil(TOTAL_HOURS / 24) + 1;
 const TOTAL_HEIGHT = TOTAL_ROWS * (ROW_HEIGHT + GAP);
 
 // Build tasks with HOUR-based positions (pixels computed at render time)
+// Default hour width for initial $bar positions (will be recalculated on viewport resize)
+const DEFAULT_HOUR_WIDTH = (1200 - 120) / DAYS_VISIBLE / 24; // ~6.4px per hour
+
 const initialTasks = (() => {
     const result = {};
     parsedTasks.forEach((task, i) => {
         const row = resourceToRow[task.resource] ?? 0;
         const startHours = (task._start.getTime() - ganttStartMs) / (1000 * 60 * 60);
         const endHours = (task._end.getTime() - ganttStartMs) / (1000 * 60 * 60);
+        const durationHours = endHours - startHours;
         result[task.id] = {
             ...task,
             locked: i % 7 === 0,
             progress: task.progress || 0,
             row,
             startHours,  // Store hours, not pixels
-            durationHours: endHours - startHours,
+            durationHours,
             $bar: {
-                y: row * (ROW_HEIGHT + GAP) + (ROW_HEIGHT + GAP - BAR_HEIGHT) / 2,  // Center bar vertically in row
+                x: startHours * DEFAULT_HOUR_WIDTH,
+                y: row * (ROW_HEIGHT + GAP) + (ROW_HEIGHT + GAP - BAR_HEIGHT) / 2,
+                width: durationHours * DEFAULT_HOUR_WIDTH,
                 height: BAR_HEIGHT,
             },
         };
@@ -107,24 +301,26 @@ const taskIds2D = (() => {
     return index;
 })();
 
-// Parse dependencies from calendar data
+// Parse dependencies from source data
 const relationships = (() => {
     const rels = [];
-    for (const task of calendarData.tasks) {
+    for (const task of sourceData.tasks) {
         if (!task.dependencies) continue;
         // Handle string dep (FS) or object dep ({id, type, lag})
         const depId = typeof task.dependencies === 'string' ? task.dependencies : task.dependencies.id;
         const depType = typeof task.dependencies === 'string' ? 'FS' : (task.dependencies.type || 'FS');
+        const lag = typeof task.dependencies === 'object' ? (task.dependencies.lag || 0) : 0;
         rels.push({
             from: depId,
             to: task.id,
             type: depType,
+            lag,
         });
     }
     return rels;
 })();
 
-console.log(`PerfIsolate: ${Object.keys(initialTasks).length} tasks, ${TOTAL_ROWS} rows, ${TOTAL_DAYS} days, ${relationships.length} deps`);
+console.log(`PerfIsolate [${dataSource}]: ${Object.keys(initialTasks).length} tasks, ${TOTAL_ROWS} rows, ${TOTAL_DAYS} days, ${relationships.length} deps`);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // BAR VARIANTS - Toggle to find overhead
@@ -955,6 +1151,136 @@ function BarDragFunctional(props) {
     );
 }
 
+// V17: Drag with constraint enforcement
+function BarDragConstrained(props) {
+    const getTask = () => typeof props.task === 'function' ? props.task() : props.task;
+    const [hoverZone, setHoverZone] = createSignal('move');
+
+    const t = createMemo(() => {
+        const task = getTask();
+        const bar = task?.$bar;
+        const hw = props.hourWidth || 7;
+        const x = bar?.x ?? (task?.startHours ?? 0) * hw;
+        const width = bar?.width ?? Math.max((task?.durationHours ?? 1) * hw, 6);
+        return {
+            id: task?.id ?? '',
+            name: task?.name ?? '',
+            x,
+            y: bar?.y ?? 0,
+            width,
+            height: bar?.height ?? BAR_HEIGHT,
+        };
+    });
+
+    const { isDragging, dragState, startDrag } = useDrag({
+        onDragStart: (data, state) => {
+            data.originalX = t().x;
+            data.originalWidth = t().width;
+        },
+
+        onDragMove: (move, data, state) => {
+            const hw = props.hourWidth || 7;
+            const MIN_WIDTH = hw;
+
+            if (state === 'dragging_bar') {
+                const newX = data.originalX + move.deltaX;
+
+                // Simple reactive approach: constrain position handles everything
+                // - Clamps to predecessors (can't move before them)
+                // - Pushes successors if needed (cascade forward)
+                if (props.onConstrainPosition) {
+                    props.onConstrainPosition(t().id, newX, t().y);
+                } else {
+                    props.updateBarPosition?.(t().id, { x: newX });
+                }
+
+            } else if (state === 'dragging_left') {
+                let newX = data.originalX + move.deltaX;
+                let newWidth = data.originalWidth - move.deltaX;
+                if (newWidth < MIN_WIDTH) {
+                    newWidth = MIN_WIDTH;
+                    newX = data.originalX + data.originalWidth - MIN_WIDTH;
+                }
+                if (props.onConstrainResize) {
+                    props.onConstrainResize(t().id, newX, newWidth);
+                } else {
+                    props.updateBarPosition?.(t().id, { x: newX, width: newWidth });
+                }
+
+            } else if (state === 'dragging_right') {
+                let newWidth = Math.max(MIN_WIDTH, data.originalWidth + move.deltaX);
+                if (props.onConstrainResize) {
+                    props.onConstrainResize(t().id, t().x, newWidth);
+                } else {
+                    props.updateBarPosition?.(t().id, { width: newWidth });
+                }
+            }
+        },
+
+        onDragEnd: () => {},
+    });
+
+    const handleMouseMove = (e) => {
+        if (isDragging()) return;
+        const rect = e.currentTarget.getBoundingClientRect();
+        const localX = e.clientX - rect.left;
+        if (localX <= 6) setHoverZone('left');
+        else if (localX >= rect.width - 6) setHoverZone('right');
+        else setHoverZone('move');
+    };
+
+    const handleMouseDown = (e) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        const localX = e.clientX - rect.left;
+        if (localX <= 6) startDrag(e, 'dragging_left', {});
+        else if (localX >= rect.width - 6) startDrag(e, 'dragging_right', {});
+        else startDrag(e, 'dragging_bar', {});
+    };
+
+    const isLocked = () => getTask()?.constraints?.locked;
+
+    const getCursor = () => {
+        if (isLocked()) return 'not-allowed';
+        const state = dragState();
+        if (state === 'dragging_left' || state === 'dragging_right') return 'ew-resize';
+        if (state === 'dragging_bar') return 'grabbing';
+        const zone = hoverZone();
+        if (zone === 'left' || zone === 'right') return 'ew-resize';
+        return 'grab';
+    };
+
+    const handleMouseDownLocked = (e) => {
+        if (isLocked()) return;  // Don't start drag on locked tasks
+        handleMouseDown(e);
+    };
+
+    return (
+        <div
+            onMouseDown={handleMouseDownLocked}
+            onMouseMove={handleMouseMove}
+            style={{
+                position: 'absolute',
+                transform: `translate(${t().x}px, ${t().y}px)`,
+                width: `${t().width}px`,
+                height: `${t().height}px`,
+                cursor: getCursor(),
+                background: isLocked() ? 'rgba(100,100,100,0.4)' : 'rgba(34,197,94,0.3)',
+                border: isLocked() ? '1px solid rgba(100,100,100,0.8)' : '1px solid rgba(34,197,94,0.6)',
+                'border-radius': '3px',
+                color: '#fff',
+                'font-size': '11px',
+                'line-height': `${t().height}px`,
+                'padding-left': '4px',
+                overflow: 'hidden',
+                'white-space': 'nowrap',
+                'text-overflow': 'ellipsis',
+                'box-sizing': 'border-box',
+            }}>
+            {isLocked() ? '🔒 ' : ''}{t().name}
+        </div>
+    );
+}
+
 const BAR_VARIANTS = {
     minimal: BarMinimal,
     text: BarWithText,
@@ -972,6 +1298,7 @@ const BAR_VARIANTS = {
     clickmodal: BarClickModal,
     dragbase: BarDragBaseline,
     dragfunc: BarDragFunctional,
+    dragconst: BarDragConstrained,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -981,6 +1308,9 @@ const BAR_VARIANTS = {
 export function GanttPerfIsolate() {
     const [tasks, setTasks] = createStore(initialTasks);
 
+    // Version signal to trigger arrow re-renders when positions change
+    const [positionVersion, setPositionVersion] = createSignal(0);
+
     // Helper for drag position updates
     const updateBarPosition = (id, updates) => {
         setTasks(produce(state => {
@@ -988,6 +1318,7 @@ export function GanttPerfIsolate() {
                 Object.assign(state[id].$bar, updates);
             }
         }));
+        setPositionVersion(v => v + 1);  // Trigger arrow re-render
     };
 
     // URL params for progressive feature testing
@@ -1027,7 +1358,7 @@ export function GanttPerfIsolate() {
     const hourWidth = createMemo(() => dayWidth() / 24);
     const totalWidth = createMemo(() => TOTAL_DAYS * dayWidth());
 
-    // Mock taskStore for ArrowLayerBatched - provides getBarPosition(id)
+    // Mock taskStore for ArrowLayerBatched and constraints
     const mockTaskStore = {
         tasks: tasks,
         rowHeight: ROW_HEIGHT + GAP,
@@ -1036,12 +1367,114 @@ export function GanttPerfIsolate() {
             if (!task) return null;
             const hw = hourWidth();
             return {
-                x: task.startHours * hw,
+                x: task.$bar?.x ?? task.startHours * hw,
                 y: task.$bar.y,
-                width: task.durationHours * hw,
+                width: task.$bar?.width ?? task.durationHours * hw,
                 height: task.$bar.height,
             };
         },
+        getTask: (id) => tasks[id],
+        updateBarPosition: updateBarPosition,
+    };
+
+    // Constraint callback for move - SIMPLE REACTIVE IMPLEMENTATION
+    const handleConstrainPosition = (taskId, newX) => {
+        const hw = hourWidth();
+        const taskBar = mockTaskStore.getBarPosition(taskId);
+        if (!taskBar) {
+            updateBarPosition(taskId, { x: newX });
+            return;
+        }
+
+        // 1. Clamp to predecessor constraints (can't move before predecessors)
+        const minX = getMinXFromPredecessors(
+            taskId,
+            relationships,
+            mockTaskStore.getBarPosition,
+            hw,
+            taskBar.width
+        );
+
+        // 2. Clamp to locked successor constraints (can't move past locked successors)
+        const maxEnd = getMaxEndFromLockedSuccessors(
+            taskId,
+            relationships,
+            mockTaskStore.getBarPosition,
+            mockTaskStore.getTask,
+            hw
+        );
+        const maxX = maxEnd - taskBar.width;  // Convert max end to max start position
+
+        // Also check SS/SF constraints on start position
+        const maxXFromSS = getMaxXFromLockedSuccessors(
+            taskId,
+            relationships,
+            mockTaskStore.getBarPosition,
+            mockTaskStore.getTask,
+            hw
+        );
+
+        // Apply both min and max constraints
+        const constrainedX = Math.max(minX, Math.min(newX, maxX, maxXFromSS));
+
+        // 3. Update this task
+        updateBarPosition(taskId, { x: constrainedX });
+
+        // 4. Push successors if needed (cascades recursively, respects locked tasks)
+        pushSuccessorsIfNeeded(
+            taskId,
+            relationships,
+            mockTaskStore.getBarPosition,
+            updateBarPosition,
+            hw,
+            mockTaskStore.getTask
+        );
+    };
+
+    // Resize constraint callback - SIMPLE REACTIVE IMPLEMENTATION
+    const handleConstrainResize = (taskId, newX, newWidth) => {
+        const hw = hourWidth();
+
+        // 1. Clamp newX to predecessor constraints (for left edge resize)
+        const minX = getMinXFromPredecessors(
+            taskId,
+            relationships,
+            mockTaskStore.getBarPosition,
+            hw,
+            newWidth  // Pass the new width for FF/SF calculations
+        );
+
+        if (newX < minX) {
+            const diff = minX - newX;
+            newX = minX;
+            newWidth = Math.max(hw, newWidth - diff); // Shrink width to compensate
+        }
+
+        // 2. Clamp width to locked successor constraints (can't resize past locked successors)
+        const maxEnd = getMaxEndFromLockedSuccessors(
+            taskId,
+            relationships,
+            mockTaskStore.getBarPosition,
+            mockTaskStore.getTask,
+            hw
+        );
+        const maxWidth = maxEnd - newX;
+        if (newWidth > maxWidth) {
+            newWidth = Math.max(hw, maxWidth);  // Ensure minimum width
+        }
+
+        // 3. Update this task's position and width
+        updateBarPosition(taskId, { x: newX, width: newWidth });
+
+        // 4. Push successors if needed (cascades recursively, respects locked tasks)
+        pushSuccessorsIfNeeded(
+            taskId,
+            relationships,
+            mockTaskStore.getBarPosition,
+            updateBarPosition,
+            hw,
+            mockTaskStore.getTask
+        );
     };
 
     // Visible ranges
@@ -1187,11 +1620,12 @@ export function GanttPerfIsolate() {
             {/* Header */}
             <div style={{ padding: '8px 16px', background: '#2a2a2a', display: 'flex', gap: '16px', 'align-items': 'center', 'flex-wrap': 'wrap' }}>
                 <span style={{ 'font-weight': 'bold' }}>PerfIsolate</span>
+                <span>Data: {dataSource}</span>
                 <span>Bar: {barVariant}</span>
                 <span>Features: {features}</span>
                 <span>Visible: {visibleTasks().length}</span>
                 <span style={{ color: '#888', 'font-size': '11px' }}>
-                    ?bar=minimal|text|handles|reactive|drag|events|full &amp; grid=1 &amp; headers=1 &amp; resources=1
+                    ?data=constraint &amp; bar=dragconst &amp; arrows=1
                 </span>
             </div>
 
@@ -1265,6 +1699,7 @@ export function GanttPerfIsolate() {
                                 <ArrowLayerBatched
                                     relationships={relationships}
                                     taskStore={mockTaskStore}
+                                    positionVersion={positionVersion()}
                                     startRow={visibleRowRange().start}
                                     endRow={visibleRowRange().end}
                                     startX={scrollX() - 200}
@@ -1282,7 +1717,17 @@ export function GanttPerfIsolate() {
 
                         {/* Task bars */}
                         <For each={visibleTasks()}>
-                            {(task) => <BarComponent task={task} hourWidth={hourWidth()} setPopupState={setPopupState} setModalState={setModalState} updateBarPosition={updateBarPosition} />}
+                            {(task) => (
+                                <BarComponent
+                                    task={() => tasks[task.id]}
+                                    hourWidth={hourWidth()}
+                                    setPopupState={setPopupState}
+                                    setModalState={setModalState}
+                                    updateBarPosition={updateBarPosition}
+                                    onConstrainPosition={handleConstrainPosition}
+                                    onConstrainResize={handleConstrainResize}
+                                />
+                            )}
                         </For>
 
                         {/* Shared popup for hoverpopup variant */}

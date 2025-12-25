@@ -1,0 +1,368 @@
+{
+  "tasks": [
+    {
+      "id": "fs-a-1",
+      "name": "FS-A-1",
+      "start": "2025-01-06 08:00",
+      "end": "2025-01-06 12:00",
+      "progress": 0,
+      "color": "#3b82f6",
+      "resource": "fs-a-1"
+    },
+    {
+      "id": "fs-a-2",
+      "name": "FS-A-2",
+      "start": "2025-01-06 12:00",
+      "end": "2025-01-06 16:00",
+      "progress": 0,
+      "color": "#3b82f6",
+      "resource": "fs-a-2",
+      "dependencies": "fs-a-1"
+    },
+    {
+      "id": "fs-a-3",
+      "name": "FS-A-3",
+      "start": "2025-01-06 16:00",
+      "end": "2025-01-07 10:00",
+      "progress": 0,
+      "color": "#3b82f6",
+      "resource": "fs-a-3",
+      "dependencies": "fs-a-2"
+    },
+
+    {
+      "id": "fs-b-1",
+      "name": "FS-B-1",
+      "start": "2025-01-06 08:00",
+      "end": "2025-01-06 14:00",
+      "progress": 0,
+      "color": "#22c55e",
+      "resource": "fs-b-1"
+    },
+    {
+      "id": "fs-b-2",
+      "name": "FS-B-2",
+      "start": "2025-01-06 14:00",
+      "end": "2025-01-07 10:00",
+      "progress": 0,
+      "color": "#22c55e",
+      "resource": "fs-b-2",
+      "dependencies": "fs-b-1"
+    },
+
+    {
+      "id": "ss-a-1",
+      "name": "SS-A-1",
+      "start": "2025-01-06 08:00",
+      "end": "2025-01-06 14:00",
+      "progress": 0,
+      "color": "#ec4899",
+      "resource": "ss-a-1"
+    },
+    {
+      "id": "ss-a-2",
+      "name": "SS-A-2",
+      "start": "2025-01-06 08:00",
+      "end": "2025-01-06 12:00",
+      "progress": 0,
+      "color": "#ec4899",
+      "resource": "ss-a-2",
+      "dependencies": { "id": "ss-a-1", "type": "SS" }
+    },
+    {
+      "id": "ss-a-3",
+      "name": "SS-A-3",
+      "start": "2025-01-06 08:00",
+      "end": "2025-01-06 10:00",
+      "progress": 0,
+      "color": "#ec4899",
+      "resource": "ss-a-3",
+      "dependencies": { "id": "ss-a-2", "type": "SS" }
+    },
+
+    {
+      "id": "ss-b-1",
+      "name": "SS-B-1 (lag2)",
+      "start": "2025-01-06 08:00",
+      "end": "2025-01-06 16:00",
+      "progress": 0,
+      "color": "#8b5cf6",
+      "resource": "ss-b-1"
+    },
+    {
+      "id": "ss-b-2",
+      "name": "SS-B-2 (lag2)",
+      "start": "2025-01-06 10:00",
+      "end": "2025-01-06 14:00",
+      "progress": 0,
+      "color": "#8b5cf6",
+      "resource": "ss-b-2",
+      "dependencies": { "id": "ss-b-1", "type": "SS", "lag": 2 }
+    },
+
+    {
+      "id": "ff-a-1",
+      "name": "FF-A-1",
+      "start": "2025-01-06 08:00",
+      "end": "2025-01-06 14:00",
+      "progress": 0,
+      "color": "#06b6d4",
+      "resource": "ff-a-1"
+    },
+    {
+      "id": "ff-a-2",
+      "name": "FF-A-2",
+      "start": "2025-01-06 10:00",
+      "end": "2025-01-06 14:00",
+      "progress": 0,
+      "color": "#06b6d4",
+      "resource": "ff-a-2",
+      "dependencies": { "id": "ff-a-1", "type": "FF" }
+    },
+    {
+      "id": "ff-a-3",
+      "name": "FF-A-3",
+      "start": "2025-01-06 12:00",
+      "end": "2025-01-06 14:00",
+      "progress": 0,
+      "color": "#06b6d4",
+      "resource": "ff-a-3",
+      "dependencies": { "id": "ff-a-2", "type": "FF" }
+    },
+
+    {
+      "id": "ff-b-1",
+      "name": "FF-B-1 (lag2)",
+      "start": "2025-01-06 08:00",
+      "end": "2025-01-06 12:00",
+      "progress": 0,
+      "color": "#14b8a6",
+      "resource": "ff-b-1"
+    },
+    {
+      "id": "ff-b-2",
+      "name": "FF-B-2 (lag2)",
+      "start": "2025-01-06 08:00",
+      "end": "2025-01-06 14:00",
+      "progress": 0,
+      "color": "#14b8a6",
+      "resource": "ff-b-2",
+      "dependencies": { "id": "ff-b-1", "type": "FF", "lag": 2 }
+    },
+
+    {
+      "id": "sf-a-1",
+      "name": "SF-A-1",
+      "start": "2025-01-06 12:00",
+      "end": "2025-01-06 16:00",
+      "progress": 0,
+      "color": "#f43f5e",
+      "resource": "sf-a-1"
+    },
+    {
+      "id": "sf-a-2",
+      "name": "SF-A-2",
+      "start": "2025-01-06 08:00",
+      "end": "2025-01-06 12:00",
+      "progress": 0,
+      "color": "#f43f5e",
+      "resource": "sf-a-2",
+      "dependencies": { "id": "sf-a-1", "type": "SF" }
+    },
+
+    {
+      "id": "sf-b-1",
+      "name": "SF-B-1",
+      "start": "2025-01-06 14:00",
+      "end": "2025-01-07 10:00",
+      "progress": 0,
+      "color": "#a855f7",
+      "resource": "sf-b-1"
+    },
+    {
+      "id": "sf-b-2",
+      "name": "SF-B-2",
+      "start": "2025-01-06 08:00",
+      "end": "2025-01-06 14:00",
+      "progress": 0,
+      "color": "#a855f7",
+      "resource": "sf-b-2",
+      "dependencies": { "id": "sf-b-1", "type": "SF" }
+    },
+    {
+      "id": "sf-b-3",
+      "name": "SF-B-3",
+      "start": "2025-01-06 08:00",
+      "end": "2025-01-06 12:00",
+      "progress": 0,
+      "color": "#a855f7",
+      "resource": "sf-b-3",
+      "dependencies": { "id": "sf-b-2", "type": "SF" }
+    },
+
+    {
+      "id": "mix-1",
+      "name": "MIX-1",
+      "start": "2025-01-06 08:00",
+      "end": "2025-01-06 12:00",
+      "progress": 0,
+      "color": "#64748b",
+      "resource": "mix-1"
+    },
+    {
+      "id": "mix-2",
+      "name": "MIX-2 (FS)",
+      "start": "2025-01-06 12:00",
+      "end": "2025-01-06 16:00",
+      "progress": 0,
+      "color": "#64748b",
+      "resource": "mix-2",
+      "dependencies": "mix-1"
+    },
+    {
+      "id": "mix-3",
+      "name": "MIX-3 (SS)",
+      "start": "2025-01-06 12:00",
+      "end": "2025-01-06 14:00",
+      "progress": 0,
+      "color": "#64748b",
+      "resource": "mix-3",
+      "dependencies": { "id": "mix-2", "type": "SS" }
+    },
+    {
+      "id": "mix-4",
+      "name": "MIX-4 (FF)",
+      "start": "2025-01-06 14:00",
+      "end": "2025-01-06 16:00",
+      "progress": 0,
+      "color": "#64748b",
+      "resource": "mix-4",
+      "dependencies": { "id": "mix-2", "type": "FF" }
+    },
+
+    {
+      "id": "lock-first-1",
+      "name": "LOCKED",
+      "start": "2025-01-06 08:00",
+      "end": "2025-01-06 12:00",
+      "progress": 0,
+      "color": "#ef4444",
+      "resource": "lock-first-1",
+      "constraints": { "locked": true }
+    },
+    {
+      "id": "lock-first-2",
+      "name": "Task B",
+      "start": "2025-01-06 12:00",
+      "end": "2025-01-06 16:00",
+      "progress": 0,
+      "color": "#ef4444",
+      "resource": "lock-first-2",
+      "dependencies": "lock-first-1"
+    },
+    {
+      "id": "lock-first-3",
+      "name": "Task C",
+      "start": "2025-01-06 16:00",
+      "end": "2025-01-07 10:00",
+      "progress": 0,
+      "color": "#ef4444",
+      "resource": "lock-first-3",
+      "dependencies": "lock-first-2"
+    },
+
+    {
+      "id": "lock-mid-1",
+      "name": "Task A",
+      "start": "2025-01-06 08:00",
+      "end": "2025-01-06 12:00",
+      "progress": 0,
+      "color": "#f97316",
+      "resource": "lock-mid-1"
+    },
+    {
+      "id": "lock-mid-2",
+      "name": "LOCKED",
+      "start": "2025-01-06 12:00",
+      "end": "2025-01-06 16:00",
+      "progress": 0,
+      "color": "#f97316",
+      "resource": "lock-mid-2",
+      "dependencies": "lock-mid-1",
+      "constraints": { "locked": true }
+    },
+    {
+      "id": "lock-mid-3",
+      "name": "Task C",
+      "start": "2025-01-06 16:00",
+      "end": "2025-01-07 10:00",
+      "progress": 0,
+      "color": "#f97316",
+      "resource": "lock-mid-3",
+      "dependencies": "lock-mid-2"
+    },
+
+    {
+      "id": "lock-end-1",
+      "name": "Task A",
+      "start": "2025-01-06 08:00",
+      "end": "2025-01-06 12:00",
+      "progress": 0,
+      "color": "#eab308",
+      "resource": "lock-end-1"
+    },
+    {
+      "id": "lock-end-2",
+      "name": "Task B",
+      "start": "2025-01-06 12:00",
+      "end": "2025-01-06 16:00",
+      "progress": 0,
+      "color": "#eab308",
+      "resource": "lock-end-2",
+      "dependencies": "lock-end-1"
+    },
+    {
+      "id": "lock-end-3",
+      "name": "LOCKED",
+      "start": "2025-01-06 16:00",
+      "end": "2025-01-07 10:00",
+      "progress": 0,
+      "color": "#eab308",
+      "resource": "lock-end-3",
+      "dependencies": "lock-end-2",
+      "constraints": { "locked": true }
+    },
+
+    {
+      "id": "lock-both-1",
+      "name": "LOCKED",
+      "start": "2025-01-06 08:00",
+      "end": "2025-01-06 12:00",
+      "progress": 0,
+      "color": "#84cc16",
+      "resource": "lock-both-1",
+      "constraints": { "locked": true }
+    },
+    {
+      "id": "lock-both-2",
+      "name": "Squeeze",
+      "start": "2025-01-06 12:00",
+      "end": "2025-01-06 16:00",
+      "progress": 0,
+      "color": "#84cc16",
+      "resource": "lock-both-2",
+      "dependencies": "lock-both-1"
+    },
+    {
+      "id": "lock-both-3",
+      "name": "LOCKED",
+      "start": "2025-01-06 16:00",
+      "end": "2025-01-07 10:00",
+      "progress": 0,
+      "color": "#84cc16",
+      "resource": "lock-both-3",
+      "dependencies": "lock-both-2",
+      "constraints": { "locked": true }
+    }
+  ]
+}

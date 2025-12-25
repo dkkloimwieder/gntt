@@ -271,6 +271,10 @@ export function ArrowLayerBatched(props) {
         const tc = taskCount();
         if (tc === 0) return { index: new Map(), positions: new Map() };
 
+        // Depend on positionVersion to rebuild when task positions change (during drag)
+        // This prop is incremented by GanttPerfIsolate whenever updateBarPosition is called
+        const _pv = props.positionVersion;
+
         // Clear path cache when positions change (task drag, resize, load)
         arrowPathCache.clear();
         lastVisibleSet = new Set();
