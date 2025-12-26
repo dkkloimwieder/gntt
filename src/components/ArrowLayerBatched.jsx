@@ -222,7 +222,7 @@ function generateArrow(from, to, depType, curve, headSize) {
 // Per-arrow path cache: arrowIndex → { linePath, headPath }
 let arrowPathCache = new Map();
 // Cached concatenated result
-let cachedResult = { lines: '', heads: '' };
+let cachedResult = [];
 // Track last visible set to detect changes
 let lastVisibleSet = new Set();
 
@@ -278,7 +278,7 @@ export function ArrowLayerBatched(props) {
         // Clear path cache when positions change (task drag, resize, load)
         arrowPathCache.clear();
         lastVisibleSet = new Set();
-        cachedResult = { lines: '', heads: '' };
+        cachedResult = [];
 
         const rh = rowHeight();
         const index = new Map(); // row → Set<relIndex>
@@ -295,11 +295,13 @@ export function ArrowLayerBatched(props) {
 
             if (!fromPos || !toPos) continue;
 
-            // Cache positions for this relationship
+            // Cache positions for this relationship (including style info)
             positions.set(i, {
                 from: fromPos,
                 to: toPos,
                 type: rel.type || 'FS',
+                strokeDasharray: rel.strokeDasharray || '',
+                stroke: rel.stroke,  // Per-arrow stroke color (optional)
             });
 
             // Index by row range
@@ -325,7 +327,7 @@ export function ArrowLayerBatched(props) {
      */
     const batchedPaths = createMemo(() => {
         const { index, positions } = spatialIndex();
-        if (positions.size === 0) return { lines: '', heads: '' };
+        if (positions.size === 0) return [];
 
         const sr = startRow();
         const er = endRow();
@@ -366,65 +368,90 @@ export function ArrowLayerBatched(props) {
             visibleIndices.size === lastVisibleSet.size &&
             [...visibleIndices].every((idx) => lastVisibleSet.has(idx));
 
-        if (setsEqual && cachedResult.lines !== '') {
+        if (setsEqual && Array.isArray(cachedResult) && cachedResult.length > 0) {
             return cachedResult;
         }
 
         // Update tracking
         lastVisibleSet = new Set(visibleIndices);
 
-        // Build paths using per-arrow cache
-        const lineSegments = [];
-        const headSegments = [];
+        // Build paths using per-arrow cache, grouped by style
+        // styleKey = strokeDasharray|stroke
+        const styleGroups = new Map();  // styleKey → { lines: [], heads: [], dasharray, stroke }
 
         for (const idx of visibleIndices) {
+            const pos = positions.get(idx);
+            if (!pos) continue;
+
             // Check per-arrow cache first
             let cached = arrowPathCache.get(idx);
-
             if (!cached) {
-                const pos = positions.get(idx);
-                if (pos) {
-                    cached = generateArrow(pos.from, pos.to, pos.type, c, hs);
-                    arrowPathCache.set(idx, cached);
-                }
+                cached = generateArrow(pos.from, pos.to, pos.type, c, hs);
+                arrowPathCache.set(idx, cached);
             }
 
             if (cached) {
-                lineSegments.push(cached.linePath);
-                if (cached.headPath) headSegments.push(cached.headPath);
+                // Group by style
+                const styleKey = `${pos.strokeDasharray || ''}|${pos.stroke || ''}`;
+                if (!styleGroups.has(styleKey)) {
+                    styleGroups.set(styleKey, {
+                        lines: [],
+                        heads: [],
+                        dasharray: pos.strokeDasharray || '',
+                        stroke: pos.stroke,
+                    });
+                }
+                const group = styleGroups.get(styleKey);
+                group.lines.push(cached.linePath);
+                if (cached.headPath) group.heads.push(cached.headPath);
             }
         }
 
-        cachedResult = {
-            lines: lineSegments.join(' '),
-            heads: headSegments.join(' '),
-        };
+        // Convert to array of style groups with joined paths
+        const result = [];
+        for (const [key, group] of styleGroups) {
+            result.push({
+                key,
+                lines: group.lines.join(' '),
+                heads: group.heads.join(' '),
+                dasharray: group.dasharray,
+                stroke: group.stroke,
+            });
+        }
 
+        cachedResult = result;
         return cachedResult;
     });
 
     return (
         <g class="arrow-layer-batched">
-            {/* All arrow lines in one path */}
-            <path
-                d={batchedPaths().lines}
-                fill="none"
-                stroke={stroke()}
-                stroke-width={strokeWidth()}
-                stroke-opacity={strokeOpacity()}
-                stroke-linecap="round"
-                stroke-linejoin="round"
-            />
-            {/* All arrow heads in one path */}
-            <path
-                d={batchedPaths().heads}
-                fill="none"
-                stroke={stroke()}
-                stroke-width={strokeWidth()}
-                stroke-opacity={strokeOpacity()}
-                stroke-linecap="round"
-                stroke-linejoin="round"
-            />
+            <For each={batchedPaths()}>
+                {(group) => (
+                    <>
+                        {/* Arrow lines for this style group */}
+                        <path
+                            d={group.lines}
+                            fill="none"
+                            stroke={group.stroke || stroke()}
+                            stroke-width={strokeWidth()}
+                            stroke-opacity={strokeOpacity()}
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-dasharray={group.dasharray || undefined}
+                        />
+                        {/* Arrow heads for this style group */}
+                        <path
+                            d={group.heads}
+                            fill="none"
+                            stroke={group.stroke || stroke()}
+                            stroke-width={strokeWidth()}
+                            stroke-opacity={strokeOpacity()}
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        />
+                    </>
+                )}
+            </For>
         </g>
     );
 }

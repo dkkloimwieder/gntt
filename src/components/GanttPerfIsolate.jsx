@@ -12,12 +12,49 @@ import { ResourceColumn } from './ResourceColumn.jsx';
 import { ArrowLayerBatched } from './ArrowLayerBatched.jsx';
 import { TaskDataPopup } from './TaskDataPopup.jsx';
 import { TaskDataModal } from './TaskDataModal.jsx';
+import {
+    isMovementLocked,
+    isLeftResizeLocked,
+    isRightResizeLocked,
+    getMinXFromAbsolute,
+    getMaxXFromAbsolute,
+    getMaxEndFromAbsolute,
+    getMinWidth,
+} from '../utils/absoluteConstraints.js';
 // Note: constraintResolver.js still has utilities but we use simple inline helpers now
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SIMPLE REACTIVE CONSTRAINT HELPERS
 // Read from getBarPosition(), write via updateBarPosition(), let reactivity propagate
 // ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Parse dependency min/max offset values.
+ * - min=0, max=undefined (default): Elastic - push only, gap can grow indefinitely
+ * - min=0, max=0: Fixed gap - push AND pull to maintain exact lag
+ * - min=0, max=N: Bounded - push always, pull only if gap > lag+max
+ *
+ * JSON uses null for Infinity since JSON doesn't support Infinity.
+ */
+function getDepOffsets(rel, pixelsPerHour) {
+    const lag = (rel.lag ?? 0) * pixelsPerHour;
+    const min = (rel.min ?? 0) * pixelsPerHour;
+    // Default is elastic (push only): max=undefined or max=null → Infinity
+    // Explicit max=0 means fixed gap (push+pull)
+    // Explicit max=N means bounded (push, pull only when gap > N)
+    const maxVal = rel.max;
+    const max = (maxVal === undefined || maxVal === null) ? Infinity : maxVal * pixelsPerHour;
+
+    return {
+        lag,
+        min,
+        max,
+        minGap: lag + min,  // Minimum allowed gap
+        maxGap: lag + max,  // Maximum allowed gap (Infinity for elastic)
+        isElastic: max === Infinity,  // Can gap grow indefinitely?
+        isFixed: max === min,  // Must gap be exact?
+    };
+}
 
 /**
  * Get minimum X this task can be at based on predecessor constraints.
@@ -61,46 +98,91 @@ function getMinXFromPredecessors(taskId, relationships, getBarPosition, pixelsPe
 }
 
 /**
- * Get maximum end position (x + width) this task can have based on LOCKED successor constraints.
- * Locked successors cannot be pushed, so the predecessor must not exceed their constraint boundary.
+ * Get maximum end position (x + width) this task can have based on downstream constraints.
+ * RECURSIVELY checks all successors, not just direct ones.
+ *
+ * For unlocked successors: we can push them, but only up to their own downstream limit.
+ * For locked successors: we cannot push at all, this is a hard constraint.
  */
-function getMaxEndFromLockedSuccessors(taskId, relationships, getBarPosition, getTask, pixelsPerHour) {
+function getMaxEndFromDownstream(taskId, relationships, getBarPosition, getTask, pixelsPerHour, visited = new Set()) {
+    // Prevent infinite loops in circular dependencies
+    if (visited.has(taskId)) return Infinity;
+    visited.add(taskId);
+
     let maxEnd = Infinity;
+
     for (const rel of relationships) {
         if (rel.from !== taskId) continue;
 
         const succTask = getTask?.(rel.to);
-        const isLocked = succTask?.constraints?.locked || succTask?.locked;
-        if (!isLocked) continue;  // Only care about locked successors
-
         const succBar = getBarPosition(rel.to);
         if (!succBar) continue;
 
+        const { minGap } = getDepOffsets(rel, pixelsPerHour);
         const type = rel.type || 'FS';
-        const lag = (rel.lag ?? 0) * pixelsPerHour;
+        const isLocked = isMovementLocked(succTask?.constraints?.locked);
 
+        // Calculate constraint based on dependency type
         let constraint;
         switch (type) {
             case 'FS':
-                // predecessor.end <= successor.start - lag
-                constraint = succBar.x - lag;
+                // predecessor.end + minGap <= successor.start
+                // => predecessor.end <= successor.start - minGap
+                constraint = succBar.x - minGap;
+                break;
+            case 'FF':
+                // predecessor.end <= successor.end - minGap
+                constraint = succBar.x + succBar.width - minGap;
                 break;
             case 'SS':
-                // predecessor.start <= successor.start - lag (doesn't constrain end)
-                continue;
-            case 'FF':
-                // predecessor.end <= successor.end - lag
-                constraint = succBar.x + succBar.width - lag;
-                break;
             case 'SF':
-                // predecessor.start <= successor.end - lag (doesn't constrain end)
+                // These constrain predecessor start, not end - skip
                 continue;
             default:
-                constraint = succBar.x - lag;
+                constraint = succBar.x - minGap;
         }
-        maxEnd = Math.min(maxEnd, constraint);
+
+        if (isLocked) {
+            // Locked successor: hard constraint, cannot push past
+            maxEnd = Math.min(maxEnd, constraint);
+        } else {
+            // Unlocked successor: we can push them, but only so far
+            // Recursively find their downstream limit
+            const succMaxEnd = getMaxEndFromDownstream(rel.to, relationships, getBarPosition, getTask, pixelsPerHour, visited);
+
+            // We can push successor up to: (succMaxEnd - succBar.width) for their new X
+            // So our end can go to: newSuccX - minGap = succMaxEnd - succBar.width - minGap... no wait
+            // Actually: if we push successor to position X', their end is X' + width
+            // Their end must be <= succMaxEnd, so X' <= succMaxEnd - width
+            // Our end + minGap <= X', so our end <= X' - minGap <= succMaxEnd - width - minGap
+            // Hmm, this isn't quite right. Let me think again.
+            //
+            // For FS: our.end + minGap <= succ.start (succ.x)
+            // If we push succ, succ.x' = our.end + minGap
+            // Succ's end = succ.x' + succ.width = our.end + minGap + succ.width
+            // Succ's end must be <= succMaxEnd
+            // => our.end + minGap + succ.width <= succMaxEnd
+            // => our.end <= succMaxEnd - minGap - succ.width
+
+            // Actually simpler: how far can successor's START go?
+            // Successor's end must be <= their downstream max, so:
+            // succ.x + succ.width <= succMaxEnd
+            // succ.x <= succMaxEnd - succ.width
+            // And our.end + minGap <= succ.x
+            // => our.end <= succ.x - minGap <= succMaxEnd - succ.width - minGap
+
+            const succMaxX = succMaxEnd - succBar.width;  // Max start position for successor
+            const ourMaxEnd = succMaxX - minGap;
+            maxEnd = Math.min(maxEnd, ourMaxEnd);
+        }
     }
+
     return maxEnd;
+}
+
+// Legacy alias for compatibility - now uses recursive version
+function getMaxEndFromLockedSuccessors(taskId, relationships, getBarPosition, getTask, pixelsPerHour) {
+    return getMaxEndFromDownstream(taskId, relationships, getBarPosition, getTask, pixelsPerHour, new Set());
 }
 
 /**
@@ -141,11 +223,15 @@ function getMaxXFromLockedSuccessors(taskId, relationships, getBarPosition, getT
 }
 
 /**
- * Recursively push successors if they violate constraints after a task position change.
+ * Recursively push/pull successors based on min/max offset constraints.
  * Updates store directly - SolidJS reactivity propagates changes to Bar components.
- * Locked tasks block the push chain.
+ *
+ * Push when: currentGap < minGap (successor is too close)
+ * Pull when: currentGap > maxGap AND maxGap !== Infinity (gap exceeded max)
+ *
+ * Locked tasks block the cascade chain.
  */
-function pushSuccessorsIfNeeded(taskId, relationships, getBarPosition, updateBarPosition, pixelsPerHour, getTask, visited = new Set()) {
+function pushSuccessorsIfNeeded(taskId, relationships, getBarPosition, updateBarPosition, pixelsPerHour, getTask, ganttStartDate, visited = new Set()) {
     // Prevent infinite loops in case of circular dependencies
     if (visited.has(taskId)) return;
     visited.add(taskId);
@@ -161,36 +247,75 @@ function pushSuccessorsIfNeeded(taskId, relationships, getBarPosition, updateBar
         if (!succBar) continue;
 
         // Locked tasks cannot be pushed - they block the chain
-        const isLocked = succTask?.constraints?.locked || succTask?.locked;
+        const isLocked = isMovementLocked(succTask?.constraints?.locked);
         if (isLocked) continue;
 
         const type = rel.type || 'FS';
-        const lag = (rel.lag ?? 0) * pixelsPerHour;
+        const { minGap, maxGap, isElastic } = getDepOffsets(rel, pixelsPerHour);
 
-        let minSuccX;
+        // Calculate anchor position based on dependency type
+        let anchorPos;  // The reference point on predecessor
+        let succRef;    // The reference point on successor (start or end)
+        let constrainsEnd = false;  // Does this dep type constrain successor's end?
+
         switch (type) {
             case 'FS':
-                minSuccX = taskBar.x + taskBar.width + lag;
+                anchorPos = taskBar.x + taskBar.width;  // Pred end
+                succRef = succBar.x;  // Succ start
                 break;
             case 'SS':
-                minSuccX = taskBar.x + lag;
+                anchorPos = taskBar.x;  // Pred start
+                succRef = succBar.x;  // Succ start
                 break;
             case 'FF':
-                minSuccX = taskBar.x + taskBar.width - succBar.width + lag;
+                anchorPos = taskBar.x + taskBar.width;  // Pred end
+                succRef = succBar.x + succBar.width;  // Succ end
+                constrainsEnd = true;
                 break;
             case 'SF':
-                minSuccX = taskBar.x - succBar.width + lag;
+                anchorPos = taskBar.x;  // Pred start
+                succRef = succBar.x + succBar.width;  // Succ end
+                constrainsEnd = true;
                 break;
             default:
-                minSuccX = taskBar.x + taskBar.width + lag;
+                anchorPos = taskBar.x + taskBar.width;
+                succRef = succBar.x;
         }
 
-        if (succBar.x < minSuccX) {
-            // Push successor - this triggers its Bar to re-render via store reactivity
-            updateBarPosition(rel.to, { x: minSuccX });
+        // Current gap between anchor and successor reference point
+        const currentGap = succRef - anchorPos;
 
-            // Recursively push this successor's successors
-            pushSuccessorsIfNeeded(rel.to, relationships, getBarPosition, updateBarPosition, pixelsPerHour, getTask, visited);
+        // Check if push or pull is needed
+        const needsPush = currentGap < minGap;  // Gap too small
+        const needsPull = !isElastic && currentGap > maxGap;  // Gap too large (and not elastic)
+
+        if (needsPush || needsPull) {
+            // Calculate target position for successor
+            const targetGap = needsPush ? minGap : maxGap;
+            const targetRef = anchorPos + targetGap;
+
+            // Convert target reference point to target X position
+            let targetX;
+            if (constrainsEnd) {
+                // For FF/SF: targetRef is the successor's END position
+                targetX = targetRef - succBar.width;
+            } else {
+                // For FS/SS: targetRef is the successor's START position
+                targetX = targetRef;
+            }
+
+            // Apply successor's absolute constraints
+            const absMinX = getMinXFromAbsolute(succTask?.constraints, ganttStartDate, pixelsPerHour);
+            const absMaxX = getMaxXFromAbsolute(succTask?.constraints, ganttStartDate, pixelsPerHour);
+            targetX = Math.max(absMinX, Math.min(targetX, absMaxX));
+
+            // Only update if position actually changes
+            if (Math.abs(targetX - succBar.x) > 0.5) {  // Small epsilon to avoid floating point issues
+                updateBarPosition(rel.to, { x: targetX });
+
+                // Recursively cascade to this successor's successors
+                pushSuccessorsIfNeeded(rel.to, relationships, getBarPosition, updateBarPosition, pixelsPerHour, getTask, ganttStartDate, visited);
+            }
         }
     }
 }
@@ -209,7 +334,7 @@ function pushSuccessorsIfNeeded(taskId, relationships, getBarPosition, updateBar
 const ROW_HEIGHT = 24;
 const BAR_HEIGHT = 26;
 const GAP = 4;
-const DAYS_VISIBLE = 7;  // Target: show ~1 week in viewport
+const DAYS_VISIBLE = 3;  // Fewer days = wider/longer tasks
 const OVERSCAN_ROWS = 2;
 const OVERSCAN_PX = 200;
 
@@ -301,20 +426,46 @@ const taskIds2D = (() => {
     return index;
 })();
 
-// Parse dependencies from source data
+// Parse dependencies from source data with min/max offset values
 const relationships = (() => {
     const rels = [];
     for (const task of sourceData.tasks) {
         if (!task.dependencies) continue;
-        // Handle string dep (FS) or object dep ({id, type, lag})
-        const depId = typeof task.dependencies === 'string' ? task.dependencies : task.dependencies.id;
-        const depType = typeof task.dependencies === 'string' ? 'FS' : (task.dependencies.type || 'FS');
-        const lag = typeof task.dependencies === 'object' ? (task.dependencies.lag || 0) : 0;
+        // Handle string dep (FS) or object dep ({id, type, lag, min, max})
+        const dep = task.dependencies;
+        const isObj = typeof dep === 'object';
+        const depId = isObj ? dep.id : dep;
+        const depType = isObj ? (dep.type || 'FS') : 'FS';
+        const lag = isObj ? (dep.lag || 0) : 0;
+        const min = isObj ? (dep.min ?? 0) : 0;
+        const max = isObj ? dep.max : undefined;  // undefined/null = elastic (default), 0 = fixed, N = bounded
+
+        // Determine line style based on min/max
+        // Elastic (max=undefined or max=null, the default): dotted line
+        // Fixed (max=0): solid line
+        // Bounded (max > 0): dashed line
+        let strokeDasharray = '';
+        let stroke;
+        if (max === undefined || max === null) {
+            // Default elastic - no special styling, use default arrow color
+            // Only show special styling for explicit elastic deps
+        } else if (max === 0) {
+            // Fixed gap (push+pull) - solid line, slight color hint
+            stroke = '#f472b6';  // Pink for fixed
+        } else if (max > 0) {
+            strokeDasharray = '6,3';  // Dashed for bounded
+            stroke = '#fbbf24';  // Amber for bounded
+        }
+
         rels.push({
             from: depId,
             to: task.id,
             type: depType,
             lag,
+            min,
+            max,
+            strokeDasharray,
+            stroke,
         });
     }
     return rels;
@@ -1237,22 +1388,67 @@ function BarDragConstrained(props) {
         else startDrag(e, 'dragging_bar', {});
     };
 
-    const isLocked = () => getTask()?.constraints?.locked;
+    const lockState = () => getTask()?.constraints?.locked;
 
     const getCursor = () => {
-        if (isLocked()) return 'not-allowed';
+        const lock = lockState();
+        // Check if movement is locked
+        if (isMovementLocked(lock)) return 'not-allowed';
         const state = dragState();
         if (state === 'dragging_left' || state === 'dragging_right') return 'ew-resize';
         if (state === 'dragging_bar') return 'grabbing';
         const zone = hoverZone();
+        // Check if specific resize direction is locked
+        if (zone === 'left' && isLeftResizeLocked(lock)) return 'not-allowed';
+        if (zone === 'right' && isRightResizeLocked(lock)) return 'not-allowed';
         if (zone === 'left' || zone === 'right') return 'ew-resize';
         return 'grab';
     };
 
     const handleMouseDownLocked = (e) => {
-        if (isLocked()) return;  // Don't start drag on locked tasks
+        const lock = lockState();
+        const rect = e.currentTarget.getBoundingClientRect();
+        const localX = e.clientX - rect.left;
+
+        // Check what type of drag this would be
+        if (localX <= 6) {
+            // Left resize attempt
+            if (isLeftResizeLocked(lock)) return;
+        } else if (localX >= rect.width - 6) {
+            // Right resize attempt
+            if (isRightResizeLocked(lock)) return;
+        } else {
+            // Move attempt
+            if (isMovementLocked(lock)) return;
+        }
         handleMouseDown(e);
     };
+
+    // Visual styles based on lock state
+    const getBarStyles = () => {
+        const lock = lockState();
+
+        if (lock === true) {
+            // Fully locked - gray with lock icon
+            return { bg: 'rgba(100,100,100,0.4)', border: '1px solid rgba(100,100,100,0.8)', icon: '🔒 ' };
+        } else if (lock === 'start') {
+            // Start locked - slightly different color, left edge indicator
+            return { bg: 'rgba(239,68,68,0.3)', border: '1px solid rgba(239,68,68,0.6)', icon: '⊢ ' };
+        } else if (lock === 'end') {
+            // End locked - deadline style
+            return { bg: 'rgba(249,115,22,0.3)', border: '1px solid rgba(249,115,22,0.6)', icon: ' ⊣' };
+        } else if (lock === 'position') {
+            // Position locked (can resize but not move)
+            return { bg: 'rgba(168,85,247,0.3)', border: '1px solid rgba(168,85,247,0.6)', icon: '📍 ' };
+        } else if (lock === 'duration') {
+            // Duration locked (can move but not resize)
+            return { bg: 'rgba(59,130,246,0.3)', border: '1px solid rgba(59,130,246,0.6)', icon: '↔ ' };
+        }
+        // Default - unlocked
+        return { bg: 'rgba(34,197,94,0.3)', border: '1px solid rgba(34,197,94,0.6)', icon: '' };
+    };
+
+    const styles = () => getBarStyles();
 
     return (
         <div
@@ -1264,8 +1460,8 @@ function BarDragConstrained(props) {
                 width: `${t().width}px`,
                 height: `${t().height}px`,
                 cursor: getCursor(),
-                background: isLocked() ? 'rgba(100,100,100,0.4)' : 'rgba(34,197,94,0.3)',
-                border: isLocked() ? '1px solid rgba(100,100,100,0.8)' : '1px solid rgba(34,197,94,0.6)',
+                background: styles().bg,
+                border: styles().border,
                 'border-radius': '3px',
                 color: '#fff',
                 'font-size': '11px',
@@ -1276,7 +1472,7 @@ function BarDragConstrained(props) {
                 'text-overflow': 'ellipsis',
                 'box-sizing': 'border-box',
             }}>
-            {isLocked() ? '🔒 ' : ''}{t().name}
+            {styles().icon}{t().name}
         </div>
     );
 }
@@ -1380,14 +1576,20 @@ export function GanttPerfIsolate() {
     // Constraint callback for move - SIMPLE REACTIVE IMPLEMENTATION
     const handleConstrainPosition = (taskId, newX) => {
         const hw = hourWidth();
+        const task = mockTaskStore.getTask(taskId);
         const taskBar = mockTaskStore.getBarPosition(taskId);
         if (!taskBar) {
             updateBarPosition(taskId, { x: newX });
             return;
         }
 
+        // 0. Check if task is fully locked (cannot move)
+        if (isMovementLocked(task?.constraints?.locked)) {
+            return; // Don't allow any movement
+        }
+
         // 1. Clamp to predecessor constraints (can't move before predecessors)
-        const minX = getMinXFromPredecessors(
+        let minX = getMinXFromPredecessors(
             taskId,
             relationships,
             mockTaskStore.getBarPosition,
@@ -1395,15 +1597,28 @@ export function GanttPerfIsolate() {
             taskBar.width
         );
 
+        // 1b. Apply absolute minStart constraint
+        const absMinX = getMinXFromAbsolute(task?.constraints, ganttStart, hw);
+        minX = Math.max(minX, absMinX);
+
         // 2. Clamp to locked successor constraints (can't move past locked successors)
-        const maxEnd = getMaxEndFromLockedSuccessors(
+        let maxEnd = getMaxEndFromLockedSuccessors(
             taskId,
             relationships,
             mockTaskStore.getBarPosition,
             mockTaskStore.getTask,
             hw
         );
-        const maxX = maxEnd - taskBar.width;  // Convert max end to max start position
+
+        // 2b. Apply absolute maxEnd constraint
+        const absMaxEnd = getMaxEndFromAbsolute(task?.constraints, ganttStart, hw);
+        maxEnd = Math.min(maxEnd, absMaxEnd);
+
+        let maxX = maxEnd - taskBar.width;  // Convert max end to max start position
+
+        // 2c. Apply absolute maxStart constraint
+        const absMaxX = getMaxXFromAbsolute(task?.constraints, ganttStart, hw);
+        maxX = Math.min(maxX, absMaxX);
 
         // Also check SS/SF constraints on start position
         const maxXFromSS = getMaxXFromLockedSuccessors(
@@ -1420,29 +1635,57 @@ export function GanttPerfIsolate() {
         // 3. Update this task
         updateBarPosition(taskId, { x: constrainedX });
 
-        // 4. Push successors if needed (cascades recursively, respects locked tasks)
+        // 4. Push/pull successors based on min/max offset constraints
         pushSuccessorsIfNeeded(
             taskId,
             relationships,
             mockTaskStore.getBarPosition,
             updateBarPosition,
             hw,
-            mockTaskStore.getTask
+            mockTaskStore.getTask,
+            ganttStart
         );
     };
 
     // Resize constraint callback - SIMPLE REACTIVE IMPLEMENTATION
     const handleConstrainResize = (taskId, newX, newWidth) => {
         const hw = hourWidth();
+        const task = mockTaskStore.getTask(taskId);
+        const taskBar = mockTaskStore.getBarPosition(taskId);
+        if (!taskBar) {
+            updateBarPosition(taskId, { x: newX, width: newWidth });
+            return;
+        }
+
+        const isLeftResize = newX !== taskBar.x;  // Left edge moved
+        const isRightResize = (newX + newWidth) !== (taskBar.x + taskBar.width);  // Right edge moved
+
+        // 0. Check lock states for specific resize directions
+        if (task?.constraints?.locked === true) {
+            return; // Fully locked - no resize allowed
+        }
+        if (isLeftResize && isLeftResizeLocked(task?.constraints?.locked)) {
+            // Can't resize left edge - restore original X, only allow right edge change
+            newX = taskBar.x;
+            newWidth = taskBar.width;
+        }
+        if (isRightResize && isRightResizeLocked(task?.constraints?.locked)) {
+            // Can't resize right edge - restore original width
+            newWidth = taskBar.width;
+        }
 
         // 1. Clamp newX to predecessor constraints (for left edge resize)
-        const minX = getMinXFromPredecessors(
+        let minX = getMinXFromPredecessors(
             taskId,
             relationships,
             mockTaskStore.getBarPosition,
             hw,
             newWidth  // Pass the new width for FF/SF calculations
         );
+
+        // 1b. Apply absolute minStart constraint
+        const absMinX = getMinXFromAbsolute(task?.constraints, ganttStart, hw);
+        minX = Math.max(minX, absMinX);
 
         if (newX < minX) {
             const diff = minX - newX;
@@ -1451,29 +1694,39 @@ export function GanttPerfIsolate() {
         }
 
         // 2. Clamp width to locked successor constraints (can't resize past locked successors)
-        const maxEnd = getMaxEndFromLockedSuccessors(
+        let maxEnd = getMaxEndFromLockedSuccessors(
             taskId,
             relationships,
             mockTaskStore.getBarPosition,
             mockTaskStore.getTask,
             hw
         );
+
+        // 2b. Apply absolute maxEnd constraint
+        const absMaxEnd = getMaxEndFromAbsolute(task?.constraints, ganttStart, hw);
+        maxEnd = Math.min(maxEnd, absMaxEnd);
+
         const maxWidth = maxEnd - newX;
         if (newWidth > maxWidth) {
             newWidth = Math.max(hw, maxWidth);  // Ensure minimum width
         }
 
+        // 2c. Apply minimum width constraint
+        const minWidth = getMinWidth(task?.constraints, hw);
+        newWidth = Math.max(minWidth, newWidth);
+
         // 3. Update this task's position and width
         updateBarPosition(taskId, { x: newX, width: newWidth });
 
-        // 4. Push successors if needed (cascades recursively, respects locked tasks)
+        // 4. Push/pull successors based on min/max offset constraints
         pushSuccessorsIfNeeded(
             taskId,
             relationships,
             mockTaskStore.getBarPosition,
             updateBarPosition,
             hw,
-            mockTaskStore.getTask
+            mockTaskStore.getTask,
+            ganttStart
         );
     };
 
