@@ -31,14 +31,6 @@ Dependencies use a **min/max offset model** to control gap flexibility:
 }
 ```
 
-### Visual Indicators
-
-| Constraint Type | Arrow Style | Color |
-|----------------|-------------|-------|
-| Elastic (default) | Solid line | Default gray |
-| Fixed (max: 0) | Solid line | Pink (#f472b6) |
-| Bounded (max: N) | Dashed line | Amber (#fbbf24) |
-
 ---
 
 ## Dependency Types
@@ -67,33 +59,33 @@ Dependencies use a **min/max offset model** to control gap flexibility:
 
 ## Test Scenarios
 
-### 1. FS Chain (push+pull)
+### 1. FS Chain (elastic, push only)
 **Tasks:** FS Chain A → B → C
-**Resource label:** "FS Chain (push+pull)"
+**Resource label:** "FS Chain (default elastic)"
 
 **Expected behavior:**
-- Drag A right → B and C push right (maintaining gaps)
-- Drag A left → B and C pull left (maintaining gaps)
+- Drag A right → B and C push right (maintaining minimum gap)
+- Drag A left → B and C **do NOT pull** (gap can grow, elastic dependency)
 - Drag C right → Only C moves (no upstream effect)
-- Drag C left → Blocked by B (can't violate gap)
+- Drag C left → Blocked by B (can't violate minimum gap)
 
-### 2. SS Chain (push+pull)
+### 2. SS Chain (elastic, push only)
 **Tasks:** SS Chain A → B → C
-**Resource label:** "SS Chain (push+pull)"
+**Resource label:** "SS Chain (elastic)"
 
 **Expected behavior:**
 - All tasks share the same start time initially
 - Drag A right → B and C push right (starts align)
-- Drag A left → B and C pull left (starts align)
+- Drag A left → B and C **do NOT pull** (gap can grow, elastic dependency)
 
-### 3. SS with Lag
+### 3. SS with Lag (elastic)
 **Tasks:** SS+Lag A → B (2h lag)
-**Resource label:** "SS with 2h lag"
+**Resource label:** "SS+Lag (2h lag)"
 
 **Expected behavior:**
 - B starts 2 hours after A starts
 - Drag A right → B pushes to maintain 2h gap
-- Drag A left → B pulls to maintain 2h gap
+- Drag A left → B **does NOT pull** (gap can grow, elastic dependency)
 
 ### 4. FF Chain (push+pull)
 **Tasks:** FF Chain A → B → C
@@ -104,13 +96,14 @@ Dependencies use a **min/max offset model** to control gap flexibility:
 - Drag A right (extends end) → B and C push to align ends
 - Resize A's end → B and C adjust to maintain FF
 
-### 5. FF with Lag
+### 5. FF with Lag (fixed gap)
 **Tasks:** FF+Lag A → B (2h lag)
-**Resource label:** "FF with 2h lag"
+**Resource label:** "FF+Lag (2h lag)"
 
 **Expected behavior:**
 - B ends 2 hours after A ends
 - Resize A right → B pushes to maintain 2h gap at ends
+- Resize A left → B pulls to maintain 2h gap at ends
 
 ### 6. SF Chain (push+pull)
 **Tasks:** SF Chain A → B
@@ -198,6 +191,32 @@ Dependencies use a **min/max offset model** to control gap flexibility:
 
 ---
 
+## Additional Constraints (Untested)
+
+The following constraint fields exist in code (`absoluteConstraints.js`) but have no test coverage:
+
+| Field | Type | Effect |
+|-------|------|--------|
+| `minEnd` | datetime string | Task cannot end before this time |
+| `minDuration` | number (hours) | Task duration cannot be less than this |
+| `maxDuration` | number (hours) | Task duration cannot exceed this |
+| `fixedDuration` | number (hours) | Task duration must equal this exactly |
+
+**Example:**
+```json
+{
+  "constraints": {
+    "minEnd": "2025-01-07 17:00",
+    "minDuration": 4,
+    "maxDuration": 8
+  }
+}
+```
+
+**Status:** Helper functions exist but behavior during drag/resize is not verified in tests.
+
+---
+
 ## Lock Types (Partial Locks)
 
 ### 15. locked: "start"
@@ -208,7 +227,6 @@ Dependencies use a **min/max offset model** to control gap flexibility:
 - Cannot move (position locked)
 - Cannot resize left edge (start locked)
 - CAN resize right edge (duration can increase)
-- Visual: Red with ⊢ icon
 
 ### 16. locked: "end"
 **Task:** "End locked"
@@ -218,7 +236,6 @@ Dependencies use a **min/max offset model** to control gap flexibility:
 - Cannot move (position locked)
 - CAN resize left edge (start can change)
 - Cannot resize right edge (end locked)
-- Visual: Orange with ⊣ icon
 
 ### 17. locked: "duration"
 **Task:** "Duration locked"
@@ -227,7 +244,6 @@ Dependencies use a **min/max offset model** to control gap flexibility:
 **Expected behavior:**
 - CAN move (drag works)
 - Cannot resize either edge (width fixed)
-- Visual: Blue with ↔ icon
 
 ---
 
@@ -241,7 +257,6 @@ Dependencies use a **min/max offset model** to control gap flexibility:
 - Drag A right → B and C push right (gap maintained at minimum)
 - Drag A left → B and C **DO NOT** pull (gap can grow infinitely)
 - Gap between tasks can grow but never shrink below lag
-- Visual: Dotted cyan arrow lines
 
 ### 20. Bounded Chain (max 2h gap)
 **Tasks:** Bounded A → B → C
@@ -252,7 +267,6 @@ Dependencies use a **min/max offset model** to control gap flexibility:
 - Drag A left slightly → B and C don't move (gap still < 2h)
 - Drag A left far → B and C pull once gap exceeds 2h
 - Gap can be 0-2 hours, pulls when exceeding max
-- Visual: Dashed amber arrow lines
 
 ---
 
@@ -295,12 +309,12 @@ Dependencies use a **min/max offset model** to control gap flexibility:
 
 ## Lock State Behavior Matrix
 
-| Lock Value | Move | Resize Left | Resize Right | Visual | Use Case |
-|------------|------|-------------|--------------|--------|----------|
-| `true` | No | No | No | 🔒 Gray | Completely fixed |
-| `"start"` | No | No | Yes | ⊢ Red | Fixed start, flexible end |
-| `"end"` | No | Yes | No | ⊣ Orange | Fixed deadline, flexible start |
-| `"duration"` | Yes | No | No | ↔ Blue | Can move, duration fixed |
+| Lock Value | Move | Resize Left | Resize Right | Icon | Use Case |
+|------------|------|-------------|--------------|------|----------|
+| `true` | No | No | No | 🔒 | Completely fixed |
+| `"start"` | No | No | Yes | ⊢ | Fixed start, flexible end |
+| `"end"` | No | Yes | No | ⊣ | Fixed deadline, flexible start |
+| `"duration"` | Yes | No | No | ↔ | Can move, duration fixed |
 
 ---
 
@@ -331,13 +345,11 @@ http://localhost:5173/examples/perf-isolate.html?data=constraint&bar=dragconst&g
 ### Elastic (max: null)
 - [ ] A → B: Moving A right pushes B
 - [ ] A → B: Moving A left does NOT pull B
-- [ ] Visual: Dotted cyan arrows
 
 ### Bounded (max: N)
 - [ ] A → B: Moving A right pushes B
 - [ ] A → B: Moving A left within max doesn't pull
 - [ ] A → B: Moving A left past max DOES pull B
-- [ ] Visual: Dashed amber arrows
 
 ### Absolute Constraints
 - [ ] minStart blocks leftward movement
@@ -349,3 +361,63 @@ http://localhost:5173/examples/perf-isolate.html?data=constraint&bar=dragconst&g
 - [ ] locked: "start" - resize right only
 - [ ] locked: "end" - resize left only
 - [ ] locked: "duration" - move only, no resize
+
+---
+
+## Edge Cases and Known Limitations
+
+### Circular Dependencies
+- Not detected or prevented by the constraint system
+- May cause infinite recursion in cascade logic
+- Workaround: Ensure dependency graph is acyclic
+
+### Conflicting Constraints
+- A task with `minStart > maxEnd` creates an impossible constraint
+- No validation or user feedback is provided
+- Task may end up in an invalid position
+
+### Deep Cascade Chains
+- No limit on cascade depth during push/pull propagation
+- Very long dependency chains may cause noticeable delay
+- Consider performance implications for large chains
+
+### Resize vs Move Behavior
+- Duration constraints (`minDuration`, `maxDuration`, `fixedDuration`) only apply during resize
+- Moving a task preserves its duration regardless of duration constraints
+- A moved task may violate `minEnd`/`maxEnd` if not also checked during move
+
+### locked: "position" (Reserved)
+- Listed in code comments as a possible value
+- Not currently implemented in UI or constraint logic
+- Intended to allow resizing both directions while blocking movement
+
+---
+
+## Implementation Status
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| **Dependency Types** | | |
+| FS (Finish-to-Start) | Implemented | Push and pull working |
+| SS (Start-to-Start) | Implemented | Push and pull working |
+| FF (Finish-to-Finish) | Implemented | Push and pull working |
+| SF (Start-to-Finish) | Implemented | Push and pull working |
+| **Gap Behavior** | | |
+| Elastic (max=undefined) | Implemented | Push only, gap can grow |
+| Fixed (max=0) | Implemented | Push and pull, exact gap |
+| Bounded (0 < max < Infinity) | Implemented | Push, pull when gap > max |
+| **Lock Types** | | |
+| locked: true | Implemented | Full lock |
+| locked: "start" | Implemented | Right resize only |
+| locked: "end" | Implemented | Left resize only |
+| locked: "duration" | Implemented | Move only |
+| locked: "position" | Not Implemented | Reserved for future |
+| **Absolute Constraints** | | |
+| minStart | Implemented | Tested |
+| maxStart | Implemented | Tested |
+| maxEnd | Implemented | Tested |
+| minEnd | Untested | Code exists |
+| **Duration Constraints** | | |
+| minDuration | Untested | Code exists |
+| maxDuration | Untested | Code exists |
+| fixedDuration | Untested | Code exists |
