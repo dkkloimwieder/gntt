@@ -4,28 +4,25 @@
       "id": "fs-chain-1",
       "name": "FS Chain A",
       "start": "2025-01-06 08:00",
-      "end": "2025-01-06 12:00",
+      "end": "2025-01-07 08:00",
       "progress": 0,
-      "color": "#3b82f6",
       "resource": "FS Chain (default elastic)"
     },
     {
       "id": "fs-chain-2",
       "name": "FS Chain B",
-      "start": "2025-01-06 12:00",
-      "end": "2025-01-06 16:00",
+      "start": "2025-01-07 08:00",
+      "end": "2025-01-08 08:00",
       "progress": 0,
-      "color": "#3b82f6",
       "resource": "FS Chain (default elastic)",
       "dependencies": "fs-chain-1"
     },
     {
       "id": "fs-chain-3",
       "name": "FS Chain C",
-      "start": "2025-01-06 16:00",
-      "end": "2025-01-07 10:00",
+      "start": "2025-01-08 08:00",
+      "end": "2025-01-09 08:00",
       "progress": 0,
-      "color": "#3b82f6",
       "resource": "FS Chain (default elastic)",
       "dependencies": "fs-chain-2"
     },
@@ -33,49 +30,44 @@
     {
       "id": "ss-chain-1",
       "name": "SS Chain A",
-      "start": "2025-01-06 08:00",
-      "end": "2025-01-06 14:00",
+      "start": "2025-01-06 08:15",
+      "end": "2025-01-08 08:15",
       "progress": 0,
-      "color": "#ec4899",
-      "resource": "SS Chain 1 (push+pull)"
+      "resource": "SS Chain 1 (elastic)"
     },
     {
       "id": "ss-chain-2",
       "name": "SS Chain B",
-      "start": "2025-01-06 08:00",
-      "end": "2025-01-06 12:00",
+      "start": "2025-01-06 08:15",
+      "end": "2025-01-07 16:15",
       "progress": 0,
-      "color": "#ec4899",
-      "resource": "SS Chain 2 (push+pull)",
-      "dependencies": { "id": "ss-chain-1", "type": "SS", "max": 0 }
+      "resource": "SS Chain 2 (elastic)",
+      "dependencies": { "id": "ss-chain-1", "type": "SS" }
     },
     {
       "id": "ss-chain-3",
       "name": "SS Chain C",
-      "start": "2025-01-06 08:00",
-      "end": "2025-01-06 10:00",
+      "start": "2025-01-06 08:15",
+      "end": "2025-01-07 08:15",
       "progress": 0,
-      "color": "#ec4899",
-      "resource": "SS Chain 3 (push+pull)",
-      "dependencies": { "id": "ss-chain-2", "type": "SS", "max": 0 }
+      "resource": "SS Chain 3 (elastic)",
+      "dependencies": { "id": "ss-chain-2", "type": "SS" }
     },
 
     {
       "id": "ss-lag-1",
       "name": "SS+Lag A",
-      "start": "2025-01-06 08:00",
-      "end": "2025-01-06 16:00",
+      "start": "2025-01-06 07:45",
+      "end": "2025-01-08 07:45",
       "progress": 0,
-      "color": "#8b5cf6",
       "resource": "SS+Lag 1 (2h lag)"
     },
     {
       "id": "ss-lag-2",
       "name": "SS+Lag B (2h)",
-      "start": "2025-01-06 10:00",
-      "end": "2025-01-06 14:00",
+      "start": "2025-01-06 09:45",
+      "end": "2025-01-07 09:45",
       "progress": 0,
-      "color": "#8b5cf6",
       "resource": "SS+Lag 2 (2h lag)",
       "dependencies": { "id": "ss-lag-1", "type": "SS", "lag": 2 }
     },
@@ -83,29 +75,26 @@
     {
       "id": "ff-chain-1",
       "name": "FF Chain A",
-      "start": "2025-01-06 08:00",
-      "end": "2025-01-06 14:00",
+      "start": "2025-01-06 08:30",
+      "end": "2025-01-08 08:30",
       "progress": 0,
-      "color": "#06b6d4",
       "resource": "FF Chain 1 (push+pull)"
     },
     {
       "id": "ff-chain-2",
       "name": "FF Chain B",
-      "start": "2025-01-06 10:00",
-      "end": "2025-01-06 14:00",
+      "start": "2025-01-06 16:30",
+      "end": "2025-01-08 08:30",
       "progress": 0,
-      "color": "#06b6d4",
       "resource": "FF Chain 2 (push+pull)",
       "dependencies": { "id": "ff-chain-1", "type": "FF", "max": 0 }
     },
     {
       "id": "ff-chain-3",
       "name": "FF Chain C",
-      "start": "2025-01-06 12:00",
-      "end": "2025-01-06 14:00",
+      "start": "2025-01-07 08:30",
+      "end": "2025-01-08 08:30",
       "progress": 0,
-      "color": "#06b6d4",
       "resource": "FF Chain 3 (push+pull)",
       "dependencies": { "id": "ff-chain-2", "type": "FF", "max": 0 }
     },
@@ -113,39 +102,35 @@
     {
       "id": "ff-lag-1",
       "name": "FF+Lag A",
-      "start": "2025-01-06 08:00",
-      "end": "2025-01-06 12:00",
+      "start": "2025-01-06 07:30",
+      "end": "2025-01-07 07:30",
       "progress": 0,
-      "color": "#14b8a6",
       "resource": "FF+Lag 1 (2h lag)"
     },
     {
       "id": "ff-lag-2",
       "name": "FF+Lag B (2h)",
-      "start": "2025-01-06 08:00",
-      "end": "2025-01-06 14:00",
+      "start": "2025-01-06 09:30",
+      "end": "2025-01-07 09:30",
       "progress": 0,
-      "color": "#14b8a6",
       "resource": "FF+Lag 2 (2h lag)",
-      "dependencies": { "id": "ff-lag-1", "type": "FF", "lag": 2 }
+      "dependencies": { "id": "ff-lag-1", "type": "FF", "lag": 2, "max": 0 }
     },
 
     {
       "id": "sf-chain-1",
       "name": "SF Chain A",
-      "start": "2025-01-06 12:00",
-      "end": "2025-01-06 16:00",
+      "start": "2025-01-07 08:45",
+      "end": "2025-01-08 08:45",
       "progress": 0,
-      "color": "#f43f5e",
       "resource": "SF Chain 1 (push+pull)"
     },
     {
       "id": "sf-chain-2",
       "name": "SF Chain B",
-      "start": "2025-01-06 08:00",
-      "end": "2025-01-06 12:00",
+      "start": "2025-01-06 08:45",
+      "end": "2025-01-07 08:45",
       "progress": 0,
-      "color": "#f43f5e",
       "resource": "SF Chain 2 (push+pull)",
       "dependencies": { "id": "sf-chain-1", "type": "SF", "max": 0 }
     },
@@ -153,30 +138,27 @@
     {
       "id": "lock-first-1",
       "name": "LOCKED (start)",
-      "start": "2025-01-06 08:00",
-      "end": "2025-01-06 12:00",
+      "start": "2025-01-06 07:15",
+      "end": "2025-01-07 07:15",
       "progress": 0,
-      "color": "#ef4444",
       "resource": "Lock at start of chain",
       "constraints": { "locked": true }
     },
     {
       "id": "lock-first-2",
       "name": "After lock",
-      "start": "2025-01-06 12:00",
-      "end": "2025-01-06 16:00",
+      "start": "2025-01-07 07:15",
+      "end": "2025-01-08 07:15",
       "progress": 0,
-      "color": "#ef4444",
       "resource": "Lock at start of chain",
       "dependencies": "lock-first-1"
     },
     {
       "id": "lock-first-3",
       "name": "Can move right",
-      "start": "2025-01-06 16:00",
-      "end": "2025-01-07 10:00",
+      "start": "2025-01-08 07:15",
+      "end": "2025-01-09 07:15",
       "progress": 0,
-      "color": "#ef4444",
       "resource": "Lock at start of chain",
       "dependencies": "lock-first-2"
     },
@@ -184,19 +166,17 @@
     {
       "id": "lock-mid-1",
       "name": "Before lock",
-      "start": "2025-01-06 08:00",
-      "end": "2025-01-06 12:00",
+      "start": "2025-01-06 08:15",
+      "end": "2025-01-07 08:15",
       "progress": 0,
-      "color": "#f97316",
       "resource": "Lock in middle"
     },
     {
       "id": "lock-mid-2",
       "name": "LOCKED (mid)",
-      "start": "2025-01-06 12:00",
-      "end": "2025-01-06 16:00",
+      "start": "2025-01-07 08:15",
+      "end": "2025-01-08 08:15",
       "progress": 0,
-      "color": "#f97316",
       "resource": "Lock in middle",
       "dependencies": "lock-mid-1",
       "constraints": { "locked": true }
@@ -204,10 +184,9 @@
     {
       "id": "lock-mid-3",
       "name": "After lock",
-      "start": "2025-01-06 16:00",
-      "end": "2025-01-07 10:00",
+      "start": "2025-01-08 08:15",
+      "end": "2025-01-09 08:15",
       "progress": 0,
-      "color": "#f97316",
       "resource": "Lock in middle",
       "dependencies": "lock-mid-2"
     },
@@ -215,29 +194,26 @@
     {
       "id": "lock-end-1",
       "name": "Try push chain",
-      "start": "2025-01-06 08:00",
-      "end": "2025-01-06 12:00",
+      "start": "2025-01-06 07:45",
+      "end": "2025-01-07 07:45",
       "progress": 0,
-      "color": "#eab308",
       "resource": "Lock at end (blocks)"
     },
     {
       "id": "lock-end-2",
       "name": "Middle task",
-      "start": "2025-01-06 12:00",
-      "end": "2025-01-06 16:00",
+      "start": "2025-01-07 07:45",
+      "end": "2025-01-08 07:45",
       "progress": 0,
-      "color": "#eab308",
       "resource": "Lock at end (blocks)",
       "dependencies": "lock-end-1"
     },
     {
       "id": "lock-end-3",
       "name": "LOCKED (end)",
-      "start": "2025-01-06 16:00",
-      "end": "2025-01-07 10:00",
+      "start": "2025-01-08 07:45",
+      "end": "2025-01-09 07:45",
       "progress": 0,
-      "color": "#eab308",
       "resource": "Lock at end (blocks)",
       "dependencies": "lock-end-2",
       "constraints": { "locked": true }
@@ -246,30 +222,27 @@
     {
       "id": "lock-both-1",
       "name": "LOCKED (start)",
-      "start": "2025-01-06 08:00",
-      "end": "2025-01-06 12:00",
+      "start": "2025-01-06 08:30",
+      "end": "2025-01-07 08:30",
       "progress": 0,
-      "color": "#84cc16",
       "resource": "Locked both ends",
       "constraints": { "locked": true }
     },
     {
       "id": "lock-both-2",
       "name": "Squeezed",
-      "start": "2025-01-06 12:00",
-      "end": "2025-01-06 16:00",
+      "start": "2025-01-07 08:30",
+      "end": "2025-01-08 08:30",
       "progress": 0,
-      "color": "#84cc16",
       "resource": "Locked both ends",
       "dependencies": "lock-both-1"
     },
     {
       "id": "lock-both-3",
       "name": "LOCKED (end)",
-      "start": "2025-01-06 16:00",
-      "end": "2025-01-07 10:00",
+      "start": "2025-01-08 08:30",
+      "end": "2025-01-09 08:30",
       "progress": 0,
-      "color": "#84cc16",
       "resource": "Locked both ends",
       "dependencies": "lock-both-2",
       "constraints": { "locked": true }
@@ -278,81 +251,64 @@
     {
       "id": "abs-min-1",
       "name": "Has minStart",
-      "start": "2025-01-07 10:00",
-      "end": "2025-01-07 14:00",
+      "start": "2025-01-07 08:45",
+      "end": "2025-01-08 08:45",
       "progress": 0,
-      "color": "#10b981",
       "resource": "minStart: Jan 7 08:00",
       "constraints": { "minStart": "2025-01-07 08:00" }
     },
     {
       "id": "abs-max-1",
       "name": "Has maxStart",
-      "start": "2025-01-07 10:00",
-      "end": "2025-01-07 14:00",
+      "start": "2025-01-07 09:15",
+      "end": "2025-01-08 09:15",
       "progress": 0,
-      "color": "#10b981",
       "resource": "maxStart: Jan 7 14:00",
       "constraints": { "maxStart": "2025-01-07 14:00" }
     },
     {
       "id": "abs-end-1",
       "name": "Has maxEnd",
-      "start": "2025-01-07 10:00",
-      "end": "2025-01-07 14:00",
+      "start": "2025-01-07 09:30",
+      "end": "2025-01-08 09:30",
       "progress": 0,
-      "color": "#10b981",
-      "resource": "maxEnd: Jan 7 18:00",
-      "constraints": { "maxEnd": "2025-01-07 18:00" }
+      "resource": "maxEnd: Jan 8 18:00",
+      "constraints": { "maxEnd": "2025-01-08 18:00" }
     },
     {
       "id": "abs-minmax-1",
       "name": "min+max bounds",
-      "start": "2025-01-07 10:00",
-      "end": "2025-01-07 14:00",
+      "start": "2025-01-07 10:15",
+      "end": "2025-01-08 10:15",
       "progress": 0,
-      "color": "#10b981",
       "resource": "min 08:00, max 18:00",
-      "constraints": { "minStart": "2025-01-07 08:00", "maxEnd": "2025-01-07 18:00" }
+      "constraints": { "minStart": "2025-01-07 08:00", "maxEnd": "2025-01-08 18:00" }
     },
 
     {
       "id": "lock-start-1",
       "name": "Start locked",
-      "start": "2025-01-08 08:00",
-      "end": "2025-01-08 12:00",
+      "start": "2025-01-08 07:30",
+      "end": "2025-01-09 07:30",
       "progress": 0,
-      "color": "#f87171",
       "resource": "locked: start",
       "constraints": { "locked": "start" }
     },
     {
       "id": "lock-end-ext-1",
       "name": "End locked",
-      "start": "2025-01-08 08:00",
-      "end": "2025-01-08 12:00",
+      "start": "2025-01-08 08:45",
+      "end": "2025-01-09 08:45",
       "progress": 0,
-      "color": "#fb923c",
       "resource": "locked: end",
       "constraints": { "locked": "end" }
     },
     {
-      "id": "lock-position-1",
-      "name": "Position locked",
-      "start": "2025-01-08 08:00",
-      "end": "2025-01-08 12:00",
-      "progress": 0,
-      "color": "#c084fc",
-      "resource": "locked: position",
-      "constraints": { "locked": "position" }
-    },
-    {
       "id": "lock-duration-1",
       "name": "Duration locked",
-      "start": "2025-01-08 08:00",
-      "end": "2025-01-08 12:00",
+      "start": "2025-01-08 07:15",
+      "end": "2025-01-09 07:15",
       "progress": 0,
-      "color": "#60a5fa",
       "resource": "locked: duration",
       "constraints": { "locked": "duration" }
     },
@@ -360,29 +316,26 @@
     {
       "id": "elastic-1",
       "name": "Default A",
-      "start": "2025-01-09 08:00",
-      "end": "2025-01-09 12:00",
+      "start": "2025-01-09 08:45",
+      "end": "2025-01-10 08:45",
       "progress": 0,
-      "color": "#22d3ee",
       "resource": "Default (elastic, push only)"
     },
     {
       "id": "elastic-2",
       "name": "Default B",
-      "start": "2025-01-09 12:00",
-      "end": "2025-01-09 16:00",
+      "start": "2025-01-10 08:45",
+      "end": "2025-01-11 08:45",
       "progress": 0,
-      "color": "#22d3ee",
       "resource": "Default (elastic, push only)",
       "dependencies": "elastic-1"
     },
     {
       "id": "elastic-3",
       "name": "Default C",
-      "start": "2025-01-09 16:00",
-      "end": "2025-01-09 20:00",
+      "start": "2025-01-11 08:45",
+      "end": "2025-01-12 08:45",
       "progress": 0,
-      "color": "#22d3ee",
       "resource": "Default (elastic, push only)",
       "dependencies": "elastic-2"
     },
@@ -390,29 +343,26 @@
     {
       "id": "bounded-1",
       "name": "Bounded A",
-      "start": "2025-01-09 08:00",
-      "end": "2025-01-09 12:00",
+      "start": "2025-01-09 07:30",
+      "end": "2025-01-10 07:30",
       "progress": 0,
-      "color": "#fbbf24",
       "resource": "Bounded (max 2h gap)"
     },
     {
       "id": "bounded-2",
       "name": "Bounded B",
-      "start": "2025-01-09 12:00",
-      "end": "2025-01-09 16:00",
+      "start": "2025-01-10 07:30",
+      "end": "2025-01-11 07:30",
       "progress": 0,
-      "color": "#fbbf24",
       "resource": "Bounded (max 2h gap)",
       "dependencies": { "id": "bounded-1", "max": 2 }
     },
     {
       "id": "bounded-3",
       "name": "Bounded C",
-      "start": "2025-01-09 16:00",
-      "end": "2025-01-09 20:00",
+      "start": "2025-01-11 07:30",
+      "end": "2025-01-12 07:30",
       "progress": 0,
-      "color": "#fbbf24",
       "resource": "Bounded (max 2h gap)",
       "dependencies": { "id": "bounded-2", "max": 2 }
     }

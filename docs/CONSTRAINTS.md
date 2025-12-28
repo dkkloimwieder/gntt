@@ -220,16 +220,7 @@ Dependencies use a **min/max offset model** to control gap flexibility:
 - Cannot resize right edge (end locked)
 - Visual: Orange with ⊣ icon
 
-### 17. locked: "position"
-**Task:** "Position locked"
-**Resource label:** "locked: position"
-
-**Expected behavior:**
-- Cannot move (drag blocked)
-- CAN resize both edges (duration can change)
-- Visual: Purple with 📍 icon
-
-### 18. locked: "duration"
+### 17. locked: "duration"
 **Task:** "Duration locked"
 **Resource label:** "locked: duration"
 
@@ -309,7 +300,6 @@ Dependencies use a **min/max offset model** to control gap flexibility:
 | `true` | No | No | No | 🔒 Gray | Completely fixed |
 | `"start"` | No | No | Yes | ⊢ Red | Fixed start, flexible end |
 | `"end"` | No | Yes | No | ⊣ Orange | Fixed deadline, flexible start |
-| `"position"` | No | Yes | Yes | 📍 Purple | Fixed position, duration can change |
 | `"duration"` | Yes | No | No | ↔ Blue | Can move, duration fixed |
 
 ---
@@ -358,5 +348,4 @@ http://localhost:5173/examples/perf-isolate.html?data=constraint&bar=dragconst&g
 - [ ] locked: true - no movement or resize
 - [ ] locked: "start" - resize right only
 - [ ] locked: "end" - resize left only
-- [ ] locked: "position" - resize both, no move
 - [ ] locked: "duration" - move only, no resize

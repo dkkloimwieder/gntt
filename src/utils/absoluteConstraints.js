@@ -31,7 +31,6 @@ export function isMovementLocked(locked) {
     if (locked === true) return true;
     if (locked === 'start') return true;  // Fixed start means no movement
     if (locked === 'end') return true;    // Fixed end means no movement
-    if (locked === 'position') return true; // Fixed position
     return false;
 }
 

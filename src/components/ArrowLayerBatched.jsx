@@ -62,27 +62,41 @@ function getAnchorPoint(bar, anchor, offset = 0.5) {
 
 /**
  * Auto-select start anchor based on dependency type
+ * SS/SF: Always exit from left (start point)
+ * FF: Always exit from right (end point)
+ * FS: Exit from right (end), or top/bottom if different rows
  */
 function autoStartAnchor(from, to, depType) {
     const dy = to.y + to.height / 2 - (from.y + from.height / 2);
     const sameRow = Math.abs(dy) <= DEFAULTS.ALIGNMENT_THRESHOLD;
 
-    if (depType === 'SS' || depType === 'SF') {
-        return sameRow ? 'left' : dy < 0 ? 'top' : 'bottom';
+    // SS (Start-to-Start): always connect from left (start) of predecessor
+    if (depType === 'SS') {
+        return 'left';
     }
+    // FF (Finish-to-Finish): always connect from right (end) of predecessor
+    if (depType === 'FF') {
+        return 'right';
+    }
+    // SF (Start-to-Finish): connect from left (start) of predecessor
+    if (depType === 'SF') {
+        return 'left';
+    }
+    // FS (Finish-to-Start): connect from right (end), or top/bottom if different rows
     return sameRow ? 'right' : dy < 0 ? 'top' : 'bottom';
 }
 
 /**
  * Auto-select end anchor based on dependency type
+ * SS/FS: Always enter from left (start point)
+ * FF/SF: Always enter from right (end point)
  */
 function autoEndAnchor(from, to, depType) {
-    const dy = to.y + to.height / 2 - (from.y + from.height / 2);
-    const sameRow = Math.abs(dy) <= DEFAULTS.ALIGNMENT_THRESHOLD;
-
+    // FF and SF constrain the successor's END, so enter from right
     if (depType === 'FF' || depType === 'SF') {
-        return sameRow ? 'right' : 'top';
+        return 'right';
     }
+    // SS and FS constrain the successor's START, so enter from left
     return 'left';
 }
 
@@ -101,76 +115,43 @@ function smartOffset(from, to, anchor, curve, depType) {
 }
 
 /**
- * Generate orthogonal path string between two points
+ * Generate orthogonal path string between two points (right angles only)
  */
-function generateLinePath(start, end, startAnchor, endAnchor, curve) {
+function generateLinePath(start, end, startAnchor, endAnchor) {
     const dx = end.x - start.x;
     const dy = end.y - start.y;
 
-    // Nearly same point or horizontal
+    // Nearly same point or horizontal - straight line
     if ((Math.abs(dx) < 1 && Math.abs(dy) < 1) || Math.abs(dy) < 2) {
         return `M${start.x},${start.y}L${end.x},${end.y}`;
     }
 
-    curve = Math.min(curve, Math.abs(dx) / 2, Math.abs(dy) / 2);
-    if (curve < 1) curve = 0;
-
     const isVerticalStart = startAnchor === 'top' || startAnchor === 'bottom';
-    const isHorizontalEnd = endAnchor === 'left' || endAnchor === 'right';
+    const isLeftToLeft = startAnchor === 'left' && endAnchor === 'left';
+    const isRightToRight = startAnchor === 'right' && endAnchor === 'right';
 
-    if (isVerticalStart && isHorizontalEnd) {
-        // Vertical exit to horizontal entry (most common)
-        const goingDown = startAnchor === 'bottom';
-        const enteringLeft = endAnchor === 'left';
-        const targetY = end.y;
-        const goingLeft = end.x < start.x;
-
-        if (goingDown && enteringLeft) {
-            if (goingLeft) {
-                // Down then curve left
-                return `M${start.x},${start.y}V${targetY - curve}a${curve},${curve},0,0,1,${-curve},${curve}H${end.x}`;
-            } else {
-                // Down then curve right
-                return `M${start.x},${start.y}V${targetY - curve}a${curve},${curve},0,0,0,${curve},${curve}H${end.x}`;
-            }
-        } else if (!goingDown && enteringLeft) {
-            if (goingLeft) {
-                // Up then curve left
-                return `M${start.x},${start.y}V${targetY + curve}a${curve},${curve},0,0,0,${-curve},${-curve}H${end.x}`;
-            } else {
-                // Up then curve right
-                return `M${start.x},${start.y}V${targetY + curve}a${curve},${curve},0,0,1,${curve},${-curve}H${end.x}`;
-            }
-        }
+    // Left-to-left (SS): bracket shape opening right
+    if (isLeftToLeft) {
+        const minX = Math.min(start.x, end.x);
+        const leftX = Math.max(minX - 20, 2);
+        return `M${start.x},${start.y}H${leftX}V${end.y}H${end.x}`;
     }
 
+    // Right-to-right (FF): bracket shape opening left
+    if (isRightToRight) {
+        const maxX = Math.max(start.x, end.x);
+        const rightX = maxX + 20;
+        return `M${start.x},${start.y}H${rightX}V${end.y}H${end.x}`;
+    }
+
+    // Vertical start (top/bottom anchor): L-shape
     if (isVerticalStart) {
-        // Vertical first, then horizontal
-        const goingUp = dy < 0;
-        const goingLeft = dx < 0;
-        if (goingUp) {
-            if (goingLeft) {
-                return `M${start.x},${start.y}V${end.y + curve}a${curve},${curve},0,0,0,${-curve},${-curve}H${end.x}`;
-            } else {
-                return `M${start.x},${start.y}V${end.y + curve}a${curve},${curve},0,0,1,${curve},${-curve}H${end.x}`;
-            }
-        } else {
-            if (goingLeft) {
-                return `M${start.x},${start.y}V${end.y - curve}a${curve},${curve},0,0,1,${-curve},${curve}H${end.x}`;
-            } else {
-                return `M${start.x},${start.y}V${end.y - curve}a${curve},${curve},0,0,0,${curve},${curve}H${end.x}`;
-            }
-        }
+        return `M${start.x},${start.y}V${end.y}H${end.x}`;
     }
 
-    // Horizontal first, then vertical (S-curve)
-    const midX = start.x + dx / 2;
-    const goingUp = dy < 0;
-    if (goingUp) {
-        return `M${start.x},${start.y}H${midX - curve}a${curve},${curve},0,0,0,${curve},${-curve}V${end.y + curve}a${curve},${curve},0,0,1,${curve},${-curve}H${end.x}`;
-    } else {
-        return `M${start.x},${start.y}H${midX - curve}a${curve},${curve},0,0,1,${curve},${curve}V${end.y - curve}a${curve},${curve},0,0,0,${curve},${curve}H${end.x}`;
-    }
+    // Default (FS): S-shape with midpoint
+    const midX = (start.x + end.x) / 2;
+    return `M${start.x},${start.y}H${midX}V${end.y}H${end.x}`;
 }
 
 /**
@@ -209,7 +190,7 @@ function generateArrow(from, to, depType, curve, headSize) {
     const end = getAnchorPoint(to, endAnchor, 0.5);
 
     // Generate paths
-    const linePath = generateLinePath(start, end, startAnchor, endAnchor, curve);
+    const linePath = generateLinePath(start, end, startAnchor, endAnchor);
     const headPath = generateHeadPath(end, endAnchor, headSize);
 
     return { linePath, headPath };

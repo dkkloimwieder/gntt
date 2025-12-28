@@ -98,6 +98,85 @@ function getMinXFromPredecessors(taskId, relationships, getBarPosition, pixelsPe
 }
 
 /**
+ * Get maximum X this task can be at based on predecessor constraints with max gap.
+ * For dependencies with max defined (not elastic), the successor can't move too far from predecessor.
+ */
+function getMaxXFromPredecessors(taskId, relationships, getBarPosition, pixelsPerHour, taskWidth = 0) {
+    let maxX = Infinity;
+    for (const rel of relationships) {
+        if (rel.to !== taskId) continue;
+
+        const predBar = getBarPosition(rel.from);
+        if (!predBar) continue;
+
+        const { maxGap, isElastic } = getDepOffsets(rel, pixelsPerHour);
+        if (isElastic) continue;  // Elastic deps don't limit max position
+
+        const type = rel.type || 'FS';
+
+        let constraint;
+        switch (type) {
+            case 'FS':
+                // successor.start <= predecessor.end + maxGap
+                constraint = predBar.x + predBar.width + maxGap;
+                break;
+            case 'SS':
+                // successor.start <= predecessor.start + maxGap
+                constraint = predBar.x + maxGap;
+                break;
+            case 'FF':
+                // successor.end <= predecessor.end + maxGap
+                // successor.x + taskWidth <= predBar.x + predBar.width + maxGap
+                constraint = predBar.x + predBar.width + maxGap - taskWidth;
+                break;
+            case 'SF':
+                // successor.end <= predecessor.start + maxGap
+                constraint = predBar.x + maxGap - taskWidth;
+                break;
+            default:
+                continue;
+        }
+        maxX = Math.min(maxX, constraint);
+    }
+    return maxX;
+}
+
+/**
+ * Get maximum end position this task can have based on predecessor constraints with max gap.
+ * For FF/SF dependencies with max defined, the successor's end can't go too far from predecessor.
+ */
+function getMaxEndFromPredecessors(taskId, relationships, getBarPosition, pixelsPerHour) {
+    let maxEnd = Infinity;
+    for (const rel of relationships) {
+        if (rel.to !== taskId) continue;
+
+        const predBar = getBarPosition(rel.from);
+        if (!predBar) continue;
+
+        const { maxGap, isElastic } = getDepOffsets(rel, pixelsPerHour);
+        if (isElastic) continue;  // Elastic deps don't limit max position
+
+        const type = rel.type || 'FS';
+
+        let constraint;
+        switch (type) {
+            case 'FF':
+                // successor.end <= predecessor.end + maxGap
+                constraint = predBar.x + predBar.width + maxGap;
+                break;
+            case 'SF':
+                // successor.end <= predecessor.start + maxGap
+                constraint = predBar.x + maxGap;
+                break;
+            default:
+                continue;  // FS and SS don't constrain end position directly
+        }
+        maxEnd = Math.min(maxEnd, constraint);
+    }
+    return maxEnd;
+}
+
+/**
  * Get maximum end position (x + width) this task can have based on downstream constraints.
  * RECURSIVELY checks all successors, not just direct ones.
  *
@@ -195,7 +274,7 @@ function getMaxXFromLockedSuccessors(taskId, relationships, getBarPosition, getT
         if (rel.from !== taskId) continue;
 
         const succTask = getTask?.(rel.to);
-        const isLocked = succTask?.constraints?.locked || succTask?.locked;
+        const isLocked = succTask?.constraints?.locked;
         if (!isLocked) continue;
 
         const succBar = getBarPosition(rel.to);
@@ -231,20 +310,28 @@ function getMaxXFromLockedSuccessors(taskId, relationships, getBarPosition, getT
  *
  * Locked tasks block the cascade chain.
  */
-function pushSuccessorsIfNeeded(taskId, relationships, getBarPosition, updateBarPosition, pixelsPerHour, getTask, ganttStartDate, visited = new Set()) {
+function pushSuccessorsIfNeeded(taskId, relationships, getBarPosition, updateBarPosition, pixelsPerHour, getTask, ganttStartDate, visited = new Set(), pendingUpdates = {}) {
     // Prevent infinite loops in case of circular dependencies
     if (visited.has(taskId)) return;
     visited.add(taskId);
 
-    const taskBar = getBarPosition(taskId);
+    // Use pending update if available (store update may not be applied yet)
+    let taskBar = getBarPosition(taskId);
     if (!taskBar) return;
+    if (pendingUpdates[taskId]) {
+        taskBar = { ...taskBar, ...pendingUpdates[taskId] };
+    }
 
     for (const rel of relationships) {
         if (rel.from !== taskId) continue;
 
         const succTask = getTask?.(rel.to);
-        const succBar = getBarPosition(rel.to);
+        let succBar = getBarPosition(rel.to);
         if (!succBar) continue;
+        // Use pending update if available for successor too
+        if (pendingUpdates[rel.to]) {
+            succBar = { ...succBar, ...pendingUpdates[rel.to] };
+        }
 
         // Locked tasks cannot be pushed - they block the chain
         const isLocked = isMovementLocked(succTask?.constraints?.locked);
@@ -313,8 +400,11 @@ function pushSuccessorsIfNeeded(taskId, relationships, getBarPosition, updateBar
             if (Math.abs(targetX - succBar.x) > 0.5) {  // Small epsilon to avoid floating point issues
                 updateBarPosition(rel.to, { x: targetX });
 
+                // Track this update for recursive calls (store may not reflect it yet)
+                pendingUpdates[rel.to] = { x: targetX };
+
                 // Recursively cascade to this successor's successors
-                pushSuccessorsIfNeeded(rel.to, relationships, getBarPosition, updateBarPosition, pixelsPerHour, getTask, ganttStartDate, visited);
+                pushSuccessorsIfNeeded(rel.to, relationships, getBarPosition, updateBarPosition, pixelsPerHour, getTask, ganttStartDate, visited, pendingUpdates);
             }
         }
     }
@@ -334,7 +424,7 @@ function pushSuccessorsIfNeeded(taskId, relationships, getBarPosition, updateBar
 const ROW_HEIGHT = 24;
 const BAR_HEIGHT = 26;
 const GAP = 4;
-const DAYS_VISIBLE = 3;  // Fewer days = wider/longer tasks
+const DAYS_VISIBLE = 5;  // Show 5 days
 const OVERSCAN_ROWS = 2;
 const OVERSCAN_PX = 200;
 
@@ -382,15 +472,22 @@ const initialTasks = (() => {
         const startHours = (task._start.getTime() - ganttStartMs) / (1000 * 60 * 60);
         const endHours = (task._end.getTime() - ganttStartMs) / (1000 * 60 * 60);
         const durationHours = endHours - startHours;
+        // Apply minStart constraint to initial position
+        let effectiveStartHours = startHours;
+        if (task.constraints?.minStart) {
+            const minStartTime = date_utils.parse(task.constraints.minStart).getTime();
+            const minStartHours = (minStartTime - ganttStartMs) / (1000 * 60 * 60);
+            effectiveStartHours = Math.max(startHours, minStartHours);
+        }
+
         result[task.id] = {
             ...task,
-            locked: i % 7 === 0,
             progress: task.progress || 0,
             row,
-            startHours,  // Store hours, not pixels
+            startHours: effectiveStartHours,
             durationHours,
             $bar: {
-                x: startHours * DEFAULT_HOUR_WIDTH,
+                x: effectiveStartHours * DEFAULT_HOUR_WIDTH,
                 y: row * (ROW_HEIGHT + GAP) + (ROW_HEIGHT + GAP - BAR_HEIGHT) / 2,
                 width: durationHours * DEFAULT_HOUR_WIDTH,
                 height: BAR_HEIGHT,
@@ -440,23 +537,6 @@ const relationships = (() => {
         const min = isObj ? (dep.min ?? 0) : 0;
         const max = isObj ? dep.max : undefined;  // undefined/null = elastic (default), 0 = fixed, N = bounded
 
-        // Determine line style based on min/max
-        // Elastic (max=undefined or max=null, the default): dotted line
-        // Fixed (max=0): solid line
-        // Bounded (max > 0): dashed line
-        let strokeDasharray = '';
-        let stroke;
-        if (max === undefined || max === null) {
-            // Default elastic - no special styling, use default arrow color
-            // Only show special styling for explicit elastic deps
-        } else if (max === 0) {
-            // Fixed gap (push+pull) - solid line, slight color hint
-            stroke = '#f472b6';  // Pink for fixed
-        } else if (max > 0) {
-            strokeDasharray = '6,3';  // Dashed for bounded
-            stroke = '#fbbf24';  // Amber for bounded
-        }
-
         rels.push({
             from: depId,
             to: task.id,
@@ -464,8 +544,6 @@ const relationships = (() => {
             lag,
             min,
             max,
-            strokeDasharray,
-            stroke,
         });
     }
     return rels;
@@ -1145,17 +1223,18 @@ function BarDragBaseline(props) {
 
     const t = createMemo(() => {
         const task = getTask();
-        const bar = task?.$bar;
         const hw = props.hourWidth || 7;
-        const x = bar?.x ?? (task?.startHours ?? 0) * hw;
-        const width = bar?.width ?? Math.max((task?.durationHours ?? 1) * hw, 6);
+        // Always calculate from hours to handle viewport resize correctly
+        const x = (task?.startHours ?? 0) * hw;
+        const width = Math.max((task?.durationHours ?? 1) * hw, 6);
+        const row = task?.row ?? 0;
         return {
             id: task?.id ?? '',
             name: task?.name ?? '',
             x,
-            y: bar?.y ?? 0,
+            y: row * (ROW_HEIGHT + GAP) + (ROW_HEIGHT + GAP - BAR_HEIGHT) / 2,
             width,
-            height: bar?.height ?? BAR_HEIGHT,
+            height: BAR_HEIGHT,
         };
     });
 
@@ -1309,17 +1388,18 @@ function BarDragConstrained(props) {
 
     const t = createMemo(() => {
         const task = getTask();
-        const bar = task?.$bar;
         const hw = props.hourWidth || 7;
-        const x = bar?.x ?? (task?.startHours ?? 0) * hw;
-        const width = bar?.width ?? Math.max((task?.durationHours ?? 1) * hw, 6);
+        // Always calculate from hours to handle viewport resize correctly
+        const x = (task?.startHours ?? 0) * hw;
+        const width = Math.max((task?.durationHours ?? 1) * hw, 6);
+        const row = task?.row ?? 0;
         return {
             id: task?.id ?? '',
             name: task?.name ?? '',
             x,
-            y: bar?.y ?? 0,
+            y: row * (ROW_HEIGHT + GAP) + (ROW_HEIGHT + GAP - BAR_HEIGHT) / 2,
             width,
-            height: bar?.height ?? BAR_HEIGHT,
+            height: BAR_HEIGHT,
         };
     });
 
@@ -1392,17 +1472,19 @@ function BarDragConstrained(props) {
 
     const getCursor = () => {
         const lock = lockState();
-        // Check if movement is locked
-        if (isMovementLocked(lock)) return 'not-allowed';
         const state = dragState();
         if (state === 'dragging_left' || state === 'dragging_right') return 'ew-resize';
         if (state === 'dragging_bar') return 'grabbing';
         const zone = hoverZone();
-        // Check if specific resize direction is locked
-        if (zone === 'left' && isLeftResizeLocked(lock)) return 'not-allowed';
-        if (zone === 'right' && isRightResizeLocked(lock)) return 'not-allowed';
-        if (zone === 'left' || zone === 'right') return 'ew-resize';
-        return 'grab';
+        // Check cursor based on hover zone and lock state
+        if (zone === 'left') {
+            return isLeftResizeLocked(lock) ? 'not-allowed' : 'ew-resize';
+        }
+        if (zone === 'right') {
+            return isRightResizeLocked(lock) ? 'not-allowed' : 'ew-resize';
+        }
+        // Move zone - check if movement is locked
+        return isMovementLocked(lock) ? 'not-allowed' : 'grab';
     };
 
     const handleMouseDownLocked = (e) => {
@@ -1424,28 +1506,22 @@ function BarDragConstrained(props) {
         handleMouseDown(e);
     };
 
-    // Visual styles based on lock state
+    // Visual styles based on lock state (all use same color, icons indicate lock type)
     const getBarStyles = () => {
         const lock = lockState();
+        const bg = 'rgba(34,197,94,0.3)';
+        const border = '1px solid rgba(34,197,94,0.6)';
 
         if (lock === true) {
-            // Fully locked - gray with lock icon
-            return { bg: 'rgba(100,100,100,0.4)', border: '1px solid rgba(100,100,100,0.8)', icon: '🔒 ' };
+            return { bg, border, icon: '🔒 ' };
         } else if (lock === 'start') {
-            // Start locked - slightly different color, left edge indicator
-            return { bg: 'rgba(239,68,68,0.3)', border: '1px solid rgba(239,68,68,0.6)', icon: '⊢ ' };
+            return { bg, border, icon: '⊢ ' };
         } else if (lock === 'end') {
-            // End locked - deadline style
-            return { bg: 'rgba(249,115,22,0.3)', border: '1px solid rgba(249,115,22,0.6)', icon: ' ⊣' };
-        } else if (lock === 'position') {
-            // Position locked (can resize but not move)
-            return { bg: 'rgba(168,85,247,0.3)', border: '1px solid rgba(168,85,247,0.6)', icon: '📍 ' };
+            return { bg, border, icon: ' ⊣' };
         } else if (lock === 'duration') {
-            // Duration locked (can move but not resize)
-            return { bg: 'rgba(59,130,246,0.3)', border: '1px solid rgba(59,130,246,0.6)', icon: '↔ ' };
+            return { bg, border, icon: '↔ ' };
         }
-        // Default - unlocked
-        return { bg: 'rgba(34,197,94,0.3)', border: '1px solid rgba(34,197,94,0.6)', icon: '' };
+        return { bg, border, icon: '' };
     };
 
     const styles = () => getBarStyles();
@@ -1507,16 +1583,6 @@ export function GanttPerfIsolate() {
     // Version signal to trigger arrow re-renders when positions change
     const [positionVersion, setPositionVersion] = createSignal(0);
 
-    // Helper for drag position updates
-    const updateBarPosition = (id, updates) => {
-        setTasks(produce(state => {
-            if (state[id]?.$bar) {
-                Object.assign(state[id].$bar, updates);
-            }
-        }));
-        setPositionVersion(v => v + 1);  // Trigger arrow re-render
-    };
-
     // URL params for progressive feature testing
     const params = new URLSearchParams(window.location.search);
     const barVariant = params.get('bar') || 'minimal';
@@ -1525,7 +1591,7 @@ export function GanttPerfIsolate() {
 
     // Feature toggles: grid=1, headers=1, resources=1, context=1, headerOpt=1, arrows=1
     const showGrid = params.get('grid') === '1';
-    const showHeaders = params.get('headers') === '1';
+    const showHeaders = params.get('headers') === '1' || dataSource === 'constraint';
     const showResources = params.get('resources') === '1';
     const showArrows = params.get('arrows') === '1';
     const useContext = params.get('context') === '1' || ['events', 'full'].includes(barVariant);
@@ -1547,14 +1613,31 @@ export function GanttPerfIsolate() {
     const [popupState, setPopupState] = createSignal({ visible: false, taskId: null, x: 0, y: 0 });
     const [modalState, setModalState] = createSignal({ visible: false, taskId: null });
 
-    // Dynamic scale: 1 week fits in viewport (account for resource column)
+    // Dynamic scale: days visible fits in viewport (account for resource column)
     const RESOURCE_COL_WIDTH = 120;
     const chartWidth = createMemo(() => viewportWidth() - (showResources ? RESOURCE_COL_WIDTH : 0));
     const dayWidth = createMemo(() => chartWidth() / DAYS_VISIBLE);
     const hourWidth = createMemo(() => dayWidth() / 24);
     const totalWidth = createMemo(() => TOTAL_DAYS * dayWidth());
 
+    // Helper for drag position updates - stores hours, not pixels
+    const updateBarPosition = (id, updates) => {
+        const hw = hourWidth();
+        setTasks(produce(state => {
+            if (state[id]) {
+                if (updates.x !== undefined) {
+                    state[id].startHours = updates.x / hw;
+                }
+                if (updates.width !== undefined) {
+                    state[id].durationHours = updates.width / hw;
+                }
+            }
+        }));
+        setPositionVersion(v => v + 1);  // Trigger arrow re-render
+    };
+
     // Mock taskStore for ArrowLayerBatched and constraints
+    // IMPORTANT: Always calculate pixel positions from hours * hourWidth() to handle viewport resize
     const mockTaskStore = {
         tasks: tasks,
         rowHeight: ROW_HEIGHT + GAP,
@@ -1563,10 +1646,10 @@ export function GanttPerfIsolate() {
             if (!task) return null;
             const hw = hourWidth();
             return {
-                x: task.$bar?.x ?? task.startHours * hw,
-                y: task.$bar.y,
-                width: task.$bar?.width ?? task.durationHours * hw,
-                height: task.$bar.height,
+                x: task.startHours * hw,
+                y: task.row * (ROW_HEIGHT + GAP) + (ROW_HEIGHT + GAP - BAR_HEIGHT) / 2,
+                width: task.durationHours * hw,
+                height: BAR_HEIGHT,
             };
         },
         getTask: (id) => tasks[id],
@@ -1601,6 +1684,15 @@ export function GanttPerfIsolate() {
         const absMinX = getMinXFromAbsolute(task?.constraints, ganttStart, hw);
         minX = Math.max(minX, absMinX);
 
+        // 1c. For non-elastic deps, can't move too far from predecessor (max gap)
+        let maxXFromPred = getMaxXFromPredecessors(
+            taskId,
+            relationships,
+            mockTaskStore.getBarPosition,
+            hw,
+            taskBar.width
+        );
+
         // 2. Clamp to locked successor constraints (can't move past locked successors)
         let maxEnd = getMaxEndFromLockedSuccessors(
             taskId,
@@ -1630,12 +1722,13 @@ export function GanttPerfIsolate() {
         );
 
         // Apply both min and max constraints
-        const constrainedX = Math.max(minX, Math.min(newX, maxX, maxXFromSS));
+        const constrainedX = Math.max(minX, Math.min(newX, maxX, maxXFromSS, maxXFromPred));
 
         // 3. Update this task
         updateBarPosition(taskId, { x: constrainedX });
 
         // 4. Push/pull successors based on min/max offset constraints
+        // Pass pendingUpdates with this task's new position (store may not reflect it yet)
         pushSuccessorsIfNeeded(
             taskId,
             relationships,
@@ -1643,7 +1736,9 @@ export function GanttPerfIsolate() {
             updateBarPosition,
             hw,
             mockTaskStore.getTask,
-            ganttStart
+            ganttStart,
+            new Set(),
+            { [taskId]: { x: constrainedX } }  // Pending update for moved task
         );
     };
 
@@ -1706,6 +1801,15 @@ export function GanttPerfIsolate() {
         const absMaxEnd = getMaxEndFromAbsolute(task?.constraints, ganttStart, hw);
         maxEnd = Math.min(maxEnd, absMaxEnd);
 
+        // 2c. For FF/SF with max gap, can't resize end past predecessor constraint
+        const maxEndFromPred = getMaxEndFromPredecessors(
+            taskId,
+            relationships,
+            mockTaskStore.getBarPosition,
+            hw
+        );
+        maxEnd = Math.min(maxEnd, maxEndFromPred);
+
         const maxWidth = maxEnd - newX;
         if (newWidth > maxWidth) {
             newWidth = Math.max(hw, maxWidth);  // Ensure minimum width
@@ -1719,6 +1823,7 @@ export function GanttPerfIsolate() {
         updateBarPosition(taskId, { x: newX, width: newWidth });
 
         // 4. Push/pull successors based on min/max offset constraints
+        // Pass pendingUpdates with this task's new position/width (store may not reflect it yet)
         pushSuccessorsIfNeeded(
             taskId,
             relationships,
@@ -1726,7 +1831,9 @@ export function GanttPerfIsolate() {
             updateBarPosition,
             hw,
             mockTaskStore.getTask,
-            ganttStart
+            ganttStart,
+            new Set(),
+            { [taskId]: { x: newX, width: newWidth } }
         );
     };
 
@@ -1792,6 +1899,8 @@ export function GanttPerfIsolate() {
             if (containerRef) {
                 setViewportWidth(containerRef.clientWidth);
                 setViewportHeight(containerRef.clientHeight - 40); // minus header
+                // Trigger arrow re-render when viewport changes (hourWidth changes)
+                setPositionVersion(v => v + 1);
             }
         };
         updateSize();
@@ -1845,13 +1954,16 @@ export function GanttPerfIsolate() {
     const dateInfos = createMemo(() => {
         const dw = dayWidth();
         const result = [];
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         for (let d = 0; d < TOTAL_DAYS; d++) {
             const dayDate = new Date(ganttStart.getTime() + d * 24 * 60 * 60 * 1000);
+            const month = months[dayDate.getUTCMonth()];
+            const day = dayDate.getUTCDate();
             result.push({
                 x: d * dw,
                 width: dw,
-                upperText: '', // Removed week labels - only show day numbers
-                lowerText: dayDate.getUTCDate().toString(),
+                upperText: '',
+                lowerText: `${month} ${day}`,
                 isThickLine: dayDate.getUTCDay() === 1,
             });
         }
@@ -1958,11 +2070,11 @@ export function GanttPerfIsolate() {
                                     startX={scrollX() - 200}
                                     endX={scrollX() + chartWidth() + 200}
                                     arrowConfig={{
-                                        stroke: '#888',
-                                        strokeWidth: 1.2,
-                                        strokeOpacity: 0.8,
-                                        headSize: 4,
-                                        curveRadius: 4,
+                                        stroke: '#fff',
+                                        strokeWidth: 1.5,
+                                        strokeOpacity: 1,
+                                        headSize: 6,
+                                        curveRadius: 5,
                                     }}
                                 />
                             </svg>
