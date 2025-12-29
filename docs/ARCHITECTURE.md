@@ -1,6 +1,6 @@
 # SolidJS Architecture Documentation
 
-**Last Updated**: December 16, 2025 (Drag performance fix - createStore conversion for 60 FPS with 10K tasks)
+**Last Updated**: December 29, 2025 (Constraint engine rewrite - iterative relaxation algorithm for correct cascade resolution)
 
 This document describes the SolidJS implementation of Frappe Gantt, which is now the primary codebase. The vanilla JavaScript implementation has been archived in `vanilla/`.
 
@@ -37,7 +37,7 @@ The SolidJS implementation lives in `src/` and provides reactive, fine-grained u
 | Config Store | Complete | `src/stores/ganttConfigStore.js` |
 | Date Store | Complete | `src/stores/ganttDateStore.js` |
 | Resource Store | Complete | `src/stores/resourceStore.js` |
-| Constraint System | Complete | `src/utils/constraintResolver.js` |
+| Constraint System | Complete | `src/utils/constraintEngine.js` |
 | Main Gantt Orchestrator | Complete | `src/components/Gantt.jsx` |
 | Grid & Headers | Complete | `src/components/Grid.jsx`, `DateHeaders.jsx` |
 | Resource Column | Complete | `src/components/ResourceColumn.jsx` |
@@ -120,7 +120,9 @@ src/
 │   └── resourceStore.js    # Resource groups and collapse state
 ├── utils/
 │   ├── barCalculations.js  # Pure functions for bar geometry
-│   ├── constraintResolver.js # Task relationship constraints
+│   ├── constraintEngine.js # Unified constraint resolution (iterative relaxation)
+│   ├── constraintResolver.js # Legacy resolver (deprecated)
+│   ├── absoluteConstraints.js # Lock type helpers, absolute time constraints
 │   ├── createVirtualViewport.js # Simple 2D viewport virtualization
 │   ├── resourceProcessor.js # Resource normalization and group display
 │   ├── taskProcessor.js    # Task parsing and position computation
@@ -548,60 +550,112 @@ viewport.xRange()     // { start: 0, end: 1800 } - for TaskLayer, ArrowLayer X f
 
 ---
 
-### Constraint Resolver (`constraintResolver.js`)
+### Constraint Engine (`constraintEngine.js`)
 
-Handles relationship constraints between tasks.
+Unified constraint resolution engine with iterative relaxation algorithm for cascade updates.
+
+**Key Innovation**: Uses **iterative relaxation** instead of BFS for cascade updates. This guarantees correct constraint resolution when tasks have multiple predecessors from different paths in the dependency graph.
 
 **Relationship Object Shape**:
 ```javascript
 {
     from: 'task-1',      // Predecessor task ID
     to: 'task-2',        // Successor task ID
-    type: 'SS',          // FS, SS, FF, SF
-    lag: 3,              // Lag in days (for SS: days after predecessor starts)
-    elastic: true,       // Elastic = minimum distance constraint
+    type: 'SS',          // FS, SS, FF, SF (default: FS)
+    lag: 3,              // Base offset in hours
+    min: 0,              // Minimum additional offset (default: 0)
+    max: undefined,      // undefined = elastic, 0 = fixed, N = bounded
 }
 ```
 
-**Constraint Types** (on relationships):
-| Property | Type | Description |
-|----------|------|-------------|
-| `type` | `string` | Dependency type: FS, SS, FF, SF |
-| `lag` | `number` | Lag/offset in days |
-| `minDistance` | `number` | Minimum gap in pixels (push if closer) |
-| `maxDistance` | `number` | Maximum gap in pixels (pull if further) |
-| `fixedOffset` | `boolean` | Tasks move together as unit |
+**Dependency Types**:
+| Type | Name | Rule |
+|------|------|------|
+| `FS` | Finish-to-Start | `successor.start >= predecessor.end + lag` |
+| `SS` | Start-to-Start | `successor.start >= predecessor.start + lag` |
+| `FF` | Finish-to-Finish | `successor.end >= predecessor.end + lag` |
+| `SF` | Start-to-Finish | `successor.end >= predecessor.start + lag` |
+
+**Gap Behavior** (min/max model):
+| min | max | Behavior | Push? | Pull? |
+|-----|-----|----------|-------|-------|
+| 0 | undefined | **Elastic** - gap can grow indefinitely | Yes | No |
+| 0 | 0 | **Fixed** - gap must be exactly `lag` | Yes | Yes |
+| 0 | N | **Bounded** - gap can grow up to N hours | Yes | Yes (if gap > N) |
 
 **Task Constraints**:
 | Property | Type | Description |
 |----------|------|-------------|
-| `locked` | `boolean` | Task cannot move |
+| `locked` | `boolean \| string` | `true`, `"start"`, `"end"`, `"duration"` |
+| `minStart` | `string` | Earliest start datetime |
+| `maxStart` | `string` | Latest start datetime |
+| `maxEnd` | `string` | Deadline (latest end datetime) |
 
 **API**:
 ```javascript
-import { resolveMovement, findFixedOffsetLinks, calculateDistance } from './constraintResolver.js';
+import { resolveConstraints, calculateCascadeUpdates } from './constraintEngine.js';
 
-// Resolve movement with constraints
-const result = resolveMovement(taskId, newX, newY, taskStore, relationships, depth);
-// Returns:
-//   { type: 'single', taskId, x, y } - Single task update
-//   { type: 'batch', updates: [...] } - Fixed-offset group update
-//   null - Movement blocked
+const context = {
+    getBarPosition: (id) => ({ x, y, width, height }),
+    getTask: (id) => task,
+    relationships: [...],
+    relationshipIndex: { byPredecessor: Map, bySuccessor: Map },
+    pixelsPerHour: number,
+    ganttStartDate: Date,
+};
 
-// Find all fixed-offset linked tasks
-const links = findFixedOffsetLinks('task-1', relationships);
-// Returns: [{ taskId: 'task-2', relationship }]
+// Main entry point - resolve all constraints with single call
+const result = resolveConstraints(taskId, proposedX, proposedWidth, context);
+// Returns: {
+//   constrainedX: number,       // Final X after constraints
+//   constrainedWidth: number,   // Final width
+//   blocked: boolean,           // True if move is blocked
+//   blockReason: string|null,   // 'locked' or 'conflicting_constraints'
+//   cascadeUpdates: Map,        // taskId → { x } for affected successors
+// }
 
-// Calculate edge-to-edge distance
-const gap = calculateDistance(predTask, succTask, predNewX);
+// Calculate cascade updates separately (used internally)
+const updates = calculateCascadeUpdates(taskId, newX, context);
+// Returns: Map<taskId, { x: number }>
 ```
 
-**Resolution Logic**:
-1. Check if task is locked → block movement
-2. Check for fixed-offset relationships → move entire group
-3. For each minDistance constraint → push successors if too close
-4. For each maxDistance constraint → pull successors if too far
-5. Enforce hard limit: successor cannot start before predecessor starts
+**Iterative Relaxation Algorithm**:
+
+The `calculateCascadeUpdates` function uses iterative relaxation instead of BFS:
+
+```
+Step 1: Find ALL reachable successors (single BFS traversal)
+        - Build set of all downstream tasks from dragged task
+
+Step 2: Iterative relaxation until convergence
+        WHILE changes occur AND iterations < MAX_CASCADE_ITERATIONS:
+            FOR each reachable successor:
+                - Get current position (with any pending update)
+                - Calculate minX from ALL predecessors (using updates map)
+                - If minX > current position: record update, mark changed
+```
+
+**Why Iterative Relaxation?**
+
+BFS fails for multi-path convergence:
+```
+    A ──→ B ──→ D
+          ↓
+    A ──→ C ──→ D
+```
+When dragging A, BFS visits D when only B is updated. D gets positioned based on B, then C updates, but D is already "processed". Result: D violates C's constraint → overlap.
+
+Iterative relaxation re-evaluates each task against ALL predecessors on every iteration, guaranteeing convergence to a correct solution for DAGs.
+
+**Complexity**: O(iterations × reachable × avg_predecessors), typically 2-3 iterations
+
+**Constraint Application Order**:
+1. **Lock check** → Block if `locked: true`
+2. **Absolute constraints** → minStart, maxStart, maxEnd
+3. **Predecessor constraints** → minX from dependencies
+4. **Downstream constraints** → maxX from locked successors
+5. **Position clamping** → Final constrained position
+6. **Cascade updates** → Push/pull affected successors via iterative relaxation
 
 ---
 
@@ -829,8 +883,8 @@ Effects:
 
 **Separation of Concerns**:
 - **Arrows**: Pure visual rendering (decorative only)
-- **Relationships**: Distance constraints (minDistance, maxDistance, fixedOffset)
-- **Tasks**: Lock state only (prevents movement)
+- **Relationships**: Dependency constraints with min/max offsets (FS, SS, FF, SF)
+- **Tasks**: Lock state + absolute time constraints (minStart, maxStart, maxEnd)
 
 **Resolution Flow**:
 ```
@@ -838,18 +892,35 @@ User drags task
     ↓
 Bar.onConstrainPosition called
     ↓
-resolveMovement() checks:
-    1. Is task locked? → Block
-    2. Fixed-offset links? → Move group
-    3. Check minDistance → Push successors
-    4. Check maxDistance → Pull successors
+resolveConstraints() applies:
+    1. Lock check → Block if locked: true
+    2. Absolute constraints → minStart, maxStart, maxEnd bounds
+    3. Predecessor constraints → minX from incoming dependencies
+    4. Downstream check → maxX if would push locked task
+    5. Cascade calculation → iterative relaxation for successors
     ↓
-Return constrained position
+Return { constrainedX, cascadeUpdates }
     ↓
-taskStore.updateBarPosition()
+taskStore.updateBarPosition() for dragged task
     ↓
-Arrow paths recalculate (reactive)
+Apply cascadeUpdates to all affected successors
+    ↓
+Arrow paths recalculate (reactive via SolidJS)
 ```
+
+**Cascade Update Algorithm**:
+```
+1. Find all reachable successors (BFS from dragged task)
+2. Iterative relaxation:
+   WHILE changed AND iterations < 100:
+     FOR each successor:
+       minX = max(constraint from each predecessor)
+       IF minX > current position:
+         Record update, mark changed
+3. Return Map<taskId, { x }>
+```
+
+This iterative approach guarantees correct resolution for DAGs with multi-path convergence, where a task has multiple predecessors from different dependency chains.
 
 ---
 
@@ -1068,7 +1139,7 @@ With 10K tasks: 10,000 bars → ~11 rendered, 9,179 arrows → ~11 rendered
 | Change anchor logic | `Arrow.jsx` autoSelectStartAnchor, autoSelectEndAnchor |
 | Add bar interaction | `Bar.jsx` useDrag callbacks |
 | Change grid snapping | `barCalculations.js` snapToGrid |
-| Modify constraint rules | `constraintResolver.js` resolveMovement |
+| Modify constraint rules | `constraintEngine.js` resolveConstraints, calculateCascadeUpdates |
 | Add new config option | `ganttConfigStore.js` |
 | Change date calculations | `ganttDateStore.js` |
 | Modify task processing | `taskProcessor.js` processTasks |

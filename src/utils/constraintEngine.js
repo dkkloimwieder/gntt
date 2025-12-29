@@ -4,13 +4,32 @@
  * Single source of truth for all constraint logic:
  * - Dependency type calculations (FS/SS/FF/SF)
  * - Gap behavior (elastic, fixed, bounded)
- * - Constraint resolution with iterative cascade
+ * - Constraint resolution with iterative relaxation cascade
  *
  * Design principles:
  * 1. Single model: min/max offsets (more expressive than boolean)
  * 2. Constraint order: locks → absolute → dependencies
- * 3. Iterative cascade: No recursion, max iterations for safety
+ * 3. Iterative relaxation: Guaranteed convergence for DAGs
  * 4. Pure functions: No store mutation inside engine
+ *
+ * Cascade Algorithm (December 2025):
+ * ─────────────────────────────────
+ * The cascade uses iterative constraint relaxation instead of BFS.
+ *
+ * Problem with BFS: When task A has multiple predecessors (B, C, D) from
+ * different paths, BFS may visit A before all predecessors are updated,
+ * causing A's position to not satisfy all constraints.
+ *
+ * Solution: Iterative relaxation
+ * 1. Find all reachable successors from dragged task (single BFS)
+ * 2. Loop until convergence:
+ *    - For each reachable task, recalculate minX from ALL predecessors
+ *    - If minX > current position, update position and mark changed
+ * 3. Repeat until no changes (guaranteed for DAGs)
+ *
+ * Complexity: O(depth × reachable), typically 2-3 iterations
+ *
+ * @module constraintEngine
  */
 
 import {
@@ -489,26 +508,63 @@ export function getMaxXFromLockedSuccessors(taskId, relationshipsOrIndex, getBar
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CASCADE UPDATES
-// Iterative push/pull propagation
+// Iterative constraint relaxation for multi-path dependency graphs
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Calculate cascade updates for all affected successors.
- * Uses iterative approach with work queue instead of recursion.
+ * Calculate cascade updates for all affected successors using iterative relaxation.
  *
- * Push when: currentGap < minGap (successor is too close)
- * Pull when: currentGap > maxGap AND maxGap !== Infinity (gap exceeded max)
+ * Algorithm:
+ * ──────────
+ * 1. Find all reachable successors from the dragged task (single BFS traversal)
+ * 2. Iteratively relax constraints until convergence:
+ *    - For each reachable task, calculate minX from ALL its predecessors
+ *    - If minX > current position, update and mark changed
+ *    - Repeat until no task needs to move
  *
- * @param {string} taskId - Starting task ID
- * @param {number} newX - New X position of starting task
- * @param {Object} context - Context object
- * @param {Function} context.getBarPosition - Position getter
- * @param {Function} context.getTask - Task getter
- * @param {Array} context.relationships - All relationships (legacy, optional if relationshipIndex provided)
- * @param {Object} context.relationshipIndex - Pre-built index (optional, preferred)
- * @param {number} context.pixelsPerHour - Conversion factor
- * @param {Date} context.ganttStartDate - Gantt start date for absolute constraints
- * @returns {Map<string, Object>} Map of taskId → { x: newX }
+ * Why iterative relaxation instead of BFS?
+ * ─────────────────────────────────────────
+ * BFS processes tasks level-by-level, but when multiple dependency paths converge
+ * on a single task, BFS may visit that task before all its predecessors are updated.
+ *
+ * Example: Task T depends on A, B, C via different paths of varying depths.
+ * BFS might process T when only A is updated, missing B and C's constraints.
+ *
+ * Iterative relaxation solves this by re-evaluating ALL predecessors on each pass,
+ * guaranteeing convergence for directed acyclic graphs (DAGs).
+ *
+ * Complexity: O(iterations × reachable_tasks × avg_predecessors)
+ * Typical: 2-3 iterations for most graphs
+ *
+ * @param {string} taskId - ID of the task being dragged
+ * @param {number} newX - New X position of the dragged task
+ * @param {Object} context - Resolution context
+ * @param {Function} context.getBarPosition - Returns bar position { x, width, ... } for task ID
+ * @param {Function} context.getTask - Returns task object for task ID (for constraint checks)
+ * @param {Array} context.relationships - All relationships array (legacy, used if no index)
+ * @param {Object} [context.relationshipIndex] - Pre-built index from buildRelationshipIndex()
+ * @param {Map} context.relationshipIndex.bySuccessor - taskId → rels where task is successor
+ * @param {Map} context.relationshipIndex.byPredecessor - taskId → rels where task is predecessor
+ * @param {number} context.pixelsPerHour - Pixels per hour for gap calculations
+ * @param {Date} context.ganttStartDate - Gantt start date for absolute constraint calculations
+ * @returns {Map<string, {x: number}>} Map of taskId → { x: newX } for all tasks that need to move
+ *
+ * @example
+ * const context = {
+ *     getBarPosition: (id) => taskStore.getBarPosition(id),
+ *     getTask: (id) => taskStore.getTask(id),
+ *     relationshipIndex: buildRelationshipIndex(relationships),
+ *     pixelsPerHour: 45,
+ *     ganttStartDate: new Date('2025-01-01')
+ * };
+ *
+ * const updates = calculateCascadeUpdates('task-1', 150, context);
+ * // updates = Map { 'task-2' => { x: 200 }, 'task-3' => { x: 280 } }
+ *
+ * // Apply updates
+ * for (const [id, update] of updates) {
+ *     taskStore.updateBarPosition(id, update);
+ * }
  */
 export function calculateCascadeUpdates(taskId, newX, context) {
     const { getBarPosition, getTask, relationships, relationshipIndex, pixelsPerHour, ganttStartDate } = context;

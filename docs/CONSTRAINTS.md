@@ -284,6 +284,10 @@ const context = {
     getBarPosition: (id) => ({ x, y, width, height }),
     getTask: (id) => task,
     relationships: [...],
+    relationshipIndex: {              // Pre-built for O(1) lookups
+        byPredecessor: Map,           // taskId → [outgoing relationships]
+        bySuccessor: Map,             // taskId → [incoming relationships]
+    },
     pixelsPerHour: number,
     ganttStartDate: Date,
 };
@@ -306,17 +310,103 @@ for (const [succId, update] of result.cascadeUpdates) {
 }
 ```
 
+### Iterative Relaxation Algorithm
+
+The cascade update system uses **iterative relaxation** instead of BFS to guarantee correct constraint resolution. This is critical for dependency graphs with multi-path convergence.
+
+**The Problem with BFS**:
+
+When a task has multiple predecessors from different paths:
+```
+    A ──→ B ──→ D
+          ↓
+    A ──→ C ──→ D
+```
+
+BFS visits D when only B is updated. D gets positioned based on B's constraint, but then C updates. Since D is already "processed", it never re-evaluates against C's new position → **overlap**.
+
+**The Solution - Iterative Relaxation**:
+
+```javascript
+function calculateCascadeUpdates(taskId, newX, context) {
+    const updates = new Map();
+    updates.set(taskId, { x: newX });
+
+    // Step 1: Find ALL reachable successors (single BFS)
+    const reachable = new Set();
+    const bfsQueue = [taskId];
+    while (bfsQueue.length > 0) {
+        const current = bfsQueue.shift();
+        for (const rel of getSuccessorRels(current)) {
+            if (!reachable.has(rel.to)) {
+                reachable.add(rel.to);
+                bfsQueue.push(rel.to);
+            }
+        }
+    }
+
+    // Step 2: Iterative relaxation until convergence
+    let changed = true;
+    let iterations = 0;
+
+    while (changed && iterations < MAX_CASCADE_ITERATIONS) {
+        changed = false;
+        iterations++;
+
+        for (const succId of reachable) {
+            // Skip locked tasks
+            if (isMovementLocked(task.constraints?.locked)) continue;
+
+            let succBar = getBarPosition(succId);
+            if (updates.has(succId)) {
+                succBar = { ...succBar, ...updates.get(succId) };
+            }
+
+            // Calculate minX from ALL predecessors
+            let minX = 0;
+            for (const rel of getPredecessorRels(succId)) {
+                let predBar = getBarPosition(rel.from);
+                if (updates.has(rel.from)) {
+                    predBar = { ...predBar, ...updates.get(rel.from) };
+                }
+                const constraint = getMinSuccessorX(type, predBar, succBar.width, minGap);
+                minX = Math.max(minX, constraint);
+            }
+
+            // Apply absolute constraints
+            minX = Math.max(absMinX, Math.min(minX, absMaxX));
+
+            // If needs to move, record update
+            if (minX > succBar.x + EPSILON_PX) {
+                updates.set(succId, { x: minX });
+                changed = true;
+            }
+        }
+    }
+
+    updates.delete(taskId);  // Caller handles dragged task
+    return updates;
+}
+```
+
+**Why This Works**:
+- **Completeness**: All reachable tasks are discovered upfront
+- **Correctness**: Each iteration re-evaluates against ALL predecessors, including those updated in previous iterations
+- **Convergence**: For DAGs, converges in O(depth) iterations (typically 2-3)
+- **Efficiency**: O(iterations × reachable × avg_predecessors)
+
 ### Key Functions
 
 **`resolveConstraints(taskId, proposedX, proposedWidth, context)`**
 - Main entry point for constraint resolution
 - Applies constraints in order: locks → absolute → predecessors → downstream
+- Calls `calculateCascadeUpdates` for successor propagation
 - Returns constrained position and cascade updates
 
 **`calculateCascadeUpdates(taskId, newX, context)`**
 - Calculates push/pull updates for all affected successors
-- Uses iterative breadth-first traversal (no recursion risk)
-- Limited to 100 iterations to prevent infinite loops
+- Uses iterative relaxation algorithm (not BFS)
+- Limited to `MAX_CASCADE_ITERATIONS` (100) to prevent infinite loops on cyclic graphs
 
 **`getDepOffsets(rel, pixelsPerHour)`**
 - Parses min/max from dependency config
@@ -326,14 +416,20 @@ for (const [succId, update] of result.cascadeUpdates) {
 - Unified calculation for all dependency types (FS, SS, FF, SF)
 - Returns minimum X position for successor
 
+**`getMinXFromAbsolute(constraints, ganttStartDate, pixelsPerHour)`**
+- Calculates minimum X from absolute time constraints (minStart)
+
+**`getMaxXFromAbsolute(constraints, ganttStartDate, pixelsPerHour)`**
+- Calculates maximum X from absolute time constraints (maxStart, maxEnd)
+
 ### Constraint Application Order
 
 1. **Lock check** → Block if `locked: true`
-2. **Absolute constraints** → minStart, maxStart, maxEnd
-3. **Predecessor constraints** → minX from dependencies
-4. **Downstream constraints** → maxX from locked successors
-5. **Position clamping** → Final constrained position
-6. **Cascade updates** → Push/pull affected successors
+2. **Absolute constraints** → minStart, maxStart, maxEnd bounds
+3. **Predecessor constraints** → minX from all incoming dependencies
+4. **Downstream constraints** → maxX from locked successors (prevents pushing locked tasks)
+5. **Position clamping** → Final constrained position within bounds
+6. **Cascade updates** → Iterative relaxation propagates to all downstream tasks
 
 ### Files
 
@@ -408,29 +504,42 @@ http://localhost:5173/examples/perf-isolate.html?data=constraint&bar=dragconst&g
 ## Edge Cases and Known Limitations
 
 ### Circular Dependencies
-- Not detected or prevented by the constraint system
-- May cause infinite recursion in cascade logic
-- Workaround: Ensure dependency graph is acyclic
+- The iterative relaxation algorithm has a `MAX_CASCADE_ITERATIONS` limit (100) to prevent infinite loops
+- Circular dependencies will cause the algorithm to hit this limit and stop
+- **Behavior**: Tasks may end up in incorrect positions if cycles exist
+- **Recommendation**: Ensure dependency graph is a DAG (Directed Acyclic Graph)
+
+### Multi-Path Convergence (Solved)
+- Previously caused overlaps with BFS-based cascade updates
+- Now correctly handled by iterative relaxation algorithm
+- Each task re-evaluates against ALL predecessors on every iteration
+- Guaranteed to converge for DAGs
 
 ### Conflicting Constraints
 - A task with `minStart > maxEnd` creates an impossible constraint
-- No validation or user feedback is provided
-- Task may end up in an invalid position
+- The algorithm clamps to bounds, which may result in zero-width or invalid position
+- No validation or user feedback is currently provided
 
 ### Deep Cascade Chains
-- No limit on cascade depth during push/pull propagation
-- Very long dependency chains may cause noticeable delay
-- Consider performance implications for large chains
+- Cascade updates are limited to `MAX_CASCADE_ITERATIONS` (100)
+- For DAGs, convergence typically occurs in 2-3 iterations regardless of depth
+- Complexity: O(iterations × reachable_tasks × avg_predecessors)
+- Very large graphs (1000+ reachable tasks) may have noticeable delay
 
 ### Resize vs Move Behavior
 - Duration constraints (`minDuration`, `maxDuration`, `fixedDuration`) only apply during resize
 - Moving a task preserves its duration regardless of duration constraints
-- A moved task may violate `minEnd`/`maxEnd` if not also checked during move
+- Absolute constraints (`minStart`, `maxStart`, `maxEnd`) apply to both move and resize
 
 ### locked: "position" (Reserved)
 - Listed in code comments as a possible value
 - Not currently implemented in UI or constraint logic
 - Intended to allow resizing both directions while blocking movement
+
+### Pull Constraints (max gap)
+- Currently only push constraints (min gap) are implemented in cascade updates
+- The `max` field on dependencies defines bounded or fixed gaps
+- Pull behavior (moving successors left when predecessor moves left) is not yet implemented
 
 ---
 
@@ -438,15 +547,19 @@ http://localhost:5173/examples/perf-isolate.html?data=constraint&bar=dragconst&g
 
 | Feature | Status | Notes |
 |---------|--------|-------|
+| **Cascade Algorithm** | | |
+| Iterative Relaxation | Implemented | Replaced BFS (Dec 2025) |
+| Multi-path convergence | Fixed | No more overlaps on convergent DAGs |
+| Cycle detection | Limited | Max iterations limit, no explicit detection |
 | **Dependency Types** | | |
-| FS (Finish-to-Start) | Implemented | Push and pull working |
-| SS (Start-to-Start) | Implemented | Push and pull working |
-| FF (Finish-to-Finish) | Implemented | Push and pull working |
-| SF (Start-to-Finish) | Implemented | Push and pull working |
+| FS (Finish-to-Start) | Implemented | Push working |
+| SS (Start-to-Start) | Implemented | Push working |
+| FF (Finish-to-Finish) | Implemented | Push working |
+| SF (Start-to-Finish) | Implemented | Push working |
 | **Gap Behavior** | | |
 | Elastic (max=undefined) | Implemented | Push only, gap can grow |
-| Fixed (max=0) | Implemented | Push and pull, exact gap |
-| Bounded (0 < max < Infinity) | Implemented | Push, pull when gap > max |
+| Fixed (max=0) | Partial | Push implemented, pull not yet |
+| Bounded (0 < max < Infinity) | Partial | Push implemented, pull not yet |
 | **Lock Types** | | |
 | locked: true | Implemented | Full lock |
 | locked: "start" | Implemented | Right resize only |
