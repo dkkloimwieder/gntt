@@ -131,9 +131,9 @@ console.log(`Generated ${tasks.length} tasks to ${outputPath}`);
 
 // Print summary statistics
 const resources = new Set(tasks.map((t) => t.resource));
-const fsCount = tasks.filter((t) => typeof t.dependencies === 'string').length;
-const ssCount = tasks.filter((t) => t.dependencies?.type === 'SS').length;
-const noDeps = tasks.filter((t) => !t.dependencies).length;
+const fsCount = tasks.filter((t) => t.dependencies?.[0]?.type === 'FS').length;
+const ssCount = tasks.filter((t) => t.dependencies?.[0]?.type === 'SS').length;
+const noDeps = tasks.filter((t) => !t.dependencies || t.dependencies.length === 0).length;
 
 console.log('\nSummary:');
 console.log(`  Resources: ${resources.size} (${[...resources].sort().join(', ')})`);

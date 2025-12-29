@@ -272,36 +272,77 @@ The following constraint fields exist in code (`absoluteConstraints.js`) but hav
 
 ## Implementation Details
 
+### Constraint Engine (constraintEngine.js)
+
+The unified constraint engine provides a single entry point for all constraint resolution:
+
+```javascript
+import { resolveConstraints, calculateCascadeUpdates } from '../utils/constraintEngine.js';
+
+// Build context object
+const context = {
+    getBarPosition: (id) => ({ x, y, width, height }),
+    getTask: (id) => task,
+    relationships: [...],
+    pixelsPerHour: number,
+    ganttStartDate: Date,
+};
+
+// Resolve all constraints with single call
+const result = resolveConstraints(taskId, proposedX, proposedWidth, context);
+
+// Result contains:
+// {
+//   constrainedX: number,       // Final X position after constraints
+//   constrainedWidth: number,   // Final width
+//   blocked: boolean,           // True if move is blocked
+//   blockReason: string|null,   // 'locked' or 'conflicting_constraints'
+//   cascadeUpdates: Map,        // taskId → { x } for affected successors
+// }
+
+// Apply cascade updates
+for (const [succId, update] of result.cascadeUpdates) {
+    updateBarPosition(succId, update);
+}
+```
+
 ### Key Functions
+
+**`resolveConstraints(taskId, proposedX, proposedWidth, context)`**
+- Main entry point for constraint resolution
+- Applies constraints in order: locks → absolute → predecessors → downstream
+- Returns constrained position and cascade updates
+
+**`calculateCascadeUpdates(taskId, newX, context)`**
+- Calculates push/pull updates for all affected successors
+- Uses iterative breadth-first traversal (no recursion risk)
+- Limited to 100 iterations to prevent infinite loops
 
 **`getDepOffsets(rel, pixelsPerHour)`**
 - Parses min/max from dependency config
 - Returns `{ lag, min, max, minGap, maxGap, isElastic, isFixed }`
 
-**`getMaxEndFromDownstream(taskId, ...)`**
-- Recursively finds maximum end position considering all downstream constraints
-- Handles both locked successors (hard stop) and unlocked successors (pushable)
+**`getMinSuccessorX(type, predBar, succWidth, gap)`**
+- Unified calculation for all dependency types (FS, SS, FF, SF)
+- Returns minimum X position for successor
 
-**`pushSuccessorsIfNeeded(taskId, ...)`**
-- Cascades position updates after a task moves
-- Push when: `currentGap < minGap`
-- Pull when: `currentGap > maxGap` AND `maxGap !== Infinity`
+### Constraint Application Order
 
-**`handleConstrainPosition(taskId, newX)`**
-1. Check if task is fully locked → block move
-2. Apply predecessor constraints (minX)
-3. Apply downstream lock constraints (maxX via recursive check)
-4. Apply absolute constraints (minStart, maxStart, maxEnd)
-5. Clamp position to valid range
-6. Update task position
-7. Cascade push/pull to successors
+1. **Lock check** → Block if `locked: true`
+2. **Absolute constraints** → minStart, maxStart, maxEnd
+3. **Predecessor constraints** → minX from dependencies
+4. **Downstream constraints** → maxX from locked successors
+5. **Position clamping** → Final constrained position
+6. **Cascade updates** → Push/pull affected successors
 
 ### Files
 
 | File | Purpose |
 |------|---------|
-| `src/components/GanttPerfIsolate.jsx` | Main component with constraint logic |
-| `src/utils/absoluteConstraints.js` | Lock type helpers, absolute constraint calculations |
+| `src/utils/constraintEngine.js` | Unified constraint resolution engine |
+| `src/utils/absoluteConstraints.js` | Lock type helpers, absolute time constraints |
+| `src/utils/constraintResolver.js` | Legacy resolver (deprecated) |
+| `src/components/GanttPerfIsolate.jsx` | Main component using constraint engine |
 | `src/data/constraint-test.json` | Test data with labeled scenarios |
 | `src/components/ArrowLayerBatched.jsx` | Arrow rendering with style grouping |
 

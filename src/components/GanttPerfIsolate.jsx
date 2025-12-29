@@ -1,7 +1,11 @@
-import { createSignal, createMemo, onMount, onCleanup, Index, For, Show } from 'solid-js';
+import { createSignal, createMemo, onMount, onCleanup, Index, For, Show, batch } from 'solid-js';
 import { createStore, produce } from 'solid-js/store';
 import calendarData from '../data/calendar.json';
 import constraintTestData from '../data/constraint-test.json';
+import topologyBreadthData from '../data/topology-breadth.json';
+import topologyDepthData from '../data/topology-depth.json';
+import topologyBalancedData from '../data/topology-balanced.json';
+import topologyDebugData from '../data/topology-debug.json';
 import date_utils from '../utils/date_utils.js';
 import { useGanttEvents, GanttEventsProvider } from '../contexts/GanttEvents.jsx';
 import { useDrag } from '../hooks/useDrag.js';
@@ -16,399 +20,15 @@ import {
     isMovementLocked,
     isLeftResizeLocked,
     isRightResizeLocked,
-    getMinXFromAbsolute,
-    getMaxXFromAbsolute,
-    getMaxEndFromAbsolute,
     getMinWidth,
 } from '../utils/absoluteConstraints.js';
-// Note: constraintResolver.js still has utilities but we use simple inline helpers now
+import {
+    resolveConstraints,
+    calculateCascadeUpdates,
+    buildRelationshipIndex,
+} from '../utils/constraintEngine.js';
 
-// ═══════════════════════════════════════════════════════════════════════════
-// SIMPLE REACTIVE CONSTRAINT HELPERS
-// Read from getBarPosition(), write via updateBarPosition(), let reactivity propagate
-// ═══════════════════════════════════════════════════════════════════════════
-
-/**
- * Parse dependency min/max offset values.
- * - min=0, max=undefined (default): Elastic - push only, gap can grow indefinitely
- * - min=0, max=0: Fixed gap - push AND pull to maintain exact lag
- * - min=0, max=N: Bounded - push always, pull only if gap > lag+max
- *
- * JSON uses null for Infinity since JSON doesn't support Infinity.
- */
-function getDepOffsets(rel, pixelsPerHour) {
-    const lag = (rel.lag ?? 0) * pixelsPerHour;
-    const min = (rel.min ?? 0) * pixelsPerHour;
-    // Default is elastic (push only): max=undefined or max=null → Infinity
-    // Explicit max=0 means fixed gap (push+pull)
-    // Explicit max=N means bounded (push, pull only when gap > N)
-    const maxVal = rel.max;
-    const max = (maxVal === undefined || maxVal === null) ? Infinity : maxVal * pixelsPerHour;
-
-    return {
-        lag,
-        min,
-        max,
-        minGap: lag + min,  // Minimum allowed gap
-        maxGap: lag + max,  // Maximum allowed gap (Infinity for elastic)
-        isElastic: max === Infinity,  // Can gap grow indefinitely?
-        isFixed: max === min,  // Must gap be exact?
-    };
-}
-
-/**
- * Get minimum X this task can be at based on predecessor constraints.
- * Uses getBarPosition() to always get correct values.
- */
-function getMinXFromPredecessors(taskId, relationships, getBarPosition, pixelsPerHour, taskWidth = 0) {
-    let minX = 0;
-    for (const rel of relationships) {
-        if (rel.to !== taskId) continue;
-
-        const predBar = getBarPosition(rel.from);
-        if (!predBar) continue;
-
-        const type = rel.type || 'FS';
-        const lag = (rel.lag ?? 0) * pixelsPerHour;
-
-        let constraint;
-        switch (type) {
-            case 'FS':
-                constraint = predBar.x + predBar.width + lag;
-                break;
-            case 'SS':
-                constraint = predBar.x + lag;
-                break;
-            case 'FF':
-                // Finish-to-Finish: successor end >= predecessor end + lag
-                // So successor.x >= predecessor.x + predecessor.width - successor.width + lag
-                constraint = predBar.x + predBar.width - taskWidth + lag;
-                break;
-            case 'SF':
-                // Start-to-Finish: successor end >= predecessor start + lag
-                // So successor.x >= predecessor.x - successor.width + lag
-                constraint = predBar.x - taskWidth + lag;
-                break;
-            default:
-                constraint = predBar.x + predBar.width + lag;
-        }
-        minX = Math.max(minX, constraint);
-    }
-    return minX;
-}
-
-/**
- * Get maximum X this task can be at based on predecessor constraints with max gap.
- * For dependencies with max defined (not elastic), the successor can't move too far from predecessor.
- */
-function getMaxXFromPredecessors(taskId, relationships, getBarPosition, pixelsPerHour, taskWidth = 0) {
-    let maxX = Infinity;
-    for (const rel of relationships) {
-        if (rel.to !== taskId) continue;
-
-        const predBar = getBarPosition(rel.from);
-        if (!predBar) continue;
-
-        const { maxGap, isElastic } = getDepOffsets(rel, pixelsPerHour);
-        if (isElastic) continue;  // Elastic deps don't limit max position
-
-        const type = rel.type || 'FS';
-
-        let constraint;
-        switch (type) {
-            case 'FS':
-                // successor.start <= predecessor.end + maxGap
-                constraint = predBar.x + predBar.width + maxGap;
-                break;
-            case 'SS':
-                // successor.start <= predecessor.start + maxGap
-                constraint = predBar.x + maxGap;
-                break;
-            case 'FF':
-                // successor.end <= predecessor.end + maxGap
-                // successor.x + taskWidth <= predBar.x + predBar.width + maxGap
-                constraint = predBar.x + predBar.width + maxGap - taskWidth;
-                break;
-            case 'SF':
-                // successor.end <= predecessor.start + maxGap
-                constraint = predBar.x + maxGap - taskWidth;
-                break;
-            default:
-                continue;
-        }
-        maxX = Math.min(maxX, constraint);
-    }
-    return maxX;
-}
-
-/**
- * Get maximum end position this task can have based on predecessor constraints with max gap.
- * For FF/SF dependencies with max defined, the successor's end can't go too far from predecessor.
- */
-function getMaxEndFromPredecessors(taskId, relationships, getBarPosition, pixelsPerHour) {
-    let maxEnd = Infinity;
-    for (const rel of relationships) {
-        if (rel.to !== taskId) continue;
-
-        const predBar = getBarPosition(rel.from);
-        if (!predBar) continue;
-
-        const { maxGap, isElastic } = getDepOffsets(rel, pixelsPerHour);
-        if (isElastic) continue;  // Elastic deps don't limit max position
-
-        const type = rel.type || 'FS';
-
-        let constraint;
-        switch (type) {
-            case 'FF':
-                // successor.end <= predecessor.end + maxGap
-                constraint = predBar.x + predBar.width + maxGap;
-                break;
-            case 'SF':
-                // successor.end <= predecessor.start + maxGap
-                constraint = predBar.x + maxGap;
-                break;
-            default:
-                continue;  // FS and SS don't constrain end position directly
-        }
-        maxEnd = Math.min(maxEnd, constraint);
-    }
-    return maxEnd;
-}
-
-/**
- * Get maximum end position (x + width) this task can have based on downstream constraints.
- * RECURSIVELY checks all successors, not just direct ones.
- *
- * For unlocked successors: we can push them, but only up to their own downstream limit.
- * For locked successors: we cannot push at all, this is a hard constraint.
- */
-function getMaxEndFromDownstream(taskId, relationships, getBarPosition, getTask, pixelsPerHour, visited = new Set()) {
-    // Prevent infinite loops in circular dependencies
-    if (visited.has(taskId)) return Infinity;
-    visited.add(taskId);
-
-    let maxEnd = Infinity;
-
-    for (const rel of relationships) {
-        if (rel.from !== taskId) continue;
-
-        const succTask = getTask?.(rel.to);
-        const succBar = getBarPosition(rel.to);
-        if (!succBar) continue;
-
-        const { minGap } = getDepOffsets(rel, pixelsPerHour);
-        const type = rel.type || 'FS';
-        const isLocked = isMovementLocked(succTask?.constraints?.locked);
-
-        // Calculate constraint based on dependency type
-        let constraint;
-        switch (type) {
-            case 'FS':
-                // predecessor.end + minGap <= successor.start
-                // => predecessor.end <= successor.start - minGap
-                constraint = succBar.x - minGap;
-                break;
-            case 'FF':
-                // predecessor.end <= successor.end - minGap
-                constraint = succBar.x + succBar.width - minGap;
-                break;
-            case 'SS':
-            case 'SF':
-                // These constrain predecessor start, not end - skip
-                continue;
-            default:
-                constraint = succBar.x - minGap;
-        }
-
-        if (isLocked) {
-            // Locked successor: hard constraint, cannot push past
-            maxEnd = Math.min(maxEnd, constraint);
-        } else {
-            // Unlocked successor: we can push them, but only so far
-            // Recursively find their downstream limit
-            const succMaxEnd = getMaxEndFromDownstream(rel.to, relationships, getBarPosition, getTask, pixelsPerHour, visited);
-
-            // We can push successor up to: (succMaxEnd - succBar.width) for their new X
-            // So our end can go to: newSuccX - minGap = succMaxEnd - succBar.width - minGap... no wait
-            // Actually: if we push successor to position X', their end is X' + width
-            // Their end must be <= succMaxEnd, so X' <= succMaxEnd - width
-            // Our end + minGap <= X', so our end <= X' - minGap <= succMaxEnd - width - minGap
-            // Hmm, this isn't quite right. Let me think again.
-            //
-            // For FS: our.end + minGap <= succ.start (succ.x)
-            // If we push succ, succ.x' = our.end + minGap
-            // Succ's end = succ.x' + succ.width = our.end + minGap + succ.width
-            // Succ's end must be <= succMaxEnd
-            // => our.end + minGap + succ.width <= succMaxEnd
-            // => our.end <= succMaxEnd - minGap - succ.width
-
-            // Actually simpler: how far can successor's START go?
-            // Successor's end must be <= their downstream max, so:
-            // succ.x + succ.width <= succMaxEnd
-            // succ.x <= succMaxEnd - succ.width
-            // And our.end + minGap <= succ.x
-            // => our.end <= succ.x - minGap <= succMaxEnd - succ.width - minGap
-
-            const succMaxX = succMaxEnd - succBar.width;  // Max start position for successor
-            const ourMaxEnd = succMaxX - minGap;
-            maxEnd = Math.min(maxEnd, ourMaxEnd);
-        }
-    }
-
-    return maxEnd;
-}
-
-// Legacy alias for compatibility - now uses recursive version
-function getMaxEndFromLockedSuccessors(taskId, relationships, getBarPosition, getTask, pixelsPerHour) {
-    return getMaxEndFromDownstream(taskId, relationships, getBarPosition, getTask, pixelsPerHour, new Set());
-}
-
-/**
- * Get maximum start position this task can have based on LOCKED successor constraints.
- * For SS and SF types where the successor's position depends on predecessor's start.
- */
-function getMaxXFromLockedSuccessors(taskId, relationships, getBarPosition, getTask, pixelsPerHour) {
-    let maxX = Infinity;
-    for (const rel of relationships) {
-        if (rel.from !== taskId) continue;
-
-        const succTask = getTask?.(rel.to);
-        const isLocked = succTask?.constraints?.locked;
-        if (!isLocked) continue;
-
-        const succBar = getBarPosition(rel.to);
-        if (!succBar) continue;
-
-        const type = rel.type || 'FS';
-        const lag = (rel.lag ?? 0) * pixelsPerHour;
-
-        let constraint;
-        switch (type) {
-            case 'SS':
-                // predecessor.start <= successor.start - lag
-                constraint = succBar.x - lag;
-                break;
-            case 'SF':
-                // predecessor.start <= successor.end - lag
-                constraint = succBar.x + succBar.width - lag;
-                break;
-            default:
-                continue;  // FS and FF don't constrain start position
-        }
-        maxX = Math.min(maxX, constraint);
-    }
-    return maxX;
-}
-
-/**
- * Recursively push/pull successors based on min/max offset constraints.
- * Updates store directly - SolidJS reactivity propagates changes to Bar components.
- *
- * Push when: currentGap < minGap (successor is too close)
- * Pull when: currentGap > maxGap AND maxGap !== Infinity (gap exceeded max)
- *
- * Locked tasks block the cascade chain.
- */
-function pushSuccessorsIfNeeded(taskId, relationships, getBarPosition, updateBarPosition, pixelsPerHour, getTask, ganttStartDate, visited = new Set(), pendingUpdates = {}) {
-    // Prevent infinite loops in case of circular dependencies
-    if (visited.has(taskId)) return;
-    visited.add(taskId);
-
-    // Use pending update if available (store update may not be applied yet)
-    let taskBar = getBarPosition(taskId);
-    if (!taskBar) return;
-    if (pendingUpdates[taskId]) {
-        taskBar = { ...taskBar, ...pendingUpdates[taskId] };
-    }
-
-    for (const rel of relationships) {
-        if (rel.from !== taskId) continue;
-
-        const succTask = getTask?.(rel.to);
-        let succBar = getBarPosition(rel.to);
-        if (!succBar) continue;
-        // Use pending update if available for successor too
-        if (pendingUpdates[rel.to]) {
-            succBar = { ...succBar, ...pendingUpdates[rel.to] };
-        }
-
-        // Locked tasks cannot be pushed - they block the chain
-        const isLocked = isMovementLocked(succTask?.constraints?.locked);
-        if (isLocked) continue;
-
-        const type = rel.type || 'FS';
-        const { minGap, maxGap, isElastic } = getDepOffsets(rel, pixelsPerHour);
-
-        // Calculate anchor position based on dependency type
-        let anchorPos;  // The reference point on predecessor
-        let succRef;    // The reference point on successor (start or end)
-        let constrainsEnd = false;  // Does this dep type constrain successor's end?
-
-        switch (type) {
-            case 'FS':
-                anchorPos = taskBar.x + taskBar.width;  // Pred end
-                succRef = succBar.x;  // Succ start
-                break;
-            case 'SS':
-                anchorPos = taskBar.x;  // Pred start
-                succRef = succBar.x;  // Succ start
-                break;
-            case 'FF':
-                anchorPos = taskBar.x + taskBar.width;  // Pred end
-                succRef = succBar.x + succBar.width;  // Succ end
-                constrainsEnd = true;
-                break;
-            case 'SF':
-                anchorPos = taskBar.x;  // Pred start
-                succRef = succBar.x + succBar.width;  // Succ end
-                constrainsEnd = true;
-                break;
-            default:
-                anchorPos = taskBar.x + taskBar.width;
-                succRef = succBar.x;
-        }
-
-        // Current gap between anchor and successor reference point
-        const currentGap = succRef - anchorPos;
-
-        // Check if push or pull is needed
-        const needsPush = currentGap < minGap;  // Gap too small
-        const needsPull = !isElastic && currentGap > maxGap;  // Gap too large (and not elastic)
-
-        if (needsPush || needsPull) {
-            // Calculate target position for successor
-            const targetGap = needsPush ? minGap : maxGap;
-            const targetRef = anchorPos + targetGap;
-
-            // Convert target reference point to target X position
-            let targetX;
-            if (constrainsEnd) {
-                // For FF/SF: targetRef is the successor's END position
-                targetX = targetRef - succBar.width;
-            } else {
-                // For FS/SS: targetRef is the successor's START position
-                targetX = targetRef;
-            }
-
-            // Apply successor's absolute constraints
-            const absMinX = getMinXFromAbsolute(succTask?.constraints, ganttStartDate, pixelsPerHour);
-            const absMaxX = getMaxXFromAbsolute(succTask?.constraints, ganttStartDate, pixelsPerHour);
-            targetX = Math.max(absMinX, Math.min(targetX, absMaxX));
-
-            // Only update if position actually changes
-            if (Math.abs(targetX - succBar.x) > 0.5) {  // Small epsilon to avoid floating point issues
-                updateBarPosition(rel.to, { x: targetX });
-
-                // Track this update for recursive calls (store may not reflect it yet)
-                pendingUpdates[rel.to] = { x: targetX };
-
-                // Recursively cascade to this successor's successors
-                pushSuccessorsIfNeeded(rel.to, relationships, getBarPosition, updateBarPosition, pixelsPerHour, getTask, ganttStartDate, visited, pendingUpdates);
-            }
-        }
-    }
-}
+// Constraint logic has been moved to constraintEngine.js for better modularity
 
 /**
  * GanttPerfIsolate - Stripped down to find the 6x overhead
@@ -424,14 +44,27 @@ function pushSuccessorsIfNeeded(taskId, relationships, getBarPosition, updateBar
 const ROW_HEIGHT = 24;
 const BAR_HEIGHT = 26;
 const GAP = 4;
-const DAYS_VISIBLE = 5;  // Show 5 days
 const OVERSCAN_ROWS = 2;
 const OVERSCAN_PX = 200;
 
-// Select data source based on URL param: ?data=constraint
+// Select data source based on URL param: ?data=constraint or ?topology=breadth|depth|balanced
 const urlParams = new URLSearchParams(window.location.search);
-const dataSource = urlParams.get('data') || 'calendar';
-const sourceData = dataSource === 'constraint' ? constraintTestData : calendarData;
+const topologyParam = urlParams.get('topology');
+const dataParam = urlParams.get('data') || 'calendar';
+
+// Topology takes precedence over data param
+const dataSource = topologyParam
+    ? `topology-${topologyParam}`
+    : dataParam;
+
+const sourceData = (() => {
+    if (topologyParam === 'breadth') return topologyBreadthData;
+    if (topologyParam === 'depth') return topologyDepthData;
+    if (topologyParam === 'balanced') return topologyBalancedData;
+    if (topologyParam === 'debug') return topologyDebugData;
+    if (dataParam === 'constraint') return constraintTestData;
+    return calendarData;
+})();
 
 // Parse tasks and compute TIME-based positions (hours from start)
 const parsedTasks = sourceData.tasks.map(task => ({
@@ -441,6 +74,19 @@ const parsedTasks = sourceData.tasks.map(task => ({
 }));
 const ganttStart = new Date(Math.min(...parsedTasks.map(t => t._start.getTime())));
 const ganttStartMs = ganttStart.getTime();
+
+// Calculate average task duration to auto-adjust zoom for short tasks
+const avgDurationHours = parsedTasks.reduce((sum, t) => {
+    return sum + (t._end.getTime() - t._start.getTime()) / (1000 * 60 * 60);
+}, 0) / parsedTasks.length;
+
+// Auto-zoom: if tasks avg < 1 hour, show 3 hours; if < 4 hours show 1 day; else 5 days
+// Can override with ?hours=N URL param
+const hoursParam = urlParams.get('hours');
+const HOURS_VISIBLE = hoursParam
+    ? parseFloat(hoursParam)
+    : avgDurationHours < 0.5 ? 3 : avgDurationHours < 4 ? 24 : 120;
+const DAYS_VISIBLE = HOURS_VISIBLE / 24;
 
 // Get unique resources - preserve generator order (A, B, C, ..., Z, AA, AB, ...)
 // DO NOT sort alphabetically - that breaks row distance calculations
@@ -528,26 +174,35 @@ const relationships = (() => {
     const rels = [];
     for (const task of sourceData.tasks) {
         if (!task.dependencies) continue;
-        // Handle string dep (FS) or object dep ({id, type, lag, min, max})
-        const dep = task.dependencies;
-        const isObj = typeof dep === 'object';
-        const depId = isObj ? dep.id : dep;
-        const depType = isObj ? (dep.type || 'FS') : 'FS';
-        const lag = isObj ? (dep.lag || 0) : 0;
-        const min = isObj ? (dep.min ?? 0) : 0;
-        const max = isObj ? dep.max : undefined;  // undefined/null = elastic (default), 0 = fixed, N = bounded
 
-        rels.push({
-            from: depId,
-            to: task.id,
-            type: depType,
-            lag,
-            min,
-            max,
-        });
+        // Normalize to array: handle string, object, or array of dependencies
+        const deps = Array.isArray(task.dependencies)
+            ? task.dependencies
+            : [task.dependencies];
+
+        for (const dep of deps) {
+            const isObj = typeof dep === 'object' && dep !== null;
+            const depId = isObj ? dep.id : dep;
+            const depType = isObj ? (dep.type || 'FS') : 'FS';
+            const lag = isObj ? (dep.lag || 0) : 0;
+            const min = isObj ? (dep.min ?? 0) : 0;
+            const max = isObj ? dep.max : undefined;  // undefined/null = elastic (default), 0 = fixed, N = bounded
+
+            rels.push({
+                from: depId,
+                to: task.id,
+                type: depType,
+                lag,
+                min,
+                max,
+            });
+        }
     }
     return rels;
 })();
+
+// Pre-build relationship index for O(1) constraint lookups (built once, reused for all drags)
+const relationshipIndex = buildRelationshipIndex(relationships);
 
 console.log(`PerfIsolate [${dataSource}]: ${Object.keys(initialTasks).length} tasks, ${TOTAL_ROWS} rows, ${TOTAL_DAYS} days, ${relationships.length} deps`);
 
@@ -1621,6 +1276,7 @@ export function GanttPerfIsolate() {
     const totalWidth = createMemo(() => TOTAL_DAYS * dayWidth());
 
     // Helper for drag position updates - stores hours, not pixels
+    // Note: Arrow re-render is triggered ONCE after batch via setPositionVersion
     const updateBarPosition = (id, updates) => {
         const hw = hourWidth();
         setTasks(produce(state => {
@@ -1633,8 +1289,10 @@ export function GanttPerfIsolate() {
                 }
             }
         }));
-        setPositionVersion(v => v + 1);  // Trigger arrow re-render
     };
+
+    // Separate function to trigger arrow re-render (call once after batch)
+    const triggerArrowUpdate = () => setPositionVersion(v => v + 1);
 
     // Mock taskStore for ArrowLayerBatched and constraints
     // IMPORTANT: Always calculate pixel positions from hours * hourWidth() to handle viewport resize
@@ -1656,93 +1314,46 @@ export function GanttPerfIsolate() {
         updateBarPosition: updateBarPosition,
     };
 
-    // Constraint callback for move - SIMPLE REACTIVE IMPLEMENTATION
+    // Constraint callback for move - uses unified constraint engine
     const handleConstrainPosition = (taskId, newX) => {
         const hw = hourWidth();
-        const task = mockTaskStore.getTask(taskId);
         const taskBar = mockTaskStore.getBarPosition(taskId);
         if (!taskBar) {
             updateBarPosition(taskId, { x: newX });
             return;
         }
 
-        // 0. Check if task is fully locked (cannot move)
-        if (isMovementLocked(task?.constraints?.locked)) {
-            return; // Don't allow any movement
-        }
-
-        // 1. Clamp to predecessor constraints (can't move before predecessors)
-        let minX = getMinXFromPredecessors(
-            taskId,
+        // Build context for constraint engine (uses pre-built index for O(1) lookups)
+        const context = {
+            getBarPosition: mockTaskStore.getBarPosition,
+            getTask: mockTaskStore.getTask,
             relationships,
-            mockTaskStore.getBarPosition,
-            hw,
-            taskBar.width
-        );
+            relationshipIndex,  // Pre-built index for O(1) lookups
+            pixelsPerHour: hw,
+            ganttStartDate: ganttStart,
+        };
 
-        // 1b. Apply absolute minStart constraint
-        const absMinX = getMinXFromAbsolute(task?.constraints, ganttStart, hw);
-        minX = Math.max(minX, absMinX);
+        // Resolve all constraints with single function call
+        const result = resolveConstraints(taskId, newX, taskBar.width, context);
 
-        // 1c. For non-elastic deps, can't move too far from predecessor (max gap)
-        let maxXFromPred = getMaxXFromPredecessors(
-            taskId,
-            relationships,
-            mockTaskStore.getBarPosition,
-            hw,
-            taskBar.width
-        );
+        // If blocked (locked or conflicting constraints), don't update
+        if (result.blocked) return;
 
-        // 2. Clamp to locked successor constraints (can't move past locked successors)
-        let maxEnd = getMaxEndFromLockedSuccessors(
-            taskId,
-            relationships,
-            mockTaskStore.getBarPosition,
-            mockTaskStore.getTask,
-            hw
-        );
+        // Batch ALL updates to avoid multiple reactivity triggers
+        batch(() => {
+            updateBarPosition(taskId, { x: result.constrainedX });
 
-        // 2b. Apply absolute maxEnd constraint
-        const absMaxEnd = getMaxEndFromAbsolute(task?.constraints, ganttStart, hw);
-        maxEnd = Math.min(maxEnd, absMaxEnd);
+            // Apply cascade updates to successors
+            for (const [succId, update] of result.cascadeUpdates) {
+                updateBarPosition(succId, update);
+            }
 
-        let maxX = maxEnd - taskBar.width;  // Convert max end to max start position
-
-        // 2c. Apply absolute maxStart constraint
-        const absMaxX = getMaxXFromAbsolute(task?.constraints, ganttStart, hw);
-        maxX = Math.min(maxX, absMaxX);
-
-        // Also check SS/SF constraints on start position
-        const maxXFromSS = getMaxXFromLockedSuccessors(
-            taskId,
-            relationships,
-            mockTaskStore.getBarPosition,
-            mockTaskStore.getTask,
-            hw
-        );
-
-        // Apply both min and max constraints
-        const constrainedX = Math.max(minX, Math.min(newX, maxX, maxXFromSS, maxXFromPred));
-
-        // 3. Update this task
-        updateBarPosition(taskId, { x: constrainedX });
-
-        // 4. Push/pull successors based on min/max offset constraints
-        // Pass pendingUpdates with this task's new position (store may not reflect it yet)
-        pushSuccessorsIfNeeded(
-            taskId,
-            relationships,
-            mockTaskStore.getBarPosition,
-            updateBarPosition,
-            hw,
-            mockTaskStore.getTask,
-            ganttStart,
-            new Set(),
-            { [taskId]: { x: constrainedX } }  // Pending update for moved task
-        );
+            // Trigger arrow re-render once after all updates
+            triggerArrowUpdate();
+        });
     };
 
-    // Resize constraint callback - SIMPLE REACTIVE IMPLEMENTATION
+    // Resize constraint callback - uses constraint engine with resize-specific logic
     const handleConstrainResize = (taskId, newX, newWidth) => {
         const hw = hourWidth();
         const task = mockTaskStore.getTask(taskId);
@@ -1752,89 +1363,58 @@ export function GanttPerfIsolate() {
             return;
         }
 
-        const isLeftResize = newX !== taskBar.x;  // Left edge moved
-        const isRightResize = (newX + newWidth) !== (taskBar.x + taskBar.width);  // Right edge moved
+        const isLeftResize = newX !== taskBar.x;
+        const isRightResize = (newX + newWidth) !== (taskBar.x + taskBar.width);
 
-        // 0. Check lock states for specific resize directions
+        // Check lock states for specific resize directions
         if (task?.constraints?.locked === true) {
-            return; // Fully locked - no resize allowed
+            return;  // Fully locked
         }
         if (isLeftResize && isLeftResizeLocked(task?.constraints?.locked)) {
-            // Can't resize left edge - restore original X, only allow right edge change
             newX = taskBar.x;
             newWidth = taskBar.width;
         }
         if (isRightResize && isRightResizeLocked(task?.constraints?.locked)) {
-            // Can't resize right edge - restore original width
             newWidth = taskBar.width;
         }
 
-        // 1. Clamp newX to predecessor constraints (for left edge resize)
-        let minX = getMinXFromPredecessors(
-            taskId,
+        // Build context for constraint engine (uses pre-built index for O(1) lookups)
+        const context = {
+            getBarPosition: mockTaskStore.getBarPosition,
+            getTask: mockTaskStore.getTask,
             relationships,
-            mockTaskStore.getBarPosition,
-            hw,
-            newWidth  // Pass the new width for FF/SF calculations
-        );
+            relationshipIndex,  // Pre-built index for O(1) lookups
+            pixelsPerHour: hw,
+            ganttStartDate: ganttStart,
+        };
 
-        // 1b. Apply absolute minStart constraint
-        const absMinX = getMinXFromAbsolute(task?.constraints, ganttStart, hw);
-        minX = Math.max(minX, absMinX);
+        // Use engine for constraint resolution (handles position and cascade)
+        const result = resolveConstraints(taskId, newX, newWidth, context);
 
-        if (newX < minX) {
-            const diff = minX - newX;
-            newX = minX;
-            newWidth = Math.max(hw, newWidth - diff); // Shrink width to compensate
+        // Adjust width if X was clamped (for left edge resize)
+        let finalX = result.constrainedX;
+        let finalWidth = newWidth;
+        if (isLeftResize && finalX > newX) {
+            const diff = finalX - newX;
+            finalWidth = Math.max(hw, newWidth - diff);
         }
 
-        // 2. Clamp width to locked successor constraints (can't resize past locked successors)
-        let maxEnd = getMaxEndFromLockedSuccessors(
-            taskId,
-            relationships,
-            mockTaskStore.getBarPosition,
-            mockTaskStore.getTask,
-            hw
-        );
-
-        // 2b. Apply absolute maxEnd constraint
-        const absMaxEnd = getMaxEndFromAbsolute(task?.constraints, ganttStart, hw);
-        maxEnd = Math.min(maxEnd, absMaxEnd);
-
-        // 2c. For FF/SF with max gap, can't resize end past predecessor constraint
-        const maxEndFromPred = getMaxEndFromPredecessors(
-            taskId,
-            relationships,
-            mockTaskStore.getBarPosition,
-            hw
-        );
-        maxEnd = Math.min(maxEnd, maxEndFromPred);
-
-        const maxWidth = maxEnd - newX;
-        if (newWidth > maxWidth) {
-            newWidth = Math.max(hw, maxWidth);  // Ensure minimum width
-        }
-
-        // 2c. Apply minimum width constraint
+        // Apply minimum width constraint
         const minWidth = getMinWidth(task?.constraints, hw);
-        newWidth = Math.max(minWidth, newWidth);
+        finalWidth = Math.max(minWidth, finalWidth);
 
-        // 3. Update this task's position and width
-        updateBarPosition(taskId, { x: newX, width: newWidth });
+        // Batch ALL updates
+        batch(() => {
+            updateBarPosition(taskId, { x: finalX, width: finalWidth });
 
-        // 4. Push/pull successors based on min/max offset constraints
-        // Pass pendingUpdates with this task's new position/width (store may not reflect it yet)
-        pushSuccessorsIfNeeded(
-            taskId,
-            relationships,
-            mockTaskStore.getBarPosition,
-            updateBarPosition,
-            hw,
-            mockTaskStore.getTask,
-            ganttStart,
-            new Set(),
-            { [taskId]: { x: newX, width: newWidth } }
-        );
+            // Calculate and apply cascade updates for the final position
+            const cascadeUpdates = calculateCascadeUpdates(taskId, finalX, context);
+            for (const [succId, update] of cascadeUpdates) {
+                updateBarPosition(succId, update);
+            }
+
+            triggerArrowUpdate();
+        });
     };
 
     // Visible ranges
@@ -1985,12 +1565,12 @@ export function GanttPerfIsolate() {
             {/* Header */}
             <div style={{ padding: '8px 16px', background: '#2a2a2a', display: 'flex', gap: '16px', 'align-items': 'center', 'flex-wrap': 'wrap' }}>
                 <span style={{ 'font-weight': 'bold' }}>PerfIsolate</span>
-                <span>Data: {dataSource}</span>
+                <span>Data: {dataSource} ({HOURS_VISIBLE}h view)</span>
                 <span>Bar: {barVariant}</span>
                 <span>Features: {features}</span>
                 <span>Visible: {visibleTasks().length}</span>
                 <span style={{ color: '#888', 'font-size': '11px' }}>
-                    ?data=constraint &amp; bar=dragconst &amp; arrows=1
+                    ?topology=breadth|depth|balanced &amp; bar=dragconst &amp; arrows=1
                 </span>
             </div>
 

@@ -15,7 +15,7 @@
       "end": "2025-01-08 08:00",
       "progress": 0,
       "resource": "FS Chain (default elastic)",
-      "dependencies": "fs-chain-1"
+      "dependencies": [{ "id": "fs-chain-1", "type": "FS" }]
     },
     {
       "id": "fs-chain-3",
@@ -24,7 +24,7 @@
       "end": "2025-01-09 08:00",
       "progress": 0,
       "resource": "FS Chain (default elastic)",
-      "dependencies": "fs-chain-2"
+      "dependencies": [{ "id": "fs-chain-2", "type": "FS" }]
     },
 
     {
@@ -42,7 +42,7 @@
       "end": "2025-01-07 16:15",
       "progress": 0,
       "resource": "SS Chain 2 (elastic)",
-      "dependencies": { "id": "ss-chain-1", "type": "SS" }
+      "dependencies": [{ "id": "ss-chain-1", "type": "SS" }]
     },
     {
       "id": "ss-chain-3",
@@ -51,7 +51,7 @@
       "end": "2025-01-07 08:15",
       "progress": 0,
       "resource": "SS Chain 3 (elastic)",
-      "dependencies": { "id": "ss-chain-2", "type": "SS" }
+      "dependencies": [{ "id": "ss-chain-2", "type": "SS" }]
     },
 
     {
@@ -69,7 +69,7 @@
       "end": "2025-01-07 09:45",
       "progress": 0,
       "resource": "SS+Lag 2 (2h lag)",
-      "dependencies": { "id": "ss-lag-1", "type": "SS", "lag": 2 }
+      "dependencies": [{ "id": "ss-lag-1", "type": "SS", "lag": 2 }]
     },
 
     {
@@ -87,7 +87,7 @@
       "end": "2025-01-08 08:30",
       "progress": 0,
       "resource": "FF Chain 2 (push+pull)",
-      "dependencies": { "id": "ff-chain-1", "type": "FF", "max": 0 }
+      "dependencies": [{ "id": "ff-chain-1", "type": "FF", "max": 0 }]
     },
     {
       "id": "ff-chain-3",
@@ -96,7 +96,7 @@
       "end": "2025-01-08 08:30",
       "progress": 0,
       "resource": "FF Chain 3 (push+pull)",
-      "dependencies": { "id": "ff-chain-2", "type": "FF", "max": 0 }
+      "dependencies": [{ "id": "ff-chain-2", "type": "FF", "max": 0 }]
     },
 
     {
@@ -114,7 +114,7 @@
       "end": "2025-01-07 09:30",
       "progress": 0,
       "resource": "FF+Lag 2 (2h lag)",
-      "dependencies": { "id": "ff-lag-1", "type": "FF", "lag": 2, "max": 0 }
+      "dependencies": [{ "id": "ff-lag-1", "type": "FF", "lag": 2, "max": 0 }]
     },
 
     {
@@ -132,7 +132,7 @@
       "end": "2025-01-07 08:45",
       "progress": 0,
       "resource": "SF Chain 2 (push+pull)",
-      "dependencies": { "id": "sf-chain-1", "type": "SF", "max": 0 }
+      "dependencies": [{ "id": "sf-chain-1", "type": "SF", "max": 0 }]
     },
 
     {
@@ -151,7 +151,7 @@
       "end": "2025-01-08 07:15",
       "progress": 0,
       "resource": "Lock at start of chain",
-      "dependencies": "lock-first-1"
+      "dependencies": [{ "id": "lock-first-1", "type": "FS" }]
     },
     {
       "id": "lock-first-3",
@@ -160,7 +160,7 @@
       "end": "2025-01-09 07:15",
       "progress": 0,
       "resource": "Lock at start of chain",
-      "dependencies": "lock-first-2"
+      "dependencies": [{ "id": "lock-first-2", "type": "FS" }]
     },
 
     {
@@ -178,7 +178,7 @@
       "end": "2025-01-08 08:15",
       "progress": 0,
       "resource": "Lock in middle",
-      "dependencies": "lock-mid-1",
+      "dependencies": [{ "id": "lock-mid-1", "type": "FS" }],
       "constraints": { "locked": true }
     },
     {
@@ -188,7 +188,7 @@
       "end": "2025-01-09 08:15",
       "progress": 0,
       "resource": "Lock in middle",
-      "dependencies": "lock-mid-2"
+      "dependencies": [{ "id": "lock-mid-2", "type": "FS" }]
     },
 
     {
@@ -206,7 +206,7 @@
       "end": "2025-01-08 07:45",
       "progress": 0,
       "resource": "Lock at end (blocks)",
-      "dependencies": "lock-end-1"
+      "dependencies": [{ "id": "lock-end-1", "type": "FS" }]
     },
     {
       "id": "lock-end-3",
@@ -215,7 +215,7 @@
       "end": "2025-01-09 07:45",
       "progress": 0,
       "resource": "Lock at end (blocks)",
-      "dependencies": "lock-end-2",
+      "dependencies": [{ "id": "lock-end-2", "type": "FS" }],
       "constraints": { "locked": true }
     },
 
@@ -235,7 +235,7 @@
       "end": "2025-01-08 08:30",
       "progress": 0,
       "resource": "Locked both ends",
-      "dependencies": "lock-both-1"
+      "dependencies": [{ "id": "lock-both-1", "type": "FS" }]
     },
     {
       "id": "lock-both-3",
@@ -244,7 +244,7 @@
       "end": "2025-01-09 08:30",
       "progress": 0,
       "resource": "Locked both ends",
-      "dependencies": "lock-both-2",
+      "dependencies": [{ "id": "lock-both-2", "type": "FS" }],
       "constraints": { "locked": true }
     },
 
@@ -328,7 +328,7 @@
       "end": "2025-01-11 08:45",
       "progress": 0,
       "resource": "Default (elastic, push only)",
-      "dependencies": "elastic-1"
+      "dependencies": [{ "id": "elastic-1", "type": "FS" }]
     },
     {
       "id": "elastic-3",
@@ -337,7 +337,7 @@
       "end": "2025-01-12 08:45",
       "progress": 0,
       "resource": "Default (elastic, push only)",
-      "dependencies": "elastic-2"
+      "dependencies": [{ "id": "elastic-2", "type": "FS" }]
     },
 
     {
@@ -355,7 +355,7 @@
       "end": "2025-01-11 07:30",
       "progress": 0,
       "resource": "Bounded (max 2h gap)",
-      "dependencies": { "id": "bounded-1", "max": 2 }
+      "dependencies": [{ "id": "bounded-1", "type": "FS", "max": 2 }]
     },
     {
       "id": "bounded-3",
@@ -364,7 +364,7 @@
       "end": "2025-01-12 07:30",
       "progress": 0,
       "resource": "Bounded (max 2h gap)",
-      "dependencies": { "id": "bounded-2", "max": 2 }
+      "dependencies": [{ "id": "bounded-2", "type": "FS", "max": 2 }]
     }
   ]
 }

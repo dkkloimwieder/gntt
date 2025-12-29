@@ -13,51 +13,35 @@ function generateTaskId(task, index) {
 }
 
 /**
- * Parse dependencies from string, object, or array.
- * Returns array of dependency objects with { id, type, lag }.
- * @param {string | Object | Array | undefined} dependencies
- * @returns {Array<{id: string, type: string, lag: number}>}
+ * Parse dependencies array.
+ * Dependencies must be an array of objects with { id, type?, lag?, max? }.
+ *
+ * @param {Array<{id: string, type?: string, lag?: number, max?: number}> | undefined} dependencies
+ * @returns {Array<{id: string, type: string, lag: number, max?: number}>}
  */
 function parseDependencies(dependencies) {
+    // No dependencies
     if (!dependencies) return [];
 
-    // Object with constraint metadata: { id, type, lag }
-    if (typeof dependencies === 'object' && !Array.isArray(dependencies)) {
-        return [
-            {
-                id: dependencies.id,
-                type: dependencies.type || 'FS',
-                lag: dependencies.lag || 0,
-            },
-        ];
+    // Type check: must be array
+    if (!Array.isArray(dependencies)) {
+        console.warn(
+            'parseDependencies: dependencies must be an array, got:',
+            typeof dependencies,
+            dependencies
+        );
+        return [];
     }
 
-    // String: simple task ID (FS, lag=0) - can be comma-separated
-    if (typeof dependencies === 'string') {
-        return dependencies
-            .split(',')
-            .map((d) => d.trim())
-            .filter((d) => d.length > 0)
-            .map((id) => ({ id, type: 'FS', lag: 0 }));
-    }
-
-    // Array: mixed format (strings or objects)
-    if (Array.isArray(dependencies)) {
-        return dependencies
-            .filter((d) => d)
-            .map((d) => {
-                if (typeof d === 'string') {
-                    return { id: d, type: 'FS', lag: 0 };
-                }
-                return {
-                    id: d.id,
-                    type: d.type || 'FS',
-                    lag: d.lag || 0,
-                };
-            });
-    }
-
-    return [];
+    // Parse array of dependency objects
+    return dependencies
+        .filter((d) => d && typeof d === 'object')
+        .map((d) => ({
+            id: d.id,
+            type: d.type || 'FS',
+            lag: d.lag || 0,
+            max: d.max,  // Preserve max for gap behavior (undefined = elastic)
+        }));
 }
 
 /**

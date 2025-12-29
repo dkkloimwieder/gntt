@@ -155,10 +155,13 @@ export function calculateTaskTimes(startDate, durationHours, workdayStart, workd
     let remainingHours = durationHours;
 
     while (remainingHours > 0) {
-        const hoursLeftInDay = workdayEnd - end.getHours();
+        // Calculate hours left in workday (account for minutes)
+        const currentHour = end.getHours() + end.getMinutes() / 60;
+        const hoursLeftInDay = workdayEnd - currentHour;
 
         if (remainingHours <= hoursLeftInDay) {
-            end.setHours(end.getHours() + remainingHours);
+            // Add remaining time using milliseconds to preserve fractional hours
+            end.setTime(end.getTime() + remainingHours * 60 * 60 * 1000);
             remainingHours = 0;
         } else {
             remainingHours -= hoursLeftInDay;
@@ -289,21 +292,22 @@ export function generateCalendar(config = {}) {
             resourceFreeAt[resource] = cloneDate(end);
 
             // Dependency logic - creates cross-resource chain
-            let dependency = undefined;
+            // Always use array format for type stability
+            let dependencies = undefined;
 
             if (i > 0) {
                 // Depends on previous task (which is on a DIFFERENT resource)
                 const useSSConstraint = random() < cfg.ssPercent / 100;
                 if (useSSConstraint) {
                     const lag = randomBetween(random, cfg.ssMinLag, cfg.ssMaxLag);
-                    dependency = {
+                    dependencies = [{
                         id: `task-${taskNum - 1}`,
                         type: 'SS',
                         lag: lag,
-                    };
+                    }];
                 } else {
                     // FS: depends on previous task finishing
-                    dependency = `task-${taskNum - 1}`;
+                    dependencies = [{ id: `task-${taskNum - 1}`, type: 'FS' }];
                 }
             }
 
@@ -314,7 +318,7 @@ export function generateCalendar(config = {}) {
                 end: formatDateTime(end),
                 progress: Math.floor(random() * 101),
                 ...colors,
-                dependencies: dependency,
+                dependencies,
                 resource: resource,
             });
 
@@ -429,7 +433,7 @@ function generateDenseCalendar(cfg, random) {
 
         if (candidates.length > 0) {
             const source = candidates[Math.floor(random() * candidates.length)];
-            task.dependencies = source.id;
+            task.dependencies = [{ id: source.id, type: 'FS' }];
             depCount++;
         }
     }
@@ -440,8 +444,9 @@ function generateDenseCalendar(cfg, random) {
     allResources.forEach((r, i) => resourceToRow[r] = i);
 
     for (const task of tasks) {
-        if (task.dependencies) {
-            const depTask = tasks.find(t => t.id === task.dependencies);
+        if (task.dependencies && task.dependencies.length > 0) {
+            const depId = task.dependencies[0].id;
+            const depTask = tasks.find(t => t.id === depId);
             if (depTask) {
                 const fromRow = resourceToRow[depTask.resource];
                 const toRow = resourceToRow[task.resource];
@@ -528,12 +533,13 @@ function generateRealisticCalendar(cfg, random) {
             );
 
             // Determine dependency type based on probability
-            let dependency = undefined;
+            // Always use array format for type stability
+            let dependencies = undefined;
             const roll = random();
 
             if (roll < 0.75 && prevTaskId) {
                 // 75%: Same-row (FS dependency on previous task in this row)
-                dependency = prevTaskId;
+                dependencies = [{ id: prevTaskId, type: 'FS' }];
             } else if (roll < 0.95 && resIdx > 0) {
                 // 20%: Adjacent row (1-3 rows away)
                 const maxSpan = Math.min(3, resIdx);
@@ -542,7 +548,7 @@ function generateRealisticCalendar(cfg, random) {
                 // Find a task on adjacent resource that ends before this starts
                 const candidate = findValidPredecessor(tasks, adjacentRes, start);
                 if (candidate) {
-                    dependency = candidate.id;
+                    dependencies = [{ id: candidate.id, type: 'FS' }];
                 }
             }
             // 5%: No dependency (parallel work) - already undefined
@@ -554,7 +560,7 @@ function generateRealisticCalendar(cfg, random) {
                 end: formatDateTime(end),
                 progress: Math.floor(random() * 101),
                 ...colors,
-                dependencies: dependency,
+                dependencies,
                 resource,
             });
 

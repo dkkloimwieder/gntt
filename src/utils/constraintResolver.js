@@ -1,6 +1,21 @@
 /**
  * Constraint Resolution Utilities
  *
+ * @deprecated This file uses the old 'elastic: boolean' model.
+ * New code should use constraintEngine.js which provides:
+ * - Unified min/max offset model (more expressive)
+ * - Single resolveConstraints() entry point
+ * - Iterative cascade (no recursion risk)
+ *
+ * Functions still in use by other components:
+ * - detectCycles() - used by taskProcessor.js
+ * - clampBatchDeltaX() - used by TaskLayer.jsx
+ * - resolveMovement() - used by TaskLayer.jsx, BarDemo.jsx, ShowcaseDemo.jsx
+ * - collectDependentTasks() - used by TaskLayer.jsx
+ * - resolveAfterResize() - used by TaskLayer.jsx
+ *
+ * These components should be migrated to constraintEngine.js in a future refactor.
+ *
  * Implements standard project management dependency types:
  * - FS (Finish-to-Start): Successor starts after predecessor finishes
  * - SS (Start-to-Start): Successor starts after predecessor starts
