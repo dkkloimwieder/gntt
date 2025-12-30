@@ -1037,26 +1037,38 @@ function BarDragFunctional(props) {
 }
 
 // V17: Drag with constraint enforcement
+// BarDragConstrained: Identical to BarNoChildren + constraint logic in drag handlers
 function BarDragConstrained(props) {
+    const events = useGanttEvents();
     const getTask = () => typeof props.task === 'function' ? props.task() : props.task;
     const [hoverZone, setHoverZone] = createSignal('move');
 
     const t = createMemo(() => {
         const task = getTask();
+        const bar = task?.$bar;
+        const progress = task?.progress ?? 0;
         const hw = props.hourWidth || 7;
-        // Always calculate from hours to handle viewport resize correctly
         const x = (task?.startHours ?? 0) * hw;
         const width = Math.max((task?.durationHours ?? 1) * hw, 6);
-        const row = task?.row ?? 0;
         return {
-            id: task?.id ?? '',
+            colorBg: 'rgba(128,128,128,0.15)',
+            colorFill: 'rgba(128,128,128,0.4)',
+            locked: task?.locked ?? false,
             name: task?.name ?? '',
+            id: task?.id ?? '',
             x,
-            y: row * (ROW_HEIGHT + GAP) + (ROW_HEIGHT + GAP - BAR_HEIGHT) / 2,
+            y: bar?.y ?? 0,
             width,
-            height: BAR_HEIGHT,
+            height: bar?.height ?? BAR_HEIGHT,
+            pw: (width * progress) / 100,
         };
     });
+
+    const bg = () => {
+        const data = t();
+        const pw = data.pw;
+        return `linear-gradient(to right, ${data.colorFill} 0px, ${data.colorFill} ${pw}px, ${data.colorBg} ${pw}px, ${data.colorBg} 100%)${data.locked ? ', repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(0,0,0,0.15) 3px, rgba(0,0,0,0.15) 6px)' : ''}`;
+    };
 
     const { isDragging, dragState, startDrag } = useDrag({
         onDragStart: (data, state) => {
@@ -1070,10 +1082,7 @@ function BarDragConstrained(props) {
 
             if (state === 'dragging_bar') {
                 const newX = data.originalX + move.deltaX;
-
-                // Simple reactive approach: constrain position handles everything
-                // - Clamps to predecessors (can't move before them)
-                // - Pushes successors if needed (cascade forward)
+                // Constraint logic: clamps to predecessors, pushes successors
                 if (props.onConstrainPosition) {
                     props.onConstrainPosition(t().id, newX, t().y);
                 } else {
@@ -1115,85 +1124,44 @@ function BarDragConstrained(props) {
         else setHoverZone('move');
     };
 
-    const handleMouseDown = (e) => {
-        const rect = e.currentTarget.getBoundingClientRect();
-        const localX = e.clientX - rect.left;
-        if (localX <= 6) startDrag(e, 'dragging_left', {});
-        else if (localX >= rect.width - 6) startDrag(e, 'dragging_right', {});
-        else startDrag(e, 'dragging_bar', {});
-    };
-
-    const lockState = () => getTask()?.constraints?.locked;
-
     const getCursor = () => {
-        const lock = lockState();
         const state = dragState();
         if (state === 'dragging_left' || state === 'dragging_right') return 'ew-resize';
         if (state === 'dragging_bar') return 'grabbing';
         const zone = hoverZone();
-        // Check cursor based on hover zone and lock state
-        if (zone === 'left') {
-            return isLeftResizeLocked(lock) ? 'not-allowed' : 'ew-resize';
-        }
-        if (zone === 'right') {
-            return isRightResizeLocked(lock) ? 'not-allowed' : 'ew-resize';
-        }
-        // Move zone - check if movement is locked
-        return isMovementLocked(lock) ? 'not-allowed' : 'grab';
+        if (zone === 'left' || zone === 'right') return 'ew-resize';
+        return 'grab';
     };
 
-    const handleMouseDownLocked = (e) => {
-        const lock = lockState();
+    const handleMouseDown = (e) => {
         const rect = e.currentTarget.getBoundingClientRect();
         const localX = e.clientX - rect.left;
+        const width = rect.width;
 
-        // Check what type of drag this would be
+        // 6px zones on each side for resize
         if (localX <= 6) {
-            // Left resize attempt
-            if (isLeftResizeLocked(lock)) return;
-        } else if (localX >= rect.width - 6) {
-            // Right resize attempt
-            if (isRightResizeLocked(lock)) return;
+            startDrag(e, 'dragging_left', { taskId: t().id });
+        } else if (localX >= width - 6) {
+            startDrag(e, 'dragging_right', { taskId: t().id });
         } else {
-            // Move attempt
-            if (isMovementLocked(lock)) return;
+            startDrag(e, 'dragging_bar', { taskId: t().id });
         }
-        handleMouseDown(e);
     };
-
-    // Visual styles based on lock state (all use same color, icons indicate lock type)
-    const getBarStyles = () => {
-        const lock = lockState();
-        const bg = 'rgba(34,197,94,0.3)';
-        const border = '1px solid rgba(34,197,94,0.6)';
-
-        if (lock === true) {
-            return { bg, border, icon: '🔒 ' };
-        } else if (lock === 'start') {
-            return { bg, border, icon: '⊢ ' };
-        } else if (lock === 'end') {
-            return { bg, border, icon: ' ⊣' };
-        } else if (lock === 'duration') {
-            return { bg, border, icon: '↔ ' };
-        }
-        return { bg, border, icon: '' };
-    };
-
-    const styles = () => getBarStyles();
 
     return (
         <div
-            onMouseDown={handleMouseDownLocked}
+            onMouseEnter={(e) => events.onHover?.(t().id, e.clientX, e.clientY)}
+            onMouseLeave={() => events.onHoverEnd?.()}
             onMouseMove={handleMouseMove}
+            onClick={(e) => events.onTaskClick?.(t().id, e)}
+            onMouseDown={handleMouseDown}
             style={{
                 position: 'absolute',
                 transform: `translate(${t().x}px, ${t().y}px)`,
                 width: `${t().width}px`,
                 height: `${t().height}px`,
                 cursor: getCursor(),
-                background: styles().bg,
-                border: styles().border,
-                'border-radius': '3px',
+                background: bg(),
                 color: '#fff',
                 'font-size': '11px',
                 'line-height': `${t().height}px`,
@@ -1203,7 +1171,7 @@ function BarDragConstrained(props) {
                 'text-overflow': 'ellipsis',
                 'box-sizing': 'border-box',
             }}>
-            {styles().icon}{t().name}
+            {t().name}
         </div>
     );
 }

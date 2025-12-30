@@ -50,6 +50,7 @@ const DEFAULT_CONFIG = {
     minDuration: 0.08,   // ~5 minutes
     maxDuration: 0.15,   // ~10 minutes
     resourceCount: 100,  // Many rows so all tasks visible at once
+    maxRowDistance: 2,   // Max row distance for cross-row dependencies
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -402,12 +403,21 @@ function generateBalanced(cfg, random) {
         for (let i = 0; i < numInRow && taskNum <= cfg.totalTasks; i++) {
             const duration = randomFloat(random, cfg.minDuration, cfg.maxDuration);
 
-            const { start, end } = calculateTaskTimes(
-                currentTime,
-                duration,
-                cfg.workdayStartHour,
-                cfg.workdayEndHour
-            );
+            let start, end;
+            if (cfg.continuous) {
+                // Continuous mode: pack tasks back-to-back, no workday gaps
+                start = cloneDate(currentTime);
+                end = addHours(start, duration);
+            } else {
+                const times = calculateTaskTimes(
+                    currentTime,
+                    duration,
+                    cfg.workdayStartHour,
+                    cfg.workdayEndHour
+                );
+                start = times.start;
+                end = times.end;
+            }
             currentTime = cloneDate(end);
 
             // Chain within row
@@ -449,8 +459,10 @@ function generateBalanced(cfg, random) {
         const toStart = parseDateTime(toTask.start);
         const toEnd = parseDateTime(toTask.end);
 
-        // Pick from an earlier row
-        const fromRowIdx = randomBetween(random, 0, toRowIdx - 1);
+        // Pick from an earlier row (within maxRowDistance)
+        const maxDist = cfg.maxRowDistance || 2;
+        const minFromRow = Math.max(0, toRowIdx - maxDist);
+        const fromRowIdx = randomBetween(random, minFromRow, toRowIdx - 1);
         const fromRow = rows[fromRowIdx];
         if (!fromRow || fromRow.length < 1) continue;
 
@@ -603,6 +615,21 @@ function parseArgs(args) {
                 break;
             case 'output':
                 outputFile = value;
+                break;
+            case 'maxRowDistance':
+                config.maxRowDistance = parseInt(value, 10);
+                break;
+            case 'resources':
+                config.resourceCount = parseInt(value, 10);
+                break;
+            case 'continuous':
+                config.continuous = true;
+                break;
+            case 'minDuration':
+                config.minDuration = parseFloat(value);
+                break;
+            case 'maxDuration':
+                config.maxDuration = parseFloat(value);
                 break;
             case 'help':
             case 'h':
