@@ -4,22 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Frappe Gantt** is a Gantt chart library with two implementations:
-
-- **SolidJS** (primary, in `src/`) - The active implementation using reactive stores and fine-grained reactivity
-- **Vanilla JS** (legacy, in `vanilla/`) - The original implementation, archived for reference
+A Gantt chart library built with SolidJS using reactive stores and fine-grained reactivity.
 
 The library provides drag & drop task management, dependency visualization, constraint enforcement (FS/SS/FF/SF), and theme support.
 
 ## Essential Commands
 
 ### Build & Development
-- `pnpm run dev:solid` - Start SolidJS demo server at http://localhost:5173/examples/
-- `pnpm run generate:calendar` - Generate test calendar data (see Performance Testing below)
-- `pnpm build:solid` - Build SolidJS production bundle
+- `pnpm dev` - Start demo server at http://localhost:5173/examples/
+- `pnpm build` - Build production bundle
 - `pnpm build:demo` - Build demo pages to `dist-demo/`
-- `pnpm dev` - Start vanilla JS dev server (legacy)
-- `pnpm build` - Build vanilla JS bundle
+- `pnpm generate:calendar` - Generate test calendar data (see Performance Testing below)
+- `pnpm generate:topology` - Generate topology test data
 
 ### Serving Built Demos for Benchmarking
 
@@ -59,31 +55,36 @@ Only one test file exists (`tests/date_utils.test.js`) but no test runner is con
 
 ```
 gantt/
-├── src/                        # SolidJS (primary)
-│   ├── components/             # UI components (Gantt, Bar, Arrow, Grid, etc.)
+├── src/
+│   ├── components/             # Production UI components (Gantt, Bar, Arrow, Grid, etc.)
+│   ├── demo/                   # Demo-only components (not shipped in npm package)
 │   ├── stores/                 # Reactive stores (taskStore, ganttConfigStore, ganttDateStore)
-│   ├── utils/                  # Utilities (barCalculations, constraintResolver, etc.)
+│   ├── utils/                  # Utilities (barCalculations, constraintEngine, etc.)
 │   ├── hooks/                  # useDrag
 │   ├── contexts/               # React-style contexts (GanttEvents)
 │   ├── entries/                # Entry points for each demo
-│   ├── scripts/                # CLI tools (generateCalendar.js)
-│   ├── data/                   # Generated test data
+│   ├── scripts/                # CLI tools (generateCalendar.js, generateTopology.js)
+│   ├── data/
+│   │   ├── fixtures/           # Static test fixtures
+│   │   └── generated/          # CLI-generated test data
 │   └── styles/                 # CSS
-├── examples/                   # SolidJS demo HTML files
+├── examples/                   # Demo HTML files
 │   ├── index.html              # Demo hub
 │   ├── gantt.html              # Main demo
 │   ├── subtask.html            # Subtask demo (parent tasks with children)
 │   ├── resource-groups.html    # Collapsible resource groups demo
 │   ├── perf.html               # Performance test (200+ tasks)
-│   ├── profiler.html           # Performance profiling tool
-│   ├── arrow.html, bar.html    # Component demos
-│   └── constraint.html, showcase.html
-├── vanilla/                    # Legacy vanilla JS (archived)
-│   ├── src/                    # Original JS source
-│   └── examples/               # Original demo
+│   ├── perf-isolate.html       # Feature isolation for benchmarking
+│   └── ...                     # Component demos (arrow, bar, constraint, etc.)
+├── benchmarks/
+│   ├── scripts/                # Shell scripts for running benchmarks
+│   ├── constraint/             # Constraint system benchmarks
+│   ├── profiler/               # Runtime profiling infrastructure
+│   └── traces/                 # Performance trace analysis and history
 ├── docs/
-│   ├── ARCHITECTURE.md         # Detailed SolidJS architecture
-│   └── SUBTASKS.md             # Subtask feature documentation
+│   ├── ARCHITECTURE.md         # Detailed architecture documentation
+│   ├── SUBTASKS.md             # Subtask feature documentation
+│   └── PERFORMANCE.md          # Performance optimization history
 └── [config files]
 ```
 
@@ -132,14 +133,14 @@ The SolidJS implementation includes a task generator for performance testing wit
 
 ### Quick Start
 ```bash
-pnpm run generate:calendar          # Generate 200 tasks
-pnpm run dev:solid                   # Start dev server
+pnpm generate:calendar          # Generate 200 tasks
+pnpm dev                        # Start dev server
 # Open http://localhost:5173/examples/perf.html
 ```
 
 ### Task Generator
 
-Located at `src/scripts/generateCalendar.js`, generates `src/data/calendar.json`.
+Located at `src/scripts/generateCalendar.js`, generates `src/data/generated/calendar.json`.
 
 **Features:**
 - Cross-resource dependency chains (tasks in a group span different resources A-Z)
@@ -186,15 +187,15 @@ node src/scripts/generateCalendar.js --tasks=10000 --resources=100 --dense  # St
 **Key Files:**
 - `src/utils/taskGenerator.js` - Shared generation logic
 - `src/scripts/generateCalendar.js` - CLI script
-- `src/data/calendar.json` - Generated test data
-- `src/components/GanttPerfDemo.jsx` - Performance test UI
+- `src/data/generated/calendar.json` - Generated test data
+- `src/demo/GanttPerfDemo.jsx` - Performance test UI
 
 ### Perf-Isolate (Feature Isolation Testing)
 
 For progressive performance testing, use the perf-isolate harness:
 
 ```bash
-pnpm run dev:solid
+pnpm dev
 # Open http://localhost:5173/examples/perf-isolate.html?bar=nochildren&test=horizontal
 ```
 
@@ -216,12 +217,12 @@ pnpm run dev:solid
 ?bar=nochildren&headers=1&test=horizontal
 ```
 
-See `perf-traces/ANALYSIS.md` for current best practices and benchmark results.
+See `benchmarks/traces/ANALYSIS.md` for current best practices and benchmark results.
 
 ## Development Workflow
 
 1. Clone and run `pnpm i`
-2. Run `pnpm run dev:solid` to start the development server
+2. Run `pnpm dev` to start the development server
 3. Open http://localhost:5173/examples/ to see the demo hub
 4. Edit source files in `src/` - Vite automatically reloads
 

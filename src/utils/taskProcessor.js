@@ -1,6 +1,6 @@
 import date_utils from './date_utils.js';
 import { computeX, computeY, computeWidth } from './barCalculations.js';
-import { detectCycles } from './constraintResolver.js';
+import { detectCycles } from './constraintEngine.js';
 
 /**
  * Generate a unique ID for a task.

@@ -1,0 +1,1120 @@
+{
+  "generated": "2025-12-29T12:53:41.247Z",
+  "topology": "balanced",
+  "config": {
+    "totalTasks": 50,
+    "targetDeps": 100,
+    "seed": 12345,
+    "startDate": "2025-01-01",
+    "workdayStartHour": 8,
+    "workdayEndHour": 17,
+    "minDuration": 0.08,
+    "maxDuration": 0.15,
+    "resourceCount": 100
+  },
+  "stats": {
+    "tasks": 50,
+    "dependencies": 100,
+    "roots": 5,
+    "maxDepth": 8,
+    "maxBreadth": 7,
+    "avgBreadth": "2.44",
+    "resources": 10
+  },
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "R1-1",
+      "start": "2025-01-01 08:00",
+      "end": "2025-01-01 08:07",
+      "progress": 0,
+      "color": "#3b82f6",
+      "color_progress": "#3b82f6cc",
+      "color_bg": "rgba(59,130,246,0.15)",
+      "color_fill": "rgba(59,130,246,0.3)",
+      "resource": "A"
+    },
+    {
+      "id": "task-2",
+      "name": "R1-2",
+      "start": "2025-01-01 08:07",
+      "end": "2025-01-01 08:13",
+      "progress": 0,
+      "color": "#3b82f6",
+      "color_progress": "#3b82f6cc",
+      "color_bg": "rgba(59,130,246,0.15)",
+      "color_fill": "rgba(59,130,246,0.3)",
+      "resource": "A",
+      "dependencies": [
+        {
+          "id": "task-1",
+          "type": "FS"
+        }
+      ]
+    },
+    {
+      "id": "task-3",
+      "name": "R1-3",
+      "start": "2025-01-01 08:13",
+      "end": "2025-01-01 08:21",
+      "progress": 0,
+      "color": "#3b82f6",
+      "color_progress": "#3b82f6cc",
+      "color_bg": "rgba(59,130,246,0.15)",
+      "color_fill": "rgba(59,130,246,0.3)",
+      "resource": "A",
+      "dependencies": [
+        {
+          "id": "task-2",
+          "type": "FS"
+        }
+      ]
+    },
+    {
+      "id": "task-4",
+      "name": "R1-4",
+      "start": "2025-01-01 08:21",
+      "end": "2025-01-01 08:30",
+      "progress": 0,
+      "color": "#3b82f6",
+      "color_progress": "#3b82f6cc",
+      "color_bg": "rgba(59,130,246,0.15)",
+      "color_fill": "rgba(59,130,246,0.3)",
+      "resource": "A",
+      "dependencies": [
+        {
+          "id": "task-3",
+          "type": "FS"
+        }
+      ]
+    },
+    {
+      "id": "task-5",
+      "name": "R1-5",
+      "start": "2025-01-01 08:30",
+      "end": "2025-01-01 08:37",
+      "progress": 0,
+      "color": "#3b82f6",
+      "color_progress": "#3b82f6cc",
+      "color_bg": "rgba(59,130,246,0.15)",
+      "color_fill": "rgba(59,130,246,0.3)",
+      "resource": "A",
+      "dependencies": [
+        {
+          "id": "task-4",
+          "type": "FS"
+        }
+      ]
+    },
+    {
+      "id": "task-6",
+      "name": "R2-1",
+      "start": "2025-01-01 08:00",
+      "end": "2025-01-01 08:07",
+      "progress": 0,
+      "color": "#ef4444",
+      "color_progress": "#ef4444cc",
+      "color_bg": "rgba(239,68,68,0.15)",
+      "color_fill": "rgba(239,68,68,0.3)",
+      "resource": "B",
+      "dependencies": []
+    },
+    {
+      "id": "task-7",
+      "name": "R2-2",
+      "start": "2025-01-01 08:07",
+      "end": "2025-01-01 08:13",
+      "progress": 0,
+      "color": "#ef4444",
+      "color_progress": "#ef4444cc",
+      "color_bg": "rgba(239,68,68,0.15)",
+      "color_fill": "rgba(239,68,68,0.3)",
+      "resource": "B",
+      "dependencies": [
+        {
+          "id": "task-6",
+          "type": "FS"
+        },
+        {
+          "id": "task-1",
+          "type": "FS"
+        }
+      ]
+    },
+    {
+      "id": "task-8",
+      "name": "R2-3",
+      "start": "2025-01-01 08:13",
+      "end": "2025-01-01 08:21",
+      "progress": 0,
+      "color": "#ef4444",
+      "color_progress": "#ef4444cc",
+      "color_bg": "rgba(239,68,68,0.15)",
+      "color_fill": "rgba(239,68,68,0.3)",
+      "resource": "B",
+      "dependencies": [
+        {
+          "id": "task-7",
+          "type": "FS"
+        }
+      ]
+    },
+    {
+      "id": "task-9",
+      "name": "R2-4",
+      "start": "2025-01-01 08:21",
+      "end": "2025-01-01 08:29",
+      "progress": 0,
+      "color": "#ef4444",
+      "color_progress": "#ef4444cc",
+      "color_bg": "rgba(239,68,68,0.15)",
+      "color_fill": "rgba(239,68,68,0.3)",
+      "resource": "B",
+      "dependencies": [
+        {
+          "id": "task-8",
+          "type": "FS"
+        },
+        {
+          "id": "task-3",
+          "type": "FS"
+        }
+      ]
+    },
+    {
+      "id": "task-10",
+      "name": "R2-5",
+      "start": "2025-01-01 08:29",
+      "end": "2025-01-01 08:37",
+      "progress": 0,
+      "color": "#ef4444",
+      "color_progress": "#ef4444cc",
+      "color_bg": "rgba(239,68,68,0.15)",
+      "color_fill": "rgba(239,68,68,0.3)",
+      "resource": "B",
+      "dependencies": [
+        {
+          "id": "task-9",
+          "type": "FS"
+        },
+        {
+          "id": "task-4",
+          "type": "SS"
+        },
+        {
+          "id": "task-3",
+          "type": "SS"
+        }
+      ]
+    },
+    {
+      "id": "task-11",
+      "name": "R3-1",
+      "start": "2025-01-01 08:00",
+      "end": "2025-01-01 08:07",
+      "progress": 0,
+      "color": "#10b981",
+      "color_progress": "#10b981cc",
+      "color_bg": "rgba(16,185,129,0.15)",
+      "color_fill": "rgba(16,185,129,0.3)",
+      "resource": "C",
+      "dependencies": []
+    },
+    {
+      "id": "task-12",
+      "name": "R3-2",
+      "start": "2025-01-01 08:07",
+      "end": "2025-01-01 08:14",
+      "progress": 0,
+      "color": "#10b981",
+      "color_progress": "#10b981cc",
+      "color_bg": "rgba(16,185,129,0.15)",
+      "color_fill": "rgba(16,185,129,0.3)",
+      "resource": "C",
+      "dependencies": [
+        {
+          "id": "task-11",
+          "type": "FS"
+        },
+        {
+          "id": "task-7",
+          "type": "SS"
+        }
+      ]
+    },
+    {
+      "id": "task-13",
+      "name": "R3-3",
+      "start": "2025-01-01 08:14",
+      "end": "2025-01-01 08:22",
+      "progress": 0,
+      "color": "#10b981",
+      "color_progress": "#10b981cc",
+      "color_bg": "rgba(16,185,129,0.15)",
+      "color_fill": "rgba(16,185,129,0.3)",
+      "resource": "C",
+      "dependencies": [
+        {
+          "id": "task-12",
+          "type": "FS"
+        },
+        {
+          "id": "task-7",
+          "type": "FS"
+        }
+      ]
+    },
+    {
+      "id": "task-14",
+      "name": "R3-4",
+      "start": "2025-01-01 08:22",
+      "end": "2025-01-01 08:27",
+      "progress": 0,
+      "color": "#10b981",
+      "color_progress": "#10b981cc",
+      "color_bg": "rgba(16,185,129,0.15)",
+      "color_fill": "rgba(16,185,129,0.3)",
+      "resource": "C",
+      "dependencies": [
+        {
+          "id": "task-13",
+          "type": "FS"
+        },
+        {
+          "id": "task-9",
+          "type": "SS"
+        }
+      ]
+    },
+    {
+      "id": "task-15",
+      "name": "R3-5",
+      "start": "2025-01-01 08:27",
+      "end": "2025-01-01 08:35",
+      "progress": 0,
+      "color": "#10b981",
+      "color_progress": "#10b981cc",
+      "color_bg": "rgba(16,185,129,0.15)",
+      "color_fill": "rgba(16,185,129,0.3)",
+      "resource": "C",
+      "dependencies": [
+        {
+          "id": "task-14",
+          "type": "FS"
+        },
+        {
+          "id": "task-1",
+          "type": "FS"
+        },
+        {
+          "id": "task-2",
+          "type": "FS"
+        },
+        {
+          "id": "task-3",
+          "type": "FS"
+        },
+        {
+          "id": "task-4",
+          "type": "SS"
+        }
+      ]
+    },
+    {
+      "id": "task-16",
+      "name": "R4-1",
+      "start": "2025-01-01 08:00",
+      "end": "2025-01-01 08:05",
+      "progress": 0,
+      "color": "#f59e0b",
+      "color_progress": "#f59e0bcc",
+      "color_bg": "rgba(245,158,11,0.15)",
+      "color_fill": "rgba(245,158,11,0.3)",
+      "resource": "D",
+      "dependencies": [
+        {
+          "id": "task-1",
+          "type": "SS"
+        }
+      ]
+    },
+    {
+      "id": "task-17",
+      "name": "R4-2",
+      "start": "2025-01-01 08:05",
+      "end": "2025-01-01 08:11",
+      "progress": 0,
+      "color": "#f59e0b",
+      "color_progress": "#f59e0bcc",
+      "color_bg": "rgba(245,158,11,0.15)",
+      "color_fill": "rgba(245,158,11,0.3)",
+      "resource": "D",
+      "dependencies": [
+        {
+          "id": "task-16",
+          "type": "FS"
+        }
+      ]
+    },
+    {
+      "id": "task-18",
+      "name": "R4-3",
+      "start": "2025-01-01 08:11",
+      "end": "2025-01-01 08:19",
+      "progress": 0,
+      "color": "#f59e0b",
+      "color_progress": "#f59e0bcc",
+      "color_bg": "rgba(245,158,11,0.15)",
+      "color_fill": "rgba(245,158,11,0.3)",
+      "resource": "D",
+      "dependencies": [
+        {
+          "id": "task-17",
+          "type": "FS"
+        },
+        {
+          "id": "task-12",
+          "type": "SS"
+        }
+      ]
+    },
+    {
+      "id": "task-19",
+      "name": "R4-4",
+      "start": "2025-01-01 08:19",
+      "end": "2025-01-01 08:28",
+      "progress": 0,
+      "color": "#f59e0b",
+      "color_progress": "#f59e0bcc",
+      "color_bg": "rgba(245,158,11,0.15)",
+      "color_fill": "rgba(245,158,11,0.3)",
+      "resource": "D",
+      "dependencies": [
+        {
+          "id": "task-18",
+          "type": "FS"
+        },
+        {
+          "id": "task-13",
+          "type": "SS"
+        }
+      ]
+    },
+    {
+      "id": "task-20",
+      "name": "R4-5",
+      "start": "2025-01-01 08:28",
+      "end": "2025-01-01 08:36",
+      "progress": 0,
+      "color": "#f59e0b",
+      "color_progress": "#f59e0bcc",
+      "color_bg": "rgba(245,158,11,0.15)",
+      "color_fill": "rgba(245,158,11,0.3)",
+      "resource": "D",
+      "dependencies": [
+        {
+          "id": "task-19",
+          "type": "FS"
+        },
+        {
+          "id": "task-3",
+          "type": "SS"
+        }
+      ]
+    },
+    {
+      "id": "task-21",
+      "name": "R5-1",
+      "start": "2025-01-01 08:00",
+      "end": "2025-01-01 08:05",
+      "progress": 0,
+      "color": "#8b5cf6",
+      "color_progress": "#8b5cf6cc",
+      "color_bg": "rgba(139,92,246,0.15)",
+      "color_fill": "rgba(139,92,246,0.3)",
+      "resource": "E",
+      "dependencies": [
+        {
+          "id": "task-6",
+          "type": "SS"
+        },
+        {
+          "id": "task-1",
+          "type": "SS"
+        }
+      ]
+    },
+    {
+      "id": "task-22",
+      "name": "R5-2",
+      "start": "2025-01-01 08:05",
+      "end": "2025-01-01 08:12",
+      "progress": 0,
+      "color": "#8b5cf6",
+      "color_progress": "#8b5cf6cc",
+      "color_bg": "rgba(139,92,246,0.15)",
+      "color_fill": "rgba(139,92,246,0.3)",
+      "resource": "E",
+      "dependencies": [
+        {
+          "id": "task-21",
+          "type": "FS"
+        },
+        {
+          "id": "task-6",
+          "type": "SS"
+        }
+      ]
+    },
+    {
+      "id": "task-23",
+      "name": "R5-3",
+      "start": "2025-01-01 08:12",
+      "end": "2025-01-01 08:19",
+      "progress": 0,
+      "color": "#8b5cf6",
+      "color_progress": "#8b5cf6cc",
+      "color_bg": "rgba(139,92,246,0.15)",
+      "color_fill": "rgba(139,92,246,0.3)",
+      "resource": "E",
+      "dependencies": [
+        {
+          "id": "task-22",
+          "type": "FS"
+        },
+        {
+          "id": "task-2",
+          "type": "SS"
+        },
+        {
+          "id": "task-6",
+          "type": "FS"
+        }
+      ]
+    },
+    {
+      "id": "task-24",
+      "name": "R5-4",
+      "start": "2025-01-01 08:19",
+      "end": "2025-01-01 08:26",
+      "progress": 0,
+      "color": "#8b5cf6",
+      "color_progress": "#8b5cf6cc",
+      "color_bg": "rgba(139,92,246,0.15)",
+      "color_fill": "rgba(139,92,246,0.3)",
+      "resource": "E",
+      "dependencies": [
+        {
+          "id": "task-23",
+          "type": "FS"
+        },
+        {
+          "id": "task-12",
+          "type": "FS"
+        }
+      ]
+    },
+    {
+      "id": "task-25",
+      "name": "R5-5",
+      "start": "2025-01-01 08:26",
+      "end": "2025-01-01 08:32",
+      "progress": 0,
+      "color": "#8b5cf6",
+      "color_progress": "#8b5cf6cc",
+      "color_bg": "rgba(139,92,246,0.15)",
+      "color_fill": "rgba(139,92,246,0.3)",
+      "resource": "E",
+      "dependencies": [
+        {
+          "id": "task-24",
+          "type": "FS"
+        }
+      ]
+    },
+    {
+      "id": "task-26",
+      "name": "R6-1",
+      "start": "2025-01-01 08:00",
+      "end": "2025-01-01 08:06",
+      "progress": 0,
+      "color": "#ec4899",
+      "color_progress": "#ec4899cc",
+      "color_bg": "rgba(236,72,153,0.15)",
+      "color_fill": "rgba(236,72,153,0.3)",
+      "resource": "F",
+      "dependencies": [
+        {
+          "id": "task-16",
+          "type": "SS"
+        }
+      ]
+    },
+    {
+      "id": "task-27",
+      "name": "R6-2",
+      "start": "2025-01-01 08:06",
+      "end": "2025-01-01 08:15",
+      "progress": 0,
+      "color": "#ec4899",
+      "color_progress": "#ec4899cc",
+      "color_bg": "rgba(236,72,153,0.15)",
+      "color_fill": "rgba(236,72,153,0.3)",
+      "resource": "F",
+      "dependencies": [
+        {
+          "id": "task-26",
+          "type": "FS"
+        }
+      ]
+    },
+    {
+      "id": "task-28",
+      "name": "R6-3",
+      "start": "2025-01-01 08:15",
+      "end": "2025-01-01 08:23",
+      "progress": 0,
+      "color": "#ec4899",
+      "color_progress": "#ec4899cc",
+      "color_bg": "rgba(236,72,153,0.15)",
+      "color_fill": "rgba(236,72,153,0.3)",
+      "resource": "F",
+      "dependencies": [
+        {
+          "id": "task-27",
+          "type": "FS"
+        },
+        {
+          "id": "task-18",
+          "type": "SS"
+        },
+        {
+          "id": "task-2",
+          "type": "FS"
+        }
+      ]
+    },
+    {
+      "id": "task-29",
+      "name": "R6-4",
+      "start": "2025-01-01 08:23",
+      "end": "2025-01-01 08:30",
+      "progress": 0,
+      "color": "#ec4899",
+      "color_progress": "#ec4899cc",
+      "color_bg": "rgba(236,72,153,0.15)",
+      "color_fill": "rgba(236,72,153,0.3)",
+      "resource": "F",
+      "dependencies": [
+        {
+          "id": "task-28",
+          "type": "FS"
+        },
+        {
+          "id": "task-19",
+          "type": "SS"
+        },
+        {
+          "id": "task-24",
+          "type": "SS"
+        },
+        {
+          "id": "task-17",
+          "type": "FS"
+        },
+        {
+          "id": "task-11",
+          "type": "SS"
+        },
+        {
+          "id": "task-13",
+          "type": "SS"
+        },
+        {
+          "id": "task-23",
+          "type": "SS"
+        },
+        {
+          "id": "task-2",
+          "type": "FS"
+        }
+      ]
+    },
+    {
+      "id": "task-30",
+      "name": "R6-5",
+      "start": "2025-01-01 08:30",
+      "end": "2025-01-01 08:36",
+      "progress": 0,
+      "color": "#ec4899",
+      "color_progress": "#ec4899cc",
+      "color_bg": "rgba(236,72,153,0.15)",
+      "color_fill": "rgba(236,72,153,0.3)",
+      "resource": "F",
+      "dependencies": [
+        {
+          "id": "task-29",
+          "type": "FS"
+        },
+        {
+          "id": "task-19",
+          "type": "FS"
+        },
+        {
+          "id": "task-16",
+          "type": "FS"
+        },
+        {
+          "id": "task-18",
+          "type": "SS"
+        }
+      ]
+    },
+    {
+      "id": "task-31",
+      "name": "R7-1",
+      "start": "2025-01-01 08:00",
+      "end": "2025-01-01 08:08",
+      "progress": 0,
+      "color": "#06b6d4",
+      "color_progress": "#06b6d4cc",
+      "color_bg": "rgba(6,182,212,0.15)",
+      "color_fill": "rgba(6,182,212,0.3)",
+      "resource": "G",
+      "dependencies": [
+        {
+          "id": "task-26",
+          "type": "SS"
+        }
+      ]
+    },
+    {
+      "id": "task-32",
+      "name": "R7-2",
+      "start": "2025-01-01 08:08",
+      "end": "2025-01-01 08:13",
+      "progress": 0,
+      "color": "#06b6d4",
+      "color_progress": "#06b6d4cc",
+      "color_bg": "rgba(6,182,212,0.15)",
+      "color_fill": "rgba(6,182,212,0.3)",
+      "resource": "G",
+      "dependencies": [
+        {
+          "id": "task-31",
+          "type": "FS"
+        },
+        {
+          "id": "task-12",
+          "type": "SS"
+        }
+      ]
+    },
+    {
+      "id": "task-33",
+      "name": "R7-3",
+      "start": "2025-01-01 08:13",
+      "end": "2025-01-01 08:19",
+      "progress": 0,
+      "color": "#06b6d4",
+      "color_progress": "#06b6d4cc",
+      "color_bg": "rgba(6,182,212,0.15)",
+      "color_fill": "rgba(6,182,212,0.3)",
+      "resource": "G",
+      "dependencies": [
+        {
+          "id": "task-32",
+          "type": "FS"
+        },
+        {
+          "id": "task-27",
+          "type": "SS"
+        },
+        {
+          "id": "task-23",
+          "type": "SS"
+        },
+        {
+          "id": "task-16",
+          "type": "FS"
+        },
+        {
+          "id": "task-11",
+          "type": "FS"
+        }
+      ]
+    },
+    {
+      "id": "task-34",
+      "name": "R7-4",
+      "start": "2025-01-01 08:19",
+      "end": "2025-01-01 08:25",
+      "progress": 0,
+      "color": "#06b6d4",
+      "color_progress": "#06b6d4cc",
+      "color_bg": "rgba(6,182,212,0.15)",
+      "color_fill": "rgba(6,182,212,0.3)",
+      "resource": "G",
+      "dependencies": [
+        {
+          "id": "task-33",
+          "type": "FS"
+        }
+      ]
+    },
+    {
+      "id": "task-35",
+      "name": "R7-5",
+      "start": "2025-01-01 08:25",
+      "end": "2025-01-01 08:31",
+      "progress": 0,
+      "color": "#06b6d4",
+      "color_progress": "#06b6d4cc",
+      "color_bg": "rgba(6,182,212,0.15)",
+      "color_fill": "rgba(6,182,212,0.3)",
+      "resource": "G",
+      "dependencies": [
+        {
+          "id": "task-34",
+          "type": "FS"
+        },
+        {
+          "id": "task-6",
+          "type": "FS"
+        }
+      ]
+    },
+    {
+      "id": "task-36",
+      "name": "R8-1",
+      "start": "2025-01-01 08:00",
+      "end": "2025-01-01 08:06",
+      "progress": 0,
+      "color": "#84cc16",
+      "color_progress": "#84cc16cc",
+      "color_bg": "rgba(132,204,22,0.15)",
+      "color_fill": "rgba(132,204,22,0.3)",
+      "resource": "H",
+      "dependencies": []
+    },
+    {
+      "id": "task-37",
+      "name": "R8-2",
+      "start": "2025-01-01 08:06",
+      "end": "2025-01-01 08:15",
+      "progress": 0,
+      "color": "#84cc16",
+      "color_progress": "#84cc16cc",
+      "color_bg": "rgba(132,204,22,0.15)",
+      "color_fill": "rgba(132,204,22,0.3)",
+      "resource": "H",
+      "dependencies": [
+        {
+          "id": "task-36",
+          "type": "FS"
+        },
+        {
+          "id": "task-22",
+          "type": "SS"
+        },
+        {
+          "id": "task-6",
+          "type": "SS"
+        },
+        {
+          "id": "task-26",
+          "type": "FS"
+        }
+      ]
+    },
+    {
+      "id": "task-38",
+      "name": "R8-3",
+      "start": "2025-01-01 08:15",
+      "end": "2025-01-01 08:22",
+      "progress": 0,
+      "color": "#84cc16",
+      "color_progress": "#84cc16cc",
+      "color_bg": "rgba(132,204,22,0.15)",
+      "color_fill": "rgba(132,204,22,0.3)",
+      "resource": "H",
+      "dependencies": [
+        {
+          "id": "task-37",
+          "type": "FS"
+        }
+      ]
+    },
+    {
+      "id": "task-39",
+      "name": "R8-4",
+      "start": "2025-01-01 08:22",
+      "end": "2025-01-01 08:30",
+      "progress": 0,
+      "color": "#84cc16",
+      "color_progress": "#84cc16cc",
+      "color_bg": "rgba(132,204,22,0.15)",
+      "color_fill": "rgba(132,204,22,0.3)",
+      "resource": "H",
+      "dependencies": [
+        {
+          "id": "task-38",
+          "type": "FS"
+        },
+        {
+          "id": "task-21",
+          "type": "SS"
+        },
+        {
+          "id": "task-7",
+          "type": "SS"
+        }
+      ]
+    },
+    {
+      "id": "task-40",
+      "name": "R8-5",
+      "start": "2025-01-01 08:30",
+      "end": "2025-01-01 08:36",
+      "progress": 0,
+      "color": "#84cc16",
+      "color_progress": "#84cc16cc",
+      "color_bg": "rgba(132,204,22,0.15)",
+      "color_fill": "rgba(132,204,22,0.3)",
+      "resource": "H",
+      "dependencies": [
+        {
+          "id": "task-39",
+          "type": "FS"
+        },
+        {
+          "id": "task-30",
+          "type": "SS"
+        },
+        {
+          "id": "task-28",
+          "type": "FS"
+        },
+        {
+          "id": "task-13",
+          "type": "FS"
+        }
+      ]
+    },
+    {
+      "id": "task-41",
+      "name": "R9-1",
+      "start": "2025-01-01 08:00",
+      "end": "2025-01-01 08:06",
+      "progress": 0,
+      "color": "#f97316",
+      "color_progress": "#f97316cc",
+      "color_bg": "rgba(249,115,22,0.15)",
+      "color_fill": "rgba(249,115,22,0.3)",
+      "resource": "I",
+      "dependencies": []
+    },
+    {
+      "id": "task-42",
+      "name": "R9-2",
+      "start": "2025-01-01 08:06",
+      "end": "2025-01-01 08:15",
+      "progress": 0,
+      "color": "#f97316",
+      "color_progress": "#f97316cc",
+      "color_bg": "rgba(249,115,22,0.15)",
+      "color_fill": "rgba(249,115,22,0.3)",
+      "resource": "I",
+      "dependencies": [
+        {
+          "id": "task-41",
+          "type": "FS"
+        }
+      ]
+    },
+    {
+      "id": "task-43",
+      "name": "R9-3",
+      "start": "2025-01-01 08:15",
+      "end": "2025-01-01 08:23",
+      "progress": 0,
+      "color": "#f97316",
+      "color_progress": "#f97316cc",
+      "color_bg": "rgba(249,115,22,0.15)",
+      "color_fill": "rgba(249,115,22,0.3)",
+      "resource": "I",
+      "dependencies": [
+        {
+          "id": "task-42",
+          "type": "FS"
+        },
+        {
+          "id": "task-36",
+          "type": "SS"
+        }
+      ]
+    },
+    {
+      "id": "task-44",
+      "name": "R9-4",
+      "start": "2025-01-01 08:23",
+      "end": "2025-01-01 08:29",
+      "progress": 0,
+      "color": "#f97316",
+      "color_progress": "#f97316cc",
+      "color_bg": "rgba(249,115,22,0.15)",
+      "color_fill": "rgba(249,115,22,0.3)",
+      "resource": "I",
+      "dependencies": [
+        {
+          "id": "task-43",
+          "type": "FS"
+        },
+        {
+          "id": "task-38",
+          "type": "SS"
+        },
+        {
+          "id": "task-6",
+          "type": "FS"
+        },
+        {
+          "id": "task-17",
+          "type": "SS"
+        },
+        {
+          "id": "task-11",
+          "type": "FS"
+        }
+      ]
+    },
+    {
+      "id": "task-45",
+      "name": "R9-5",
+      "start": "2025-01-01 08:29",
+      "end": "2025-01-01 08:36",
+      "progress": 0,
+      "color": "#f97316",
+      "color_progress": "#f97316cc",
+      "color_bg": "rgba(249,115,22,0.15)",
+      "color_fill": "rgba(249,115,22,0.3)",
+      "resource": "I",
+      "dependencies": [
+        {
+          "id": "task-44",
+          "type": "FS"
+        }
+      ]
+    },
+    {
+      "id": "task-46",
+      "name": "R10-1",
+      "start": "2025-01-01 08:00",
+      "end": "2025-01-01 08:08",
+      "progress": 0,
+      "color": "#6366f1",
+      "color_progress": "#6366f1cc",
+      "color_bg": "rgba(99,102,241,0.15)",
+      "color_fill": "rgba(99,102,241,0.3)",
+      "resource": "J",
+      "dependencies": [
+        {
+          "id": "task-41",
+          "type": "SS"
+        }
+      ]
+    },
+    {
+      "id": "task-47",
+      "name": "R10-2",
+      "start": "2025-01-01 08:08",
+      "end": "2025-01-01 08:16",
+      "progress": 0,
+      "color": "#6366f1",
+      "color_progress": "#6366f1cc",
+      "color_bg": "rgba(99,102,241,0.15)",
+      "color_fill": "rgba(99,102,241,0.3)",
+      "resource": "J",
+      "dependencies": [
+        {
+          "id": "task-46",
+          "type": "FS"
+        },
+        {
+          "id": "task-32",
+          "type": "SS"
+        },
+        {
+          "id": "task-26",
+          "type": "FS"
+        }
+      ]
+    },
+    {
+      "id": "task-48",
+      "name": "R10-3",
+      "start": "2025-01-01 08:16",
+      "end": "2025-01-01 08:21",
+      "progress": 0,
+      "color": "#6366f1",
+      "color_progress": "#6366f1cc",
+      "color_bg": "rgba(99,102,241,0.15)",
+      "color_fill": "rgba(99,102,241,0.3)",
+      "resource": "J",
+      "dependencies": [
+        {
+          "id": "task-47",
+          "type": "FS"
+        }
+      ]
+    },
+    {
+      "id": "task-49",
+      "name": "R10-4",
+      "start": "2025-01-01 08:21",
+      "end": "2025-01-01 08:28",
+      "progress": 0,
+      "color": "#6366f1",
+      "color_progress": "#6366f1cc",
+      "color_bg": "rgba(99,102,241,0.15)",
+      "color_fill": "rgba(99,102,241,0.3)",
+      "resource": "J",
+      "dependencies": [
+        {
+          "id": "task-48",
+          "type": "FS"
+        },
+        {
+          "id": "task-18",
+          "type": "SS"
+        },
+        {
+          "id": "task-21",
+          "type": "SS"
+        }
+      ]
+    },
+    {
+      "id": "task-50",
+      "name": "R10-5",
+      "start": "2025-01-01 08:28",
+      "end": "2025-01-01 08:33",
+      "progress": 0,
+      "color": "#6366f1",
+      "color_progress": "#6366f1cc",
+      "color_bg": "rgba(99,102,241,0.15)",
+      "color_fill": "rgba(99,102,241,0.3)",
+      "resource": "J",
+      "dependencies": [
+        {
+          "id": "task-49",
+          "type": "FS"
+        },
+        {
+          "id": "task-36",
+          "type": "FS"
+        }
+      ]
+    }
+  ]
+}

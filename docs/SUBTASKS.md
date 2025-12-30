@@ -205,7 +205,7 @@ const { tasks, resources, expandedTasks } = generateSubtaskDemo({
 Run the subtask demo:
 
 ```bash
-pnpm run dev:solid
+pnpm dev
 # Open http://localhost:5173/examples/subtask.html
 ```
 

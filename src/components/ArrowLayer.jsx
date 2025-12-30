@@ -1,6 +1,6 @@
 import { For, createMemo, untrack } from 'solid-js';
 import { Arrow } from './Arrow.jsx';
-import { prof } from '../perf/profiler.js';
+import { prof } from '../utils/profiler.js';
 
 /**
  * ArrowLayer - Container for all dependency arrows.

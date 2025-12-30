@@ -1,4 +1,4 @@
 import { render } from 'solid-js/web';
-import ShowcaseDemo from '../components/ShowcaseDemo.jsx';
+import ShowcaseDemo from '../demo/ShowcaseDemo.jsx';
 
 render(() => <ShowcaseDemo />, document.getElementById('app'));

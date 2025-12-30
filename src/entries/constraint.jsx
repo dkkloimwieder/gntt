@@ -1,5 +1,5 @@
 import { render } from 'solid-js/web';
-import { ConstraintDemo } from '../components/ConstraintDemo';
+import { ConstraintDemo } from '../demo/ConstraintDemo';
 
 const root = document.getElementById('app');
 

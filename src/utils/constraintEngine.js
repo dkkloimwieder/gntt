@@ -807,6 +807,61 @@ export function resolveConstraints(taskId, proposedX, proposedWidth, context) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// CYCLE DETECTION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Detect cycles in the dependency graph using DFS with color marking.
+ *
+ * @param {Array} relationships - Array of { from, to } relationship objects
+ * @returns {{ hasCycle: boolean, cycle: string[] }} Result with cycle path if found
+ */
+export function detectCycles(relationships) {
+    // Build adjacency list
+    const graph = new Map();
+    for (const rel of relationships) {
+        if (!graph.has(rel.from)) graph.set(rel.from, []);
+        graph.get(rel.from).push(rel.to);
+        // Ensure all nodes are in the graph
+        if (!graph.has(rel.to)) graph.set(rel.to, []);
+    }
+
+    // DFS with color marking: 0=unvisited, 1=in progress, 2=done
+    const color = new Map();
+    const parent = new Map();
+
+    function dfs(node, path) {
+        color.set(node, 1); // Mark as in progress
+
+        for (const neighbor of graph.get(node) || []) {
+            if (color.get(neighbor) === 1) {
+                // Found cycle - reconstruct path
+                const cycleStart = path.indexOf(neighbor);
+                const cycle = [...path.slice(cycleStart), neighbor];
+                return { hasCycle: true, cycle };
+            }
+            if (color.get(neighbor) === 0 || !color.has(neighbor)) {
+                const result = dfs(neighbor, [...path, neighbor]);
+                if (result.hasCycle) return result;
+            }
+        }
+
+        color.set(node, 2); // Mark as done
+        return { hasCycle: false, cycle: [] };
+    }
+
+    // Check all nodes (handles disconnected components)
+    for (const node of graph.keys()) {
+        if (!color.has(node) || color.get(node) === 0) {
+            const result = dfs(node, [node]);
+            if (result.hasCycle) return result;
+        }
+    }
+
+    return { hasCycle: false, cycle: [] };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // EXPORTS (for backwards compatibility)
 // ═══════════════════════════════════════════════════════════════════════════════
 

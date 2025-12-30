@@ -2,7 +2,7 @@
 
 **Last Updated**: December 29, 2025 (Constraint engine rewrite - iterative relaxation algorithm for correct cascade resolution)
 
-This document describes the SolidJS implementation of Frappe Gantt, which is now the primary codebase. The vanilla JavaScript implementation has been archived in `vanilla/`.
+This document describes the SolidJS Gantt chart implementation.
 
 ---
 
@@ -661,7 +661,7 @@ Iterative relaxation re-evaluates each task against ALL predecessors on every it
 
 ### Date Utilities (`date_utils.js`)
 
-Date manipulation functions (unchanged from vanilla).
+Date manipulation functions.
 
 | Function | Description |
 |----------|-------------|
@@ -750,7 +750,7 @@ Full-featured Gantt chart demonstration with real task data.
 | Documentation | task-2 | User docs (parallel with dev) |
 | Deployment | task-4, task-5 | Final deployment |
 
-**Run**: `pnpm run dev:solid` → http://localhost:5173/examples/gantt.html
+**Run**: `pnpm dev` → http://localhost:5173/examples/gantt.html
 
 ---
 
@@ -767,7 +767,7 @@ Interactive props showcase for all task and connector configuration options.
 - Global settings (readonly modes, grid snap)
 - 4 linked tasks demonstrating constraint chains
 
-**Run**: `pnpm run dev:solid` → http://localhost:5173/examples/showcase.html
+**Run**: `pnpm dev` → http://localhost:5173/examples/showcase.html
 
 ---
 
@@ -784,7 +784,7 @@ Demonstrates collapsible resource groups for organizing tasks by team.
 - Tasks assigned to individual resources within groups
 - Arrows hidden when connected to collapsed groups
 
-**Run**: `pnpm run dev:solid` → http://localhost:5173/examples/resource-groups.html
+**Run**: `pnpm dev` → http://localhost:5173/examples/resource-groups.html
 
 ---
 
@@ -824,7 +824,7 @@ The `--dense` flag generates tightly packed tasks for stress testing:
 - ~30% cross-row dependencies (arrows spanning multiple rows)
 - Short durations (1-5 hours) for more tasks in viewport
 
-**Run**: `pnpm run dev:solid` → http://localhost:5173/examples/perf.html
+**Run**: `pnpm dev` → http://localhost:5173/examples/perf.html
 
 ---
 
@@ -995,7 +995,7 @@ This creates a visual distinction:
 pnpm i
 
 # Start SolidJS development server
-pnpm run dev:solid
+pnpm dev
 
 # Open demos:
 # http://localhost:5173/examples/           - Demo hub (index)
@@ -1042,11 +1042,10 @@ pnpm prettier    # Format code
 
 ### What's Pending
 
-1. **Public API Wrapper**: Compatibility layer for vanilla API (`new Gantt()`)
+1. **Public API Wrapper**: Compatibility layer for imperative API (`new Gantt()`)
 2. **Infinite Padding**: Timeline extension on scroll edges
 3. **View Mode Switching**: Hour/Day/Week/Month/Year support (currently Day only)
-4. **Cleanup**: Remove legacy adapters, consolidate demo components
-5. **Grid line fix**: Missing horizontal line between row A and B (first row top border issue)
+4. **Grid line fix**: Missing horizontal line between row A and B (first row top border issue)
 
 ### Performance Optimizations Implemented
 

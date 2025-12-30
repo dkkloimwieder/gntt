@@ -9,7 +9,7 @@ import {
     resolveAfterResize,
 } from '../utils/constraintResolver.js';
 import { collectDescendants } from '../utils/hierarchyProcessor.js';
-import { prof } from '../perf/profiler.js';
+import { prof } from '../utils/profiler.js';
 
 // Pool sizing: We maintain a pool slightly larger than visible count.
 // This provides buffer for smooth scrolling while avoiding constant DOM creation.

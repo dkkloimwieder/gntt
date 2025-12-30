@@ -6,13 +6,14 @@
     "module": "dist/ganttss.es.js",
     "type": "module",
     "scripts": {
-        "dev": "vite --config config/vite/vanilla.js",
-        "dev:solid": "vite --config config/vite/solid.js",
-        "build": "vite build --config config/vite/vanilla.js",
-        "build:solid": "vite build --config config/vite/solid.js",
+        "dev": "vite --config config/vite/solid.js",
+        "build": "vite build --config config/vite/solid.js",
         "build:demo": "vite build --config config/vite/demo.js",
         "preview:demo": "vite preview --config config/vite/demo.js --port 4173",
         "generate:calendar": "node src/scripts/generateCalendar.js",
+        "generate:topology": "node src/scripts/generateTopology.js",
+        "bench": "node benchmarks/constraint/constraintBench.js",
+        "bench:scaling": "node benchmarks/constraint/scalingTest.js",
         "lint": "eslint \"src/**/*.{js,jsx}\"",
         "prettier": "prettier --write \"src/**/*.{js,jsx}\" \"tests/**/*.js\"",
         "prettier-check": "prettier --check \"src/**/*.{js,jsx}\" \"tests/**/*.js\""

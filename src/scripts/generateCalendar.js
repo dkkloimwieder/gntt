@@ -113,7 +113,7 @@ console.log('Generating calendar with config:', config);
 const tasks = generateCalendar(config);
 
 // Ensure data directory exists
-const dataDir = resolve(__dirname, '../data');
+const dataDir = resolve(__dirname, '../data/generated');
 mkdirSync(dataDir, { recursive: true });
 
 // Build output object

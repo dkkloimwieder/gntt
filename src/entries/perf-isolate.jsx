@@ -1,4 +1,4 @@
 import { render } from 'solid-js/web';
-import { GanttPerfIsolate } from '../components/GanttPerfIsolate.jsx';
+import { GanttPerfIsolate } from '../demo/GanttPerfIsolate.jsx';
 
 render(() => <GanttPerfIsolate />, document.getElementById('app'));

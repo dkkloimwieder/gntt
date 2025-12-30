@@ -17,7 +17,7 @@ export { createResourceStore } from './stores/resourceStore.js';
 export { GanttEventsProvider, useGanttEvents } from './contexts/GanttEvents.jsx';
 
 // Utilities
-export { resolveMovement, detectCycles } from './utils/constraintResolver.js';
+export { resolveConstraints, calculateCascadeUpdates } from './utils/constraintEngine.js';
 export { buildHierarchy, collectDescendants } from './utils/hierarchyProcessor.js';
 export { generateSubtaskDemo } from './utils/subtaskGenerator.js';
 

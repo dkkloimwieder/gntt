@@ -653,7 +653,7 @@ function generateAndSave(topology, config, outputFile) {
     const { tasks, stats } = result;
 
     // Ensure data directory exists
-    const dataDir = resolve(__dirname, '../data');
+    const dataDir = resolve(__dirname, '../data/generated');
     mkdirSync(dataDir, { recursive: true });
 
     // Build output

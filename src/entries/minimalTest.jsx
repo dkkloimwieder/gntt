@@ -1,4 +1,4 @@
 import { render } from 'solid-js/web';
-import { GanttMinimalTest } from '../components/GanttMinimalTest.jsx';
+import { GanttMinimalTest } from '../demo/GanttMinimalTest.jsx';
 
 render(() => <GanttMinimalTest />, document.getElementById('app'));

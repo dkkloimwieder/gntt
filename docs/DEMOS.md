@@ -8,7 +8,7 @@ Comprehensive reference for all demo pages. Last updated: 2025-12-23.
 
 ```bash
 # Development
-pnpm run dev:solid
+pnpm dev
 # Open http://localhost:5173/examples/
 
 # Production (for benchmarking)

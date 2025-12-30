@@ -2,7 +2,7 @@ import { render, Dynamic } from 'solid-js/web';
 import { createSignal, createMemo, Index, Show, onMount, onCleanup, createContext, useContext, createEffect } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import { createRAF } from '@solid-primitives/raf';
-import calendarData from '../data/calendar.json';
+import calendarData from '../data/generated/calendar.json';
 import { useDrag } from '../hooks/useDrag.js';
 
 // Mock context (like GanttEvents in real app)

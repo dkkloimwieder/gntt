@@ -13,7 +13,7 @@ For benchmark results and current best practices, see [perf-traces/ANALYSIS.md](
 ## Quick Start
 
 ```bash
-pnpm run dev:solid
+pnpm dev
 # Open http://localhost:5173/examples/experiments.html
 ```
 

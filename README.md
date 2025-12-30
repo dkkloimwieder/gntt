@@ -1,22 +1,16 @@
 <div align="center" markdown="1">
     <img src=".github/gantt-logo.jpg" width="80">
-    <h1>Frappe Gantt</h1>
+    <h1>Gantt</h1>
 
 **A modern, configurable, Gantt library for the web.**
 </div>
 
 ![Hero Image](.github/hero-image.png)
 
-## Frappe Gantt
-Gantt charts are bar charts that visually illustrate a project's tasks, schedule, and dependencies. With Frappe Gantt, you can build beautiful, customizable, Gantt charts with ease.
+## Overview
+Gantt charts are bar charts that visually illustrate a project's tasks, schedule, and dependencies. With this library, you can build beautiful, customizable, Gantt charts with ease.
 
-You can use it anywhere from hobby projects to tracking the goals of your team at the worksplace.
-
-[ERPNext](https://erpnext.com/) uses Frappe Gantt.
-
-
-### Motivation
-We needed a Gantt View for ERPNext. Surprisingly, we couldn't find a visually appealing Gantt library that was open source - so we decided to build it. Initially, the design was heavily inspired by Google Gantt and DHTMLX.
+You can use it anywhere from hobby projects to tracking the goals of your team at the workplace.
 
 
 ### Key Features
@@ -58,38 +52,8 @@ function App() {
 }
 ```
 
-## Usage (Vanilla JS - Legacy)
-
-Include it in your HTML:
-
-```html
-<script src="ganttss.umd.js"></script>
-<link rel="stylesheet" href="ganttss.css">
-```
-
-Or from the CDN:
-```html
-<script src="https://cdn.jsdelivr.net/npm/ganttss/dist/ganttss.umd.js"></script>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ganttss/dist/ganttss.css">
-```
-
-Start using Gantt:
-```js
-let tasks = [
-  {
-    id: '1',
-    name: 'Redesign website',
-    start: '2016-12-28',
-    end: '2016-12-31',
-    progress: 20
-  },
-  ...
-]
-let gantt = new Gantt("#gantt", tasks);
-```
-
 ### Configuration
-Frappe Gantt offers a wide range of options to customize your chart.
+The library offers a wide range of options to customize your chart.
 
 
 | **Option**               | **Description**                                                                 | **Possible Values**                                 | **Default**                        |
@@ -155,7 +119,7 @@ The function receives one object as an argument, containing:
 - `add_action` (function) - accepts two parameters, `html` and `func` - respectively determining the HTML of the action and the callback when the action is pressed.
 
 ### API
-Frappe Gantt exposes a few helpful methods for you to interact with the chart:
+The library exposes a few helpful methods for you to interact with the chart:
 
 | **Name**               | **Description**                                                                 | **Parameters**                            |
 |---------------------------|---------------------------------------------------------------------------------|------------------------------------------|
@@ -170,22 +134,11 @@ If you want to contribute enhancements or fixes:
 1. Clone this repo.
 2. `cd` into project directory.
 3. Run `pnpm i` to install dependencies.
-4. **SolidJS (primary)**: `pnpm run dev:solid` → Open http://localhost:5173/examples/
-5. **Vanilla JS (legacy)**: `pnpm run build` then open `vanilla/examples/index.html`
-6. Make your code changes and test them.
+4. Run `pnpm dev` → Open http://localhost:5173/examples/
+5. Make your code changes and test them.
 
 ### Architecture Documentation
 - `docs/ARCHITECTURE.md` - Detailed SolidJS architecture and component structure
 - `docs/SUBTASKS.md` - Subtask feature documentation
 - `CLAUDE.md` - Development guidance and commands
 
-<br />
-<br />
-<div align="center" style="padding-top: 0.75rem;">
-	<a href="https://frappe.io" target="_blank">
-		<picture>
-			<source media="(prefers-color-scheme: dark)" srcset="https://frappe.io/files/Frappe-white.png">
-			<img src="https://frappe.io/files/Frappe-black.png" alt="Frappe Technologies" height="28"/>
-		</picture>
-	</a>
-</div>

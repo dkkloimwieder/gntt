@@ -1,5 +1,5 @@
 import { render } from 'solid-js/web';
-import { ArrowDemo } from '../components/ArrowDemo';
+import { ArrowDemo } from '../demo/ArrowDemo';
 
 const root = document.getElementById('app');
 

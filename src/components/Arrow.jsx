@@ -1,7 +1,7 @@
 // Note: createMemo was attempted for optimization but created reactive cascades
 // that hurt scroll performance. Plain functions work better here.
 
-import { prof } from '../perf/profiler.js';
+import { prof } from '../utils/profiler.js';
 
 /**
  * Arrow Component - Decorative/Informative Only

@@ -1,6 +1,6 @@
 import { createSignal } from 'solid-js';
 import { createStore, reconcile, produce } from 'solid-js/store';
-import { prof } from '../perf/profiler.js';
+import { prof } from '../utils/profiler.js';
 
 /**
  * Reactive task store for tracking task and bar positions.
