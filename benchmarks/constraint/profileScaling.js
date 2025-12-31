@@ -94,7 +94,7 @@ for (const targetRels of [1000, 5000, 10000]) {
     const totals = { lockCheck: 0, absolute: 0, minXPred: 0, maxXPred: 0, downstream: 0, lockedSucc: 0, cascade: 0 };
 
     for (let i = 0; i < ITERATIONS; i++) {
-        const t = profileResolve(ctx, 'task-0', tasks['task-0'].$bar.x + 10, 80);
+        const t = profileResolve(ctx, 'task-0', tasks['task-0']._bar.x + 10, 80);
         for (const k in t) totals[k] += t[k];
     }
 

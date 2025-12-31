@@ -40,7 +40,7 @@ const ctx1 = buildContext(data1, { useIndex: true });
 const task1 = data1.tasks['task-0'];
 
 const noChange = benchmark('no change', () => {
-    resolveConstraints('task-0', task1.$bar.x, task1.$bar.width, ctx1);
+    resolveConstraints('task-0', task1._bar.x, task1._bar.width, ctx1);
 });
 console.log(`  Same position: ${noChange.mean.toFixed(4)}ms (expect ~0ms)`);
 console.log('');
@@ -54,11 +54,11 @@ const ctx2 = buildContext(data2, { useIndex: true });
 const task2 = data2.tasks['task-250'];  // Middle task
 
 const moveRight = benchmark('move RIGHT +10px', () => {
-    resolveConstraints('task-250', task2.$bar.x + 10, task2.$bar.width, ctx2);
+    resolveConstraints('task-250', task2._bar.x + 10, task2._bar.width, ctx2);
 });
 
 const moveLeft = benchmark('move LEFT -10px', () => {
-    resolveConstraints('task-250', task2.$bar.x - 10, task2.$bar.width, ctx2);
+    resolveConstraints('task-250', task2._bar.x - 10, task2._bar.width, ctx2);
 });
 
 const directionSpeedup = moveRight.mean / moveLeft.mean;
@@ -76,12 +76,12 @@ const ctx3 = buildContext(data3, { useIndex: true });
 const lastTask = data3.tasks['task-499'];
 
 const noSuccessors = benchmark('last task (no successors)', () => {
-    resolveConstraints('task-499', lastTask.$bar.x + 10, lastTask.$bar.width, ctx3);
+    resolveConstraints('task-499', lastTask._bar.x + 10, lastTask._bar.width, ctx3);
 });
 
 const firstTask3 = data3.tasks['task-0'];
 const hasSuccessors = benchmark('first task (499 successors)', () => {
-    resolveConstraints('task-0', firstTask3.$bar.x + 10, firstTask3.$bar.width, ctx3);
+    resolveConstraints('task-0', firstTask3._bar.x + 10, firstTask3._bar.width, ctx3);
 });
 
 console.log(`  Last task (0 successors):    ${noSuccessors.mean.toFixed(3)}ms`);
@@ -99,11 +99,11 @@ const fanRoot = data4.tasks['task-0'];
 const fanChild = data4.tasks['task-250'];
 
 const fanRootBench = benchmark('root (499 children)', () => {
-    resolveConstraints('task-0', fanRoot.$bar.x + 10, fanRoot.$bar.width, ctx4);
+    resolveConstraints('task-0', fanRoot._bar.x + 10, fanRoot._bar.width, ctx4);
 });
 
 const fanChildBench = benchmark('child (0 successors)', () => {
-    resolveConstraints('task-250', fanChild.$bar.x + 10, fanChild.$bar.width, ctx4);
+    resolveConstraints('task-250', fanChild._bar.x + 10, fanChild._bar.width, ctx4);
 });
 
 console.log(`  Root (499 successors): ${fanRootBench.mean.toFixed(3)}ms`);
@@ -122,11 +122,11 @@ for (const rels of [1000, 5000, 10000]) {
     const task5 = data5.tasks['task-0'];
 
     const rightBench = benchmark(`${rels} rels RIGHT`, () => {
-        resolveConstraints('task-0', task5.$bar.x + 10, task5.$bar.width, ctx5);
+        resolveConstraints('task-0', task5._bar.x + 10, task5._bar.width, ctx5);
     });
 
     const leftBench = benchmark(`${rels} rels LEFT`, () => {
-        resolveConstraints('task-0', task5.$bar.x - 10, task5.$bar.width, ctx5);
+        resolveConstraints('task-0', task5._bar.x - 10, task5._bar.width, ctx5);
     });
 
     console.log(`  ${String(data5.relationships.length).padStart(5)} rels: RIGHT=${rightBench.mean.toFixed(3)}ms  LEFT=${leftBench.mean.toFixed(3)}ms  Speedup=${(rightBench.mean / leftBench.mean).toFixed(1)}x`);

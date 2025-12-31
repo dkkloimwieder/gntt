@@ -1,0 +1,954 @@
+/**
+ * constraintEngine.ts - Unified Constraint Resolution Engine
+ *
+ * Single source of truth for all constraint logic:
+ * - Dependency type calculations (FS/SS/FF/SF)
+ * - Gap behavior (elastic, fixed, bounded)
+ * - Constraint resolution with iterative relaxation cascade
+ *
+ * Design principles:
+ * 1. Single model: min/max offsets (more expressive than boolean)
+ * 2. Constraint order: locks → absolute → dependencies
+ * 3. Iterative relaxation: Guaranteed convergence for DAGs
+ * 4. Pure functions: No store mutation inside engine
+ *
+ * Cascade Algorithm (December 2025):
+ * ─────────────────────────────────
+ * The cascade uses iterative constraint relaxation instead of BFS.
+ *
+ * Problem with BFS: When task A has multiple predecessors (B, C, D) from
+ * different paths, BFS may visit A before all predecessors are updated,
+ * causing A's position to not satisfy all constraints.
+ *
+ * Solution: Iterative relaxation
+ * 1. Find all reachable successors from dragged task (single BFS)
+ * 2. Loop until convergence:
+ *    - For each reachable task, recalculate minX from ALL predecessors
+ *    - If minX > current position, update position and mark changed
+ * 3. Repeat until no changes (guaranteed for DAGs)
+ *
+ * Complexity: O(depth × reachable), typically 2-3 iterations
+ *
+ * @module constraintEngine
+ */
+
+import {
+    isMovementLocked,
+    getMinXFromAbsolute,
+    getMaxXFromAbsolute,
+    getMaxEndFromAbsolute,
+} from './absoluteConstraints';
+import type { DependencyType, BarPosition, Relationship, TaskConstraints, RelationshipIndex, DepOffsets } from '../types';
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CONSTANTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** Floating point tolerance in pixels */
+export const EPSILON_PX = 0.5;
+
+/** Maximum cascade iterations to prevent infinite loops */
+export const MAX_CASCADE_ITERATIONS = 100;
+
+/** Dependency types */
+export const DEP_TYPES: Record<DependencyType, DependencyType> = {
+    FS: 'FS',  // Finish-to-Start (default)
+    SS: 'SS',  // Start-to-Start
+    FF: 'FF',  // Finish-to-Finish
+    SF: 'SF',  // Start-to-Finish
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RELATIONSHIP INDEX
+// Pre-computed indices for O(1) lookup instead of O(n) scans
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Build relationship lookup indices for O(1) access.
+ * Call once when relationships change, not per drag frame.
+ */
+export function buildRelationshipIndex(relationships: Relationship[]): RelationshipIndex {
+    const bySuccessor = new Map<string, Relationship[]>();   // taskId → rels where task is `to` (for predecessor lookups)
+    const byPredecessor = new Map<string, Relationship[]>(); // taskId → rels where task is `from` (for successor lookups)
+
+    for (const rel of relationships) {
+        // Index by successor (to) - used by getMinXFromPredecessors, getMaxXFromPredecessors
+        if (!bySuccessor.has(rel.to)) bySuccessor.set(rel.to, []);
+        bySuccessor.get(rel.to)!.push(rel);
+
+        // Index by predecessor (from) - used by getMaxEndFromDownstream, calculateCascadeUpdates
+        if (!byPredecessor.has(rel.from)) byPredecessor.set(rel.from, []);
+        byPredecessor.get(rel.from)!.push(rel);
+    }
+
+    return { bySuccessor, byPredecessor };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// OFFSET PARSING
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Parse dependency min/max offset values into pixel units with semantic flags.
+ *
+ * Gap behavior:
+ * - min=0, max=undefined (default): Elastic - push only, gap can grow indefinitely
+ * - min=0, max=0: Fixed gap - push AND pull to maintain exact lag
+ * - min=0, max=N: Bounded - push always, pull only if gap > lag+max
+ */
+export function getDepOffsets(rel: Relationship, pixelsPerHour: number): DepOffsets {
+    const lag = (rel.lag ?? 0) * pixelsPerHour;
+    const min = (rel.min ?? 0) * pixelsPerHour;
+
+    // Default is elastic (push only): max=undefined or max=null → Infinity
+    // Explicit max=0 means fixed gap (push+pull)
+    // Explicit max=N means bounded (push, pull only when gap > N)
+    const maxVal = rel.max;
+    const max = (maxVal === undefined || maxVal === null) ? Infinity : maxVal * pixelsPerHour;
+
+    return {
+        lag,
+        min,
+        max,
+        minGap: lag + min,   // Minimum allowed gap
+        maxGap: lag + max,   // Maximum allowed gap (Infinity for elastic)
+        isElastic: max === Infinity,  // Can gap grow indefinitely?
+        isFixed: max === min,  // Must gap be exact?
+    };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// UNIFIED DEPENDENCY TYPE CALCULATIONS
+// Replaces 5 duplicate switch statements with single implementations
+// ═══════════════════════════════════════════════════════════════════════════════
+
+interface BarLike {
+    x: number;
+    width: number;
+}
+
+/**
+ * Get anchor point on predecessor for a given dependency type.
+ */
+export function getPredAnchor(type: DependencyType, predBar: BarLike): number {
+    switch (type) {
+        case DEP_TYPES.FS:
+        case DEP_TYPES.FF:
+            return predBar.x + predBar.width;  // Predecessor end
+        case DEP_TYPES.SS:
+        case DEP_TYPES.SF:
+            return predBar.x;  // Predecessor start
+        default:
+            return predBar.x + predBar.width;  // Default to end
+    }
+}
+
+/**
+ * Get reference point on successor for a given dependency type.
+ */
+export function getSuccRef(type: DependencyType, succBar: BarLike): number {
+    switch (type) {
+        case DEP_TYPES.FS:
+        case DEP_TYPES.SS:
+            return succBar.x;  // Successor start
+        case DEP_TYPES.FF:
+        case DEP_TYPES.SF:
+            return succBar.x + succBar.width;  // Successor end
+        default:
+            return succBar.x;  // Default to start
+    }
+}
+
+/**
+ * Check if dependency type constrains successor's end (vs start).
+ */
+export function constrainsSuccEnd(type: DependencyType): boolean {
+    return type === DEP_TYPES.FF || type === DEP_TYPES.SF;
+}
+
+/**
+ * Check if dependency type constrains predecessor's end (vs start).
+ * Used for cascade blocking.
+ */
+export function constrainsPredEnd(type: DependencyType): boolean {
+    return type === DEP_TYPES.FS || type === DEP_TYPES.FF;
+}
+
+/**
+ * Calculate minimum X position for successor based on predecessor position.
+ */
+export function getMinSuccessorX(
+    type: DependencyType,
+    predBar: BarLike,
+    succWidth: number,
+    gap: number
+): number {
+    const anchor = getPredAnchor(type, predBar);
+    const minRef = anchor + gap;
+
+    // Convert reference point to X position
+    if (constrainsSuccEnd(type)) {
+        // FF/SF: reference is successor end
+        return minRef - succWidth;
+    } else {
+        // FS/SS: reference is successor start
+        return minRef;
+    }
+}
+
+/**
+ * Calculate maximum X position for successor based on predecessor position.
+ * Used for bounded/fixed gap constraints.
+ */
+export function getMaxSuccessorX(
+    type: DependencyType,
+    predBar: BarLike,
+    succWidth: number,
+    gap: number
+): number {
+    const anchor = getPredAnchor(type, predBar);
+    const maxRef = anchor + gap;
+
+    // Convert reference point to X position
+    if (constrainsSuccEnd(type)) {
+        // FF/SF: reference is successor end
+        return maxRef - succWidth;
+    } else {
+        // FS/SS: reference is successor start
+        return maxRef;
+    }
+}
+
+/**
+ * Calculate maximum predecessor end position based on successor position.
+ * Used for downstream constraint checking.
+ */
+export function getMaxPredEnd(type: DependencyType, succBar: BarLike, gap: number): number {
+    if (!constrainsPredEnd(type)) {
+        // SS/SF constrain predecessor start, not end
+        return Infinity;
+    }
+
+    const succRef = getSuccRef(type, succBar);
+    return succRef - gap;
+}
+
+/**
+ * Calculate maximum predecessor start position based on successor position.
+ * Used for SS/SF constraint checking.
+ */
+export function getMaxPredStart(type: DependencyType, succBar: BarLike, gap: number): number {
+    if (constrainsPredEnd(type)) {
+        // FS/FF constrain predecessor end, not start
+        return Infinity;
+    }
+
+    const succRef = getSuccRef(type, succBar);
+    return succRef - gap;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CONSTRAINT AGGREGATION
+// Combines all constraints for a single task
+// ═══════════════════════════════════════════════════════════════════════════════
+
+type GetBarPosition = (id: string) => BarPosition | null | undefined;
+type GetTask = (id: string) => TaskLike | null | undefined;
+
+interface TaskLike {
+    id?: string;
+    constraints?: TaskConstraints;
+    _bar?: BarPosition;
+}
+
+/**
+ * Get minimum X from all predecessor constraints.
+ */
+export function getMinXFromPredecessors(
+    taskId: string,
+    relationshipsOrIndex: Relationship[] | RelationshipIndex,
+    getBarPosition: GetBarPosition,
+    pixelsPerHour: number,
+    taskWidth = 0
+): number {
+    let minX = 0;
+
+    // Support both indexed and legacy array API
+    const predecessorRels = Array.isArray(relationshipsOrIndex)
+        ? relationshipsOrIndex.filter(rel => rel.to === taskId)  // O(n) legacy
+        : (relationshipsOrIndex.bySuccessor?.get(taskId) || []);  // O(1) indexed
+
+    for (const rel of predecessorRels) {
+        const predBar = getBarPosition(rel.from);
+        if (!predBar) continue;
+
+        const type = rel.type || DEP_TYPES.FS;
+        const { minGap } = getDepOffsets(rel, pixelsPerHour);
+
+        const constraint = getMinSuccessorX(type, predBar, taskWidth, minGap);
+        minX = Math.max(minX, constraint);
+    }
+
+    return minX;
+}
+
+/**
+ * Get maximum X from all predecessor constraints with max gap defined.
+ */
+export function getMaxXFromPredecessors(
+    taskId: string,
+    relationshipsOrIndex: Relationship[] | RelationshipIndex,
+    getBarPosition: GetBarPosition,
+    pixelsPerHour: number,
+    taskWidth = 0
+): number {
+    let maxX = Infinity;
+
+    // Support both indexed and legacy array API
+    const predecessorRels = Array.isArray(relationshipsOrIndex)
+        ? relationshipsOrIndex.filter(rel => rel.to === taskId)  // O(n) legacy
+        : (relationshipsOrIndex.bySuccessor?.get(taskId) || []);  // O(1) indexed
+
+    for (const rel of predecessorRels) {
+        const predBar = getBarPosition(rel.from);
+        if (!predBar) continue;
+
+        const { maxGap, isElastic } = getDepOffsets(rel, pixelsPerHour);
+        if (isElastic) continue;  // Elastic deps don't limit max position
+
+        const type = rel.type || DEP_TYPES.FS;
+        const constraint = getMaxSuccessorX(type, predBar, taskWidth, maxGap);
+        maxX = Math.min(maxX, constraint);
+    }
+
+    return maxX;
+}
+
+/**
+ * Get maximum end position this task can have based on downstream constraints.
+ * Uses iterative breadth-first traversal instead of recursion.
+ *
+ * For unlocked successors: we can push them, but only up to their own downstream limit.
+ * For locked successors: we cannot push at all, this is a hard constraint.
+ *
+ * Early termination optimizations:
+ * - Returns immediately if task has no successors
+ * - Stops traversal if a tight constraint is found (can't move at all)
+ */
+export function getMaxEndFromDownstream(
+    taskId: string,
+    relationshipsOrIndex: Relationship[] | RelationshipIndex,
+    getBarPosition: GetBarPosition,
+    getTask: GetTask | null | undefined,
+    pixelsPerHour: number,
+    currentBar: BarLike | null = null
+): number {
+    // Use pre-built index if available, otherwise build successor adjacency
+    // The function works with raw relationships directly to avoid object creation overhead
+    let getSuccessorRels: (id: string) => Relationship[];
+    if (Array.isArray(relationshipsOrIndex)) {
+        // Legacy: build successor map from scratch O(n)
+        const successorMap = new Map<string, Relationship[]>();
+        for (const rel of relationshipsOrIndex) {
+            if (!successorMap.has(rel.from)) {
+                successorMap.set(rel.from, []);
+            }
+            successorMap.get(rel.from)!.push(rel);
+        }
+        getSuccessorRels = (id) => successorMap.get(id) || [];
+    } else {
+        // Indexed: O(1) lookup from pre-built byPredecessor map
+        getSuccessorRels = (id) => relationshipsOrIndex.byPredecessor?.get(id) || [];
+    }
+
+    // Early termination: no successors means no downstream constraints
+    const directSuccessors = getSuccessorRels(taskId);
+    if (directSuccessors.length === 0) {
+        return Infinity;
+    }
+
+    // Get current end position for tight constraint detection
+    const currentEnd = currentBar ? currentBar.x + currentBar.width : null;
+
+    // Track per-task max end constraints discovered during traversal
+    const maxEndCache = new Map<string, number>();  // taskId → maxEnd
+
+    // Iterative traversal using work queue
+    // Start with direct successors, propagate constraints backward
+    const visited = new Set<string>();
+    const queue: string[] = [taskId];
+    const order: string[] = [];  // Topological order for backward pass
+
+    // Forward pass: build traversal order
+    while (queue.length > 0) {
+        const currentId = queue.shift()!;
+        if (visited.has(currentId)) continue;
+        visited.add(currentId);
+        order.push(currentId);
+
+        const succs = getSuccessorRels(currentId);
+        for (const rel of succs) {
+            if (!visited.has(rel.to)) {
+                queue.push(rel.to);
+            }
+        }
+    }
+
+    // Backward pass: compute max end for each task
+    // Process in reverse topological order
+    for (let i = order.length - 1; i >= 0; i--) {
+        const currentId = order[i]!;
+        let maxEnd = Infinity;
+
+        const succs = getSuccessorRels(currentId);
+        for (const rel of succs) {
+            const succId = rel.to;
+            const succTask = getTask?.(succId);
+            const succBar = getBarPosition(succId);
+            if (!succBar) continue;
+
+            const { minGap } = getDepOffsets(rel, pixelsPerHour);
+            const type = rel.type || DEP_TYPES.FS;
+
+            // This type must constrain predecessor end
+            if (!constrainsPredEnd(type)) continue;
+
+            const isLocked = isMovementLocked(succTask?.constraints?.locked);
+
+            if (isLocked) {
+                // Locked successor: hard constraint
+                const constraint = getMaxPredEnd(type, succBar, minGap);
+                maxEnd = Math.min(maxEnd, constraint);
+            } else {
+                // Unlocked successor: can push, but limited by their downstream
+                const succMaxEnd = maxEndCache.get(succId) ?? Infinity;
+
+                // How far can successor's start go?
+                // succ.x + succ.width <= succMaxEnd
+                // succ.x <= succMaxEnd - succ.width
+                const succMaxX = succMaxEnd - succBar.width;
+
+                // Our end + minGap <= succ.x
+                // Our end <= succMaxX - minGap
+                const ourMaxEnd = succMaxX - minGap;
+                maxEnd = Math.min(maxEnd, ourMaxEnd);
+            }
+        }
+
+        maxEndCache.set(currentId, maxEnd);
+
+        // Early termination: if we're processing the root task and found a tight constraint
+        // (maxEnd <= currentEnd), we can't move at all, no need to continue
+        if (currentId === taskId && currentEnd !== null && maxEnd <= currentEnd + EPSILON_PX) {
+            return maxEnd;
+        }
+    }
+
+    return maxEndCache.get(taskId) ?? Infinity;
+}
+
+/**
+ * Get maximum start position based on locked successors (SS/SF constraints).
+ */
+export function getMaxXFromLockedSuccessors(
+    taskId: string,
+    relationshipsOrIndex: Relationship[] | RelationshipIndex,
+    getBarPosition: GetBarPosition,
+    getTask: GetTask | null | undefined,
+    pixelsPerHour: number
+): number {
+    let maxX = Infinity;
+
+    // Support both indexed and legacy array API
+    const successorRels = Array.isArray(relationshipsOrIndex)
+        ? relationshipsOrIndex.filter(rel => rel.from === taskId)  // O(n) legacy
+        : (relationshipsOrIndex.byPredecessor?.get(taskId) || []);  // O(1) indexed
+
+    for (const rel of successorRels) {
+        const succTask = getTask?.(rel.to);
+        const isLocked = succTask?.constraints?.locked;
+        if (!isLocked) continue;
+
+        const succBar = getBarPosition(rel.to);
+        if (!succBar) continue;
+
+        const type = rel.type || DEP_TYPES.FS;
+        const { minGap } = getDepOffsets(rel, pixelsPerHour);
+
+        const constraint = getMaxPredStart(type, succBar, minGap);
+        if (constraint !== Infinity) {
+            maxX = Math.min(maxX, constraint);
+        }
+    }
+
+    return maxX;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CASCADE UPDATES
+// Iterative constraint relaxation for multi-path dependency graphs
+// ═══════════════════════════════════════════════════════════════════════════════
+
+interface CascadeContext {
+    getBarPosition: GetBarPosition;
+    getTask?: GetTask | null;
+    relationships?: Relationship[];
+    relationshipIndex?: RelationshipIndex;
+    pixelsPerHour: number;
+    ganttStartDate: Date;
+}
+
+/**
+ * Calculate cascade updates for all affected successors using iterative relaxation.
+ *
+ * Algorithm:
+ * ──────────
+ * 1. Find all reachable successors from the dragged task (single BFS traversal)
+ * 2. Iteratively relax constraints until convergence:
+ *    - For each reachable task, calculate minX from ALL its predecessors
+ *    - If minX > current position, update and mark changed
+ *    - Repeat until no task needs to move
+ *
+ * Why iterative relaxation instead of BFS?
+ * ─────────────────────────────────────────
+ * BFS processes tasks level-by-level, but when multiple dependency paths converge
+ * on a single task, BFS may visit that task before all predecessors are updated.
+ *
+ * Example: Task T depends on A, B, C via different paths of varying depths.
+ * BFS might process T when only A is updated, missing B and C's constraints.
+ *
+ * Iterative relaxation solves this by re-evaluating ALL predecessors on each pass,
+ * guaranteeing convergence for directed acyclic graphs (DAGs).
+ *
+ * Complexity: O(iterations × reachable_tasks × avg_predecessors)
+ * Typical: 2-3 iterations for most graphs
+ */
+export function calculateCascadeUpdates(
+    taskId: string,
+    newX: number,
+    context: CascadeContext
+): Map<string, { x: number }> {
+    const { getBarPosition, getTask, relationships, relationshipIndex, pixelsPerHour, ganttStartDate } = context;
+
+    const updates = new Map<string, { x: number }>();
+    updates.set(taskId, { x: newX });
+
+    // Build successor lookup
+    let getSuccessorRels: (id: string) => Relationship[];
+    if (relationshipIndex?.byPredecessor) {
+        getSuccessorRels = (id) => relationshipIndex.byPredecessor.get(id) || [];
+    } else if (relationships) {
+        const successorRels = new Map<string, Relationship[]>();
+        for (const rel of relationships) {
+            if (!successorRels.has(rel.from)) successorRels.set(rel.from, []);
+            successorRels.get(rel.from)!.push(rel);
+        }
+        getSuccessorRels = (id) => successorRels.get(id) || [];
+    } else {
+        return updates;
+    }
+
+    // Build predecessor lookup
+    let getPredecessorRels: (id: string) => Relationship[];
+    if (relationshipIndex?.bySuccessor) {
+        getPredecessorRels = (id) => relationshipIndex.bySuccessor.get(id) || [];
+    } else if (relationships) {
+        const predecessorRels = new Map<string, Relationship[]>();
+        for (const rel of relationships) {
+            if (!predecessorRels.has(rel.to)) predecessorRels.set(rel.to, []);
+            predecessorRels.get(rel.to)!.push(rel);
+        }
+        getPredecessorRels = (id) => predecessorRels.get(id) || [];
+    } else {
+        return updates;
+    }
+
+    // Step 1: Find all reachable successors (single BFS)
+    const reachable = new Set<string>();
+    const bfsQueue: string[] = [taskId];
+    while (bfsQueue.length > 0) {
+        const current = bfsQueue.shift()!;
+        for (const rel of getSuccessorRels(current)) {
+            if (!reachable.has(rel.to)) {
+                reachable.add(rel.to);
+                bfsQueue.push(rel.to);
+            }
+        }
+    }
+
+    // Step 2: Iterative relaxation until convergence
+    // Each iteration, every reachable task recalculates minX from ALL predecessors
+    let changed = true;
+    let iterations = 0;
+
+    while (changed && iterations < MAX_CASCADE_ITERATIONS) {
+        changed = false;
+        iterations++;
+
+        for (const succId of reachable) {
+            const succTask = getTask?.(succId);
+
+            // Skip locked tasks
+            if (isMovementLocked(succTask?.constraints?.locked)) continue;
+
+            // Get current position (with any pending update)
+            let succBar = getBarPosition(succId);
+            if (!succBar) continue;
+            if (updates.has(succId)) {
+                succBar = { ...succBar, ...updates.get(succId) };
+            }
+
+            // Calculate minX from ALL predecessors
+            let minX = 0;
+            for (const rel of getPredecessorRels(succId)) {
+                let predBar = getBarPosition(rel.from);
+                if (!predBar) continue;
+
+                // Use updated position if predecessor was also updated
+                if (updates.has(rel.from)) {
+                    predBar = { ...predBar, ...updates.get(rel.from) };
+                }
+
+                const type = rel.type || DEP_TYPES.FS;
+                const { minGap } = getDepOffsets(rel, pixelsPerHour);
+                const constraint = getMinSuccessorX(type, predBar, succBar.width, minGap);
+                minX = Math.max(minX, constraint);
+            }
+
+            // Apply absolute constraints
+            const absMinX = getMinXFromAbsolute(succTask?.constraints, ganttStartDate, pixelsPerHour);
+            const absMaxX = getMaxXFromAbsolute(succTask?.constraints, ganttStartDate, pixelsPerHour);
+            minX = Math.max(absMinX, Math.min(minX, absMaxX));
+
+            // Update if needs to move right
+            if (minX > succBar.x + EPSILON_PX) {
+                updates.set(succId, { x: minX });
+                changed = true;
+            }
+        }
+    }
+
+    // Remove the initial task from updates (caller handles it)
+    updates.delete(taskId);
+
+    return updates;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MAIN ENTRY POINT
+// Single function to resolve all constraints
+// ═══════════════════════════════════════════════════════════════════════════════
+
+interface ResolveContext {
+    getBarPosition: GetBarPosition;
+    getTask?: GetTask | null;
+    relationships?: Relationship[];
+    relationshipIndex?: RelationshipIndex;
+    pixelsPerHour: number;
+    ganttStartDate: Date;
+}
+
+interface ResolveResult {
+    constrainedX: number;
+    constrainedWidth: number;
+    blocked: boolean;
+    blockReason: string | null;
+    cascadeUpdates: Map<string, { x: number }>;
+}
+
+/**
+ * Resolve constraints for a task move/resize operation.
+ *
+ * Applies constraints in order:
+ * 1. Lock constraints (fully blocked if locked)
+ * 2. Early termination if no position change
+ * 3. Absolute time constraints (minStart, maxStart, maxEnd)
+ * 4. Predecessor constraints (min/max X from dependencies)
+ * 5. Downstream constraints (only when moving right - major optimization)
+ * 6. Cascade updates (only if position actually changed)
+ */
+export function resolveConstraints(
+    taskId: string,
+    proposedX: number,
+    proposedWidth: number,
+    context: ResolveContext
+): ResolveResult {
+    const { getBarPosition, getTask, relationships, relationshipIndex, pixelsPerHour, ganttStartDate } = context;
+
+    // Use index if available, otherwise fall back to relationships array
+    const relSource = relationshipIndex || relationships || [];
+
+    const task = getTask?.(taskId);
+    const currentBar = getBarPosition(taskId);
+
+    if (!currentBar) {
+        return {
+            constrainedX: proposedX,
+            constrainedWidth: proposedWidth,
+            blocked: false,
+            blockReason: null,
+            cascadeUpdates: new Map(),
+        };
+    }
+
+    // 1. Check lock constraint
+    if (isMovementLocked(task?.constraints?.locked)) {
+        return {
+            constrainedX: currentBar.x,
+            constrainedWidth: currentBar.width,
+            blocked: true,
+            blockReason: 'locked',
+            cascadeUpdates: new Map(),
+        };
+    }
+
+    // 2. Early termination: no position change
+    if (Math.abs(proposedX - currentBar.x) < EPSILON_PX && Math.abs(proposedWidth - currentBar.width) < EPSILON_PX) {
+        return {
+            constrainedX: currentBar.x,
+            constrainedWidth: currentBar.width,
+            blocked: false,
+            blockReason: null,
+            cascadeUpdates: new Map(),
+        };
+    }
+
+    // Determine movement direction for optimization
+    const movingRight = proposedX > currentBar.x + EPSILON_PX;
+
+    let minX = 0;
+    let maxX = Infinity;
+
+    // 3. Apply absolute constraints
+    const absMinX = getMinXFromAbsolute(task?.constraints, ganttStartDate, pixelsPerHour);
+    const absMaxX = getMaxXFromAbsolute(task?.constraints, ganttStartDate, pixelsPerHour);
+    const absMaxEnd = getMaxEndFromAbsolute(task?.constraints, ganttStartDate, pixelsPerHour);
+
+    minX = Math.max(minX, absMinX);
+    if (absMaxX !== Infinity) {
+        maxX = Math.min(maxX, absMaxX);
+    }
+    if (absMaxEnd !== Infinity) {
+        maxX = Math.min(maxX, absMaxEnd - proposedWidth);
+    }
+
+    // 4. Apply predecessor constraints
+    const predMinX = getMinXFromPredecessors(taskId, relSource, getBarPosition, pixelsPerHour, proposedWidth);
+    const predMaxX = getMaxXFromPredecessors(taskId, relSource, getBarPosition, pixelsPerHour, proposedWidth);
+
+    minX = Math.max(minX, predMinX);
+    if (predMaxX !== Infinity) {
+        maxX = Math.min(maxX, predMaxX);
+    }
+
+    // 5. Apply downstream constraints ONLY when moving right
+    // This is the major optimization - getMaxEndFromDownstream takes 77% of time
+    // When moving left, we can't push successors, so no need to check downstream
+    if (movingRight) {
+        const downstreamMaxEnd = getMaxEndFromDownstream(taskId, relSource, getBarPosition, getTask, pixelsPerHour, currentBar);
+        if (downstreamMaxEnd !== Infinity) {
+            maxX = Math.min(maxX, downstreamMaxEnd - proposedWidth);
+        }
+
+        // SS/SF locked successor constraints on start position
+        const sssfMaxX = getMaxXFromLockedSuccessors(taskId, relSource, getBarPosition, getTask, pixelsPerHour);
+        if (sssfMaxX !== Infinity) {
+            maxX = Math.min(maxX, sssfMaxX);
+        }
+    }
+
+    // Clamp proposed position
+    let constrainedX = Math.max(minX, Math.min(proposedX, maxX));
+
+    // Check if blocked (min > max means conflicting constraints)
+    const blocked = minX > maxX + EPSILON_PX;
+    if (blocked) {
+        constrainedX = currentBar.x;  // Don't move if blocked
+    }
+
+    // 6. Calculate cascade updates ONLY if position actually changed
+    let cascadeUpdates = new Map<string, { x: number }>();
+    if (!blocked && Math.abs(constrainedX - currentBar.x) > EPSILON_PX) {
+        cascadeUpdates = calculateCascadeUpdates(taskId, constrainedX, context);
+    }
+
+    return {
+        constrainedX,
+        constrainedWidth: proposedWidth,
+        blocked,
+        blockReason: blocked ? 'conflicting_constraints' : null,
+        cascadeUpdates,
+    };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CYCLE DETECTION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+interface CycleResult {
+    hasCycle: boolean;
+    cycle: string[];
+}
+
+/**
+ * Detect cycles in the dependency graph using DFS with color marking.
+ */
+export function detectCycles(relationships: Relationship[]): CycleResult {
+    // Build adjacency list
+    const graph = new Map<string, string[]>();
+    for (const rel of relationships) {
+        if (!graph.has(rel.from)) graph.set(rel.from, []);
+        graph.get(rel.from)!.push(rel.to);
+        // Ensure all nodes are in the graph
+        if (!graph.has(rel.to)) graph.set(rel.to, []);
+    }
+
+    // DFS with color marking: 0=unvisited, 1=in progress, 2=done
+    const color = new Map<string, number>();
+
+    function dfs(node: string, path: string[]): CycleResult {
+        color.set(node, 1); // Mark as in progress
+
+        for (const neighbor of graph.get(node) || []) {
+            if (color.get(neighbor) === 1) {
+                // Found cycle - reconstruct path
+                const cycleStart = path.indexOf(neighbor);
+                const cycle = [...path.slice(cycleStart), neighbor];
+                return { hasCycle: true, cycle };
+            }
+            if (color.get(neighbor) === 0 || !color.has(neighbor)) {
+                const result = dfs(neighbor, [...path, neighbor]);
+                if (result.hasCycle) return result;
+            }
+        }
+
+        color.set(node, 2); // Mark as done
+        return { hasCycle: false, cycle: [] };
+    }
+
+    // Check all nodes (handles disconnected components)
+    for (const node of graph.keys()) {
+        if (!color.has(node) || color.get(node) === 0) {
+            const result = dfs(node, [node]);
+            if (result.hasCycle) return result;
+        }
+    }
+
+    return { hasCycle: false, cycle: [] };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BATCH DRAG UTILITIES
+// Used by Bar.jsx for dragging multiple dependent tasks together
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Collect all tasks that would move when dragging a task forward.
+ * Traverses successor relationships iteratively (BFS, forward-only).
+ * Stops at locked tasks.
+ */
+export function collectDependentTasks(
+    taskId: string,
+    relationships: Relationship[],
+    getTask: GetTask | null = null,
+    visited: Set<string> = new Set()
+): Set<string> {
+    const queue = [taskId];
+
+    while (queue.length > 0) {
+        const currentId = queue.shift()!;
+        if (visited.has(currentId)) continue;
+
+        // Check if this task is locked - if so, don't include it or its dependents
+        if (getTask) {
+            const task = getTask(currentId);
+            if (task?.constraints?.locked) continue;
+        }
+
+        visited.add(currentId);
+
+        // Find all relationships where this task is the predecessor
+        for (const rel of relationships) {
+            if (rel.from === currentId && !visited.has(rel.to)) {
+                queue.push(rel.to);
+            }
+        }
+    }
+
+    return visited;
+}
+
+interface BatchOriginal {
+    originalX: number;
+}
+
+interface ClampBatchOptions {
+    pixelsPerTimeUnit?: number;
+}
+
+/**
+ * Clamp batch drag delta to prevent constraint violations.
+ * When dragging multiple tasks backward, ensures no task moves behind its predecessor.
+ */
+export function clampBatchDeltaX(
+    batchOriginals: Map<string, BatchOriginal>,
+    proposedDeltaX: number,
+    relationships: Relationship[],
+    getTask: GetTask,
+    options: ClampBatchOptions = {}
+): number {
+    // Only need to clamp when moving backward
+    if (proposedDeltaX >= 0) return proposedDeltaX;
+
+    const { pixelsPerTimeUnit = 1 } = options;
+    let minAllowedDelta = proposedDeltaX;
+    const batchTaskIds = new Set(batchOriginals.keys());
+
+    // For each task in the batch, check if it has a predecessor OUTSIDE the batch
+    for (const [taskId, { originalX }] of batchOriginals) {
+        const task = getTask(taskId);
+        if (!task?._bar) continue;
+
+        // Find predecessor relationships
+        for (const rel of relationships) {
+            if (rel.to !== taskId) continue;
+
+            const predId = rel.from;
+            // Only check predecessors NOT in the batch (batch moves together)
+            if (batchTaskIds.has(predId)) continue;
+
+            const predTask = getTask(predId);
+            if (!predTask?._bar) continue;
+
+            const type = rel.type || DEP_TYPES.FS;
+            const lag = rel.lag ?? 0;
+            const lagPx = lag * pixelsPerTimeUnit;
+
+            // Calculate minimum X for this successor based on predecessor
+            const predBar = predTask._bar;
+            const succWidth = task._bar.width ?? 0;
+            const minSuccX = getMinSuccessorX(type, predBar, succWidth, lagPx);
+
+            // Check if proposed movement would violate constraint
+            const newX = originalX + proposedDeltaX;
+            if (newX < minSuccX) {
+                const maxBackwardDelta = minSuccX - originalX;
+                if (maxBackwardDelta <= 0) {
+                    minAllowedDelta = Math.max(minAllowedDelta, maxBackwardDelta);
+                } else {
+                    // Task already violating - don't force forward, just prevent further backward
+                    minAllowedDelta = Math.max(minAllowedDelta, 0);
+                }
+            }
+        }
+    }
+
+    return minAllowedDelta;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EXPORTS (for backwards compatibility)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Legacy alias
+export const getMaxEndFromLockedSuccessors = getMaxEndFromDownstream;

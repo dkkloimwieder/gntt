@@ -283,7 +283,7 @@ cellTop = headerHeight + padding/2 + index * (barHeight + padding)
     constraints: {
         locked: false       // Prevents movement
     },
-    $bar: {                 // Position data
+    _bar: {                 // Position data
         x: 100,
         y: 60,
         width: 135,
@@ -373,14 +373,14 @@ taskStore.clear();
 ```
 
 **Internal Structure**:
-Uses `createStore({})` for fine-grained reactivity. Each task includes `$bar` property with position data.
+Uses `createStore({})` for fine-grained reactivity. Each task includes `_bar` property with position data.
 
 **Fine-Grained Reactivity** (December 2025):
 The store uses SolidJS `createStore` instead of `createSignal(Map)` to enable path-level dependency tracking:
 ```javascript
-// Reading tasks[taskId].$bar.x only subscribes to that specific path
+// Reading tasks[taskId]._bar.x only subscribes to that specific path
 // NOT the entire tasks object - critical for drag performance
-const x = () => props.taskStore.tasks[taskId()]?.$bar?.x ?? 0;
+const x = () => props.taskStore.tasks[taskId()]?._bar?.x ?? 0;
 ```
 
 This allows dragging a single task to update only:
@@ -1079,7 +1079,7 @@ User drags task → updateBarPosition() → setTasks(new Map())
 | Before | After |
 |--------|-------|
 | `createSignal(new Map())` | `createStore({})` |
-| Reading `tasks()` subscribes to ALL tasks | Reading `tasks[id].$bar.x` subscribes to ONE path |
+| Reading `tasks()` subscribes to ALL tasks | Reading `tasks[id]._bar.x` subscribes to ONE path |
 | 400+ Bar re-evaluations per frame | 1 Bar re-evaluation per frame |
 | ~10 FPS during drag | 60 FPS during drag |
 

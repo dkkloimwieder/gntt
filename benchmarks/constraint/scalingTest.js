@@ -46,7 +46,7 @@ for (const targetDeps of DEP_COUNTS) {
     // resolveConstraints
     const r1 = benchmark('resolveConstraints', () => {
         const task = tasks[firstTaskId];
-        resolveConstraints(firstTaskId, task.$bar.x + 10, task.$bar.width, context);
+        resolveConstraints(firstTaskId, task._bar.x + 10, task._bar.width, context);
     });
 
     // getMinXFromPredecessors
@@ -61,7 +61,7 @@ for (const targetDeps of DEP_COUNTS) {
 
     // calculateCascadeUpdates
     const r4 = benchmark('calculateCascadeUpdates', () => {
-        calculateCascadeUpdates(firstTaskId, tasks[firstTaskId].$bar.x + 10, context);
+        calculateCascadeUpdates(firstTaskId, tasks[firstTaskId]._bar.x + 10, context);
     });
 
     console.log(`  resolveConstraints:        mean=${formatMs(r1.mean).padEnd(10)} p95=${formatMs(r1.p95)}`);

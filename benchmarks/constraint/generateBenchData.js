@@ -50,7 +50,7 @@ export const PROFILES = {
 function createTask(id, x, options = {}) {
     return {
         id,
-        $bar: {
+        _bar: {
             x,
             y: 0,
             width: options.width ?? 80,
@@ -399,7 +399,7 @@ export function buildContext(data, options = {}) {
     const ganttStartDate = options.ganttStartDate ?? new Date('2025-01-01');
 
     const context = {
-        getBarPosition: (id) => tasks[id]?.$bar,
+        getBarPosition: (id) => tasks[id]?._bar,
         getTask: (id) => tasks[id],
         relationships,
         pixelsPerHour,

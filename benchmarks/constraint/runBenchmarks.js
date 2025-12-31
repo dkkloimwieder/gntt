@@ -182,7 +182,7 @@ function benchmarkDataset(data, config) {
         'resolveConstraints',
         () => {
             const task = tasks[firstTaskId];
-            const bar = task.$bar;
+            const bar = task._bar;
             resolveConstraints(firstTaskId, bar.x + 10, bar.width, context);
         },
         config
@@ -230,7 +230,7 @@ function benchmarkDataset(data, config) {
         'calculateCascadeUpdates',
         () => {
             const task = tasks[firstTaskId];
-            calculateCascadeUpdates(firstTaskId, task.$bar.x + 10, context);
+            calculateCascadeUpdates(firstTaskId, task._bar.x + 10, context);
         },
         config
     ));

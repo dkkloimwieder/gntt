@@ -14,9 +14,10 @@
         "generate:topology": "node src/scripts/generateTopology.js",
         "bench": "node benchmarks/constraint/constraintBench.js",
         "bench:scaling": "node benchmarks/constraint/scalingTest.js",
-        "lint": "eslint \"src/**/*.{js,jsx}\"",
-        "prettier": "prettier --write \"src/**/*.{js,jsx}\" \"tests/**/*.js\"",
-        "prettier-check": "prettier --check \"src/**/*.{js,jsx}\" \"tests/**/*.js\""
+        "typecheck": "tsc --noEmit",
+        "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\"",
+        "prettier": "prettier --write \"src/**/*.{js,jsx,ts,tsx}\" \"tests/**/*.js\"",
+        "prettier-check": "prettier --check \"src/**/*.{js,jsx,ts,tsx}\" \"tests/**/*.js\""
     },
     "repository": {
         "type": "git",
@@ -49,12 +50,15 @@
     },
     "homepage": "",
     "devDependencies": {
+        "@typescript-eslint/eslint-plugin": "^8.51.0",
+        "@typescript-eslint/parser": "^8.51.0",
         "babel-preset-solid": "^1.9.10",
         "eslint": "^9.39.2",
         "eslint-config-prettier": "^2.10.0",
         "eslint-plugin-prettier": "^2.7.0",
         "postcss-nesting": "^12.1.5",
         "prettier": "3.2.5",
+        "typescript": "^5.9.3",
         "vite": "^7.3.0",
         "vite-plugin-solid": "^2.11.10"
     },

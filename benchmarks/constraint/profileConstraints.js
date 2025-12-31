@@ -147,7 +147,7 @@ const taskId = 'task-0';
 const task = tasks[taskId];
 
 for (let i = 0; i < ITERATIONS; i++) {
-    instrumentedResolveConstraints(taskId, task.$bar.x + 10, task.$bar.width, context);
+    instrumentedResolveConstraints(taskId, task._bar.x + 10, task._bar.width, context);
 }
 
 // Calculate percentages

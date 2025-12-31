@@ -9,7 +9,7 @@ export default defineConfig({
     plugins: [solidPlugin()],
     build: {
         lib: {
-            entry: resolve(root, 'src/index.js'),
+            entry: resolve(root, 'src/index.ts'),
             name: 'Ganttss',
             formats: ['es', 'umd'],
             fileName: (format) => `ganttss.${format}.js`,

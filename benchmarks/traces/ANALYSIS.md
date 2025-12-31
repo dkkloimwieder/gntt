@@ -44,7 +44,7 @@ Use single `createMemo` batching all props:
 ```javascript
 const t = createMemo(() => {
     const task = getTask();
-    const bar = task?.$bar;
+    const bar = task?._bar;
     return {
         x: bar?.x ?? 0,
         y: bar?.y ?? 0,

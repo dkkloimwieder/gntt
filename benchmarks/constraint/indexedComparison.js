@@ -52,8 +52,8 @@ for (const targetRels of [1000, 5000, 10000]) {
 
     const taskId = 'task-0';
     const task = data.tasks[taskId];
-    const proposedX = task.$bar.x + 10;
-    const proposedWidth = task.$bar.width;
+    const proposedX = task._bar.x + 10;
+    const proposedWidth = task._bar.width;
 
     // Benchmark baseline
     const baseline = benchmark('baseline', () => {

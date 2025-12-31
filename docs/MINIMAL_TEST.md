@@ -63,7 +63,7 @@ calendar.json (200 tasks)
     ↓
 Parse dates → Find ganttStart (earliest date)
     ↓
-Pre-compute $bar positions (x, y, width, height from dates)
+Pre-compute _bar positions (x, y, width, height from dates)
     ↓
 createStore(initialTasks)  // Fine-grained reactivity
     ↓
@@ -154,7 +154,7 @@ const [tasks, setTasks] = createStore({});
 ```javascript
 const t = createMemo(() => {
     const task = getTask();
-    const bar = task?.$bar;
+    const bar = task?._bar;
     return {
         color: task?.color,
         name: task?.name,
@@ -281,7 +281,7 @@ const taskKeys = untrack(() => Object.keys(tasks));
 | Aspect | TestBar | Bar.jsx |
 |--------|---------|---------|
 | Memos | 1 (combined) | 12+ (split) |
-| Position source | Slot index | Store $bar |
+| Position source | Slot index | Store _bar |
 | Debug effects | None | 1 (lines 480-487) |
 | Event handlers | 4 (no-op) | 8 (functional) |
 | DOM elements | 3 | 8 |
@@ -300,9 +300,9 @@ const pos = getSlotPosition(props.slotIndex, props.visibleCols);
 **Timeline (target):**
 ```javascript
 // Date-based positions
-const x = () => getTask()?.$bar?.x;
-const y = () => getTask()?.$bar?.y;
-const width = () => getTask()?.$bar?.width;
+const x = () => getTask()?._bar?.x;
+const y = () => getTask()?._bar?.y;
+const width = () => getTask()?._bar?.width;
 ```
 
 ### 6.3 Drag Handling
@@ -415,7 +415,7 @@ This creates reactive subscriptions on EVERY Bar even though it only logs for ta
 ### Phase 1: Core Rendering Parity
 
 1. **Replace slot grid with timeline layout**
-   - Use `$bar.x` directly instead of slot positions
+   - Use `_bar.x` directly instead of slot positions
    - Remove TOTAL_COLS/SLOT_WIDTH constants
    - Implement horizontal virtualization by X-range
 

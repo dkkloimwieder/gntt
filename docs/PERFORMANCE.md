@@ -403,7 +403,7 @@ const batchedPaths = createMemo(() => {
 
 **Fixes**:
 1. **ArrowLayer positionMap**: Use `untrack()` around position reads to prevent cascade
-2. **TaskLayer visibleTaskIds**: Use `untrack()` for `$bar` access during X filtering
+2. **TaskLayer visibleTaskIds**: Use `untrack()` for `_bar` access during X filtering
 3. **Gantt Y-sync effect**: Wrap position updates in `untrack()` to avoid feedback loop
 
 ```jsx
@@ -411,14 +411,14 @@ const batchedPaths = createMemo(() => {
 const positionMap = createMemo(() => {
     untrack(() => {
         for (const taskId in tasks) {
-            positions.set(taskId, { x: task.$bar.x, y: task.$bar.y, ... });
+            positions.set(taskId, { x: task._bar.x, y: task._bar.y, ... });
         }
     });
     return positions;
 });
 
 // TaskLayer.jsx - Untrack during X filtering
-const bar = untrack(() => task.$bar);
+const bar = untrack(() => task._bar);
 if (bar && (bar.x + bar.width < sx - 200 || bar.x > ex + 200)) continue;
 ```
 
@@ -556,7 +556,7 @@ pnpm dev
 | `src/components/GanttContainer.jsx` | Direct scrollLeft assignment, viewport signals |
 | `src/components/Gantt.jsx` | Uses createVirtualViewport, untrack() in Y-sync effect |
 | `src/components/DateHeaders.jsx` | Column virtualization |
-| `src/components/TaskLayer.jsx` | Row/X filtering, untrack() for $bar access |
+| `src/components/TaskLayer.jsx` | Row/X filtering, untrack() for _bar access |
 | `src/components/ArrowLayer.jsx` | Row filtering, untrack() in positionMap, cached positions during drag |
 | `src/components/ArrowLayerBatched.jsx` | **ENHANCED** - Spatial row indexing for O(visible_rows) lookup |
 | `src/demo/GanttPerfDemo.jsx` | Default to 'batched' arrow renderer |
