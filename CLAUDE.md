@@ -114,7 +114,7 @@ The SolidJS implementation uses reactive stores for state management:
 
 **Utilities:**
 - `barCalculations.js` - Position/size calculations from dates
-- `constraintResolver.js` - Dependency constraint enforcement (FS/SS/FF/SF)
+- `constraintEngine.js` - Dependency constraint enforcement (FS/SS/FF/SF)
 - `hierarchyProcessor.js` - Task hierarchy building and traversal
 - `rowLayoutCalculator.js` - Variable row heights for expanded subtasks
 - `createVirtualViewport.js` - Simple 2D viewport virtualization
@@ -237,6 +237,14 @@ See `benchmarks/traces/ANALYSIS.md` for current best practices and benchmark res
 
 ## Browser Automation & Performance Profiling
 
+> **🚨 CRITICAL: NEVER KILL CHROME**
+>
+> **NEVER run `pkill chrome`, `pkill -f chrome`, or any command that kills Chrome processes.**
+> The user may have important work open in their browser. Browser conflicts should be resolved by:
+> 1. Using `--browserUrl=http://127.0.0.1:9222` to connect to existing browser
+> 2. Using `--isolated` flag to run a separate browser instance
+> 3. Asking the user to close Chrome manually if needed
+
 This project uses the `chrome-devtools-cli` skill for browser automation and performance analysis.
 
 **Skill location:** `~/.claude/skills/chrome-devtools-cli/`
@@ -356,6 +364,29 @@ node ~/.claude/skills/chrome-devtools-cli/scripts/devtools.mjs --browserUrl=http
 ---
 
 ## Common Mistakes — DO NOT DO THESE
+
+### ❌ WRONG: Killing Chrome processes
+
+```bash
+# WRONG - NEVER DO THIS - destroys user's browser session
+pkill chrome
+pkill -f chrome
+pkill -9 -f "chrome.*remote-debugging"
+```
+
+**✅ RIGHT:** Handle browser conflicts properly:
+
+```bash
+# Option A: Connect to existing browser
+node scripts/devtools.mjs --browserUrl=http://127.0.0.1:9222 navigate https://example.com
+
+# Option B: Use isolated instance
+node scripts/workflow.mjs workflow.json --isolated
+
+# Option C: Ask user to close Chrome manually
+```
+
+---
 
 ### ❌ WRONG: Using headless mode for performance
 

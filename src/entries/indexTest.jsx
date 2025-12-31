@@ -112,7 +112,19 @@ const SCROLL_STEP = 10; // How many tasks to shift per "frame"
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TEST BAR VARIANTS - Progressively add complexity to find the bottleneck
+//
+// Categories:
+// - V1-V4:   Basic reactivity (Minimal, WithMemo, WithShow, CSSOnly)
+// - V5-V7:   Handler complexity (ManyMemos, WithHandlers, FullDOM)
+// - V7b-V10: DOM optimizations (Optimized, NoText, OptText, NoMemos)
+// - V11-V13: Memo strategies (SingleMemo, WithText, DirectTask)
+// - V14-V16: CSS optimizations (DirectTaskFull, MinimalCSS, WithContext)
+// - V17-V20: Store integration (RealStore, WithDrag, Combined)
 // ═══════════════════════════════════════════════════════════════════════════
+
+// ───────────────────────────────────────────────────────────────────────────
+// V1-V4: BASIC REACTIVITY TESTS
+// ───────────────────────────────────────────────────────────────────────────
 
 /**
  * V1: Absolute minimum - just a div with inline styles

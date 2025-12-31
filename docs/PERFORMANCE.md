@@ -69,7 +69,9 @@ const scrollTo = (x, smooth = true) => {
 
 **Impact**: Eliminated ~8,700 `<line>` elements → 3 elements (pattern, rect, path)
 
-### 3. Removed GridTicks Component
+### 3. Removed GridTicks Component (Historical)
+
+> **Note**: GridTicks was a separate component that no longer exists. This section documents a past optimization - the functionality is now integrated into `Grid.jsx`.
 
 **File**: `src/components/Gantt.jsx`
 

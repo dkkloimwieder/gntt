@@ -3,11 +3,11 @@ import { Bar } from './Bar.jsx';
 import { SummaryBar } from './SummaryBar.jsx';
 import { ExpandedTaskContainer } from './ExpandedTaskContainer.jsx';
 import {
-    resolveMovement,
+    resolveConstraints,
+    buildRelationshipIndex,
     collectDependentTasks,
     clampBatchDeltaX,
-    resolveAfterResize,
-} from '../utils/constraintResolver.js';
+} from '../utils/constraintEngine.js';
 import { collectDescendants } from '../utils/hierarchyProcessor.js';
 import { prof } from '../utils/profiler.js';
 
@@ -32,9 +32,12 @@ export function TaskLayer(props) {
     // Relationships for constraint resolution
     const relationships = () => props.relationships || [];
 
+    // Pre-build relationship index for O(1) lookups (rebuilds when relationships change)
+    const relationshipIndex = createMemo(() => buildRelationshipIndex(relationships()));
+
     /**
      * Handle constraint position callback from Bar.
-     * Integrates with constraintResolver for dependency constraints.
+     * Uses constraintEngine for dependency constraints.
      */
     const handleConstrainPosition = (taskId, newX, newY) => {
         if (!props.taskStore) return { x: newX, y: newY };
@@ -42,38 +45,35 @@ export function TaskLayer(props) {
         // Get columnWidth for lag conversion (lag is in days, needs pixels)
         const columnWidth = props.ganttConfig?.columnWidth?.() ?? 45;
 
-        const result = resolveMovement(
-            taskId,
-            newX,
-            newY,
-            props.taskStore,
-            relationships(),
-            { pixelsPerTimeUnit: columnWidth },
-        );
+        // Get current bar for width
+        const taskBar = props.taskStore.getBarPosition?.(taskId);
+        const width = taskBar?.width ?? 100;
 
-        if (!result) {
+        // Build context for constraint engine
+        const context = {
+            getBarPosition: props.taskStore.getBarPosition?.bind(props.taskStore),
+            getTask: props.taskStore.getTask?.bind(props.taskStore),
+            relationships: relationships(),
+            relationshipIndex: relationshipIndex(),
+            pixelsPerHour: columnWidth, // Using columnWidth as pixels per time unit
+        };
+
+        const result = resolveConstraints(taskId, newX, width, context);
+
+        if (result.blocked) {
             // Movement blocked
             return null;
         }
 
-        if (result.type === 'batch') {
-            // Multiple tasks need to move (fixed offset)
-            for (const update of result.updates) {
-                if (update.taskId !== taskId) {
-                    props.taskStore.updateBarPosition(update.taskId, {
-                        x: update.x,
-                    });
-                }
+        // Apply cascade updates to successors
+        if (result.cascadeUpdates && result.cascadeUpdates.length > 0) {
+            for (const [succId, update] of result.cascadeUpdates) {
+                props.taskStore.updateBarPosition(succId, update);
             }
-            // Return the position for the dragged task
-            const selfUpdate = result.updates.find((u) => u.taskId === taskId);
-            return selfUpdate
-                ? { x: selfUpdate.x, y: selfUpdate.y }
-                : { x: newX, y: newY };
         }
 
-        // Single task update
-        return { x: result.x, y: result.y };
+        // Return the constrained position for the dragged task
+        return { x: result.constrainedX, y: newY };
     };
 
     /**
@@ -97,7 +97,24 @@ export function TaskLayer(props) {
     const handleResizeEnd = (taskId) => {
         // Apply constraints after resize - push dependents if needed
         if (props.taskStore) {
-            resolveAfterResize(taskId, props.taskStore, relationships());
+            const columnWidth = props.ganttConfig?.columnWidth?.() ?? 45;
+            const taskBar = props.taskStore.getBarPosition?.(taskId);
+            if (taskBar) {
+                const context = {
+                    getBarPosition: props.taskStore.getBarPosition?.bind(props.taskStore),
+                    getTask: props.taskStore.getTask?.bind(props.taskStore),
+                    relationships: relationships(),
+                    relationshipIndex: relationshipIndex(),
+                    pixelsPerHour: columnWidth,
+                };
+                const result = resolveConstraints(taskId, taskBar.x, taskBar.width, context);
+                // Apply cascade updates
+                if (result.cascadeUpdates) {
+                    for (const [succId, update] of result.cascadeUpdates) {
+                        props.taskStore.updateBarPosition(succId, update);
+                    }
+                }
+            }
         }
         props.onResizeEnd?.(taskId);
     };

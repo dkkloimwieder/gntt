@@ -15,10 +15,10 @@ import { TaskDataModal } from '../components/TaskDataModal.jsx';
 import { createTaskStore } from '../stores/taskStore.js';
 import { createGanttConfigStore } from '../stores/ganttConfigStore.js';
 import {
-    resolveMovement,
-    resolveAfterResize,
-    DEPENDENCY_TYPES,
-} from '../utils/constraintResolver.js';
+    resolveConstraints,
+    buildRelationshipIndex,
+    DEP_TYPES as DEPENDENCY_TYPES,
+} from '../utils/constraintEngine.js';
 
 // ============================================================================
 // PRESETS
@@ -705,6 +705,9 @@ export default function ShowcaseDemo() {
         ];
     });
 
+    // Pre-build relationship index for O(1) lookups
+    const relationshipIndex = createMemo(() => buildRelationshipIndex(relationships()));
+
     // Task positions for each constraint type to demonstrate behavior
     const PRESET_POSITIONS = {
         // FS: Tasks chained end-to-start (B starts where A ends)
@@ -869,47 +872,54 @@ export default function ShowcaseDemo() {
         }
     };
 
-    // Constraint callback for Bar components - uses the constraint resolver
+    // Constraint callback for Bar components - uses the constraint engine
     const handleConstrainPosition = (taskId, newX, newY) => {
-        const result = resolveMovement(
-            taskId,
-            newX,
-            newY,
-            taskStore,
-            relationships(),
-            { pixelsPerTimeUnit: 1 },
-        );
+        const taskBar = taskStore.getBarPosition(taskId);
+        const width = taskBar?.width ?? 100;
 
-        if (result === null) {
-            // Movement blocked (e.g., task is locked)
+        // Build context for constraint engine
+        const context = {
+            getBarPosition: taskStore.getBarPosition.bind(taskStore),
+            getTask: taskStore.getTask.bind(taskStore),
+            relationships: relationships(),
+            relationshipIndex: relationshipIndex(),
+            pixelsPerHour: 1, // Using 1:1 pixel mapping
+        };
+
+        const result = resolveConstraints(taskId, newX, width, context);
+
+        if (result.blocked) {
             return null;
         }
 
-        if (result.type === 'batch') {
-            // Fixed offset: update all linked tasks
-            result.updates.forEach((update) => {
-                if (update.taskId !== taskId) {
-                    taskStore.updateBarPosition(update.taskId, {
-                        x: update.x,
-                        y: update.y,
-                    });
-                }
-            });
-            // Return the position for the dragged task
-            const draggedUpdate = result.updates.find(
-                (u) => u.taskId === taskId,
-            );
-            return { x: draggedUpdate?.x ?? newX, y: draggedUpdate?.y ?? newY };
+        // Apply cascade updates to successors
+        if (result.cascadeUpdates) {
+            for (const [succId, update] of result.cascadeUpdates) {
+                taskStore.updateBarPosition(succId, update);
+            }
         }
 
-        return { x: result.x, y: result.y };
+        return { x: result.constrainedX, y: newY };
     };
 
     // Handle resize end - trigger constraint resolution after duration change
     const handleResizeEnd = (taskId) => {
-        resolveAfterResize(taskId, taskStore, relationships(), {
-            pixelsPerTimeUnit: 1,
-        });
+        const taskBar = taskStore.getBarPosition(taskId);
+        if (taskBar) {
+            const context = {
+                getBarPosition: taskStore.getBarPosition.bind(taskStore),
+                getTask: taskStore.getTask.bind(taskStore),
+                relationships: relationships(),
+                relationshipIndex: relationshipIndex(),
+                pixelsPerHour: 1,
+            };
+            const result = resolveConstraints(taskId, taskBar.x, taskBar.width, context);
+            if (result.cascadeUpdates) {
+                for (const [succId, update] of result.cascadeUpdates) {
+                    taskStore.updateBarPosition(succId, update);
+                }
+            }
+        }
     };
 
     // Handle task hover (show popup)

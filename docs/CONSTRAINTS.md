@@ -437,7 +437,6 @@ function calculateCascadeUpdates(taskId, newX, context) {
 |------|---------|
 | `src/utils/constraintEngine.js` | Unified constraint resolution engine |
 | `src/utils/absoluteConstraints.js` | Lock type helpers, absolute time constraints |
-| `src/utils/constraintResolver.js` | Legacy resolver (deprecated) |
 | `src/demo/GanttPerfIsolate.jsx` | Main component using constraint engine |
 | `src/data/constraint-test.json` | Test data with labeled scenarios |
 | `src/components/ArrowLayerBatched.jsx` | Arrow rendering with style grouping |

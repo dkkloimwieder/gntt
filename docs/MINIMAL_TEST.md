@@ -258,7 +258,7 @@ const taskKeys = untrack(() => Object.keys(tasks));
 
 ### 5.2 Missing Components
 
-- `constraintResolver.js` integration
+- `constraintEngine.js` integration
 - `ArrowLayerBatched.jsx` (with performance fixes)
 - `TaskDataPopup.jsx` (hover popup)
 - `TaskDataModal.jsx` (click modal)

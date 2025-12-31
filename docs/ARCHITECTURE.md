@@ -121,7 +121,6 @@ src/
 ├── utils/
 │   ├── barCalculations.js  # Pure functions for bar geometry
 │   ├── constraintEngine.js # Unified constraint resolution (iterative relaxation)
-│   ├── constraintResolver.js # Legacy resolver (deprecated)
 │   ├── absoluteConstraints.js # Lock type helpers, absolute time constraints
 │   ├── createVirtualViewport.js # Simple 2D viewport virtualization
 │   ├── resourceProcessor.js # Resource normalization and group display
@@ -135,7 +134,7 @@ src/
 │   ├── gantt.jsx
 │   ├── resource-groups.jsx
 │   ├── perf.jsx
-│   ├── project.jsx         # Subtask demo (100 tasks with subtasks)
+│   ├── subtask.jsx         # Subtask demo (100 tasks with subtasks)
 │   ├── arrow.jsx
 │   ├── bar.jsx
 │   ├── constraint.jsx

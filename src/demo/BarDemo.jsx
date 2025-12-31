@@ -3,7 +3,7 @@ import { createTaskStore } from '../stores/taskStore.js';
 import { createGanttConfigStore } from '../stores/ganttConfigStore.js';
 import { Bar } from '../components/Bar.jsx';
 import { Arrow } from '../components/Arrow.jsx';
-import { resolveMovement } from '../utils/constraintResolver.js';
+import { resolveConstraints, buildRelationshipIndex } from '../utils/constraintEngine.js';
 
 /**
  * Bar Demo - Interactive Test Page for Bar Component
@@ -148,6 +148,9 @@ export function BarDemo() {
         // Fixed-offset: Sync A and Sync B move together
         { from: 'sync-a', to: 'sync-b', fixedOffset: true },
     ];
+
+    // Pre-build relationship index for O(1) lookups
+    const relationshipIndex = buildRelationshipIndex(relationships);
 
     // Bar positions showing different relationship types
     // Grid: columnWidth=45, so valid x positions are 0, 45, 90, 135, 180, 225, 270, 315, 360, 405...
@@ -346,43 +349,34 @@ export function BarDemo() {
                                 taskStore={taskStore}
                                 ganttConfig={ganttConfig}
                                 onConstrainPosition={(taskId, newX, newY) => {
-                                    // Get original position for delta calculation
-                                    const originalPos = taskStore.getBarPosition(taskId);
-                                    const originalX = originalPos?.x ?? newX;
+                                    const taskBar = taskStore.getBarPosition(taskId);
+                                    const width = taskBar?.width ?? 100;
 
-                                    // Update position so recursive push sees new predecessor position
-                                    taskStore.updateBarPosition(taskId, { x: newX });
+                                    // Build context for constraint engine
+                                    const context = {
+                                        getBarPosition: taskStore.getBarPosition.bind(taskStore),
+                                        getTask: taskStore.getTask.bind(taskStore),
+                                        relationships,
+                                        relationshipIndex,
+                                        pixelsPerHour: 45, // columnWidth
+                                    };
 
-                                    // Resolve constraints
-                                    const result = resolveMovement(taskId, newX, newY, taskStore, relationships);
+                                    const result = resolveConstraints(taskId, newX, width, context);
 
-                                    if (result === null) {
-                                        // Movement blocked - revert
-                                        taskStore.updateBarPosition(taskId, { x: originalX });
+                                    if (result.blocked) {
                                         return null;
                                     }
 
-                                    if (result.type === 'batch') {
-                                        // Fixed-offset: calculate delta from original, update all
-                                        const deltaX = newX - originalX;
-                                        result.updates.forEach(u => {
-                                            if (u.taskId === taskId) {
-                                                taskStore.updateBarPosition(u.taskId, { x: newX });
-                                            } else {
-                                                // Apply same delta to linked tasks
-                                                const linkedPos = taskStore.getBarPosition(u.taskId);
-                                                if (linkedPos) {
-                                                    taskStore.updateBarPosition(u.taskId, {
-                                                        x: linkedPos.x + deltaX
-                                                    });
-                                                }
-                                            }
-                                        });
-                                        return null;
+                                    // Update main task
+                                    taskStore.updateBarPosition(taskId, { x: result.constrainedX });
+
+                                    // Apply cascade updates to successors
+                                    if (result.cascadeUpdates) {
+                                        for (const [succId, update] of result.cascadeUpdates) {
+                                            taskStore.updateBarPosition(succId, update);
+                                        }
                                     }
 
-                                    // Single task: apply constrained position
-                                    taskStore.updateBarPosition(taskId, { x: result.x });
                                     return null;
                                 }}
                             />

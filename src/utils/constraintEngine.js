@@ -862,6 +862,110 @@ export function detectCycles(relationships) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// BATCH DRAG UTILITIES
+// Used by Bar.jsx for dragging multiple dependent tasks together
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Collect all tasks that would move when dragging a task forward.
+ * Traverses successor relationships iteratively (BFS, forward-only).
+ * Stops at locked tasks.
+ *
+ * @param {string} taskId - Starting task ID
+ * @param {Array} relationships - All relationships
+ * @param {Function} getTask - Function to get task by ID (for checking locked status)
+ * @param {Set} visited - Already visited (optional, for external use)
+ * @returns {Set<string>} Set of task IDs including the original
+ */
+export function collectDependentTasks(taskId, relationships, getTask = null, visited = new Set()) {
+    const queue = [taskId];
+
+    while (queue.length > 0) {
+        const currentId = queue.shift();
+        if (visited.has(currentId)) continue;
+
+        // Check if this task is locked - if so, don't include it or its dependents
+        if (getTask) {
+            const task = getTask(currentId);
+            if (task?.constraints?.locked) continue;
+        }
+
+        visited.add(currentId);
+
+        // Find all relationships where this task is the predecessor
+        for (const rel of relationships) {
+            if (rel.from === currentId && !visited.has(rel.to)) {
+                queue.push(rel.to);
+            }
+        }
+    }
+
+    return visited;
+}
+
+/**
+ * Clamp batch drag delta to prevent constraint violations.
+ * When dragging multiple tasks backward, ensures no task moves behind its predecessor.
+ *
+ * @param {Map} batchOriginals - Map of taskId -> {originalX} for batch tasks
+ * @param {number} proposedDeltaX - The proposed movement delta (negative for backward)
+ * @param {Array} relationships - All relationships
+ * @param {Function} getTask - Function to get task by ID
+ * @param {Object} options - Optional configuration
+ * @param {number} options.pixelsPerTimeUnit - Conversion factor for lag (default: 1)
+ * @returns {number} The clamped deltaX (may be less negative than proposed)
+ */
+export function clampBatchDeltaX(batchOriginals, proposedDeltaX, relationships, getTask, options = {}) {
+    // Only need to clamp when moving backward
+    if (proposedDeltaX >= 0) return proposedDeltaX;
+
+    const { pixelsPerTimeUnit = 1 } = options;
+    let minAllowedDelta = proposedDeltaX;
+    const batchTaskIds = new Set(batchOriginals.keys());
+
+    // For each task in the batch, check if it has a predecessor OUTSIDE the batch
+    for (const [taskId, { originalX }] of batchOriginals) {
+        const task = getTask(taskId);
+        if (!task?.$bar) continue;
+
+        // Find predecessor relationships
+        for (const rel of relationships) {
+            if (rel.to !== taskId) continue;
+
+            const predId = rel.from;
+            // Only check predecessors NOT in the batch (batch moves together)
+            if (batchTaskIds.has(predId)) continue;
+
+            const predTask = getTask(predId);
+            if (!predTask?.$bar) continue;
+
+            const type = rel.type || DEP_TYPES.FS;
+            const lag = rel.lag ?? 0;
+            const lagPx = lag * pixelsPerTimeUnit;
+
+            // Calculate minimum X for this successor based on predecessor
+            const predBar = predTask.$bar;
+            const succWidth = task.$bar.width ?? 0;
+            const minSuccX = getMinSuccessorX(type, predBar, succWidth, lagPx);
+
+            // Check if proposed movement would violate constraint
+            const newX = originalX + proposedDeltaX;
+            if (newX < minSuccX) {
+                const maxBackwardDelta = minSuccX - originalX;
+                if (maxBackwardDelta <= 0) {
+                    minAllowedDelta = Math.max(minAllowedDelta, maxBackwardDelta);
+                } else {
+                    // Task already violating - don't force forward, just prevent further backward
+                    minAllowedDelta = Math.max(minAllowedDelta, 0);
+                }
+            }
+        }
+    }
+
+    return minAllowedDelta;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // EXPORTS (for backwards compatibility)
 // ═══════════════════════════════════════════════════════════════════════════════
 
