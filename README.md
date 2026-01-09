@@ -2,12 +2,6 @@
 
 A Gantt chart library built with SolidJS.
 
-## Installation
-
-```bash
-npm install ganttss solid-js
-```
-
 ## Usage
 
 ```jsx
