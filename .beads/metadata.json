@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "gantt",
+  "project_id": "9cff73b5-6870-4961-a185-8e5c2ef7f5fe"
+}

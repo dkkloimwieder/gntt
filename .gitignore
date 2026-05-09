@@ -36,3 +36,8 @@ feedback*.md
 
 # Prevent test files at root
 /test-*.html
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
