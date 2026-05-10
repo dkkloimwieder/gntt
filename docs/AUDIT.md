@@ -1,6 +1,7 @@
 # Code Quality & Consistency Audit
 
-**Date:** 2026-05-09
+**Date:** 2026-05-09 (filed) · 2026-05-10 (resolved)
+**Status:** ✅ All 15 children + the parent epic closed. See [Resolutions](#resolutions) below.
 **Scope:** Library source — `src/components/`, `src/stores/`, `src/utils/`, `src/hooks/`, `src/contexts/`, `src/entries/`, `src/scripts/`, `src/index.ts`, top-level configs (`package.json`, `tsconfig.json`, `eslint.config.mjs`, `.prettierrc.json`, vite configs), and `docs/`.
 **Out of scope:** `src/demo/` (demo-only per CLAUDE.md), `benchmarks/`, `dist*/`, `node_modules/`.
 **Tracking:** Parent epic [`gantt-qa9`](#) — every finding below is a bd issue and depends-on-blocks the parent.
@@ -16,23 +17,37 @@ This audit is **report-only**. No source code modified — only `docs/AUDIT.md` 
 
 ## Findings
 
-| bd id | Category | Severity | File(s) | Summary |
+All findings resolved — see commit hash for the per-issue diff.
+
+| bd id | Severity | Summary | Status | Commit |
 |---|---|---|---|---|
-| [`gantt-lld`](#) | Tooling | **P1** | `eslint.config.mjs` deps | `pnpm lint` crashes — eslint-plugin-prettier@2.7.0 incompatible with prettier@3 |
-| [`gantt-3p2`](#) | Build | **P1** | `package.json:32-36` | `exports` field: `"style"` condition unreachable (after `import`/`require`); CSS subpath broken for bundlers |
-| [`gantt-ltu`](#) | Hygiene | **P1** | `src/components/Bar.tsx:551` | Debug `console.log('[Bar task-0]', …)` shipped in production |
-| [`gantt-i8b`](#) | Public API | **P2** | `src/types.ts:273-309`, `src/utils/defaults.ts`, `src/stores/gantt{Config,Date}Store.ts` | Both snake_case (`column_width`) and camelCase (`columnWidth`) accepted; types declare both |
-| [`gantt-84c`](#) | Pattern drift | **P2** | `src/stores/ganttConfigStore.ts` | 21 raw `createSignal` calls; outlier vs `taskStore` (createStore) and `ganttDateStore`/`resourceStore` (signals + memos) |
-| [`gantt-tor`](#) | Duplication | **P2** | 6 files (Bar, Grid, DateHeaders, barCalculations, gantt{Config,Date}Store) | `columnWidth ?? 45` default duplicated; same for `barHeight ?? 30` |
-| [`gantt-wih`](#) | Formatting | **P2** | 54 files | Prettier drift across all of `src/` and `tests/`; not enforced in CI |
-| [`gantt-six`](#) | Docs | **P2** | `docs/{DEMOS,EXPERIMENTS,MINIMAL_TEST,PERFORMANCE}.md` | All references say `.jsx`/`.js`; codebase is `.tsx`/`.ts` |
-| [`gantt-1fl`](#) | Hygiene | **P3** | `src/utils/{taskProcessor,hierarchyProcessor}.ts` | Validation `console.warn`/`console.error` not routed through a configurable handler |
-| [`gantt-6qn`](#) | Decomposition | **P3** | `src/components/{Arrow,Bar,Gantt,TaskLayer,ArrowLayerBatched}.tsx` | 5 components 488–845 lines, mixing render + state + event wiring |
-| [`gantt-09w`](#) | Naming | **P3** | `src/entries/` | kebab-case (`perf-isolate.tsx`) mixed with camelCase (`indexTest.tsx`) |
-| [`gantt-8mo`](#) | Naming | **P3** | `src/utils/date_utils.ts` | snake_case filename; peers in `src/utils/` use camelCase |
-| [`gantt-c3z`](#) | Pattern drift | **P3** | `src/utils/{date_utils,rowLayoutCalculator,subtaskGenerator,taskProcessor}.ts` | Default-export object in 4 utils; rest use named exports |
-| [`gantt-orl`](#) | Magic numbers | **P3** | `src/components/Bar.tsx:359,362,649,719` | Hardcoded label/progress offsets and percentage caps; pattern from `Arrow.tsx` (ARROW_DEFAULTS block) not applied |
-| [`gantt-5jz`](#) | Test infra | **P4** | `package.json`, `tests/` | No test runner configured; sole `tests/date_utils.test.js` cannot run |
+| `gantt-lld` | **P1** | `pnpm lint` crashes — eslint-plugin-prettier@2.7.0 incompatible with prettier@3 | ✅ | `63fa973` (Phase 2 of dep upgrade) |
+| `gantt-3p2` | **P1** | `package.json` `exports` `"style"` condition unreachable | ✅ | `9be660d` |
+| `gantt-ltu` | **P1** | Debug `console.log` shipped in `src/components/Bar.tsx` | ✅ | `9be660d` |
+| `gantt-i8b` | **P2** | snake_case + camelCase API duals (breaking change) | ✅ | `8be739e` |
+| `gantt-84c` | **P2** | ganttConfigStore: 21 signals → single `createStore` | ✅ | `e20bd6a` |
+| `gantt-tor` | **P2** | UI defaults duplicated → centralized in `src/constants.ts` | ✅ | `d816938` |
+| `gantt-wih` | **P2** | 54 files prettier drift (`pnpm prettier --write`) | ✅ | `c85745f` |
+| `gantt-six` | **P2** | docs `.jsx`/`.js` → `.tsx`/`.ts` (7 files, 203 lines) | ✅ | `fc6bc67` |
+| `gantt-1fl` | **P3** | Configurable diagnostic handler (`src/utils/diagnostics.ts`) | ✅ | `5822b3a` |
+| `gantt-6qn` | **P3** | 5 large components decomposed (sub-issues below) | ✅ | epic |
+| `gantt-09w` | **P3** | `src/entries` filenames kebab-case | ✅ | `85a485c` |
+| `gantt-8mo` | **P3** | `src/utils/date_utils.ts` → `dateUtils.ts` (file + identifier) | ✅ | `5f3d810` |
+| `gantt-c3z` | **P3** | Util default → named exports (4 files) | ✅ | `6eeb7af` |
+| `gantt-orl` | **P3** | Bar.tsx layout magic numbers → named constants | ✅ | `dd4d161` |
+| `gantt-5jz` | **P4** | vitest configured; existing test runs | ✅ | `9ec0d89` |
+
+### Sub-issues spawned during resolution
+
+| bd id | Origin | Summary | Status | Commit |
+|---|---|---|---|---|
+| `gantt-jkd` | gantt-fjr | 106 latent ESLint findings exposed by working pipeline | ✅ | `3104bae` |
+| `gantt-imx` | gantt-5jz | 2 pre-existing test failures (timezone / fractional month) | ✅ | `7bf2d0c` |
+| `gantt-nxz` | gantt-6qn | Decompose `Arrow.tsx` 892 → 285 | ✅ | `eaceb7e` |
+| `gantt-yof` | gantt-6qn | Decompose `ArrowLayerBatched.tsx` 547 → 297 | ✅ | `4f4079b` |
+| `gantt-e7n` | gantt-6qn | Decompose `TaskLayer.tsx` 584 → 217 | ✅ | `a7cc098` |
+| `gantt-bwv` | gantt-6qn | Decompose `Bar.tsx` 803 → 547 | ✅ | `53eae5a` |
+| `gantt-0vl` | gantt-6qn | Decompose `Gantt.tsx` 705 → 450 | ✅ | `38c4d28` |
 
 ## Heatmap
 
@@ -82,3 +97,27 @@ This audit is **report-only**. No source code modified — only `docs/AUDIT.md` 
 - `bd list --status=open` — should list 16 issues (1 epic + 15 children).
 - `bd show gantt-qa9` — should show 15 dependencies (all children).
 - All cited `file:line` references were captured from a clean tree at commit `c41d217` and verified by re-running the grep sweeps before each issue was filed.
+
+## Resolutions
+
+Beyond the 15 audit findings, an additional preparatory effort landed
+first — see the dep-upgrade epic `gantt-6jw` (commits `aebcab2`,
+`63fa973`, `6af3f52`, `25a9e52`, `12843ba`, `b826a13`). It closed
+23 → 0 `pnpm audit` advisories and unblocked `gantt-lld` (the lint
+pipeline was incompatible with prettier@3 until eslint-plugin-prettier
+jumped from 2.7 → 5.5 in Phase 2).
+
+**Outcomes:**
+
+- `pnpm audit`: 23 advisories → **0**.
+- `pnpm lint` exits 0 (was crashing before, then 2531 errors after
+  the pipeline was unblocked, now clean).
+- `pnpm test` runs (vitest installed; 12/12 passing).
+- All 5 large component files trimmed: Arrow 892 → 285 (-68%),
+  ArrowLayerBatched 547 → 297 (-46%), TaskLayer 584 → 217 (-63%),
+  Bar 803 → 547 (-32%), Gantt 705 → 450 (-36%).
+- Public API canonicalized to camelCase (one breaking change for
+  consumers who passed snake_case option names).
+- New extension points: `src/utils/diagnostics.ts` (configurable
+  handler for validation warnings) is exported from `src/index.ts`.
+- 30 commits over two days (2026-05-09 → 2026-05-10).
