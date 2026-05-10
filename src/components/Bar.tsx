@@ -9,7 +9,7 @@ import { useBarConfig } from '../hooks/useBarConfig';
 import { useGanttEvents } from '../contexts/GanttEvents';
 import type { TaskStore } from '../stores/taskStore';
 import type { GanttConfigStore } from '../stores/ganttConfigStore';
-import type { ProcessedTask, BarPosition, LockState } from '../types';
+import type { ProcessedTask, LockState } from '../types';
 import { DEFAULT_BAR_HEIGHT } from '../constants';
 
 // Bar-local layout constants (px)
@@ -101,24 +101,14 @@ export function Bar(props: BarProps): JSX.Element {
     // Get event handlers from context (fallback to props for backwards compatibility)
     const events = useGanttEvents();
 
-    // Get task - props.task can be a value OR an accessor function (for <Index> pooling)
-    // Returns the store proxy for reactive position updates during drag
+    // Get task - props.task can be a value OR an accessor function (for <Index> pooling).
+    // Re-look up via taskStore to avoid <Index> handing us a snapshot ref
+    // that doesn't track _bar.{x,width,…} mutations during drag.
     const getTask = (): ProcessedTask | undefined => {
         const t = props.task;
-        return typeof t === 'function' ? t() : t;
-    };
-
-    // Get position directly from task's _bar - keeps reactivity for drag updates
-    const getPosition = (): BarPosition => {
-        const task = getTask();
-        return (
-            task?._bar ?? {
-                x: props.x ?? 0,
-                y: props.y ?? 0,
-                width: props.width ?? 100,
-                height: props.height ?? DEFAULT_BAR_HEIGHT,
-            }
-        );
+        const v = typeof t === 'function' ? t() : t;
+        if (!v?.id || !props.taskStore) return v;
+        return (props.taskStore.tasks[v.id] as ProcessedTask | undefined) ?? v;
     };
 
     // Memoized config accessors — store value → prop fallback → default.
@@ -172,9 +162,11 @@ export function Bar(props: BarProps): JSX.Element {
         };
     });
 
-    // OPTIMIZATION: Single memoized position read instead of 4 separate store reads
-    const position = createMemo(() => getPosition());
-    const x = (): number => position()?.x ?? 0;
+    // Read each position field directly from the store proxy. Wrapping
+    // these in a memo would collapse the store-proxy reference into a
+    // stable value, which then never propagates downstream when the
+    // underlying _bar.{x,width,…} mutate during drag.
+    const x = (): number => getTask()?._bar?.x ?? props.x ?? 0;
     // Use taskPosition Y if provided (for variable row heights), else fall back to _bar.y
     // taskPosition can be a value OR accessor (for <Index> pooling reactivity)
     const y = (): number => {
@@ -182,10 +174,11 @@ export function Bar(props: BarProps): JSX.Element {
             typeof props.taskPosition === 'function'
                 ? props.taskPosition()
                 : props.taskPosition;
-        return pos?.y ?? position()?.y ?? 0;
+        return pos?.y ?? getTask()?._bar?.y ?? props.y ?? 0;
     };
-    const width = (): number => position()?.width ?? 100;
-    const height = (): number => position()?.height ?? DEFAULT_BAR_HEIGHT;
+    const width = (): number => getTask()?._bar?.width ?? props.width ?? 100;
+    const height = (): number =>
+        getTask()?._bar?.height ?? props.height ?? DEFAULT_BAR_HEIGHT;
 
     // Minimum bar width (one column)
     const minWidth = (): number => columnWidth();
