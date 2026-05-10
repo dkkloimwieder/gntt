@@ -25,7 +25,10 @@ export interface TaskStore {
     updateTask: (id: string, taskData: ProcessedTask) => void;
     updateBarPosition: (id: string, position: Partial<BarPosition>) => void;
     updateTasks: (tasksArray: ProcessedTask[]) => void;
-    batchMovePositions: (taskOriginals: Map<string, BatchOriginal>, deltaX: number) => void;
+    batchMovePositions: (
+        taskOriginals: Map<string, BatchOriginal>,
+        deltaX: number,
+    ) => void;
     removeTask: (id: string) => void;
     clear: () => void;
 
@@ -54,10 +57,14 @@ export function createTaskStore(): TaskStore {
     const [tasks, setTasks] = createStore<TaskMap>({});
 
     // Set of collapsed task IDs (tasks whose children are hidden)
-    const [collapsedTasks, setCollapsedTasks] = createSignal<Set<string>>(new Set());
+    const [collapsedTasks, setCollapsedTasks] = createSignal<Set<string>>(
+        new Set(),
+    );
 
     // Drag state - used to defer expensive recalculations during drag
-    const [draggingTaskId, setDraggingTaskId] = createSignal<string | null>(null);
+    const [draggingTaskId, setDraggingTaskId] = createSignal<string | null>(
+        null,
+    );
 
     // Get a specific task by ID
     // Accessing tasks[id] creates fine-grained dependency on just that task
@@ -94,7 +101,10 @@ export function createTaskStore(): TaskStore {
     };
 
     // Update bar position for a task (fine-grained path update)
-    const updateBarPosition = (id: string, position: Partial<BarPosition>): void => {
+    const updateBarPosition = (
+        id: string,
+        position: Partial<BarPosition>,
+    ): void => {
         if (!tasks[id]) return;
         // Use produce for fine-grained update - only triggers subscribers to changed paths
         setTasks(
@@ -131,7 +141,9 @@ export function createTaskStore(): TaskStore {
 
     // Get all tasks as array
     const getAllTasks = (): ProcessedTask[] => {
-        return Object.values(tasks).filter((t): t is ProcessedTask => t !== undefined);
+        return Object.values(tasks).filter(
+            (t): t is ProcessedTask => t !== undefined,
+        );
     };
 
     // Get task count (reads all keys, so subscribes to additions/removals)
@@ -141,7 +153,10 @@ export function createTaskStore(): TaskStore {
      * Move multiple tasks by deltaX in a single reactive update.
      * Uses produce for fine-grained updates - only affected Bar components re-render.
      */
-    const batchMovePositions = (taskOriginals: Map<string, BatchOriginal>, deltaX: number): void => {
+    const batchMovePositions = (
+        taskOriginals: Map<string, BatchOriginal>,
+        deltaX: number,
+    ): void => {
         setTasks(
             produce((state) => {
                 for (const [id, { originalX }] of taskOriginals) {
@@ -177,7 +192,8 @@ export function createTaskStore(): TaskStore {
     /**
      * Check if a task is collapsed.
      */
-    const isTaskCollapsed = (taskId: string): boolean => collapsedTasks().has(taskId);
+    const isTaskCollapsed = (taskId: string): boolean =>
+        collapsedTasks().has(taskId);
 
     /**
      * Explicitly expand a task (show its descendants).
@@ -216,7 +232,11 @@ export function createTaskStore(): TaskStore {
     const collapseAllTasks = (): void => {
         const summaryIds: string[] = [];
         for (const task of Object.values(tasks)) {
-            if (task && (task.type === 'summary' || (task._children && task._children.length > 0))) {
+            if (
+                task &&
+                (task.type === 'summary' ||
+                    (task._children && task._children.length > 0))
+            ) {
                 summaryIds.push(task.id);
             }
         }

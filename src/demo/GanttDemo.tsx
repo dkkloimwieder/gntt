@@ -105,7 +105,8 @@ export function GanttDemo() {
         'max-width': '1200px',
         margin: '0 auto',
         padding: '20px',
-        'font-family': '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        'font-family':
+            '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     };
 
     const headerStyle = {
@@ -134,7 +135,8 @@ export function GanttDemo() {
                     SolidJS Gantt Chart
                 </h1>
                 <p style={{ margin: 0, color: '#666' }}>
-                    Full Gantt chart with grid, headers, tasks, and dependency arrows.
+                    Full Gantt chart with grid, headers, tasks, and dependency
+                    arrows.
                 </p>
             </div>
 
@@ -160,8 +162,9 @@ export function GanttDemo() {
                     <li>Horizontal scrolling</li>
                 </ul>
                 <p style={{ margin: '10px 0 0 0' }}>
-                    <strong>Try:</strong> Drag tasks horizontally, resize from edges,
-                    or drag the progress handle. Check the console for events.
+                    <strong>Try:</strong> Drag tasks horizontally, resize from
+                    edges, or drag the progress handle. Check the console for
+                    events.
                 </p>
             </div>
         </div>

@@ -55,7 +55,11 @@ export function GanttProfiler() {
             const store = window.__ganttTaskStore;
 
             // Instrument hot methods
-            const hotMethods = ['getBarPosition', 'getTask', 'updateBarPosition'];
+            const hotMethods = [
+                'getBarPosition',
+                'getTask',
+                'updateBarPosition',
+            ];
             for (const method of hotMethods) {
                 if (store[method] && !store[method].__instrumented) {
                     const original = store[method].bind(store);
@@ -120,7 +124,10 @@ export function GanttProfiler() {
         const duration = 3000;
         const startTime = performance.now();
         let dir = 1;
-        let pos = direction === 'horizontal' ? scrollArea.scrollLeft : scrollArea.scrollTop;
+        let pos =
+            direction === 'horizontal'
+                ? scrollArea.scrollLeft
+                : scrollArea.scrollTop;
 
         const scroll = () => {
             const elapsed = performance.now() - startTime;
@@ -133,11 +140,16 @@ export function GanttProfiler() {
             pos += delta;
 
             if (direction === 'horizontal') {
-                if (pos > scrollArea.scrollWidth - scrollArea.clientWidth - 300) dir = -1;
+                if (pos > scrollArea.scrollWidth - scrollArea.clientWidth - 300)
+                    dir = -1;
                 else if (pos < 300) dir = 1;
                 scrollArea.scrollLeft = pos;
             } else {
-                if (pos > scrollArea.scrollHeight - scrollArea.clientHeight - 200) dir = -1;
+                if (
+                    pos >
+                    scrollArea.scrollHeight - scrollArea.clientHeight - 200
+                )
+                    dir = -1;
                 else if (pos < 200) dir = 1;
                 scrollArea.scrollTop = pos;
             }
@@ -174,24 +186,30 @@ export function GanttProfiler() {
     }));
 
     return (
-        <div style={{
-            display: 'flex',
-            'flex-direction': 'column',
-            height: '100vh',
-            'font-family': 'system-ui, sans-serif',
-            overflow: 'hidden',
-        }}>
-            {/* Header */}
-            <div style={{
-                padding: '10px 15px',
-                background: '#1e293b',
-                color: 'white',
+        <div
+            style={{
                 display: 'flex',
-                gap: '15px',
-                'align-items': 'center',
-                'flex-wrap': 'wrap',
-            }}>
-                <h1 style={{ margin: 0, 'font-size': '18px' }}>Function Profiler</h1>
+                'flex-direction': 'column',
+                height: '100vh',
+                'font-family': 'system-ui, sans-serif',
+                overflow: 'hidden',
+            }}
+        >
+            {/* Header */}
+            <div
+                style={{
+                    padding: '10px 15px',
+                    background: '#1e293b',
+                    color: 'white',
+                    display: 'flex',
+                    gap: '15px',
+                    'align-items': 'center',
+                    'flex-wrap': 'wrap',
+                }}
+            >
+                <h1 style={{ margin: 0, 'font-size': '18px' }}>
+                    Function Profiler
+                </h1>
 
                 <div style={{ display: 'flex', gap: '8px' }}>
                     <button
@@ -242,15 +260,32 @@ export function GanttProfiler() {
                     </button>
                 </div>
 
-                <div style={{
-                    display: 'flex',
-                    gap: '15px',
-                    'font-family': 'monospace',
-                    'font-size': '13px',
-                }}>
-                    <span>Frames: <strong style={{ color: '#4ade80' }}>{frameCount()}</strong></span>
-                    <span>Scrolls: <strong style={{ color: '#4ade80' }}>{scrollEvents()}</strong></span>
-                    <span>Tasks: <strong style={{ color: '#4ade80' }}>{tasks().length}</strong></span>
+                <div
+                    style={{
+                        display: 'flex',
+                        gap: '15px',
+                        'font-family': 'monospace',
+                        'font-size': '13px',
+                    }}
+                >
+                    <span>
+                        Frames:{' '}
+                        <strong style={{ color: '#4ade80' }}>
+                            {frameCount()}
+                        </strong>
+                    </span>
+                    <span>
+                        Scrolls:{' '}
+                        <strong style={{ color: '#4ade80' }}>
+                            {scrollEvents()}
+                        </strong>
+                    </span>
+                    <span>
+                        Tasks:{' '}
+                        <strong style={{ color: '#4ade80' }}>
+                            {tasks().length}
+                        </strong>
+                    </span>
                 </div>
 
                 <select
@@ -269,7 +304,13 @@ export function GanttProfiler() {
                     <option value="Week">Week</option>
                 </select>
 
-                <label style={{ display: 'flex', 'align-items': 'center', gap: '5px' }}>
+                <label
+                    style={{
+                        display: 'flex',
+                        'align-items': 'center',
+                        gap: '5px',
+                    }}
+                >
                     <input
                         type="checkbox"
                         checked={showCallTree()}
@@ -282,68 +323,76 @@ export function GanttProfiler() {
             {/* Main content */}
             <div style={{ display: 'flex', flex: 1, 'min-height': 0 }}>
                 {/* Gantt chart */}
-                <div style={{
-                    flex: analysisText() ? '0 0 60%' : '1',
-                    'min-width': 0,
-                    border: '1px solid #e2e8f0',
-                }}>
-                    <Gantt
-                        ref={ganttRef}
-                        tasks={tasks()}
-                        options={options()}
-                    />
+                <div
+                    style={{
+                        flex: analysisText() ? '0 0 60%' : '1',
+                        'min-width': 0,
+                        border: '1px solid #e2e8f0',
+                    }}
+                >
+                    <Gantt ref={ganttRef} tasks={tasks()} options={options()} />
                 </div>
 
                 {/* Analysis panel */}
                 <Show when={analysisText()}>
-                    <div style={{
-                        flex: '0 0 40%',
-                        display: 'flex',
-                        'flex-direction': 'column',
-                        'border-left': '2px solid #1e293b',
-                        overflow: 'hidden',
-                    }}>
-                        <div style={{
-                            padding: '10px',
-                            background: '#f1f5f9',
-                            'font-weight': 'bold',
-                            'border-bottom': '1px solid #e2e8f0',
-                        }}>
-                            Function Call Analysis
-                        </div>
-                        <pre style={{
-                            flex: showCallTree() ? '0 0 50%' : 1,
-                            margin: 0,
-                            padding: '10px',
-                            overflow: 'auto',
-                            'font-size': '11px',
-                            'line-height': '1.4',
-                            background: '#0f172a',
-                            color: '#e2e8f0',
-                        }}>
-                            {analysisText()}
-                        </pre>
-
-                        <Show when={showCallTree() && callTreeText()}>
-                            <div style={{
+                    <div
+                        style={{
+                            flex: '0 0 40%',
+                            display: 'flex',
+                            'flex-direction': 'column',
+                            'border-left': '2px solid #1e293b',
+                            overflow: 'hidden',
+                        }}
+                    >
+                        <div
+                            style={{
                                 padding: '10px',
                                 background: '#f1f5f9',
                                 'font-weight': 'bold',
                                 'border-bottom': '1px solid #e2e8f0',
-                                'border-top': '1px solid #e2e8f0',
-                            }}>
-                                Call Tree (first 5 levels)
-                            </div>
-                            <pre style={{
-                                flex: 1,
+                            }}
+                        >
+                            Function Call Analysis
+                        </div>
+                        <pre
+                            style={{
+                                flex: showCallTree() ? '0 0 50%' : 1,
                                 margin: 0,
                                 padding: '10px',
                                 overflow: 'auto',
-                                'font-size': '10px',
-                                'line-height': '1.3',
-                                background: '#1e293b',
-                                color: '#cbd5e1',
-                            }}>
+                                'font-size': '11px',
+                                'line-height': '1.4',
+                                background: '#0f172a',
+                                color: '#e2e8f0',
+                            }}
+                        >
+                            {analysisText()}
+                        </pre>
+
+                        <Show when={showCallTree() && callTreeText()}>
+                            <div
+                                style={{
+                                    padding: '10px',
+                                    background: '#f1f5f9',
+                                    'font-weight': 'bold',
+                                    'border-bottom': '1px solid #e2e8f0',
+                                    'border-top': '1px solid #e2e8f0',
+                                }}
+                            >
+                                Call Tree (first 5 levels)
+                            </div>
+                            <pre
+                                style={{
+                                    flex: 1,
+                                    margin: 0,
+                                    padding: '10px',
+                                    overflow: 'auto',
+                                    'font-size': '10px',
+                                    'line-height': '1.3',
+                                    background: '#1e293b',
+                                    color: '#cbd5e1',
+                                }}
+                            >
                                 {callTreeText()}
                             </pre>
                         </Show>

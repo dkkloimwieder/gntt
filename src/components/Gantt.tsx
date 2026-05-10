@@ -1,4 +1,13 @@
-import { createSignal, createMemo, createEffect, onMount, untrack, batch, Accessor, JSX } from 'solid-js';
+import {
+    createSignal,
+    createMemo,
+    createEffect,
+    onMount,
+    untrack,
+    batch,
+    Accessor,
+    JSX,
+} from 'solid-js';
 import { createTaskStore } from '../stores/taskStore';
 import { createGanttConfigStore } from '../stores/ganttConfigStore';
 import { createGanttDateStore } from '../stores/ganttDateStore';
@@ -6,9 +15,16 @@ import { createResourceStore } from '../stores/resourceStore';
 import { processTasks, findDateBounds } from '../utils/taskProcessor';
 import { extractResourcesFromTasks } from '../utils/resourceProcessor';
 import { createVirtualViewport } from '../utils/createVirtualViewport';
-import { buildHierarchy, isHiddenByCollapsedAncestor } from '../utils/hierarchyProcessor';
+import {
+    buildHierarchy,
+    isHiddenByCollapsedAncestor,
+} from '../utils/hierarchyProcessor';
 import { recomputeAllSummaryBounds } from '../utils/barCalculations';
-import { calculateRowLayouts, calculateSimpleRowLayouts, rowLayoutsToSortedArray } from '../utils/rowLayoutCalculator';
+import {
+    calculateRowLayouts,
+    calculateSimpleRowLayouts,
+    rowLayoutsToSortedArray,
+} from '../utils/rowLayoutCalculator';
 
 import { GanttContainer } from './GanttContainer';
 import { Grid } from './Grid';
@@ -19,7 +35,13 @@ import { TaskLayerMinimal } from './TaskLayerMinimal';
 import { TaskDataPopup } from './TaskDataPopup';
 import { TaskDataModal } from './TaskDataModal';
 import { GanttEventsProvider } from '../contexts/GanttEvents';
-import type { GanttTask, ProcessedTask, Relationship, BarPosition, ResourceInput } from '../types';
+import type {
+    GanttTask,
+    ProcessedTask,
+    Relationship,
+    BarPosition,
+    ResourceInput,
+} from '../types';
 import type { RowLayout } from '../utils/rowLayoutCalculator';
 
 interface ContainerAPI {
@@ -69,7 +91,10 @@ interface GanttProps {
     overscanCols?: number;
     overscanRows?: number;
     overscanX?: number;
-    onDateChange?: (taskId: string, position: { x: number; width: number }) => void;
+    onDateChange?: (
+        taskId: string,
+        position: { x: number; width: number },
+    ) => void;
     onProgressChange?: (taskId: string, progress: number) => void;
     onResizeEnd?: (taskId: string) => void;
     onTaskClick?: (taskId: string, event: MouseEvent) => void;
@@ -101,7 +126,9 @@ export function Gantt(props: GanttProps): JSX.Element {
     }
 
     // Container reference for scroll control (reactive so effects can depend on it)
-    const [containerApi, setContainerApi] = createSignal<ContainerAPI | null>(null);
+    const [containerApi, setContainerApi] = createSignal<ContainerAPI | null>(
+        null,
+    );
 
     // Viewport state for virtualization
     const [scrollLeft, setScrollLeft] = createSignal(0);
@@ -158,7 +185,10 @@ export function Gantt(props: GanttProps): JSX.Element {
     });
 
     // Initialize tasks and compute positions
-    const initializeTasks = (rawTasks: GanttTask[], useResourceStore = true): void => {
+    const initializeTasks = (
+        rawTasks: GanttTask[],
+        useResourceStore = true,
+    ): void => {
         if (!rawTasks || rawTasks.length === 0) {
             taskStore.clear();
             setRelationships([]);
@@ -228,7 +258,13 @@ export function Gantt(props: GanttProps): JSX.Element {
         for (const task of taskMap.values()) {
             // Check if hidden by collapsed ancestor (in addition to resource group collapse)
             const processedTask = task as ProcessedTask;
-            if (isHiddenByCollapsedAncestor(processedTask.id, taskMap as Map<string, ProcessedTask>, collapsedTaskSet)) {
+            if (
+                isHiddenByCollapsedAncestor(
+                    processedTask.id,
+                    taskMap as Map<string, ProcessedTask>,
+                    collapsedTaskSet,
+                )
+            ) {
                 processedTask._isHidden = true;
             }
         }
@@ -270,7 +306,9 @@ export function Gantt(props: GanttProps): JSX.Element {
     });
 
     // Watch for view mode changes - use signal to track previous value
-    const [prevViewMode, setPrevViewMode] = createSignal(props.options?.view_mode);
+    const [prevViewMode, setPrevViewMode] = createSignal(
+        props.options?.view_mode,
+    );
     createEffect(() => {
         const viewMode = props.options?.view_mode;
         const prev = prevViewMode();
@@ -303,7 +341,9 @@ export function Gantt(props: GanttProps): JSX.Element {
     const dateInfos = createMemo(() => dateStore.getAllDateInfos());
 
     // Row height for viewport calculations (base height)
-    const rowHeight = createMemo(() => ganttConfig.barHeight() + ganttConfig.padding());
+    const rowHeight = createMemo(
+        () => ganttConfig.barHeight() + ganttConfig.padding(),
+    );
 
     // Compute row layouts based on render mode
     // Simple mode: static heights, maximum performance
@@ -337,11 +377,18 @@ export function Gantt(props: GanttProps): JSX.Element {
 
         // Detailed mode: full layout with variable heights
         const expandedTasks = ganttConfig.expandedTasks();
-        return calculateRowLayouts(displayRows, config, expandedTasks, taskStore.tasks);
+        return calculateRowLayouts(
+            displayRows,
+            config,
+            expandedTasks,
+            taskStore.tasks,
+        );
     });
 
     // Sorted row layouts for binary search in virtualization
-    const sortedRowLayouts = createMemo(() => rowLayoutsToSortedArray(rowLayouts()));
+    const sortedRowLayouts = createMemo(() =>
+        rowLayoutsToSortedArray(rowLayouts()),
+    );
 
     // Sync _bar.y values with row layout positions
     // This ensures Arrow components (which read from _bar.y) match Bar rendering (which uses taskPosition.y)
@@ -406,9 +453,15 @@ export function Gantt(props: GanttProps): JSX.Element {
     });
 
     // Event handlers
-    const handleDateChange = (taskId: string, position: Partial<BarPosition>): void => {
+    const handleDateChange = (
+        taskId: string,
+        position: Partial<BarPosition>,
+    ): void => {
         if (position.x !== undefined && position.width !== undefined) {
-            props.onDateChange?.(taskId, { x: position.x, width: position.width });
+            props.onDateChange?.(taskId, {
+                x: position.x,
+                width: position.width,
+            });
         }
     };
 
@@ -428,7 +481,11 @@ export function Gantt(props: GanttProps): JSX.Element {
         props.onTaskClick?.(taskId, event);
     };
 
-    const handleTaskHover = (taskId: string, clientX: number, clientY: number): void => {
+    const handleTaskHover = (
+        taskId: string,
+        clientX: number,
+        clientY: number,
+    ): void => {
         setHoveredTaskId(taskId);
         setPopupPosition({ x: clientX, y: clientY });
         setPopupVisible(true);
@@ -534,11 +591,14 @@ export function Gantt(props: GanttProps): JSX.Element {
     });
 
     // Header heights from options
-    const upperHeaderHeight = (): number => props.options?.upper_header_height || 45;
-    const lowerHeaderHeight = (): number => props.options?.lower_header_height || 30;
+    const upperHeaderHeight = (): number =>
+        props.options?.upper_header_height || 45;
+    const lowerHeaderHeight = (): number =>
+        props.options?.lower_header_height || 30;
 
     // Resource column width from options
-    const resourceColumnWidth = (): number => props.options?.resource_column_width || 120;
+    const resourceColumnWidth = (): number =>
+        props.options?.resource_column_width || 120;
 
     // Arrow configuration from options
     const arrowConfig = createMemo(() => ({

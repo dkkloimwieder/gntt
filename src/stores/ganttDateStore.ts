@@ -50,7 +50,11 @@ export interface GanttDateStore {
     generateDates: () => void;
     extendTimeline: (direction: 'left' | 'right', units?: number) => void;
     changeViewMode: (mode: string | ViewMode) => void;
-    getDateInfo: (date: Date, index: number, lastDate?: Date | null) => DateInfo;
+    getDateInfo: (
+        date: Date,
+        index: number,
+        lastDate?: Date | null,
+    ) => DateInfo;
     dateToX: (date: Date) => number;
     xToDate: (x: number) => Date;
 }
@@ -59,7 +63,9 @@ export interface GanttDateStore {
  * Reactive store for timeline/date management.
  * Handles view mode, date generation, and timeline boundaries.
  */
-export function createGanttDateStore(options: GanttDateStoreOptions = {}): GanttDateStore {
+export function createGanttDateStore(
+    options: GanttDateStoreOptions = {},
+): GanttDateStore {
     // Timeline boundaries
     const [ganttStart, setGanttStart] = createSignal<Date>(
         options.ganttStart || new Date(),
@@ -83,13 +89,18 @@ export function createGanttDateStore(options: GanttDateStoreOptions = {}): Gantt
           defaultViewMode
         : defaultViewMode;
 
-    const [viewMode, setViewModeSignal] = createSignal<ViewMode>(initialViewMode);
+    const [viewMode, setViewModeSignal] =
+        createSignal<ViewMode>(initialViewMode);
 
     // Available view modes
-    const [viewModes] = createSignal<ViewMode[]>(options.viewModes || DEFAULT_VIEW_MODES);
+    const [viewModes] = createSignal<ViewMode[]>(
+        options.viewModes || DEFAULT_VIEW_MODES,
+    );
 
     // Language for date formatting
-    const [language, setLanguage] = createSignal<string>(options.language || 'en');
+    const [language, setLanguage] = createSignal<string>(
+        options.language || 'en',
+    );
 
     // Computed values
     const dateCount = createMemo(() => dates().length);
@@ -111,8 +122,12 @@ export function createGanttDateStore(options: GanttDateStoreOptions = {}): Gantt
     });
 
     // Column width - use options override if provided, else view mode default
-    const [columnWidthOverride] = createSignal<number | null>(options.columnWidth || options.column_width || null);
-    const columnWidth = createMemo(() => columnWidthOverride() || viewMode().column_width || 45);
+    const [columnWidthOverride] = createSignal<number | null>(
+        options.columnWidth || options.column_width || null,
+    );
+    const columnWidth = createMemo(
+        () => columnWidthOverride() || viewMode().column_width || 45,
+    );
 
     // Grid width in pixels
     const gridWidth = createMemo(() => dateCount() * columnWidth());
@@ -241,7 +256,11 @@ export function createGanttDateStore(options: GanttDateStoreOptions = {}): Gantt
      * Get date info for header rendering.
      * Returns x position and text for upper/lower headers.
      */
-    const getDateInfo = (date: Date, index: number, lastDate: Date | null = null): DateInfo => {
+    const getDateInfo = (
+        date: Date,
+        index: number,
+        lastDate: Date | null = null,
+    ): DateInfo => {
         const mode = viewMode();
         const lang = language();
         const colWidth = columnWidth();

@@ -103,7 +103,10 @@ export function TaskLayerMinimal(props: TaskLayerMinimalProps): JSX.Element {
                         const task = resourceTaskList[j];
                         if (!task) continue;
                         const bar = task._bar;
-                        if (!bar || (bar.x + bar.width >= sx - 200 && bar.x <= ex + 200)) {
+                        if (
+                            !bar ||
+                            (bar.x + bar.width >= sx - 200 && bar.x <= ex + 200)
+                        ) {
                             result.push(task);
                         }
                     }

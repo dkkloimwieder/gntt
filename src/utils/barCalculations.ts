@@ -15,7 +15,7 @@ export function computeX(
     ganttStart: Date,
     unit: TimeScale | string,
     step: number,
-    columnWidth: number
+    columnWidth: number,
 ): number {
     const diff = date_utils.diff(taskStart, ganttStart, unit) / step;
     // Use exact position, no rounding - rounding causes adjacent tasks to overlap
@@ -28,7 +28,11 @@ export function computeX(
  * Bar is vertically centered within its row.
  * Row height = barHeight + padding, rows start at y=0.
  */
-export function computeY(taskIndex: number, barHeight: number, padding: number): number {
+export function computeY(
+    taskIndex: number,
+    barHeight: number,
+    padding: number,
+): number {
     // Row starts at taskIndex * rowHeight (where rowHeight = barHeight + padding)
     // Bar is centered within row, so add padding/2 offset from row start
     const rowHeight = barHeight + padding;
@@ -43,7 +47,7 @@ export function computeWidth(
     taskEnd: Date,
     unit: TimeScale | string,
     step: number,
-    columnWidth: number
+    columnWidth: number,
 ): number {
     const diff = date_utils.diff(taskEnd, taskStart, unit) / step;
     // Use exact width, no rounding - rounding causes adjacent tasks to overlap
@@ -90,7 +94,11 @@ export function computeDuration(
 /**
  * Convert duration to units.
  */
-export function daysToUnits(days: number, unit: TimeScale, step: number): number {
+export function daysToUnits(
+    days: number,
+    unit: TimeScale,
+    step: number,
+): number {
     const durationStr = days + 'd';
     return date_utils.convert_scales(durationStr, unit) / step;
 }
@@ -110,7 +118,7 @@ export function computeProgressWidth(
     // Pre-compute ignored column indices for O(1) lookups
     // This changes O(n*m) to O(n+m) where n=iterations, m=ignoredPositions
     const ignoredColSet = new Set(
-        ignoredPositions.map((pos) => Math.floor(pos / columnWidth))
+        ignoredPositions.map((pos) => Math.floor(pos / columnWidth)),
     );
 
     // Count ignored columns within bar
@@ -155,7 +163,7 @@ export function computeExpectedProgress(
     taskStart: Date,
     taskEnd: Date,
     unit: TimeScale | string,
-    step: number
+    step: number,
 ): number {
     const today = date_utils.today();
     const totalDuration = date_utils.diff(taskEnd, taskStart, 'hour') / step;
@@ -172,7 +180,7 @@ export function computeExpectedProgress(
 export function isIgnoredPosition(
     x: number,
     ignoredPositions: number[],
-    columnWidth: number
+    columnWidth: number,
 ): boolean {
     return ignoredPositions.some((pos) => x >= pos && x < pos + columnWidth);
 }
@@ -183,7 +191,7 @@ export function isIgnoredPosition(
 export function snapToGrid(
     x: number,
     columnWidth: number,
-    ignoredPositions: number[] = []
+    ignoredPositions: number[] = [],
 ): number {
     // Snap to nearest column
     let snapped = Math.round(x / columnWidth) * columnWidth;
@@ -208,7 +216,7 @@ export function computeLabelPosition(
     barX: number,
     barWidth: number,
     labelText: string,
-    charWidth = 7
+    charWidth = 7,
 ): LabelPosition {
     const labelWidth = labelText.length * charWidth;
     const padding = 10;
@@ -233,7 +241,7 @@ export function computeLabelPosition(
  */
 export function calculateDistance(
     predBar: { x: number; width: number },
-    succBar: { x: number }
+    succBar: { x: number },
 ): number {
     const predRightEdge = predBar.x + predBar.width;
     return succBar.x - predRightEdge;
@@ -249,7 +257,10 @@ interface TaskWithChildren {
 
 type TaskMap = Map<string, TaskWithChildren> | Record<string, TaskWithChildren>;
 
-function getTaskFromMap(taskMap: TaskMap, id: string): TaskWithChildren | undefined {
+function getTaskFromMap(
+    taskMap: TaskMap,
+    id: string,
+): TaskWithChildren | undefined {
     if (taskMap instanceof Map) {
         return taskMap.get(id);
     }
@@ -268,7 +279,7 @@ interface SummaryBounds {
 export function computeSummaryBounds(
     summaryTask: TaskWithChildren,
     taskMap: TaskMap,
-    minWidth = 20
+    minWidth = 20,
 ): SummaryBounds | null {
     if (!summaryTask._children || summaryTask._children.length === 0) {
         return null;
@@ -308,7 +319,9 @@ export function computeSummaryBounds(
  * Recompute all summary bar bounds in the task hierarchy.
  * Process from deepest level up so parent summaries include child summaries.
  */
-export function recomputeAllSummaryBounds(taskMap: Map<string, TaskWithChildren>): void {
+export function recomputeAllSummaryBounds(
+    taskMap: Map<string, TaskWithChildren>,
+): void {
     // Find max depth
     let maxDepth = 0;
     for (const task of taskMap.values()) {
@@ -345,7 +358,7 @@ interface RowLayout {
 export function computeVariableY(
     rowId: string,
     rowLayouts: Map<string, RowLayout> | null | undefined,
-    fallbackY = 0
+    fallbackY = 0,
 ): number {
     const layout = rowLayouts?.get(rowId);
     if (layout && layout.contentY !== undefined) {
@@ -357,7 +370,10 @@ export function computeVariableY(
 /**
  * Compute subtask bar height based on ratio.
  */
-export function computeSubtaskBarHeight(barHeight: number, ratio = 0.5): number {
+export function computeSubtaskBarHeight(
+    barHeight: number,
+    ratio = 0.5,
+): number {
     return barHeight * ratio;
 }
 
@@ -378,7 +394,7 @@ interface TaskWithSubtasks extends TaskWithChildren {
 export function computeExpandedRowHeight(
     task: TaskWithSubtasks,
     isExpanded: boolean,
-    config: ExpandedRowConfig
+    config: ExpandedRowConfig,
 ): number {
     const { barHeight = 30, padding = 18, subtaskHeightRatio = 0.5 } = config;
     const baseRowHeight = barHeight + padding;

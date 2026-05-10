@@ -15,10 +15,11 @@ import type { LockState, TaskConstraints } from '../types';
 function constraintToPixels(
     constraint: string | Date | null | undefined,
     ganttStart: Date,
-    pixelsPerHour: number
+    pixelsPerHour: number,
 ): number | null {
     if (!constraint) return null;
-    const date = typeof constraint === 'string' ? new Date(constraint) : constraint;
+    const date =
+        typeof constraint === 'string' ? new Date(constraint) : constraint;
     if (isNaN(date.getTime())) return null;
     const hours = (date.getTime() - ganttStart.getTime()) / (1000 * 60 * 60);
     return hours * pixelsPerHour;
@@ -29,8 +30,8 @@ function constraintToPixels(
  */
 export function isMovementLocked(locked: LockState | undefined): boolean {
     if (locked === true) return true;
-    if (locked === 'start') return true;  // Fixed start means no movement
-    if (locked === 'end') return true;    // Fixed end means no movement
+    if (locked === 'start') return true; // Fixed start means no movement
+    if (locked === 'end') return true; // Fixed end means no movement
     return false;
 }
 
@@ -39,7 +40,7 @@ export function isMovementLocked(locked: LockState | undefined): boolean {
  */
 export function isLeftResizeLocked(locked: LockState | undefined): boolean {
     if (locked === true) return true;
-    if (locked === 'start') return true;  // Can't change start
+    if (locked === 'start') return true; // Can't change start
     if (locked === 'duration') return true; // Can't change duration
     return false;
 }
@@ -49,7 +50,7 @@ export function isLeftResizeLocked(locked: LockState | undefined): boolean {
  */
 export function isRightResizeLocked(locked: LockState | undefined): boolean {
     if (locked === true) return true;
-    if (locked === 'end') return true;    // Can't change end
+    if (locked === 'end') return true; // Can't change end
     if (locked === 'duration') return true; // Can't change duration
     return false;
 }
@@ -60,10 +61,14 @@ export function isRightResizeLocked(locked: LockState | undefined): boolean {
 export function getMinXFromAbsolute(
     constraints: TaskConstraints | null | undefined,
     ganttStart: Date,
-    pixelsPerHour: number
+    pixelsPerHour: number,
 ): number {
     if (!constraints?.minStart) return 0;
-    const minX = constraintToPixels(constraints.minStart, ganttStart, pixelsPerHour);
+    const minX = constraintToPixels(
+        constraints.minStart,
+        ganttStart,
+        pixelsPerHour,
+    );
     return minX ?? 0;
 }
 
@@ -73,10 +78,14 @@ export function getMinXFromAbsolute(
 export function getMaxXFromAbsolute(
     constraints: TaskConstraints | null | undefined,
     ganttStart: Date,
-    pixelsPerHour: number
+    pixelsPerHour: number,
 ): number {
     if (!constraints?.maxStart) return Infinity;
-    const maxX = constraintToPixels(constraints.maxStart, ganttStart, pixelsPerHour);
+    const maxX = constraintToPixels(
+        constraints.maxStart,
+        ganttStart,
+        pixelsPerHour,
+    );
     return maxX ?? Infinity;
 }
 
@@ -86,10 +95,14 @@ export function getMaxXFromAbsolute(
 export function getMinEndFromAbsolute(
     constraints: TaskConstraints | null | undefined,
     ganttStart: Date,
-    pixelsPerHour: number
+    pixelsPerHour: number,
 ): number {
     if (!constraints?.minEnd) return 0;
-    const minEnd = constraintToPixels(constraints.minEnd, ganttStart, pixelsPerHour);
+    const minEnd = constraintToPixels(
+        constraints.minEnd,
+        ganttStart,
+        pixelsPerHour,
+    );
     return minEnd ?? 0;
 }
 
@@ -99,10 +112,14 @@ export function getMinEndFromAbsolute(
 export function getMaxEndFromAbsolute(
     constraints: TaskConstraints | null | undefined,
     ganttStart: Date,
-    pixelsPerHour: number
+    pixelsPerHour: number,
 ): number {
     if (!constraints?.maxEnd) return Infinity;
-    const maxEnd = constraintToPixels(constraints.maxEnd, ganttStart, pixelsPerHour);
+    const maxEnd = constraintToPixels(
+        constraints.maxEnd,
+        ganttStart,
+        pixelsPerHour,
+    );
     return maxEnd ?? Infinity;
 }
 
@@ -112,7 +129,7 @@ export function getMaxEndFromAbsolute(
 export function getMinWidth(
     constraints: TaskConstraints | null | undefined,
     pixelsPerHour: number,
-    defaultMin: number | null = null
+    defaultMin: number | null = null,
 ): number {
     const min = defaultMin ?? pixelsPerHour; // Default to 1 hour
     if (!constraints?.minDuration) return min;
@@ -124,7 +141,7 @@ export function getMinWidth(
  */
 export function getMaxWidth(
     constraints: TaskConstraints | null | undefined,
-    pixelsPerHour: number
+    pixelsPerHour: number,
 ): number {
     if (!constraints?.maxDuration) return Infinity;
     return constraints.maxDuration * pixelsPerHour;
@@ -145,7 +162,7 @@ export function applyAbsoluteConstraints(
     proposedWidth: number,
     constraints: TaskConstraints | null | undefined,
     ganttStart: Date,
-    pixelsPerHour: number
+    pixelsPerHour: number,
 ): AbsoluteConstraintResult {
     if (!constraints) {
         return { x: proposedX, width: proposedWidth, blocked: false };
@@ -173,13 +190,21 @@ export function applyAbsoluteConstraints(
     }
 
     // Apply minEnd (adjust width if needed)
-    const minEnd = getMinEndFromAbsolute(constraints, ganttStart, pixelsPerHour);
+    const minEnd = getMinEndFromAbsolute(
+        constraints,
+        ganttStart,
+        pixelsPerHour,
+    );
     if (x + width < minEnd) {
         width = minEnd - x;
     }
 
     // Apply maxEnd (adjust width if needed)
-    const maxEnd = getMaxEndFromAbsolute(constraints, ganttStart, pixelsPerHour);
+    const maxEnd = getMaxEndFromAbsolute(
+        constraints,
+        ganttStart,
+        pixelsPerHour,
+    );
     if (x + width > maxEnd) {
         width = maxEnd - x;
     }
@@ -206,7 +231,7 @@ export function wouldViolateAbsolute(
     width: number,
     constraints: TaskConstraints | null | undefined,
     ganttStart: Date,
-    pixelsPerHour: number
+    pixelsPerHour: number,
 ): boolean {
     if (!constraints) return false;
 
@@ -216,7 +241,11 @@ export function wouldViolateAbsolute(
     const maxX = getMaxXFromAbsolute(constraints, ganttStart, pixelsPerHour);
     if (proposedX > maxX) return true;
 
-    const maxEnd = getMaxEndFromAbsolute(constraints, ganttStart, pixelsPerHour);
+    const maxEnd = getMaxEndFromAbsolute(
+        constraints,
+        ganttStart,
+        pixelsPerHour,
+    );
     if (proposedX + width > maxEnd) return true;
 
     return false;
@@ -230,18 +259,26 @@ export function getMaxPushX(
     constraints: TaskConstraints | null | undefined,
     width: number,
     ganttStart: Date,
-    pixelsPerHour: number
+    pixelsPerHour: number,
 ): number {
     if (!constraints) return Infinity;
 
     let maxX = Infinity;
 
     // Can't push past maxStart
-    const maxStart = getMaxXFromAbsolute(constraints, ganttStart, pixelsPerHour);
+    const maxStart = getMaxXFromAbsolute(
+        constraints,
+        ganttStart,
+        pixelsPerHour,
+    );
     maxX = Math.min(maxX, maxStart);
 
     // Can't push so far that end exceeds maxEnd
-    const maxEnd = getMaxEndFromAbsolute(constraints, ganttStart, pixelsPerHour);
+    const maxEnd = getMaxEndFromAbsolute(
+        constraints,
+        ganttStart,
+        pixelsPerHour,
+    );
     maxX = Math.min(maxX, maxEnd - width);
 
     return maxX;
@@ -254,7 +291,7 @@ export function getMaxPushX(
 export function getMinPullX(
     constraints: TaskConstraints | null | undefined,
     ganttStart: Date,
-    pixelsPerHour: number
+    pixelsPerHour: number,
 ): number {
     if (!constraints) return 0;
 

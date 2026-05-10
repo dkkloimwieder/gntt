@@ -25,13 +25,18 @@ const GanttEventsContext = createContext<GanttEventHandlers>();
 /**
  * Provider component that wraps the Gantt chart and provides event handlers.
  */
-export function GanttEventsProvider(props: GanttEventsProviderProps): JSX.Element {
+export function GanttEventsProvider(
+    props: GanttEventsProviderProps,
+): JSX.Element {
     const handlers: GanttEventHandlers = {
-        onDateChange: (taskId, position) => props.onDateChange?.(taskId, position),
-        onProgressChange: (taskId, progress) => props.onProgressChange?.(taskId, progress),
+        onDateChange: (taskId, position) =>
+            props.onDateChange?.(taskId, position),
+        onProgressChange: (taskId, progress) =>
+            props.onProgressChange?.(taskId, progress),
         onResizeEnd: (taskId) => props.onResizeEnd?.(taskId),
         onTaskClick: (taskId, event) => props.onTaskClick?.(taskId, event),
-        onHover: (taskId, clientX, clientY) => props.onHover?.(taskId, clientX, clientY),
+        onHover: (taskId, clientX, clientY) =>
+            props.onHover?.(taskId, clientX, clientY),
         onHoverEnd: () => props.onHoverEnd?.(),
     };
 

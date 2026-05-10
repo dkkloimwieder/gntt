@@ -67,7 +67,8 @@ export function Grid(props: GridProps): JSX.Element {
     const taskCount = () => props.taskCount || 0;
 
     // Get display resources from resourceStore (for group row detection)
-    const displayResources = () => props.resourceStore?.displayResources() || [];
+    const displayResources = () =>
+        props.resourceStore?.displayResources() || [];
 
     // Row layouts for variable heights (optional - from rowLayoutCalculator)
     const rowLayouts = () => props.rowLayouts || null;

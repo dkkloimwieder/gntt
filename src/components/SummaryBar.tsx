@@ -20,7 +20,10 @@ interface SummaryBarProps {
     ganttConfig?: GanttConfigStore;
     taskPosition?: TaskPosition | Accessor<TaskPosition | undefined>;
     onCollectDescendants?: (taskId: string) => Set<string>;
-    onClampBatchDelta?: (batchOriginals: Map<string, BatchOriginal>, deltaX: number) => number;
+    onClampBatchDelta?: (
+        batchOriginals: Map<string, BatchOriginal>,
+        deltaX: number,
+    ) => number;
     onDragEnd?: (taskId: string) => void;
 }
 
@@ -59,20 +62,29 @@ export function SummaryBar(props: SummaryBarProps): JSX.Element {
     const position = createMemo(() => getPosition());
     const x = (): number => position()?.x ?? 0;
     const y = (): number => {
-        const pos = typeof props.taskPosition === 'function' ? props.taskPosition() : props.taskPosition;
+        const pos =
+            typeof props.taskPosition === 'function'
+                ? props.taskPosition()
+                : props.taskPosition;
         return pos?.y ?? position()?.y ?? 0;
     };
     const width = (): number => position()?.width ?? 100;
     const height = (): number => position()?.height ?? 30;
 
     // Configuration
-    const columnWidth = createMemo(() => props.ganttConfig?.columnWidth?.() ?? 45);
+    const columnWidth = createMemo(
+        () => props.ganttConfig?.columnWidth?.() ?? 45,
+    );
     const readonly = createMemo(() => props.ganttConfig?.readonly?.() ?? false);
-    const cornerRadius = createMemo(() => props.ganttConfig?.barCornerRadius?.() ?? 3);
+    const cornerRadius = createMemo(
+        () => props.ganttConfig?.barCornerRadius?.() ?? 3,
+    );
 
     // Colors
-    const barColor = (): string => task()?.color ?? 'var(--g-bar-color, #b8c2cc)';
-    const progressColor = (): string => task()?.color_progress ?? 'var(--g-bar-progress-color, #a3a3ff)';
+    const barColor = (): string =>
+        task()?.color ?? 'var(--g-bar-color, #b8c2cc)';
+    const progressColor = (): string =>
+        task()?.color_progress ?? 'var(--g-bar-progress-color, #a3a3ff)';
     const progress = (): number => task()?.progress ?? 0;
 
     // Progress bar width
@@ -115,8 +127,14 @@ export function SummaryBar(props: SummaryBarProps): JSX.Element {
             const newX = snapToGrid(originalX + move.deltaX, colWidth, []);
             let deltaX = newX - originalX;
 
-            const batchOriginals = data['batchOriginals'] as Map<string, BatchOriginal> | undefined;
-            if (batchOriginals && batchOriginals.size > 0 && props.taskStore.batchMovePositions) {
+            const batchOriginals = data['batchOriginals'] as
+                | Map<string, BatchOriginal>
+                | undefined;
+            if (
+                batchOriginals &&
+                batchOriginals.size > 0 &&
+                props.taskStore.batchMovePositions
+            ) {
                 if (props.onClampBatchDelta && deltaX < 0) {
                     deltaX = props.onClampBatchDelta(batchOriginals, deltaX);
                 }
@@ -177,7 +195,9 @@ export function SummaryBar(props: SummaryBarProps): JSX.Element {
                     'border-radius': `${cornerRadius()}px`,
                     'background-color': isDragging() ? '#2c3e50' : barColor(),
                     'box-sizing': 'border-box',
-                    transition: isDragging() ? 'none' : 'background-color 0.1s ease',
+                    transition: isDragging()
+                        ? 'none'
+                        : 'background-color 0.1s ease',
                 }}
             />
 
@@ -203,10 +223,14 @@ export function SummaryBar(props: SummaryBarProps): JSX.Element {
                 style={{
                     position: 'absolute',
                     top: '50%',
-                    left: labelPos().position === 'inside' ? '50%' : `${width() + 8}px`,
-                    transform: labelPos().position === 'inside'
-                        ? 'translate(-50%, -50%)'
-                        : 'translateY(-50%)',
+                    left:
+                        labelPos().position === 'inside'
+                            ? '50%'
+                            : `${width() + 8}px`,
+                    transform:
+                        labelPos().position === 'inside'
+                            ? 'translate(-50%, -50%)'
+                            : 'translateY(-50%)',
                     'font-size': '12px',
                     'font-weight': '500',
                     color: labelPos().position === 'inside' ? '#fff' : '#333',
@@ -229,7 +253,8 @@ export function SummaryBar(props: SummaryBarProps): JSX.Element {
                     color: '#888',
                     'pointer-events': 'none',
                     'white-space': 'nowrap',
-                    display: (task()?._children?.length ?? 0) > 0 ? 'block' : 'none',
+                    display:
+                        (task()?._children?.length ?? 0) > 0 ? 'block' : 'none',
                 }}
             >
                 ({task()?._children?.length ?? 0})

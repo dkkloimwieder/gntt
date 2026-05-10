@@ -98,7 +98,8 @@ export function GanttContainer(props: GanttContainerProps): JSX.Element {
     // Header height
     const headerHeight = (): number => {
         if (props.headerHeight) return props.headerHeight;
-        if (props.ganttConfig?.headerHeight) return props.ganttConfig.headerHeight();
+        if (props.ganttConfig?.headerHeight)
+            return props.ganttConfig.headerHeight();
         return 60;
     };
 
@@ -132,12 +133,15 @@ export function GanttContainer(props: GanttContainerProps): JSX.Element {
             setScrollLeft(sl);
             setScrollTop(st);
         } else if (!pendingUpdate) {
-            pendingUpdate = setTimeout(() => {
-                pendingUpdate = null;
-                lastUpdateTime = performance.now();
-                setScrollLeft(latestScrollX);
-                setScrollTop(latestScrollY);
-            }, SCROLL_THROTTLE_MS - (now - lastUpdateTime));
+            pendingUpdate = setTimeout(
+                () => {
+                    pendingUpdate = null;
+                    lastUpdateTime = performance.now();
+                    setScrollLeft(latestScrollX);
+                    setScrollTop(latestScrollY);
+                },
+                SCROLL_THROTTLE_MS - (now - lastUpdateTime),
+            );
         }
 
         props.onScroll?.(sl, st);
@@ -221,7 +225,10 @@ export function GanttContainer(props: GanttContainerProps): JSX.Element {
                 display: 'grid',
                 'grid-template-columns': `${resourceColumnWidth()}px 1fr`,
                 'grid-template-rows': `${headerHeight()}px 1fr`,
-                height: typeof containerHeight() === 'number' ? `${containerHeight()}px` : containerHeight() as string,
+                height:
+                    typeof containerHeight() === 'number'
+                        ? `${containerHeight()}px`
+                        : (containerHeight() as string),
                 overflow: 'hidden',
                 position: 'relative',
             }}
@@ -236,8 +243,10 @@ export function GanttContainer(props: GanttContainerProps): JSX.Element {
                     'align-items': 'center',
                     'justify-content': 'center',
                     'background-color': 'var(--g-header-bg-color, #fff)',
-                    'border-right': '1px solid var(--g-grid-line-color, #e0e0e0)',
-                    'border-bottom': '1px solid var(--g-grid-line-color, #e0e0e0)',
+                    'border-right':
+                        '1px solid var(--g-grid-line-color, #e0e0e0)',
+                    'border-bottom':
+                        '1px solid var(--g-grid-line-color, #e0e0e0)',
                     'font-weight': '600',
                     'font-size': '12px',
                     color: 'var(--g-header-text-color, #333)',
@@ -256,7 +265,8 @@ export function GanttContainer(props: GanttContainerProps): JSX.Element {
                     'grid-column': '2',
                     overflow: 'hidden',
                     'background-color': 'var(--g-header-bg-color, #fff)',
-                    'border-bottom': '1px solid var(--g-grid-line-color, #e0e0e0)',
+                    'border-bottom':
+                        '1px solid var(--g-grid-line-color, #e0e0e0)',
                     'z-index': 10,
                 }}
             >
@@ -272,7 +282,8 @@ export function GanttContainer(props: GanttContainerProps): JSX.Element {
                     'grid-column': '1',
                     overflow: 'hidden',
                     'background-color': 'var(--g-resource-bg, #fff)',
-                    'border-right': '1px solid var(--g-grid-line-color, #e0e0e0)',
+                    'border-right':
+                        '1px solid var(--g-grid-line-color, #e0e0e0)',
                     'z-index': 9,
                 }}
             >
@@ -297,7 +308,9 @@ export function GanttContainer(props: GanttContainerProps): JSX.Element {
                         position: 'relative',
                         width: props.svgWidth ? `${props.svgWidth}px` : '100%',
                         height: `${props.svgHeight || 300}px`,
-                        'min-width': props.svgWidth ? `${props.svgWidth}px` : undefined,
+                        'min-width': props.svgWidth
+                            ? `${props.svgWidth}px`
+                            : undefined,
                     }}
                 >
                     {/* SVG layer */}

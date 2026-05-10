@@ -47,10 +47,10 @@ const DEFAULT_CONFIG = {
     startDate: '2025-01-01',
     workdayStartHour: 8,
     workdayEndHour: 17,
-    minDuration: 0.08,   // ~5 minutes
-    maxDuration: 0.15,   // ~10 minutes
-    resourceCount: 100,  // Many rows so all tasks visible at once
-    maxRowDistance: 2,   // Max row distance for cross-row dependencies
+    minDuration: 0.08, // ~5 minutes
+    maxDuration: 0.15, // ~10 minutes
+    resourceCount: 100, // Many rows so all tasks visible at once
+    maxRowDistance: 2, // Max row distance for cross-row dependencies
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -101,26 +101,30 @@ function generateBreadthHeavy(cfg, random) {
     let taskNum = 1;
     let depCount = 0;
     const resourceCount = 25;
-    const baseStart = parseDateTime(`${cfg.startDate} ${String(cfg.workdayStartHour).padStart(2, '0')}:00`);
+    const baseStart = parseDateTime(
+        `${cfg.startDate} ${String(cfg.workdayStartHour).padStart(2, '0')}:00`,
+    );
 
     const resourceNextFree = {};
     for (let i = 0; i < resourceCount; i++) {
         resourceNextFree[getResourceLabel(i)] = cloneDate(baseStart);
     }
 
-    const levels = [[], [], [], [], []];  // 5 levels max
+    const levels = [[], [], [], [], []]; // 5 levels max
 
     // Level 0: Root tasks
     for (let r = 0; r < numRoots && taskNum <= cfg.totalTasks; r++) {
         const resource = getResourceLabel(r % resourceCount);
-        const colors = computeColorVariants(GROUP_COLORS[r % GROUP_COLORS.length]);
+        const colors = computeColorVariants(
+            GROUP_COLORS[r % GROUP_COLORS.length],
+        );
         const duration = randomFloat(random, cfg.minDuration, cfg.maxDuration);
 
         const { start, end } = calculateTaskTimes(
             resourceNextFree[resource],
             duration,
             cfg.workdayStartHour,
-            cfg.workdayEndHour
+            cfg.workdayEndHour,
         );
         resourceNextFree[resource] = cloneDate(end);
 
@@ -141,24 +145,38 @@ function generateBreadthHeavy(cfg, random) {
     // Levels 1-4: Children with single parent each (for structure)
     for (let level = 1; level <= 4 && taskNum <= cfg.totalTasks; level++) {
         const parents = levels[level - 1];
-        const childrenPerParent = level === 1 ? 4 : (level === 2 ? 3 : 2);
+        const childrenPerParent = level === 1 ? 4 : level === 2 ? 3 : 2;
 
         for (const parent of parents) {
-            const numChildren = Math.min(childrenPerParent, Math.ceil((cfg.totalTasks - taskNum + 1) / parents.length));
+            const numChildren = Math.min(
+                childrenPerParent,
+                Math.ceil((cfg.totalTasks - taskNum + 1) / parents.length),
+            );
 
             for (let c = 0; c < numChildren && taskNum <= cfg.totalTasks; c++) {
-                const resource = getResourceLabel((taskNum - 1) % resourceCount);
-                const colors = computeColorVariants(GROUP_COLORS[(taskNum - 1) % GROUP_COLORS.length]);
-                const duration = randomFloat(random, cfg.minDuration, cfg.maxDuration);
+                const resource = getResourceLabel(
+                    (taskNum - 1) % resourceCount,
+                );
+                const colors = computeColorVariants(
+                    GROUP_COLORS[(taskNum - 1) % GROUP_COLORS.length],
+                );
+                const duration = randomFloat(
+                    random,
+                    cfg.minDuration,
+                    cfg.maxDuration,
+                );
 
                 const parentEnd = parseDateTime(parent.end);
-                const startTime = parentEnd > resourceNextFree[resource] ? parentEnd : resourceNextFree[resource];
+                const startTime =
+                    parentEnd > resourceNextFree[resource]
+                        ? parentEnd
+                        : resourceNextFree[resource];
 
                 const { start, end } = calculateTaskTimes(
                     startTime,
                     duration,
                     cfg.workdayStartHour,
-                    cfg.workdayEndHour
+                    cfg.workdayEndHour,
                 );
                 resourceNextFree[resource] = cloneDate(end);
 
@@ -183,19 +201,24 @@ function generateBreadthHeavy(cfg, random) {
     // Fill remaining tasks
     while (taskNum <= cfg.totalTasks) {
         const resource = getResourceLabel((taskNum - 1) % resourceCount);
-        const colors = computeColorVariants(GROUP_COLORS[(taskNum - 1) % GROUP_COLORS.length]);
+        const colors = computeColorVariants(
+            GROUP_COLORS[(taskNum - 1) % GROUP_COLORS.length],
+        );
         const duration = randomFloat(random, cfg.minDuration, cfg.maxDuration);
 
         const parentIdx = randomBetween(random, 0, tasks.length - 1);
         const parent = tasks[parentIdx];
         const parentEnd = parseDateTime(parent.end);
-        const startTime = parentEnd > resourceNextFree[resource] ? parentEnd : resourceNextFree[resource];
+        const startTime =
+            parentEnd > resourceNextFree[resource]
+                ? parentEnd
+                : resourceNextFree[resource];
 
         const { start, end } = calculateTaskTimes(
             startTime,
             duration,
             cfg.workdayStartHour,
-            cfg.workdayEndHour
+            cfg.workdayEndHour,
         );
         resourceNextFree[resource] = cloneDate(end);
 
@@ -222,20 +245,24 @@ function generateBreadthHeavy(cfg, random) {
         const toStart = parseDateTime(toTask.start);
 
         // Find a valid predecessor (different from existing deps)
-        const existingDeps = new Set((toTask.dependencies || []).map(d => d.id));
-        const candidates = tasks.filter((t, i) =>
-            i < toIdx &&
-            !existingDeps.has(t.id) &&
-            parseDateTime(t.end) <= toStart
+        const existingDeps = new Set(
+            (toTask.dependencies || []).map((d) => d.id),
+        );
+        const candidates = tasks.filter(
+            (t, i) =>
+                i < toIdx &&
+                !existingDeps.has(t.id) &&
+                parseDateTime(t.end) <= toStart,
         );
 
         if (candidates.length > 0) {
-            const fromTask = candidates[randomBetween(random, 0, candidates.length - 1)];
+            const fromTask =
+                candidates[randomBetween(random, 0, candidates.length - 1)];
             if (!toTask.dependencies) toTask.dependencies = [];
             toTask.dependencies.push({ id: fromTask.id, type: 'FS' });
             depCount++;
         } else {
-            break;  // No more valid candidates
+            break; // No more valid candidates
         }
     }
 
@@ -254,16 +281,24 @@ function generateDepthHeavy(cfg, random) {
     // With ~2 deps per task average = ~1000 deps
     const numChains = 5;
     const tasksPerChain = Math.ceil(cfg.totalTasks / numChains);
-    const branchProbability = 0.1;  // 10% chance of spawning a branch
+    const branchProbability = 0.1; // 10% chance of spawning a branch
 
     let taskNum = 1;
     let depCount = 0;
-    const resourceCount = numChains;  // One resource per chain
-    const baseStart = parseDateTime(`${cfg.startDate} ${String(cfg.workdayStartHour).padStart(2, '0')}:00`);
+    const resourceCount = numChains; // One resource per chain
+    const baseStart = parseDateTime(
+        `${cfg.startDate} ${String(cfg.workdayStartHour).padStart(2, '0')}:00`,
+    );
 
-    for (let chain = 0; chain < numChains && taskNum <= cfg.totalTasks; chain++) {
+    for (
+        let chain = 0;
+        chain < numChains && taskNum <= cfg.totalTasks;
+        chain++
+    ) {
         const resource = getResourceLabel(chain);
-        const colors = computeColorVariants(GROUP_COLORS[chain % GROUP_COLORS.length]);
+        const colors = computeColorVariants(
+            GROUP_COLORS[chain % GROUP_COLORS.length],
+        );
         let currentTime = cloneDate(baseStart);
         let prevTaskId = null;
 
@@ -271,19 +306,24 @@ function generateDepthHeavy(cfg, random) {
         const chainTasks = [];
 
         for (let i = 0; i < tasksPerChain && taskNum <= cfg.totalTasks; i++) {
-            const duration = randomFloat(random, cfg.minDuration, cfg.maxDuration);
+            const duration = randomFloat(
+                random,
+                cfg.minDuration,
+                cfg.maxDuration,
+            );
 
             const { start, end } = calculateTaskTimes(
                 currentTime,
                 duration,
                 cfg.workdayStartHour,
-                cfg.workdayEndHour
+                cfg.workdayEndHour,
             );
             currentTime = cloneDate(end);
 
-            const deps = prevTaskId && depCount < cfg.targetDeps
-                ? [{ id: prevTaskId, type: 'FS' }]
-                : undefined;
+            const deps =
+                prevTaskId && depCount < cfg.targetDeps
+                    ? [{ id: prevTaskId, type: 'FS' }]
+                    : undefined;
 
             const task = {
                 id: `task-${taskNum}`,
@@ -303,20 +343,36 @@ function generateDepthHeavy(cfg, random) {
             taskNum++;
 
             // Occasionally spawn a branch (small side chain)
-            if (random() < branchProbability && taskNum <= cfg.totalTasks && depCount < cfg.targetDeps) {
+            if (
+                random() < branchProbability &&
+                taskNum <= cfg.totalTasks &&
+                depCount < cfg.targetDeps
+            ) {
                 const branchLength = randomBetween(random, 2, 5);
                 let branchPrevId = task.id;
                 const branchResource = getResourceLabel(resourceCount + chain);
-                const branchColors = computeColorVariants(GROUP_COLORS[(chain + 5) % GROUP_COLORS.length]);
+                const branchColors = computeColorVariants(
+                    GROUP_COLORS[(chain + 5) % GROUP_COLORS.length],
+                );
                 let branchTime = cloneDate(end);
 
-                for (let b = 0; b < branchLength && taskNum <= cfg.totalTasks && depCount < cfg.targetDeps; b++) {
-                    const branchDuration = randomFloat(random, cfg.minDuration, cfg.maxDuration);
+                for (
+                    let b = 0;
+                    b < branchLength &&
+                    taskNum <= cfg.totalTasks &&
+                    depCount < cfg.targetDeps;
+                    b++
+                ) {
+                    const branchDuration = randomFloat(
+                        random,
+                        cfg.minDuration,
+                        cfg.maxDuration,
+                    );
                     const { start: bStart, end: bEnd } = calculateTaskTimes(
                         branchTime,
                         branchDuration,
                         cfg.workdayStartHour,
-                        cfg.workdayEndHour
+                        cfg.workdayEndHour,
                     );
                     branchTime = cloneDate(bEnd);
 
@@ -344,11 +400,23 @@ function generateDepthHeavy(cfg, random) {
     const allTasks = [...tasks];
     let attempts = 0;
     const maxAttempts = cfg.targetDeps * 10;
-    while (depCount < cfg.targetDeps && allTasks.length > 1 && attempts < maxAttempts) {
+    while (
+        depCount < cfg.targetDeps &&
+        allTasks.length > 1 &&
+        attempts < maxAttempts
+    ) {
         attempts++;
         // Pick two tasks from different chains
-        const fromIdx = randomBetween(random, 0, Math.floor(allTasks.length / 2));
-        const toIdx = randomBetween(random, Math.floor(allTasks.length / 2), allTasks.length - 1);
+        const fromIdx = randomBetween(
+            random,
+            0,
+            Math.floor(allTasks.length / 2),
+        );
+        const toIdx = randomBetween(
+            random,
+            Math.floor(allTasks.length / 2),
+            allTasks.length - 1,
+        );
 
         const fromTask = allTasks[fromIdx];
         const toTask = allTasks[toIdx];
@@ -359,7 +427,7 @@ function generateDepthHeavy(cfg, random) {
                 toTask.dependencies = [];
             }
             // Check if dependency already exists
-            if (!toTask.dependencies.some(d => d.id === fromTask.id)) {
+            if (!toTask.dependencies.some((d) => d.id === fromTask.id)) {
                 toTask.dependencies.push({ id: fromTask.id, type: 'FS' });
                 depCount++;
             }
@@ -379,12 +447,17 @@ function generateBalanced(cfg, random) {
     const tasks = [];
 
     // Dense grid: scale rows to task count (aim for ~5 tasks per row)
-    const numRows = Math.min(cfg.resourceCount || 100, Math.ceil(cfg.totalTasks / 5));
+    const numRows = Math.min(
+        cfg.resourceCount || 100,
+        Math.ceil(cfg.totalTasks / 5),
+    );
     const tasksPerRow = Math.ceil(cfg.totalTasks / numRows);
 
     let taskNum = 1;
     let depCount = 0;
-    const baseStart = parseDateTime(`${cfg.startDate} ${String(cfg.workdayStartHour).padStart(2, '0')}:00`);
+    const baseStart = parseDateTime(
+        `${cfg.startDate} ${String(cfg.workdayStartHour).padStart(2, '0')}:00`,
+    );
 
     // Track tasks by row for cross-row deps
     const rows = [];
@@ -392,7 +465,9 @@ function generateBalanced(cfg, random) {
     // Generate all rows starting at same time
     for (let r = 0; r < numRows && taskNum <= cfg.totalTasks; r++) {
         const resource = getResourceLabel(r);
-        const rowColor = computeColorVariants(GROUP_COLORS[r % GROUP_COLORS.length]);
+        const rowColor = computeColorVariants(
+            GROUP_COLORS[r % GROUP_COLORS.length],
+        );
         const rowTasks = [];
 
         let currentTime = cloneDate(baseStart);
@@ -401,7 +476,11 @@ function generateBalanced(cfg, random) {
         const numInRow = Math.min(tasksPerRow, cfg.totalTasks - taskNum + 1);
 
         for (let i = 0; i < numInRow && taskNum <= cfg.totalTasks; i++) {
-            const duration = randomFloat(random, cfg.minDuration, cfg.maxDuration);
+            const duration = randomFloat(
+                random,
+                cfg.minDuration,
+                cfg.maxDuration,
+            );
 
             let start, end;
             if (cfg.continuous) {
@@ -413,7 +492,7 @@ function generateBalanced(cfg, random) {
                     currentTime,
                     duration,
                     cfg.workdayStartHour,
-                    cfg.workdayEndHour
+                    cfg.workdayEndHour,
                 );
                 start = times.start;
                 end = times.end;
@@ -421,7 +500,9 @@ function generateBalanced(cfg, random) {
             currentTime = cloneDate(end);
 
             // Chain within row
-            const deps = prevTaskId ? [{ id: prevTaskId, type: 'FS' }] : undefined;
+            const deps = prevTaskId
+                ? [{ id: prevTaskId, type: 'FS' }]
+                : undefined;
 
             const task = {
                 id: `task-${taskNum}`,
@@ -472,7 +553,7 @@ function generateBalanced(cfg, random) {
         const fromEnd = parseDateTime(fromTask.end);
 
         if (!toTask.dependencies) toTask.dependencies = [];
-        if (toTask.dependencies.some(d => d.id === fromTask.id)) continue;
+        if (toTask.dependencies.some((d) => d.id === fromTask.id)) continue;
 
         // Choose dep type based on timing validity:
         // FS valid if: fromEnd <= toStart (pred ends before succ starts)
@@ -488,7 +569,7 @@ function generateBalanced(cfg, random) {
         } else if (fsValid) {
             depType = 'FS';
         } else {
-            continue;  // Neither valid, skip
+            continue; // Neither valid, skip
         }
 
         toTask.dependencies.push({ id: fromTask.id, type: depType });
@@ -523,7 +604,7 @@ function computeStats(tasks) {
     }
 
     // Find roots (no predecessors)
-    const roots = tasks.filter(t => predecessors.get(t.id).length === 0);
+    const roots = tasks.filter((t) => predecessors.get(t.id).length === 0);
 
     // Calculate max depth via BFS from roots
     let maxDepth = 0;
@@ -574,7 +655,7 @@ function computeStats(tasks) {
     avgBreadth = breadthCount > 0 ? (avgBreadth / breadthCount).toFixed(2) : 0;
 
     // Resources
-    const resources = new Set(tasks.map(t => t.resource));
+    const resources = new Set(tasks.map((t) => t.resource));
 
     return {
         tasks: tasks.length,

@@ -22,7 +22,7 @@ export function TaskDataModal(props: TaskDataModalProps): JSX.Element {
         return formatTaskFull(
             task,
             props.barPosition?.() ?? undefined,
-            props.relationships?.() || []
+            props.relationships?.() || [],
         );
     });
 
@@ -71,27 +71,37 @@ export function TaskDataModal(props: TaskDataModalProps): JSX.Element {
                 onKeyDown={handleKeyDown}
                 tabIndex={-1}
             >
-                <div style={{
-                    background: '#fff',
-                    'border-radius': '8px',
-                    width: '90%',
-                    'max-width': '600px',
-                    'max-height': '80vh',
-                    overflow: 'hidden',
-                    display: 'flex',
-                    'flex-direction': 'column',
-                    'box-shadow': '0 10px 40px rgba(0,0,0,0.3)',
-                }}>
-                    {/* Header */}
-                    <div style={{
+                <div
+                    style={{
+                        background: '#fff',
+                        'border-radius': '8px',
+                        width: '90%',
+                        'max-width': '600px',
+                        'max-height': '80vh',
+                        overflow: 'hidden',
                         display: 'flex',
-                        'justify-content': 'space-between',
-                        'align-items': 'center',
-                        padding: '16px 20px',
-                        'border-bottom': '1px solid #eee',
-                        'flex-shrink': '0',
-                    }}>
-                        <h3 style={{ margin: '0', 'font-size': '16px', 'font-weight': '600' }}>
+                        'flex-direction': 'column',
+                        'box-shadow': '0 10px 40px rgba(0,0,0,0.3)',
+                    }}
+                >
+                    {/* Header */}
+                    <div
+                        style={{
+                            display: 'flex',
+                            'justify-content': 'space-between',
+                            'align-items': 'center',
+                            padding: '16px 20px',
+                            'border-bottom': '1px solid #eee',
+                            'flex-shrink': '0',
+                        }}
+                    >
+                        <h3
+                            style={{
+                                margin: '0',
+                                'font-size': '16px',
+                                'font-weight': '600',
+                            }}
+                        >
                             Task Data: {props.task?.()?.name || 'Unknown'}
                         </h3>
                         <button
@@ -112,38 +122,50 @@ export function TaskDataModal(props: TaskDataModalProps): JSX.Element {
                     </div>
 
                     {/* Body */}
-                    <div style={{
-                        padding: '20px',
-                        overflow: 'auto',
-                        flex: '1',
-                    }}>
+                    <div
+                        style={{
+                            padding: '20px',
+                            overflow: 'auto',
+                            flex: '1',
+                        }}
+                    >
                         {/* Raw Task Data */}
                         <div style={{ 'margin-bottom': '20px' }}>
-                            <div style={{
-                                display: 'flex',
-                                'justify-content': 'space-between',
-                                'align-items': 'center',
-                                'margin-bottom': '8px',
-                            }}>
-                                <span style={{
-                                    'font-size': '11px',
-                                    'font-weight': '600',
-                                    'text-transform': 'uppercase',
-                                    color: '#999',
-                                    'letter-spacing': '0.5px',
-                                }}>
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    'justify-content': 'space-between',
+                                    'align-items': 'center',
+                                    'margin-bottom': '8px',
+                                }}
+                            >
+                                <span
+                                    style={{
+                                        'font-size': '11px',
+                                        'font-weight': '600',
+                                        'text-transform': 'uppercase',
+                                        color: '#999',
+                                        'letter-spacing': '0.5px',
+                                    }}
+                                >
                                     Raw Task Object
                                 </span>
                                 <button
                                     onClick={handleCopy}
                                     style={{
                                         padding: '4px 10px',
-                                        background: copyFeedback() === 'Copied!' ? '#d4edda' : '#e3f2fd',
+                                        background:
+                                            copyFeedback() === 'Copied!'
+                                                ? '#d4edda'
+                                                : '#e3f2fd',
                                         border: 'none',
                                         'border-radius': '3px',
                                         cursor: 'pointer',
                                         'font-size': '11px',
-                                        color: copyFeedback() === 'Copied!' ? '#155724' : '#1976d2',
+                                        color:
+                                            copyFeedback() === 'Copied!'
+                                                ? '#155724'
+                                                : '#1976d2',
                                         transition: 'background 0.2s',
                                     }}
                                 >
@@ -164,21 +186,25 @@ export function TaskDataModal(props: TaskDataModalProps): JSX.Element {
                                     margin: '0',
                                     'line-height': '1.5',
                                 }}
-                                innerHTML={highlightJSON(formatted()?.sections?.rawTask || '')}
+                                innerHTML={highlightJSON(
+                                    formatted()?.sections?.rawTask || '',
+                                )}
                             />
                         </div>
 
                         {/* Position */}
                         <div style={{ 'margin-bottom': '20px' }}>
-                            <span style={{
-                                'font-size': '11px',
-                                'font-weight': '600',
-                                'text-transform': 'uppercase',
-                                color: '#999',
-                                'letter-spacing': '0.5px',
-                                display: 'block',
-                                'margin-bottom': '8px',
-                            }}>
+                            <span
+                                style={{
+                                    'font-size': '11px',
+                                    'font-weight': '600',
+                                    'text-transform': 'uppercase',
+                                    color: '#999',
+                                    'letter-spacing': '0.5px',
+                                    display: 'block',
+                                    'margin-bottom': '8px',
+                                }}
+                            >
                                 Computed Position (_bar)
                             </span>
                             <pre
@@ -191,34 +217,40 @@ export function TaskDataModal(props: TaskDataModalProps): JSX.Element {
                                     margin: '0',
                                     'line-height': '1.5',
                                 }}
-                                innerHTML={highlightJSON(formatted()?.sections?.position || '')}
+                                innerHTML={highlightJSON(
+                                    formatted()?.sections?.position || '',
+                                )}
                             />
                         </div>
 
                         {/* Relationships */}
                         <div>
-                            <span style={{
-                                'font-size': '11px',
-                                'font-weight': '600',
-                                'text-transform': 'uppercase',
-                                color: '#999',
-                                'letter-spacing': '0.5px',
-                                display: 'block',
-                                'margin-bottom': '8px',
-                            }}>
+                            <span
+                                style={{
+                                    'font-size': '11px',
+                                    'font-weight': '600',
+                                    'text-transform': 'uppercase',
+                                    color: '#999',
+                                    'letter-spacing': '0.5px',
+                                    display: 'block',
+                                    'margin-bottom': '8px',
+                                }}
+                            >
                                 Relationships
                             </span>
-                            <pre style={{
-                                background: '#fff8e1',
-                                'border-radius': '4px',
-                                padding: '12px',
-                                'font-family': 'monospace',
-                                'font-size': '12px',
-                                'white-space': 'pre-wrap',
-                                margin: '0',
-                                'line-height': '1.5',
-                                color: '#5d4037',
-                            }}>
+                            <pre
+                                style={{
+                                    background: '#fff8e1',
+                                    'border-radius': '4px',
+                                    padding: '12px',
+                                    'font-family': 'monospace',
+                                    'font-size': '12px',
+                                    'white-space': 'pre-wrap',
+                                    margin: '0',
+                                    'line-height': '1.5',
+                                    color: '#5d4037',
+                                }}
+                            >
                                 {formatted()?.sections?.relationships}
                             </pre>
                         </div>

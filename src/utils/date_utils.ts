@@ -1,4 +1,11 @@
-type TimeScale = 'year' | 'month' | 'day' | 'hour' | 'minute' | 'second' | 'millisecond';
+type TimeScale =
+    | 'year'
+    | 'month'
+    | 'day'
+    | 'hour'
+    | 'minute'
+    | 'second'
+    | 'millisecond';
 
 interface DurationResult {
     duration: number;
@@ -22,7 +29,18 @@ const formatterCache = new Map<string, FormatterCache>();
 
 const DURATION_REGEX = /([0-9]+)(y|min|ms|m|d|h|s)/gm;
 
-const FORMAT_KEYS_SORTED = ['YYYY', 'MMMM', 'MMM', 'SSS', 'MM', 'DD', 'HH', 'mm', 'ss', 'D'];
+const FORMAT_KEYS_SORTED = [
+    'YYYY',
+    'MMMM',
+    'MMM',
+    'SSS',
+    'MM',
+    'DD',
+    'HH',
+    'mm',
+    'ss',
+    'D',
+];
 
 function getFormatters(lang: string): FormatterCache {
     let cached = formatterCache.get(lang);
@@ -36,7 +54,11 @@ function getFormatters(lang: string): FormatterCache {
     return cached;
 }
 
-function padStart(str: string | number, targetLength: number, padString: string | number = ' '): string {
+function padStart(
+    str: string | number,
+    targetLength: number,
+    padString: string | number = ' ',
+): string {
     let s = str + '';
     targetLength = targetLength >> 0;
     let ps = String(padString);
@@ -69,7 +91,11 @@ const date_utils = {
         return undefined;
     },
 
-    parse(date: string | Date, date_separator = '-', time_separator: string | RegExp = /[.:]/): Date {
+    parse(
+        date: string | Date,
+        date_separator = '-',
+        time_separator: string | RegExp = /[.:]/,
+    ): Date {
         if (date instanceof Date) {
             return date;
         }
@@ -80,7 +106,9 @@ const date_utils = {
                 .split(date_separator)
                 .map((val) => parseInt(val, 10));
             const timePart = parts[1];
-            const time_parts = timePart ? timePart.split(time_separator) : undefined;
+            const time_parts = timePart
+                ? timePart.split(time_separator)
+                : undefined;
 
             const year = date_parts[0] ?? 0;
             const month = (date_parts[1] ?? 1) - 1;
@@ -97,7 +125,15 @@ const date_utils = {
                 });
                 vals = vals.concat(parsed_time);
             }
-            return new Date(vals[0] ?? 0, vals[1] ?? 0, vals[2] ?? 1, vals[3] ?? 0, vals[4] ?? 0, vals[5] ?? 0, vals[6] ?? 0);
+            return new Date(
+                vals[0] ?? 0,
+                vals[1] ?? 0,
+                vals[2] ?? 1,
+                vals[3] ?? 0,
+                vals[4] ?? 0,
+                vals[5] ?? 0,
+                vals[6] ?? 0,
+            );
         }
         return new Date();
     },
@@ -106,10 +142,11 @@ const date_utils = {
         if (!(date instanceof Date)) {
             throw new TypeError('Invalid argument type');
         }
-        const [year, month, day, hour, min, sec, ms] = this.get_date_values(date);
+        const [year, month, day, hour, min, sec, ms] =
+            this.get_date_values(date);
         const vals = [
             padStart(year + '', 4, '0'),
-            padStart((month + 1) + '', 2, '0'),
+            padStart(month + 1 + '', 2, '0'),
             padStart(day + '', 2, '0'),
             padStart(hour + '', 2, '0'),
             padStart(min + '', 2, '0'),
@@ -122,14 +159,21 @@ const date_utils = {
         return date_string + (with_time ? ' ' + time_string : '');
     },
 
-    format(date: Date, date_format = 'YYYY-MM-DD HH:mm:ss.SSS', lang = 'en'): string {
+    format(
+        date: Date,
+        date_format = 'YYYY-MM-DD HH:mm:ss.SSS',
+        lang = 'en',
+    ): string {
         const formatters = getFormatters(lang);
         const month_name = formatters.long.format(date);
         const month_name_capitalized =
             month_name.charAt(0).toUpperCase() + month_name.slice(1);
 
-        const [year, month, day, hour, min, sec, ms] = this.get_date_values(date);
-        const values = [year, month, day, hour, min, sec, ms].map((d) => padStart(d, 2, '0'));
+        const [year, month, day, hour, min, sec, ms] =
+            this.get_date_values(date);
+        const values = [year, month, day, hour, min, sec, ms].map((d) =>
+            padStart(d, 2, '0'),
+        );
         const format_map: Record<string, string> = {
             YYYY: values[0]!,
             MM: padStart(+values[1]! + 1, 2, '0'),
@@ -161,7 +205,11 @@ const date_utils = {
         return str;
     },
 
-    diff(date_a: Date, date_b: Date, scale: TimeScale | string = 'day'): number {
+    diff(
+        date_a: Date,
+        date_b: Date,
+        scale: TimeScale | string = 'day',
+    ): number {
         const milliseconds =
             date_a.getTime() -
             date_b.getTime() +
@@ -201,7 +249,11 @@ const date_utils = {
     },
 
     today(): Date {
-        const vals = this.get_date_values(new Date()).slice(0, 3) as [number, number, number];
+        const vals = this.get_date_values(new Date()).slice(0, 3) as [
+            number,
+            number,
+            number,
+        ];
         return new Date(vals[0], vals[1], vals[2]);
     },
 
@@ -220,7 +272,15 @@ const date_utils = {
             date.getSeconds() + (scale === SECOND ? q : 0),
             date.getMilliseconds() + (scale === MILLISECOND ? q : 0),
         ];
-        return new Date(vals[0], vals[1], vals[2], vals[3], vals[4], vals[5], vals[6]);
+        return new Date(
+            vals[0],
+            vals[1],
+            vals[2],
+            vals[3],
+            vals[4],
+            vals[5],
+            vals[6],
+        );
     },
 
     start_of(date: Date, scale: TimeScale): Date {
@@ -249,15 +309,33 @@ const date_utils = {
             should_reset(SECOND) ? 0 : date.getMilliseconds(),
         ];
 
-        return new Date(vals[0], vals[1], vals[2], vals[3], vals[4], vals[5], vals[6]);
+        return new Date(
+            vals[0],
+            vals[1],
+            vals[2],
+            vals[3],
+            vals[4],
+            vals[5],
+            vals[6],
+        );
     },
 
     clone(date: Date): Date {
         const vals = this.get_date_values(date);
-        return new Date(vals[0], vals[1], vals[2], vals[3], vals[4], vals[5], vals[6]);
+        return new Date(
+            vals[0],
+            vals[1],
+            vals[2],
+            vals[3],
+            vals[4],
+            vals[5],
+            vals[6],
+        );
     },
 
-    get_date_values(date: Date): [number, number, number, number, number, number, number] {
+    get_date_values(
+        date: Date,
+    ): [number, number, number, number, number, number, number] {
         return [
             date.getFullYear(),
             date.getMonth(),
@@ -315,7 +393,9 @@ const date_utils = {
     startOf(date: Date, scale: TimeScale): Date {
         return this.start_of(date, scale);
     },
-    getDateValues(date: Date): [number, number, number, number, number, number, number] {
+    getDateValues(
+        date: Date,
+    ): [number, number, number, number, number, number, number] {
         return this.get_date_values(date);
     },
     convertScales(period: string, toScale: TimeScale): number {

@@ -86,8 +86,8 @@ function computeColorVariants(hex: string): ColorVariants {
     return {
         color: hex,
         color_progress: hex + 'cc',
-        color_bg: hexToRgba(hex, 0.15),      // Background fill
-        color_fill: hexToRgba(hex, 0.3),     // Progress fill
+        color_bg: hexToRgba(hex, 0.15), // Background fill
+        color_fill: hexToRgba(hex, 0.3), // Progress fill
     };
 }
 
@@ -158,7 +158,13 @@ export function parseDateTime(dateStr: string): Date {
 
     if (timePart) {
         const [hour, minute] = timePart.split(':').map(Number);
-        return new Date(year ?? 0, (month ?? 1) - 1, day ?? 1, hour ?? 0, minute ?? 0);
+        return new Date(
+            year ?? 0,
+            (month ?? 1) - 1,
+            day ?? 1,
+            hour ?? 0,
+            minute ?? 0,
+        );
     }
     return new Date(year ?? 0, (month ?? 1) - 1, day ?? 1);
 }
@@ -168,7 +174,9 @@ export function parseDateTime(dateStr: string): Date {
  */
 export function addHours(dateOrStr: Date | string, hours: number): Date {
     const date =
-        typeof dateOrStr === 'string' ? parseDateTime(dateOrStr) : new Date(dateOrStr);
+        typeof dateOrStr === 'string'
+            ? parseDateTime(dateOrStr)
+            : new Date(dateOrStr);
     date.setTime(date.getTime() + hours * 60 * 60 * 1000);
     return date;
 }
@@ -192,7 +200,7 @@ export function calculateTaskTimes(
     startDate: Date,
     durationHours: number,
     workdayStart: number,
-    workdayEnd: number
+    workdayEnd: number,
 ): TaskTimes {
     const start = cloneDate(startDate);
 
@@ -255,7 +263,9 @@ function shuffleArray<T>(random: () => number, array: T[]): T[] {
  * If cfg.dense is true, generates tightly packed tasks for stress testing.
  * If cfg.realistic is true, generates realistic arrow patterns (75% same-row).
  */
-export function generateCalendar(config: Partial<CalendarConfig> = {}): GeneratedTask[] {
+export function generateCalendar(
+    config: Partial<CalendarConfig> = {},
+): GeneratedTask[] {
     const cfg = { ...DEFAULT_CONFIG, ...config };
     const random = createRandom(cfg.seed);
 
@@ -281,28 +291,30 @@ export function generateCalendar(config: Partial<CalendarConfig> = {}): Generate
     const resourceFreeAt: Record<string, Date> = {};
     for (const r of allResources) {
         resourceFreeAt[r] = parseDateTime(
-            `${cfg.startDate} ${String(cfg.workdayStartHour).padStart(2, '0')}:00`
+            `${cfg.startDate} ${String(cfg.workdayStartHour).padStart(2, '0')}:00`,
         );
     }
 
     let taskNum = 1;
     let groupIndex = 0;
     let currentDate = parseDateTime(
-        `${cfg.startDate} ${String(cfg.workdayStartHour).padStart(2, '0')}:00`
+        `${cfg.startDate} ${String(cfg.workdayStartHour).padStart(2, '0')}:00`,
     );
 
     while (taskNum <= cfg.totalTasks) {
         // Determine group size (5-20 tasks)
         const groupSize = Math.min(
             cfg.totalTasks - taskNum + 1,
-            randomBetween(random, cfg.minGroupSize, cfg.maxGroupSize)
+            randomBetween(random, cfg.minGroupSize, cfg.maxGroupSize),
         );
 
         // Shuffle resources for this group - each task gets a different resource
         const shuffledResources = shuffleArray(random, allResources);
 
         // Pick a color for this dependency chain (group) - pre-compute all variants
-        const colors = computeColorVariants(GROUP_COLORS[groupIndex % GROUP_COLORS.length]!);
+        const colors = computeColorVariants(
+            GROUP_COLORS[groupIndex % GROUP_COLORS.length]!,
+        );
 
         groupIndex++;
 
@@ -315,7 +327,11 @@ export function generateCalendar(config: Partial<CalendarConfig> = {}): Generate
             const resource = shuffledResources[i % shuffledResources.length]!;
 
             // Random duration 1-8 hours
-            const duration = randomBetween(random, cfg.minDuration, cfg.maxDuration);
+            const duration = randomBetween(
+                random,
+                cfg.minDuration,
+                cfg.maxDuration,
+            );
 
             // Determine earliest start time based on:
             // 1. When the resource is free (no overlap)
@@ -340,7 +356,7 @@ export function generateCalendar(config: Partial<CalendarConfig> = {}): Generate
                 earliestStart,
                 duration,
                 cfg.workdayStartHour,
-                cfg.workdayEndHour
+                cfg.workdayEndHour,
             );
 
             // Update when this resource becomes free
@@ -348,18 +364,26 @@ export function generateCalendar(config: Partial<CalendarConfig> = {}): Generate
 
             // Dependency logic - creates cross-resource chain
             // Always use array format for type stability
-            let dependencies: { id: string; type: DependencyType; lag?: number }[] | undefined = undefined;
+            let dependencies:
+                | { id: string; type: DependencyType; lag?: number }[]
+                | undefined = undefined;
 
             if (i > 0) {
                 // Depends on previous task (which is on a DIFFERENT resource)
                 const useSSConstraint = random() < cfg.ssPercent / 100;
                 if (useSSConstraint) {
-                    const lag = randomBetween(random, cfg.ssMinLag, cfg.ssMaxLag);
-                    dependencies = [{
-                        id: `task-${taskNum - 1}`,
-                        type: 'SS',
-                        lag: lag,
-                    }];
+                    const lag = randomBetween(
+                        random,
+                        cfg.ssMinLag,
+                        cfg.ssMaxLag,
+                    );
+                    dependencies = [
+                        {
+                            id: `task-${taskNum - 1}`,
+                            type: 'SS',
+                            lag: lag,
+                        },
+                    ];
                 } else {
                     // FS: depends on previous task finishing
                     dependencies = [{ id: `task-${taskNum - 1}`, type: 'FS' }];
@@ -396,7 +420,10 @@ export function generateCalendar(config: Partial<CalendarConfig> = {}): Generate
  * All resources start at the same time for maximum viewport density.
  * Then adds arrowDensity% deps within maxRowDistance rows.
  */
-function generateDenseCalendar(cfg: CalendarConfig, random: () => number): GeneratedTask[] {
+function generateDenseCalendar(
+    cfg: CalendarConfig,
+    random: () => number,
+): GeneratedTask[] {
     const tasks: GeneratedTask[] = [];
 
     // Create array of all resource labels
@@ -407,36 +434,50 @@ function generateDenseCalendar(cfg: CalendarConfig, random: () => number): Gener
 
     // Build resource index map for row distance calculation
     const resourceIndex: Record<string, number> = {};
-    allResources.forEach((r, i) => resourceIndex[r] = i);
+    allResources.forEach((r, i) => (resourceIndex[r] = i));
 
     // Calculate tasks per resource (distribute evenly)
     const tasksPerResource = Math.ceil(cfg.totalTasks / cfg.resourceCount);
 
     // Base start time for ALL resources (same start = maximum density)
     const baseStart = parseDateTime(
-        `${cfg.startDate} ${String(cfg.workdayStartHour).padStart(2, '0')}:00`
+        `${cfg.startDate} ${String(cfg.workdayStartHour).padStart(2, '0')}:00`,
     );
 
     let taskNum = 1;
 
     // Generate tasks for each resource - NO dependencies yet
-    for (let resourceIdx = 0; resourceIdx < allResources.length && taskNum <= cfg.totalTasks; resourceIdx++) {
+    for (
+        let resourceIdx = 0;
+        resourceIdx < allResources.length && taskNum <= cfg.totalTasks;
+        resourceIdx++
+    ) {
         const resource = allResources[resourceIdx]!;
-        const colors = computeColorVariants(GROUP_COLORS[resourceIdx % GROUP_COLORS.length]!);
+        const colors = computeColorVariants(
+            GROUP_COLORS[resourceIdx % GROUP_COLORS.length]!,
+        );
 
         let currentTime = cloneDate(baseStart);
 
         // Generate back-to-back tasks for this resource
-        for (let i = 0; i < tasksPerResource && taskNum <= cfg.totalTasks; i++) {
+        for (
+            let i = 0;
+            i < tasksPerResource && taskNum <= cfg.totalTasks;
+            i++
+        ) {
             // Short duration (1-5 hours for density)
-            const duration = randomBetween(random, cfg.minDuration, Math.min(cfg.maxDuration, 5));
+            const duration = randomBetween(
+                random,
+                cfg.minDuration,
+                Math.min(cfg.maxDuration, 5),
+            );
 
             // Calculate start/end (no gaps - tasks are contiguous)
             const { start, end } = calculateTaskTimes(
                 currentTime,
                 duration,
                 cfg.workdayStartHour,
-                cfg.workdayEndHour
+                cfg.workdayEndHour,
             );
 
             tasks.push({
@@ -464,7 +505,9 @@ function generateDenseCalendar(cfg: CalendarConfig, random: () => number): Gener
 
     // Sort tasks by start time
     const tasksByTime = [...tasks].sort((a, b) => {
-        return parseDateTime(a.start).getTime() - parseDateTime(b.start).getTime();
+        return (
+            parseDateTime(a.start).getTime() - parseDateTime(b.start).getTime()
+        );
     });
 
     for (let i = 0; i < tasksByTime.length; i++) {
@@ -485,7 +528,8 @@ function generateDenseCalendar(cfg: CalendarConfig, random: () => number): Gener
         });
 
         if (candidates.length > 0) {
-            const source = candidates[Math.floor(random() * candidates.length)]!;
+            const source =
+                candidates[Math.floor(random() * candidates.length)]!;
             task.dependencies = [{ id: source.id, type: 'FS' }];
         }
     }
@@ -493,12 +537,12 @@ function generateDenseCalendar(cfg: CalendarConfig, random: () => number): Gener
     // Verify and log row distances
     let violations = 0;
     const resourceToRow: Record<string, number> = {};
-    allResources.forEach((r, i) => resourceToRow[r] = i);
+    allResources.forEach((r, i) => (resourceToRow[r] = i));
 
     for (const task of tasks) {
         if (task.dependencies && task.dependencies.length > 0) {
             const depId = task.dependencies[0]!.id;
-            const depTask = tasks.find(t => t.id === depId);
+            const depTask = tasks.find((t) => t.id === depId);
             if (depTask) {
                 const fromRow = resourceToRow[depTask.resource]!;
                 const toRow = resourceToRow[task.resource]!;
@@ -506,7 +550,9 @@ function generateDenseCalendar(cfg: CalendarConfig, random: () => number): Gener
                 if (dist > maxRowDist) {
                     violations++;
                     if (violations <= 5) {
-                        console.log(`VIOLATION: ${depTask.id} (row ${fromRow}) -> ${task.id} (row ${toRow}), dist=${dist}`);
+                        console.log(
+                            `VIOLATION: ${depTask.id} (row ${fromRow}) -> ${task.id} (row ${toRow}), dist=${dist}`,
+                        );
                     }
                 }
             }
@@ -531,10 +577,10 @@ function generateDenseCalendar(cfg: CalendarConfig, random: () => number): Gener
 function findValidPredecessor(
     tasks: GeneratedTask[],
     resource: string,
-    beforeDate: Date
+    beforeDate: Date,
 ): GeneratedTask | null {
     const candidates = tasks.filter(
-        (t) => t.resource === resource && parseDateTime(t.end) <= beforeDate
+        (t) => t.resource === resource && parseDateTime(t.end) <= beforeDate,
     );
     return candidates.length > 0 ? candidates[candidates.length - 1]! : null;
 }
@@ -549,7 +595,10 @@ function findValidPredecessor(
  * most dependencies are within a team (same row), with occasional handoffs
  * to nearby teams (adjacent rows).
  */
-function generateRealisticCalendar(cfg: CalendarConfig, random: () => number): GeneratedTask[] {
+function generateRealisticCalendar(
+    cfg: CalendarConfig,
+    random: () => number,
+): GeneratedTask[] {
     const tasks: GeneratedTask[] = [];
 
     // Create array of all resource labels
@@ -562,7 +611,7 @@ function generateRealisticCalendar(cfg: CalendarConfig, random: () => number): G
     const resourceFreeAt: Record<string, Date> = {};
     for (const r of allResources) {
         resourceFreeAt[r] = parseDateTime(
-            `${cfg.startDate} ${String(cfg.workdayStartHour).padStart(2, '0')}:00`
+            `${cfg.startDate} ${String(cfg.workdayStartHour).padStart(2, '0')}:00`,
         );
     }
 
@@ -576,21 +625,33 @@ function generateRealisticCalendar(cfg: CalendarConfig, random: () => number): G
         resIdx++
     ) {
         const resource = allResources[resIdx]!;
-        const colors = computeColorVariants(GROUP_COLORS[resIdx % GROUP_COLORS.length]!);
+        const colors = computeColorVariants(
+            GROUP_COLORS[resIdx % GROUP_COLORS.length]!,
+        );
         let prevTaskId: string | null = null;
 
-        for (let i = 0; i < tasksPerResource && taskNum <= cfg.totalTasks; i++) {
-            const duration = randomBetween(random, cfg.minDuration, cfg.maxDuration);
+        for (
+            let i = 0;
+            i < tasksPerResource && taskNum <= cfg.totalTasks;
+            i++
+        ) {
+            const duration = randomBetween(
+                random,
+                cfg.minDuration,
+                cfg.maxDuration,
+            );
             const { start, end } = calculateTaskTimes(
                 resourceFreeAt[resource]!,
                 duration,
                 cfg.workdayStartHour,
-                cfg.workdayEndHour
+                cfg.workdayEndHour,
             );
 
             // Determine dependency type based on probability
             // Always use array format for type stability
-            let dependencies: { id: string; type: DependencyType }[] | undefined = undefined;
+            let dependencies:
+                | { id: string; type: DependencyType }[]
+                | undefined = undefined;
             const roll = random();
 
             if (roll < 0.75 && prevTaskId) {
@@ -602,7 +663,11 @@ function generateRealisticCalendar(cfg: CalendarConfig, random: () => number): G
                 const rowOffset = randomBetween(random, 1, maxSpan);
                 const adjacentRes = allResources[resIdx - rowOffset]!;
                 // Find a task on adjacent resource that ends before this starts
-                const candidate = findValidPredecessor(tasks, adjacentRes, start);
+                const candidate = findValidPredecessor(
+                    tasks,
+                    adjacentRes,
+                    start,
+                );
                 if (candidate) {
                     dependencies = [{ id: candidate.id, type: 'FS' }];
                 }

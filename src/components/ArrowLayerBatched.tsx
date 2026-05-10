@@ -93,7 +93,11 @@ const DEFAULTS = {
 /**
  * Get anchor point on a bar
  */
-function getAnchorPoint(bar: BarPosition, anchor: AnchorType, offset = 0.5): Point {
+function getAnchorPoint(
+    bar: BarPosition,
+    anchor: AnchorType,
+    offset = 0.5,
+): Point {
     const t = Math.max(0, Math.min(1, offset));
     switch (anchor) {
         case 'top':
@@ -115,7 +119,11 @@ function getAnchorPoint(bar: BarPosition, anchor: AnchorType, offset = 0.5): Poi
  * FF: Always exit from right (end point)
  * FS: Exit from right (end), or top/bottom if different rows
  */
-function autoStartAnchor(from: BarPosition, to: BarPosition, depType: DependencyType): AnchorType {
+function autoStartAnchor(
+    from: BarPosition,
+    to: BarPosition,
+    depType: DependencyType,
+): AnchorType {
     const dy = to.y + to.height / 2 - (from.y + from.height / 2);
     const sameRow = Math.abs(dy) <= DEFAULTS.ALIGNMENT_THRESHOLD;
 
@@ -140,7 +148,11 @@ function autoStartAnchor(from: BarPosition, to: BarPosition, depType: Dependency
  * SS/FS: Always enter from left (start point)
  * FF/SF: Always enter from right (end point)
  */
-function autoEndAnchor(_from: BarPosition, _to: BarPosition, depType: DependencyType): AnchorType {
+function autoEndAnchor(
+    _from: BarPosition,
+    _to: BarPosition,
+    depType: DependencyType,
+): AnchorType {
     // FF and SF constrain the successor's END, so enter from right
     if (depType === 'FF' || depType === 'SF') {
         return 'right';
@@ -152,7 +164,13 @@ function autoEndAnchor(_from: BarPosition, _to: BarPosition, depType: Dependency
 /**
  * Calculate smart offset for edge anchors
  */
-function smartOffset(from: BarPosition, to: BarPosition, anchor: AnchorType, curve: number, depType: DependencyType): number {
+function smartOffset(
+    from: BarPosition,
+    to: BarPosition,
+    anchor: AnchorType,
+    curve: number,
+    depType: DependencyType,
+): number {
     if (anchor === 'right' || anchor === 'left') return 0.5;
     if (anchor === 'top' || anchor === 'bottom') {
         if (depType === 'SS' || depType === 'SF') return 0.1;
@@ -166,7 +184,12 @@ function smartOffset(from: BarPosition, to: BarPosition, anchor: AnchorType, cur
 /**
  * Generate orthogonal path string between two points (right angles only)
  */
-function generateLinePath(start: Point, end: Point, startAnchor: AnchorType, endAnchor: AnchorType): string {
+function generateLinePath(
+    start: Point,
+    end: Point,
+    startAnchor: AnchorType,
+    endAnchor: AnchorType,
+): string {
     const dx = end.x - start.x;
     const dy = end.y - start.y;
 
@@ -206,7 +229,11 @@ function generateLinePath(start: Point, end: Point, startAnchor: AnchorType, end
 /**
  * Generate arrow head path at end point
  */
-function generateHeadPath(end: Point, endAnchor: AnchorType, size: number): string {
+function generateHeadPath(
+    end: Point,
+    endAnchor: AnchorType,
+    size: number,
+): string {
     if (size <= 0) return '';
 
     const x = end.x;
@@ -228,7 +255,13 @@ function generateHeadPath(end: Point, endAnchor: AnchorType, size: number): stri
 /**
  * Generate complete arrow paths (line + head) for a single dependency
  */
-function generateArrow(from: BarPosition, to: BarPosition, depType: DependencyType, curve: number, headSize: number): ArrowPaths {
+function generateArrow(
+    from: BarPosition,
+    to: BarPosition,
+    depType: DependencyType,
+    curve: number,
+    headSize: number,
+): ArrowPaths {
     // Resolve anchors
     const startAnchor = autoStartAnchor(from, to, depType);
     const endAnchor = autoEndAnchor(from, to, depType);
@@ -262,8 +295,10 @@ let lastVisibleSet = new Set<number>();
 
 export function ArrowLayerBatched(props: ArrowLayerBatchedProps): JSX.Element {
     // Arrow configuration from props or defaults
-    const curve = (): number => props.arrowConfig?.curveRadius ?? DEFAULTS.CURVE_RADIUS;
-    const headSize = (): number => props.arrowConfig?.headSize ?? DEFAULTS.HEAD_SIZE;
+    const curve = (): number =>
+        props.arrowConfig?.curveRadius ?? DEFAULTS.CURVE_RADIUS;
+    const headSize = (): number =>
+        props.arrowConfig?.headSize ?? DEFAULTS.HEAD_SIZE;
     const stroke = (): string => props.arrowConfig?.stroke ?? DEFAULTS.STROKE;
     const strokeWidth = (): number =>
         props.arrowConfig?.strokeWidth ?? DEFAULTS.STROKE_WIDTH;
@@ -292,14 +327,26 @@ export function ArrowLayerBatched(props: ArrowLayerBatchedProps): JSX.Element {
      */
     const spatialIndex = createMemo(() => {
         const rels = props.relationships || [];
-        if (rels.length === 0) return { index: new Map<number, Set<number>>(), positions: new Map<number, CachedPosition>() };
+        if (rels.length === 0)
+            return {
+                index: new Map<number, Set<number>>(),
+                positions: new Map<number, CachedPosition>(),
+            };
 
         const store = props.taskStore;
-        if (!store) return { index: new Map<number, Set<number>>(), positions: new Map<number, CachedPosition>() };
+        if (!store)
+            return {
+                index: new Map<number, Set<number>>(),
+                positions: new Map<number, CachedPosition>(),
+            };
 
         // Depend on task count to rebuild when positions become available
         const tc = taskCount();
-        if (tc === 0) return { index: new Map<number, Set<number>>(), positions: new Map<number, CachedPosition>() };
+        if (tc === 0)
+            return {
+                index: new Map<number, Set<number>>(),
+                positions: new Map<number, CachedPosition>(),
+            };
 
         // Depend on positionVersion to rebuild when task positions change (during drag)
         // This prop is incremented by GanttPerfIsolate whenever updateBarPosition is called
@@ -397,7 +444,11 @@ export function ArrowLayerBatched(props: ArrowLayerBatchedProps): JSX.Element {
             visibleIndices.size === lastVisibleSet.size &&
             [...visibleIndices].every((idx) => lastVisibleSet.has(idx));
 
-        if (setsEqual && Array.isArray(cachedResult) && cachedResult.length > 0) {
+        if (
+            setsEqual &&
+            Array.isArray(cachedResult) &&
+            cachedResult.length > 0
+        ) {
             return cachedResult;
         }
 
@@ -406,7 +457,15 @@ export function ArrowLayerBatched(props: ArrowLayerBatchedProps): JSX.Element {
 
         // Build paths using per-arrow cache, grouped by style
         // styleKey = strokeDasharray|stroke
-        const styleGroups = new Map<string, { lines: string[]; heads: string[]; dasharray: string; stroke?: string }>();
+        const styleGroups = new Map<
+            string,
+            {
+                lines: string[];
+                heads: string[];
+                dasharray: string;
+                stroke?: string;
+            }
+        >();
 
         for (const idx of visibleIndices) {
             const pos = positions.get(idx);

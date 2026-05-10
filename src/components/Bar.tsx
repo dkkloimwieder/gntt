@@ -43,9 +43,19 @@ interface BarProps {
     ignoredPositions?: number[];
     onCollectDependents?: (taskId: string) => Set<string>;
     onCollectDescendants?: (taskId: string) => Set<string>;
-    onClampBatchDelta?: (batchOriginals: Map<string, BatchOriginal>, deltaX: number) => number;
-    onConstrainPosition?: (taskId: string, x: number, y: number) => ConstrainedResult | null;
-    onDateChange?: (taskId: string, position: { x: number; width: number }) => void;
+    onClampBatchDelta?: (
+        batchOriginals: Map<string, BatchOriginal>,
+        deltaX: number,
+    ) => number;
+    onConstrainPosition?: (
+        taskId: string,
+        x: number,
+        y: number,
+    ) => ConstrainedResult | null;
+    onDateChange?: (
+        taskId: string,
+        position: { x: number; width: number },
+    ) => void;
     onResizeEnd?: (taskId: string) => void;
     onProgressChange?: (taskId: string, progress: number) => void;
     onHover?: (taskId: string, clientX: number, clientY: number) => void;
@@ -97,41 +107,70 @@ export function Bar(props: BarProps): JSX.Element {
     // Get position directly from task's _bar - keeps reactivity for drag updates
     const getPosition = (): BarPosition => {
         const task = getTask();
-        return task?._bar ?? {
-            x: props.x ?? 0,
-            y: props.y ?? 0,
-            width: props.width ?? 100,
-            height: props.height ?? 30,
-        };
+        return (
+            task?._bar ?? {
+                x: props.x ?? 0,
+                y: props.y ?? 0,
+                width: props.width ?? 100,
+                height: props.height ?? 30,
+            }
+        );
     };
 
     // Configuration - OPTIMIZED: memoize config accessors to avoid repeated optional chaining
-    const barCornerRadius = createMemo(() => props.ganttConfig?.barCornerRadius?.() ?? props.cornerRadius ?? 3);
-    const readonly = createMemo(() => props.ganttConfig?.readonly?.() ?? props.readonly ?? false);
-    const readonlyDates = createMemo(() => props.ganttConfig?.readonlyDates?.() ?? props.readonlyDates ?? false);
-    const readonlyProgress = createMemo(() => props.ganttConfig?.readonlyProgress?.() ?? props.readonlyProgress ?? false);
-    const showExpectedProgress = createMemo(() => props.ganttConfig?.showExpectedProgress?.() ?? props.showExpectedProgress ?? false);
-    const columnWidth = createMemo(() => props.ganttConfig?.columnWidth?.() ?? props.columnWidth ?? 45);
-    const ignoredPositions = createMemo(() => props.ganttConfig?.ignoredPositions?.() ?? props.ignoredPositions ?? []);
+    const barCornerRadius = createMemo(
+        () => props.ganttConfig?.barCornerRadius?.() ?? props.cornerRadius ?? 3,
+    );
+    const readonly = createMemo(
+        () => props.ganttConfig?.readonly?.() ?? props.readonly ?? false,
+    );
+    const readonlyDates = createMemo(
+        () =>
+            props.ganttConfig?.readonlyDates?.() ??
+            props.readonlyDates ??
+            false,
+    );
+    const readonlyProgress = createMemo(
+        () =>
+            props.ganttConfig?.readonlyProgress?.() ??
+            props.readonlyProgress ??
+            false,
+    );
+    const showExpectedProgress = createMemo(
+        () =>
+            props.ganttConfig?.showExpectedProgress?.() ??
+            props.showExpectedProgress ??
+            false,
+    );
+    const columnWidth = createMemo(
+        () => props.ganttConfig?.columnWidth?.() ?? props.columnWidth ?? 45,
+    );
+    const ignoredPositions = createMemo(
+        () =>
+            props.ganttConfig?.ignoredPositions?.() ??
+            props.ignoredPositions ??
+            [],
+    );
 
     // OPTIMIZATION: Single memo batching all task property reads
     // This reduces reactive overhead from 34 separate task() accesses to 1 memo evaluation
     // Position (_bar) is NOT included here - it's read directly in getPosition() for drag reactivity
     const t = createMemo((): TaskData => {
         const task = getTask();
-        if (!task) return {
-            id: '',
-            name: '',
-            color: '#b8c2cc',
-            colorProgress: '#a3a3ff',
-            progress: 0,
-            locked: false,
-            invalid: false,
-            customClass: '',
-            hasChildren: false,
-            start: null,
-            end: null,
-        };
+        if (!task)
+            return {
+                id: '',
+                name: '',
+                color: '#b8c2cc',
+                colorProgress: '#a3a3ff',
+                progress: 0,
+                locked: false,
+                invalid: false,
+                customClass: '',
+                hasChildren: false,
+                start: null,
+                end: null,
+            };
         return {
             id: task.id ?? '',
             name: task.name ?? '',
@@ -139,8 +178,12 @@ export function Bar(props: BarProps): JSX.Element {
             colorProgress: task.color_progress ?? '#a3a3ff',
             progress: task.progress ?? 0,
             locked: task.constraints?.locked ?? false,
-            invalid: (task as ProcessedTask & { invalid?: boolean }).invalid ?? false,
-            customClass: (task as ProcessedTask & { custom_class?: string }).custom_class ?? '',
+            invalid:
+                (task as ProcessedTask & { invalid?: boolean }).invalid ??
+                false,
+            customClass:
+                (task as ProcessedTask & { custom_class?: string })
+                    .custom_class ?? '',
             hasChildren: (task._children?.length ?? 0) > 0,
             start: task._start ?? null,
             end: task._end ?? null,
@@ -153,7 +196,10 @@ export function Bar(props: BarProps): JSX.Element {
     // Use taskPosition Y if provided (for variable row heights), else fall back to _bar.y
     // taskPosition can be a value OR accessor (for <Index> pooling reactivity)
     const y = (): number => {
-        const pos = typeof props.taskPosition === 'function' ? props.taskPosition() : props.taskPosition;
+        const pos =
+            typeof props.taskPosition === 'function'
+                ? props.taskPosition()
+                : props.taskPosition;
         return pos?.y ?? position()?.y ?? 0;
     };
     const width = (): number => position()?.width ?? 100;
@@ -240,9 +286,12 @@ export function Bar(props: BarProps): JSX.Element {
                 let deltaX = newX - originalX;
 
                 // Use batch move if we have dependent tasks (for performance)
-                const dependentOriginals = data['dependentOriginals'] as Map<string, BatchOriginal> | undefined;
+                const dependentOriginals = data['dependentOriginals'] as
+                    | Map<string, BatchOriginal>
+                    | undefined;
                 if (
-                    dependentOriginals && dependentOriginals.size > 0 &&
+                    dependentOriginals &&
+                    dependentOriginals.size > 0 &&
                     props.taskStore.batchMovePositions
                 ) {
                     // Clamp deltaX to prevent constraint violations when dragging backward
@@ -384,7 +433,8 @@ export function Bar(props: BarProps): JSX.Element {
             // Use props callbacks if provided, otherwise use context
             const onDateChange = props.onDateChange ?? events.onDateChange;
             const onResizeEnd = props.onResizeEnd ?? events.onResizeEnd;
-            const onProgressChange = props.onProgressChange ?? events.onProgressChange;
+            const onProgressChange =
+                props.onProgressChange ?? events.onProgressChange;
 
             if (
                 state === 'dragging_bar' ||
@@ -463,8 +513,7 @@ export function Bar(props: BarProps): JSX.Element {
     };
 
     const handleProgressMouseDown = (e: MouseEvent): void => {
-        if (readonly() || readonlyProgress() || isLocked())
-            return;
+        if (readonly() || readonlyProgress() || isLocked()) return;
         e.stopPropagation();
         startDrag(e, 'dragging_progress', { taskId: t().id });
     };
@@ -538,7 +587,8 @@ export function Bar(props: BarProps): JSX.Element {
     const isLocked = (): boolean => !!t().locked;
 
     // Drag state class
-    const dragClass = (): string => (isDragging() ? `dragging ${dragState()}` : '');
+    const dragClass = (): string =>
+        isDragging() ? `dragging ${dragState()}` : '';
 
     // ═══════════════════════════════════════════════════════════════════════════
     // RENDER
@@ -586,15 +636,18 @@ export function Bar(props: BarProps): JSX.Element {
                         : isDragging()
                           ? '#2c3e50'
                           : barColor(),
-                    opacity: isLocked() || isDragging()
-                        ? 1
-                        : hasSubtasks()
-                          ? 0
-                          : 0.1,
+                    opacity:
+                        isLocked() || isDragging()
+                            ? 1
+                            : hasSubtasks()
+                              ? 0
+                              : 0.1,
                     border: `${isLocked() ? '2px' : '1.5px'} solid ${isLocked() ? '#c0392b' : barColor()}`,
                     'border-style': isLocked() ? 'dashed' : 'solid',
                     'box-sizing': 'border-box',
-                    transition: isDragging() ? 'none' : 'background-color 0.1s ease',
+                    transition: isDragging()
+                        ? 'none'
+                        : 'background-color 0.1s ease',
                 }}
             />
 
@@ -609,7 +662,10 @@ export function Bar(props: BarProps): JSX.Element {
                     height: '100%',
                     'border-radius': `${barCornerRadius()}px`,
                     'background-color': expectedProgressColor(),
-                    display: showExpectedProgress() && expectedProgressWidth() > 0 ? 'block' : 'none',
+                    display:
+                        showExpectedProgress() && expectedProgressWidth() > 0
+                            ? 'block'
+                            : 'none',
                 }}
             />
 
@@ -634,10 +690,14 @@ export function Bar(props: BarProps): JSX.Element {
                 style={{
                     position: 'absolute',
                     top: '50%',
-                    left: labelInfo().position === 'inside' ? '50%' : `${width() + 5}px`,
-                    transform: labelInfo().position === 'inside'
-                        ? 'translate(-50%, -50%)'
-                        : 'translateY(-50%)',
+                    left:
+                        labelInfo().position === 'inside'
+                            ? '50%'
+                            : `${width() + 5}px`,
+                    transform:
+                        labelInfo().position === 'inside'
+                            ? 'translate(-50%, -50%)'
+                            : 'translateY(-50%)',
                     'white-space': 'nowrap',
                     'pointer-events': 'none',
                     'font-size': '12px',
@@ -676,7 +736,10 @@ export function Bar(props: BarProps): JSX.Element {
                     'background-color': 'var(--g-handle-color, #ddd)',
                     cursor: 'ew-resize',
                     opacity: 0,
-                    display: showHandles() && !isLocked() && showDateHandles() ? 'block' : 'none',
+                    display:
+                        showHandles() && !isLocked() && showDateHandles()
+                            ? 'block'
+                            : 'none',
                 }}
             />
 
@@ -694,7 +757,10 @@ export function Bar(props: BarProps): JSX.Element {
                     'background-color': 'var(--g-handle-color, #ddd)',
                     cursor: 'ew-resize',
                     opacity: 0,
-                    display: showHandles() && !isLocked() && showDateHandles() ? 'block' : 'none',
+                    display:
+                        showHandles() && !isLocked() && showDateHandles()
+                            ? 'block'
+                            : 'none',
                 }}
             />
 
@@ -715,7 +781,13 @@ export function Bar(props: BarProps): JSX.Element {
                     cursor: 'ew-resize',
                     opacity: 0,
                     'box-sizing': 'border-box',
-                    display: showHandles() && !isLocked() && showProgressHandle() && progressWidth() > 0 ? 'block' : 'none',
+                    display:
+                        showHandles() &&
+                        !isLocked() &&
+                        showProgressHandle() &&
+                        progressWidth() > 0
+                            ? 'block'
+                            : 'none',
                 }}
             />
         </div>

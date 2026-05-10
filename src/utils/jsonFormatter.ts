@@ -1,4 +1,9 @@
-import type { BarPosition, Relationship, ProcessedTask, DependencyType } from '../types';
+import type {
+    BarPosition,
+    Relationship,
+    ProcessedTask,
+    DependencyType,
+} from '../types';
 
 interface TaskFormattable {
     id: string;
@@ -18,7 +23,10 @@ interface FormattedTaskFull {
     raw: string;
 }
 
-export function formatTaskCompact(task: TaskFormattable | null | undefined, barPosition?: BarPosition): string {
+export function formatTaskCompact(
+    task: TaskFormattable | null | undefined,
+    barPosition?: BarPosition,
+): string {
     if (!task) return '';
 
     const lines = [
@@ -50,7 +58,7 @@ export function formatTaskCompact(task: TaskFormattable | null | undefined, barP
 export function formatTaskFull(
     task: TaskFormattable | null | undefined,
     barPosition?: BarPosition,
-    relationships: Relationship[] = []
+    relationships: Relationship[] = [],
 ): FormattedTaskFull | null {
     if (!task) return null;
 
@@ -87,14 +95,21 @@ const CONSTRAINT_TYPE_NAMES: Record<DependencyType, string> = {
     SF: 'Start-to-Finish',
 };
 
-function formatRelationshipLine(rel: Relationship, taskId: string, arrow: string): string {
+function formatRelationshipLine(
+    rel: Relationship,
+    taskId: string,
+    arrow: string,
+): string {
     const typeName = CONSTRAINT_TYPE_NAMES[rel.type] || rel.type;
     const lag = rel.lag ?? 0;
     const lagStr = lag ? `, lag: ${lag} day${lag !== 1 ? 's' : ''}` : '';
     return `  ${rel.type} ${arrow} ${taskId} (${typeName}${lagStr})`;
 }
 
-function formatRelationships(taskId: string, relationships: Relationship[]): string {
+function formatRelationships(
+    taskId: string,
+    relationships: Relationship[],
+): string {
     if (!relationships || relationships.length === 0) {
         return 'No relationships defined';
     }
@@ -129,24 +144,13 @@ function formatRelationships(taskId: string, relationships: Relationship[]): str
 export function highlightJSON(jsonString: string | null | undefined): string {
     if (!jsonString) return '';
 
-    return (
-        jsonString
-            .replace(
-                /"([^"]+)":/g,
-                '<span style="color: #9b59b6;">"$1"</span>:',
-            )
-            .replace(
-                /: "([^"]+)"/g,
-                ': <span style="color: #27ae60;">"$1"</span>',
-            )
-            .replace(
-                /: (-?\d+\.?\d*)/g,
-                ': <span style="color: #e74c3c;">$1</span>',
-            )
-            .replace(
-                /: (true|false)/g,
-                ': <span style="color: #3498db;">$1</span>',
-            )
-            .replace(/: (null)/g, ': <span style="color: #95a5a6;">$1</span>')
-    );
+    return jsonString
+        .replace(/"([^"]+)":/g, '<span style="color: #9b59b6;">"$1"</span>:')
+        .replace(/: "([^"]+)"/g, ': <span style="color: #27ae60;">"$1"</span>')
+        .replace(
+            /: (-?\d+\.?\d*)/g,
+            ': <span style="color: #e74c3c;">$1</span>',
+        )
+        .replace(/: (true|false)/g, ': <span style="color: #3498db;">$1</span>')
+        .replace(/: (null)/g, ': <span style="color: #95a5a6;">$1</span>');
 }

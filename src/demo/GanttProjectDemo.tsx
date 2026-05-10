@@ -14,12 +14,15 @@ import { generateSubtaskDemo } from '../utils/subtaskGenerator.js';
  */
 export function GanttProjectDemo() {
     // Generate tasks with seeded random (reproducible)
-    const { tasks: generatedTasks, resources: generatedResources, expandedTasks } =
-        generateSubtaskDemo({
-            totalTasks: 100,
-            parentTaskRatio: 1.0,  // 100% parents with subtasks
-            seed: 12345,
-        });
+    const {
+        tasks: generatedTasks,
+        resources: generatedResources,
+        expandedTasks,
+    } = generateSubtaskDemo({
+        totalTasks: 100,
+        parentTaskRatio: 1.0, // 100% parents with subtasks
+        seed: 12345,
+    });
 
     const [resources] = createSignal(generatedResources);
     const [tasks] = createSignal(generatedTasks);
@@ -54,19 +57,30 @@ export function GanttProjectDemo() {
     };
 
     // Stats for display
-    const parentCount = generatedTasks.filter(t => t.subtaskLayout).length;
-    const subtaskCount = generatedTasks.filter(t => t.parentId).length;
-    const standaloneCount = generatedTasks.filter(t => !t.subtaskLayout && !t.parentId).length;
+    const parentCount = generatedTasks.filter((t) => t.subtaskLayout).length;
+    const subtaskCount = generatedTasks.filter((t) => t.parentId).length;
+    const standaloneCount = generatedTasks.filter(
+        (t) => !t.subtaskLayout && !t.parentId,
+    ).length;
 
     return (
-        <div style={{ padding: '20px', 'max-width': '1400px', margin: '0 auto' }}>
+        <div
+            style={{ padding: '20px', 'max-width': '1400px', margin: '0 auto' }}
+        >
             <h1 style={{ 'margin-bottom': '10px' }}>Subtask Demo</h1>
             <p style={{ color: '#666', 'margin-bottom': '20px' }}>
-                {generatedTasks.length} tasks across {generatedResources.length} resources
-                ({parentCount} parents, {subtaskCount} subtasks, {standaloneCount} standalone)
+                {generatedTasks.length} tasks across {generatedResources.length}{' '}
+                resources ({parentCount} parents, {subtaskCount} subtasks,{' '}
+                {standaloneCount} standalone)
             </p>
 
-            <div style={{ border: '1px solid #ddd', 'border-radius': '8px', overflow: 'hidden' }}>
+            <div
+                style={{
+                    border: '1px solid #ddd',
+                    'border-radius': '8px',
+                    overflow: 'hidden',
+                }}
+            >
                 <Gantt
                     tasks={tasks()}
                     resources={resources()}
@@ -79,23 +93,34 @@ export function GanttProjectDemo() {
             <div style={infoStyle}>
                 <strong>Subtask Layout Types:</strong>
                 <ul style={{ margin: '10px 0 0 0', 'padding-left': '20px' }}>
-                    <li><strong>Sequential</strong>: Subtasks in a single row, back-to-back</li>
-                    <li><strong>Parallel</strong>: Subtasks stacked vertically (overlap in time)</li>
-                    <li><strong>Mixed</strong>: Auto-computed rows based on time overlap</li>
+                    <li>
+                        <strong>Sequential</strong>: Subtasks in a single row,
+                        back-to-back
+                    </li>
+                    <li>
+                        <strong>Parallel</strong>: Subtasks stacked vertically
+                        (overlap in time)
+                    </li>
+                    <li>
+                        <strong>Mixed</strong>: Auto-computed rows based on time
+                        overlap
+                    </li>
                 </ul>
             </div>
 
             <div style={infoStyle}>
                 <strong>Generation Config:</strong>
-                <pre style={{
-                    background: '#1e293b',
-                    color: '#e2e8f0',
-                    padding: '15px',
-                    'border-radius': '4px',
-                    'margin-top': '10px',
-                    overflow: 'auto',
-                    'font-size': '12px',
-                }}>{`import { generateSubtaskDemo } from '../utils/subtaskGenerator.js';
+                <pre
+                    style={{
+                        background: '#1e293b',
+                        color: '#e2e8f0',
+                        padding: '15px',
+                        'border-radius': '4px',
+                        'margin-top': '10px',
+                        overflow: 'auto',
+                        'font-size': '12px',
+                    }}
+                >{`import { generateSubtaskDemo } from '../utils/subtaskGenerator.js';
 
 const { tasks, resources, expandedTasks } = generateSubtaskDemo({
     totalTasks: 100,          // Target number of tasks

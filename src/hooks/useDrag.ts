@@ -1,6 +1,11 @@
 import { createSignal, onCleanup, Accessor } from 'solid-js';
 
-type DragState = 'idle' | 'dragging_bar' | 'dragging_left' | 'dragging_right' | 'dragging_progress';
+type DragState =
+    | 'idle'
+    | 'dragging_bar'
+    | 'dragging_left'
+    | 'dragging_right'
+    | 'dragging_progress';
 
 interface DragMove {
     clientX: number;
@@ -27,15 +32,31 @@ interface UseDragOptions {
     onDragStart?: (data: DragData, state: DragState) => void;
     onDragMove?: (move: DragMove, data: DragData, state: DragState) => void;
     onDragEnd?: (move: DragMove, data: DragData, state: DragState) => void;
-    getSvgPoint?: (clientX: number, clientY: number) => { x: number; y: number };
+    getSvgPoint?: (
+        clientX: number,
+        clientY: number,
+    ) => { x: number; y: number };
 }
 
 interface UseDragResult {
     dragState: Accessor<DragState>;
     isDragging: Accessor<boolean>;
-    startDrag: (e: MouseEvent, state: DragState, data?: Record<string, unknown>) => void;
-    createDragHandler: (state: DragState, dataOrGetter?: Record<string, unknown> | ((e: MouseEvent) => Record<string, unknown>)) => (e: MouseEvent) => void;
-    toSvgCoords: (clientX: number, clientY: number, svg?: SVGSVGElement | null) => { x: number; y: number };
+    startDrag: (
+        e: MouseEvent,
+        state: DragState,
+        data?: Record<string, unknown>,
+    ) => void;
+    createDragHandler: (
+        state: DragState,
+        dataOrGetter?:
+            | Record<string, unknown>
+            | ((e: MouseEvent) => Record<string, unknown>),
+    ) => (e: MouseEvent) => void;
+    toSvgCoords: (
+        clientX: number,
+        clientY: number,
+        svg?: SVGSVGElement | null,
+    ) => { x: number; y: number };
 }
 
 /**
@@ -81,7 +102,11 @@ export function useDrag(options: UseDragOptions = {}): UseDragResult {
     };
 
     // Convert client coordinates to SVG coordinates
-    const toSvgCoords = (clientX: number, clientY: number, svg?: SVGSVGElement | null): { x: number; y: number } => {
+    const toSvgCoords = (
+        clientX: number,
+        clientY: number,
+        svg?: SVGSVGElement | null,
+    ): { x: number; y: number } => {
         if (getSvgPoint) {
             return getSvgPoint(clientX, clientY);
         }
@@ -163,15 +188,22 @@ export function useDrag(options: UseDragOptions = {}): UseDragResult {
     /**
      * Start a drag operation.
      */
-    const startDrag = (e: MouseEvent, state: DragState, data: Record<string, unknown> = {}): void => {
+    const startDrag = (
+        e: MouseEvent,
+        state: DragState,
+        data: Record<string, unknown> = {},
+    ): void => {
         if (dragState() !== 'idle') {
             return;
         }
 
         const target = e.currentTarget as Element | null;
-        const svg = target?.ownerDocument?.querySelector('svg.gantt') as SVGSVGElement | null
-            || (target as SVGElement)?.ownerSVGElement
-            || (e.target as SVGElement)?.ownerSVGElement;
+        const svg =
+            (target?.ownerDocument?.querySelector(
+                'svg.gantt',
+            ) as SVGSVGElement | null) ||
+            (target as SVGElement)?.ownerSVGElement ||
+            (e.target as SVGElement)?.ownerSVGElement;
         const svgCoords = toSvgCoords(e.clientX, e.clientY, svg);
 
         dragData = {
@@ -201,12 +233,15 @@ export function useDrag(options: UseDragOptions = {}): UseDragResult {
      */
     const createDragHandler = (
         state: DragState,
-        dataOrGetter: Record<string, unknown> | ((e: MouseEvent) => Record<string, unknown>) = {}
+        dataOrGetter:
+            | Record<string, unknown>
+            | ((e: MouseEvent) => Record<string, unknown>) = {},
     ): ((e: MouseEvent) => void) => {
         return (e: MouseEvent) => {
-            const data = typeof dataOrGetter === 'function'
-                ? dataOrGetter(e)
-                : dataOrGetter;
+            const data =
+                typeof dataOrGetter === 'function'
+                    ? dataOrGetter(e)
+                    : dataOrGetter;
             startDrag(e, state, data);
         };
     };
@@ -242,7 +277,13 @@ export function clamp(value: number, min: number, max: number): number {
 /**
  * Helper: Check if mouse moved enough to start drag.
  */
-export function movedEnough(startX: number, startY: number, currentX: number, currentY: number, threshold = 3): boolean {
+export function movedEnough(
+    startX: number,
+    startY: number,
+    currentX: number,
+    currentY: number,
+    threshold = 3,
+): boolean {
     const dx = Math.abs(currentX - startX);
     const dy = Math.abs(currentY - startY);
     return dx > threshold || dy > threshold;

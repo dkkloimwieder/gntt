@@ -62,10 +62,12 @@ function parseArgs(args) {
                 config.resourceCount = parseInt(value, 10);
                 break;
             case 'dense':
-                config.dense = value === undefined || value === 'true' || value === '1';
+                config.dense =
+                    value === undefined || value === 'true' || value === '1';
                 break;
             case 'realistic':
-                config.realistic = value === undefined || value === 'true' || value === '1';
+                config.realistic =
+                    value === undefined || value === 'true' || value === '1';
                 break;
             case 'minDuration':
                 config.minDuration = parseInt(value, 10);
@@ -133,9 +135,17 @@ console.log(`Generated ${tasks.length} tasks to ${outputPath}`);
 const resources = new Set(tasks.map((t) => t.resource));
 const fsCount = tasks.filter((t) => t.dependencies?.[0]?.type === 'FS').length;
 const ssCount = tasks.filter((t) => t.dependencies?.[0]?.type === 'SS').length;
-const noDeps = tasks.filter((t) => !t.dependencies || t.dependencies.length === 0).length;
+const noDeps = tasks.filter(
+    (t) => !t.dependencies || t.dependencies.length === 0,
+).length;
 
 console.log('\nSummary:');
-console.log(`  Resources: ${resources.size} (${[...resources].sort().join(', ')})`);
-console.log(`  Dependencies: ${fsCount} FS, ${ssCount} SS, ${noDeps} none (group starts)`);
-console.log(`  Date range: ${tasks[0]?.start} to ${tasks[tasks.length - 1]?.end}`);
+console.log(
+    `  Resources: ${resources.size} (${[...resources].sort().join(', ')})`,
+);
+console.log(
+    `  Dependencies: ${fsCount} FS, ${ssCount} SS, ${noDeps} none (group starts)`,
+);
+console.log(
+    `  Date range: ${tasks[0]?.start} to ${tasks[tasks.length - 1]?.end}`,
+);

@@ -4,7 +4,10 @@ import { createTaskStore } from '../stores/taskStore.js';
 import { createGanttConfigStore } from '../stores/ganttConfigStore.js';
 import { Bar } from '../components/Bar';
 import { Arrow } from '../components/Arrow';
-import { resolveConstraints, buildRelationshipIndex } from '../utils/constraintEngine.js';
+import {
+    resolveConstraints,
+    buildRelationshipIndex,
+} from '../utils/constraintEngine.js';
 
 /**
  * Bar Demo - Interactive Test Page for Bar Component
@@ -45,9 +48,9 @@ export function BarDemo() {
         {
             id: 'task-1',
             name: 'Design',
-            progress: 100,  // Complete
-            _start: daysFromNow(-10),  // Started 10 days ago
-            _end: daysFromNow(-1),     // Ended yesterday
+            progress: 100, // Complete
+            _start: daysFromNow(-10), // Started 10 days ago
+            _end: daysFromNow(-1), // Ended yesterday
             color: '#3498db',
             color_progress: '#2980b9',
             _index: 0,
@@ -56,9 +59,9 @@ export function BarDemo() {
         {
             id: 'task-1b',
             name: 'Documentation',
-            progress: 80,   // 80% done
-            _start: daysFromNow(-10),  // Started 10 days ago
-            _end: daysFromNow(2),      // Ends in 2 days (expected ~83%)
+            progress: 80, // 80% done
+            _start: daysFromNow(-10), // Started 10 days ago
+            _end: daysFromNow(2), // Ends in 2 days (expected ~83%)
             color: '#9b59b6',
             color_progress: '#8e44ad',
             _index: 1,
@@ -67,9 +70,9 @@ export function BarDemo() {
         {
             id: 'task-2a',
             name: 'Frontend Dev',
-            progress: 60,   // 60% done
-            _start: daysFromNow(-5),   // Started 5 days ago
-            _end: daysFromNow(3),      // Ends in 3 days (expected ~63%)
+            progress: 60, // 60% done
+            _start: daysFromNow(-5), // Started 5 days ago
+            _end: daysFromNow(3), // Ends in 3 days (expected ~63%)
             color: '#27ae60',
             color_progress: '#1e8449',
             _index: 2,
@@ -77,9 +80,9 @@ export function BarDemo() {
         {
             id: 'task-2b',
             name: 'Backend Dev',
-            progress: 45,   // 45% done - behind schedule!
-            _start: daysFromNow(-5),   // Started 5 days ago
-            _end: daysFromNow(2),      // Ends in 2 days (expected ~71%)
+            progress: 45, // 45% done - behind schedule!
+            _start: daysFromNow(-5), // Started 5 days ago
+            _end: daysFromNow(2), // Ends in 2 days (expected ~71%)
             color: '#16a085',
             color_progress: '#1abc9c',
             _index: 3,
@@ -88,9 +91,9 @@ export function BarDemo() {
         {
             id: 'task-3',
             name: 'Integration',
-            progress: 10,   // Just started
-            _start: daysFromNow(-1),   // Started yesterday
-            _end: daysFromNow(5),      // Ends in 5 days (expected ~17%)
+            progress: 10, // Just started
+            _start: daysFromNow(-1), // Started yesterday
+            _end: daysFromNow(5), // Ends in 5 days (expected ~17%)
             color: '#e67e22',
             color_progress: '#d35400',
             _index: 4,
@@ -100,7 +103,7 @@ export function BarDemo() {
             name: 'Locked Task',
             progress: 50,
             _start: daysFromNow(-7),
-            _end: daysFromNow(7),      // 14 day task, halfway (expected 50%)
+            _end: daysFromNow(7), // 14 day task, halfway (expected 50%)
             color: '#7f8c8d',
             constraints: { locked: true },
             _index: 5,
@@ -109,9 +112,9 @@ export function BarDemo() {
         {
             id: 'sync-a',
             name: 'Sync A',
-            progress: 70,   // Ahead of schedule
+            progress: 70, // Ahead of schedule
             _start: daysFromNow(-3),
-            _end: daysFromNow(3),      // 6 day task (expected 50%)
+            _end: daysFromNow(3), // 6 day task (expected 50%)
             color: '#e74c3c',
             color_progress: '#c0392b',
             _index: 6,
@@ -119,9 +122,9 @@ export function BarDemo() {
         {
             id: 'sync-b',
             name: 'Sync B',
-            progress: 40,   // Behind schedule
+            progress: 40, // Behind schedule
             _start: daysFromNow(-3),
-            _end: daysFromNow(3),      // 6 day task (expected 50%)
+            _end: daysFromNow(3), // 6 day task (expected 50%)
             color: '#e74c3c',
             color_progress: '#c0392b',
             _index: 7,
@@ -156,14 +159,14 @@ export function BarDemo() {
     // Bar positions showing different relationship types
     // Grid: columnWidth=45, so valid x positions are 0, 45, 90, 135, 180, 225, 270, 315, 360, 405...
     const barPositions = [
-        { x: 90, width: 135 },    // Design: columns 2-5 (ends at 225)
-        { x: 90, width: 180 },    // Documentation: SAME START as Design (start-to-start)
-        { x: 225, width: 180 },   // Frontend Dev: starts at Design end (finish-to-start)
-        { x: 225, width: 135 },   // Backend Dev: starts at Design end (finish-to-start, parallel)
-        { x: 405, width: 135 },   // Integration: starts when both parallel tasks end
-        { x: 90, width: 135 },    // Locked Task: independent
-        { x: 495, width: 90 },    // Sync A: fixed-offset pair
-        { x: 630, width: 90 },    // Sync B: fixed-offset pair (linked to Sync A)
+        { x: 90, width: 135 }, // Design: columns 2-5 (ends at 225)
+        { x: 90, width: 180 }, // Documentation: SAME START as Design (start-to-start)
+        { x: 225, width: 180 }, // Frontend Dev: starts at Design end (finish-to-start)
+        { x: 225, width: 135 }, // Backend Dev: starts at Design end (finish-to-start, parallel)
+        { x: 405, width: 135 }, // Integration: starts when both parallel tasks end
+        { x: 90, width: 135 }, // Locked Task: independent
+        { x: 495, width: 90 }, // Sync A: fixed-offset pair
+        { x: 630, width: 90 }, // Sync B: fixed-offset pair (linked to Sync A)
     ];
 
     // Initialize tasks
@@ -196,7 +199,10 @@ export function BarDemo() {
     const updateProgress = (taskId, delta) => {
         const task = taskStore.getTask(taskId);
         if (task) {
-            const newProgress = Math.max(0, Math.min(100, (task.progress || 0) + delta));
+            const newProgress = Math.max(
+                0,
+                Math.min(100, (task.progress || 0) + delta),
+            );
             taskStore.updateTask(taskId, { ...task, progress: newProgress });
         }
     };
@@ -216,33 +222,57 @@ export function BarDemo() {
     };
 
     return (
-        <div style={{ padding: '20px', 'font-family': 'system-ui, sans-serif', 'max-width': '900px', margin: '0 auto' }}>
+        <div
+            style={{
+                padding: '20px',
+                'font-family': 'system-ui, sans-serif',
+                'max-width': '900px',
+                margin: '0 auto',
+            }}
+        >
             <h1 style={{ 'margin-bottom': '10px' }}>Bar Component Demo</h1>
             <p style={{ color: '#666', 'margin-bottom': '20px' }}>
-                Interactive bar component with drag, resize, and progress editing.
+                Interactive bar component with drag, resize, and progress
+                editing.
             </p>
 
             {/* Controls */}
-            <div style={{
-                'margin-bottom': '20px',
-                padding: '15px',
-                'background-color': '#f8f9fa',
-                'border-radius': '8px',
-                display: 'flex',
-                gap: '15px',
-                'align-items': 'center',
-                'flex-wrap': 'wrap',
-            }}>
-                <label style={{ display: 'flex', 'align-items': 'center', gap: '8px' }}>
+            <div
+                style={{
+                    'margin-bottom': '20px',
+                    padding: '15px',
+                    'background-color': '#f8f9fa',
+                    'border-radius': '8px',
+                    display: 'flex',
+                    gap: '15px',
+                    'align-items': 'center',
+                    'flex-wrap': 'wrap',
+                }}
+            >
+                <label
+                    style={{
+                        display: 'flex',
+                        'align-items': 'center',
+                        gap: '8px',
+                    }}
+                >
                     <input
                         type="checkbox"
                         checked={showExpected()}
                         onChange={toggleExpected}
                     />
-                    <span style={{ 'font-size': '13px' }}>Show Expected Progress</span>
+                    <span style={{ 'font-size': '13px' }}>
+                        Show Expected Progress
+                    </span>
                 </label>
 
-                <label style={{ display: 'flex', 'align-items': 'center', gap: '8px' }}>
+                <label
+                    style={{
+                        display: 'flex',
+                        'align-items': 'center',
+                        gap: '8px',
+                    }}
+                >
                     <input
                         type="checkbox"
                         checked={showDebug()}
@@ -257,7 +287,7 @@ export function BarDemo() {
                         padding: '6px 12px',
                         'border-radius': '4px',
                         border: '1px solid #ddd',
-                        'background': '#fff',
+                        background: '#fff',
                         cursor: 'pointer',
                     }}
                 >
@@ -270,7 +300,7 @@ export function BarDemo() {
                         padding: '6px 12px',
                         'border-radius': '4px',
                         border: '1px solid #27ae60',
-                        'background': '#27ae60',
+                        background: '#27ae60',
                         color: '#fff',
                         cursor: 'pointer',
                     }}
@@ -284,7 +314,7 @@ export function BarDemo() {
                         padding: '6px 12px',
                         'border-radius': '4px',
                         border: '1px solid #e74c3c',
-                        'background': '#e74c3c',
+                        background: '#e74c3c',
                         color: '#fff',
                         cursor: 'pointer',
                     }}
@@ -306,8 +336,18 @@ export function BarDemo() {
             >
                 {/* Grid */}
                 <defs>
-                    <pattern id="grid" width="45" height="48" patternUnits="userSpaceOnUse">
-                        <path d="M 45 0 L 0 0 0 48" fill="none" stroke="#f0f0f0" stroke-width="0.5" />
+                    <pattern
+                        id="grid"
+                        width="45"
+                        height="48"
+                        patternUnits="userSpaceOnUse"
+                    >
+                        <path
+                            d="M 45 0 L 0 0 0 48"
+                            fill="none"
+                            stroke="#f0f0f0"
+                            stroke-width="0.5"
+                        />
                     </pattern>
                 </defs>
                 <rect width="100%" height="100%" fill="url(#grid)" />
@@ -317,9 +357,20 @@ export function BarDemo() {
                 <line x1="0" y1="50" x2="800" y2="50" stroke="#ddd" />
 
                 {/* Column labels */}
-                <For each={[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]}>
+                <For
+                    each={[
+                        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+                        16,
+                    ]}
+                >
                     {(i) => (
-                        <text x={i * 45 + 22} y="30" text-anchor="middle" font-size="10" fill="#999">
+                        <text
+                            x={i * 45 + 22}
+                            y="30"
+                            text-anchor="middle"
+                            font-size="10"
+                            fill="#999"
+                        >
                             {i}
                         </text>
                     )}
@@ -350,31 +401,49 @@ export function BarDemo() {
                                 taskStore={taskStore}
                                 ganttConfig={ganttConfig}
                                 onConstrainPosition={(taskId, newX, newY) => {
-                                    const taskBar = taskStore.getBarPosition(taskId);
+                                    const taskBar =
+                                        taskStore.getBarPosition(taskId);
                                     const width = taskBar?.width ?? 100;
 
                                     // Build context for constraint engine
                                     const context = {
-                                        getBarPosition: taskStore.getBarPosition.bind(taskStore),
-                                        getTask: taskStore.getTask.bind(taskStore),
+                                        getBarPosition:
+                                            taskStore.getBarPosition.bind(
+                                                taskStore,
+                                            ),
+                                        getTask:
+                                            taskStore.getTask.bind(taskStore),
                                         relationships,
                                         relationshipIndex,
                                         pixelsPerHour: 45, // columnWidth
                                     };
 
-                                    const result = resolveConstraints(taskId, newX, width, context);
+                                    const result = resolveConstraints(
+                                        taskId,
+                                        newX,
+                                        width,
+                                        context,
+                                    );
 
                                     if (result.blocked) {
                                         return null;
                                     }
 
                                     // Update main task
-                                    taskStore.updateBarPosition(taskId, { x: result.constrainedX });
+                                    taskStore.updateBarPosition(taskId, {
+                                        x: result.constrainedX,
+                                    });
 
                                     // Apply cascade updates to successors
                                     if (result.cascadeUpdates) {
-                                        for (const [succId, update] of result.cascadeUpdates) {
-                                            taskStore.updateBarPosition(succId, update);
+                                        for (const [
+                                            succId,
+                                            update,
+                                        ] of result.cascadeUpdates) {
+                                            taskStore.updateBarPosition(
+                                                succId,
+                                                update,
+                                            );
                                         }
                                     }
 
@@ -394,39 +463,55 @@ export function BarDemo() {
                                 if (!pos) return null;
 
                                 // Find relationships involving this task
-                                const asSuccessor = relationships.filter(r => r.to === task.id);
-                                const asPredecessor = relationships.filter(r => r.from === task.id);
+                                const asSuccessor = relationships.filter(
+                                    (r) => r.to === task.id,
+                                );
+                                const asPredecessor = relationships.filter(
+                                    (r) => r.from === task.id,
+                                );
 
                                 // Build constraint info string
                                 const constraintParts = [];
 
                                 // Show predecessors with constraint type
-                                asSuccessor.forEach(r => {
-                                    const predPos = taskStore.getBarPosition(r.from);
+                                asSuccessor.forEach((r) => {
+                                    const predPos = taskStore.getBarPosition(
+                                        r.from,
+                                    );
                                     if (!predPos) return;
 
                                     if (r.fixedOffset) {
-                                        constraintParts.push(`←${r.from}[fixed]`);
+                                        constraintParts.push(
+                                            `←${r.from}[fixed]`,
+                                        );
                                     } else {
-                                        const gap = pos.x - (predPos.x + predPos.width);
+                                        const gap =
+                                            pos.x - (predPos.x + predPos.width);
                                         const minD = r.minDistance ?? 10;
                                         const maxD = r.maxDistance;
-                                        const type = minD === -Infinity ? 'SS' : 'FS';
-                                        const maxStr = maxD !== undefined ? ` max:${maxD}` : '';
-                                        constraintParts.push(`←${r.from}(${type} gap:${gap}${maxStr})`);
+                                        const type =
+                                            minD === -Infinity ? 'SS' : 'FS';
+                                        const maxStr =
+                                            maxD !== undefined
+                                                ? ` max:${maxD}`
+                                                : '';
+                                        constraintParts.push(
+                                            `←${r.from}(${type} gap:${gap}${maxStr})`,
+                                        );
                                     }
                                 });
 
                                 // Show if this task is part of fixed-offset group
-                                asPredecessor.forEach(r => {
+                                asPredecessor.forEach((r) => {
                                     if (r.fixedOffset) {
                                         constraintParts.push(`→${r.to}[fixed]`);
                                     }
                                 });
 
-                                const constraintStr = constraintParts.length > 0
-                                    ? constraintParts.join(' ')
-                                    : 'no deps';
+                                const constraintStr =
+                                    constraintParts.length > 0
+                                        ? constraintParts.join(' ')
+                                        : 'no deps';
 
                                 return (
                                     <text
@@ -436,7 +521,8 @@ export function BarDemo() {
                                         fill="#666"
                                         font-family="monospace"
                                     >
-                                        {task.id} | x:{pos.x} w:{pos.width} | {constraintStr}
+                                        {task.id} | x:{pos.x} w:{pos.width} |{' '}
+                                        {constraintStr}
                                     </text>
                                 );
                             }}
@@ -446,33 +532,55 @@ export function BarDemo() {
             </svg>
 
             {/* Legend */}
-            <div style={{
-                'margin-top': '20px',
-                padding: '15px',
-                'background-color': '#f8f9fa',
-                'border-radius': '8px',
-            }}>
-                <h3 style={{ margin: '0 0 12px 0', 'font-size': '14px' }}>Task List</h3>
-                <div style={{ display: 'grid', 'grid-template-columns': 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px', 'font-size': '12px' }}>
+            <div
+                style={{
+                    'margin-top': '20px',
+                    padding: '15px',
+                    'background-color': '#f8f9fa',
+                    'border-radius': '8px',
+                }}
+            >
+                <h3 style={{ margin: '0 0 12px 0', 'font-size': '14px' }}>
+                    Task List
+                </h3>
+                <div
+                    style={{
+                        display: 'grid',
+                        'grid-template-columns':
+                            'repeat(auto-fit, minmax(200px, 1fr))',
+                        gap: '10px',
+                        'font-size': '12px',
+                    }}
+                >
                     <For each={allTasks()}>
                         {(task) => (
-                            <div style={{
-                                display: 'flex',
-                                'align-items': 'center',
-                                gap: '8px',
-                                padding: '4px 8px',
-                                'background': task.invalid ? '#fee2e2' : task.constraints?.locked ? '#e5e5e5' : '#fff',
-                                'border-radius': '4px',
-                                border: '1px solid #ddd',
-                            }}>
-                                <span style={{
-                                    width: '16px',
-                                    height: '16px',
-                                    'background': task.color,
-                                    'border-radius': '3px',
-                                }}></span>
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    'align-items': 'center',
+                                    gap: '8px',
+                                    padding: '4px 8px',
+                                    background: task.invalid
+                                        ? '#fee2e2'
+                                        : task.constraints?.locked
+                                          ? '#e5e5e5'
+                                          : '#fff',
+                                    'border-radius': '4px',
+                                    border: '1px solid #ddd',
+                                }}
+                            >
+                                <span
+                                    style={{
+                                        width: '16px',
+                                        height: '16px',
+                                        background: task.color,
+                                        'border-radius': '3px',
+                                    }}
+                                ></span>
                                 <span style={{ flex: 1 }}>{task.name}</span>
-                                <span style={{ color: '#666' }}>{task.progress}%</span>
+                                <span style={{ color: '#666' }}>
+                                    {task.progress}%
+                                </span>
                                 {task.constraints?.locked && <span>🔒</span>}
                                 {task.invalid && <span>⚠️</span>}
                             </div>
@@ -482,15 +590,26 @@ export function BarDemo() {
             </div>
 
             {/* Features */}
-            <div style={{
-                'margin-top': '15px',
-                padding: '15px',
-                'background-color': '#e7f5ff',
-                'border-radius': '8px',
-                'border-left': '4px solid #339af0',
-            }}>
-                <h3 style={{ margin: '0 0 8px 0', 'font-size': '14px' }}>Implemented Features</h3>
-                <ul style={{ margin: 0, 'padding-left': '20px', 'font-size': '13px', color: '#495057' }}>
+            <div
+                style={{
+                    'margin-top': '15px',
+                    padding: '15px',
+                    'background-color': '#e7f5ff',
+                    'border-radius': '8px',
+                    'border-left': '4px solid #339af0',
+                }}
+            >
+                <h3 style={{ margin: '0 0 8px 0', 'font-size': '14px' }}>
+                    Implemented Features
+                </h3>
+                <ul
+                    style={{
+                        margin: 0,
+                        'padding-left': '20px',
+                        'font-size': '13px',
+                        color: '#495057',
+                    }}
+                >
                     <li>✅ Static bar rendering with colors</li>
                     <li>✅ Progress bars with correct width calculation</li>
                     <li>✅ Expected progress (toggle checkbox)</li>
@@ -504,13 +623,37 @@ export function BarDemo() {
                     <li>✅ Progress handle drag</li>
                     <li>✅ Locked tasks prevent interaction</li>
                 </ul>
-                <h3 style={{ margin: '12px 0 8px 0', 'font-size': '14px' }}>Constraint System</h3>
-                <ul style={{ margin: 0, 'padding-left': '20px', 'font-size': '13px', color: '#495057' }}>
-                    <li>✅ <b>minDistance</b>: Push successor when gap becomes too small</li>
-                    <li>✅ <b>maxDistance</b>: Pull successor when gap becomes too large (Frontend → Integration)</li>
-                    <li>✅ <b>fixedOffset</b>: Tasks move together (drag Sync A or Sync B)</li>
-                    <li>✅ <b>locked</b>: Movement blocked at locked task boundary</li>
-                    <li>✅ <b>SS/FS</b>: Start-to-start vs Finish-to-start constraints</li>
+                <h3 style={{ margin: '12px 0 8px 0', 'font-size': '14px' }}>
+                    Constraint System
+                </h3>
+                <ul
+                    style={{
+                        margin: 0,
+                        'padding-left': '20px',
+                        'font-size': '13px',
+                        color: '#495057',
+                    }}
+                >
+                    <li>
+                        ✅ <b>minDistance</b>: Push successor when gap becomes
+                        too small
+                    </li>
+                    <li>
+                        ✅ <b>maxDistance</b>: Pull successor when gap becomes
+                        too large (Frontend → Integration)
+                    </li>
+                    <li>
+                        ✅ <b>fixedOffset</b>: Tasks move together (drag Sync A
+                        or Sync B)
+                    </li>
+                    <li>
+                        ✅ <b>locked</b>: Movement blocked at locked task
+                        boundary
+                    </li>
+                    <li>
+                        ✅ <b>SS/FS</b>: Start-to-start vs Finish-to-start
+                        constraints
+                    </li>
                     <li>✅ Successor cannot move before predecessor start</li>
                     <li>✅ Real-time constraint resolution during drag</li>
                 </ul>

@@ -44,7 +44,10 @@ interface TaskLayerProps {
     endRow?: number;
     startX?: number;
     endX?: number;
-    onDateChange?: (taskId: string, position: { x: number; width: number }) => void;
+    onDateChange?: (
+        taskId: string,
+        position: { x: number; width: number },
+    ) => void;
     onProgressChange?: (taskId: string, progress: number) => void;
     onResizeEnd?: (taskId: string) => void;
     onHover?: (taskId: string, clientX: number, clientY: number) => void;
@@ -74,13 +77,19 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
     const relationships = (): Relationship[] => props.relationships || [];
 
     // Pre-build relationship index for O(1) lookups (rebuilds when relationships change)
-    const relationshipIndex = createMemo(() => buildRelationshipIndex(relationships()));
+    const relationshipIndex = createMemo(() =>
+        buildRelationshipIndex(relationships()),
+    );
 
     /**
      * Handle constraint position callback from Bar.
      * Uses constraintEngine for dependency constraints.
      */
-    const handleConstrainPosition = (taskId: string, newX: number, newY: number): ConstrainedResult | null => {
+    const handleConstrainPosition = (
+        taskId: string,
+        newX: number,
+        newY: number,
+    ): ConstrainedResult | null => {
         if (!props.taskStore) return { x: newX, y: newY };
 
         // Get columnWidth for lag conversion (lag is in days, needs pixels)
@@ -92,7 +101,9 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
 
         // Build context for constraint engine
         const context = {
-            getBarPosition: props.taskStore.getBarPosition?.bind(props.taskStore),
+            getBarPosition: props.taskStore.getBarPosition?.bind(
+                props.taskStore,
+            ),
             getTask: props.taskStore.getTask?.bind(props.taskStore),
             relationships: relationships(),
             relationshipIndex: relationshipIndex(),
@@ -110,7 +121,10 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
         // Apply cascade updates to successors
         if (result.cascadeUpdates && result.cascadeUpdates.size > 0) {
             for (const [succId, update] of result.cascadeUpdates) {
-                props.taskStore.updateBarPosition(succId, update as Partial<BarPosition>);
+                props.taskStore.updateBarPosition(
+                    succId,
+                    update as Partial<BarPosition>,
+                );
             }
         }
 
@@ -121,7 +135,10 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
     /**
      * Handle date change callback from Bar.
      */
-    const handleDateChange = (taskId: string, position: { x: number; width: number }): void => {
+    const handleDateChange = (
+        taskId: string,
+        position: { x: number; width: number },
+    ): void => {
         props.onDateChange?.(taskId, position);
     };
 
@@ -143,18 +160,28 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
             const taskBar = props.taskStore.getBarPosition?.(taskId);
             if (taskBar) {
                 const context = {
-                    getBarPosition: props.taskStore.getBarPosition?.bind(props.taskStore),
+                    getBarPosition: props.taskStore.getBarPosition?.bind(
+                        props.taskStore,
+                    ),
                     getTask: props.taskStore.getTask?.bind(props.taskStore),
                     relationships: relationships(),
                     relationshipIndex: relationshipIndex(),
                     pixelsPerHour: columnWidth,
                     ganttStartDate: new Date(), // Placeholder - not used for pixel-based calculations
                 };
-                const result = resolveConstraints(taskId, taskBar.x, taskBar.width, context);
+                const result = resolveConstraints(
+                    taskId,
+                    taskBar.x,
+                    taskBar.width,
+                    context,
+                );
                 // Apply cascade updates
                 if (result.cascadeUpdates) {
                     for (const [succId, update] of result.cascadeUpdates) {
-                        props.taskStore.updateBarPosition(succId, update as Partial<BarPosition>);
+                        props.taskStore.updateBarPosition(
+                            succId,
+                            update as Partial<BarPosition>,
+                        );
                     }
                 }
             }
@@ -165,7 +192,11 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
     /**
      * Handle task hover.
      */
-    const handleHover = (taskId: string, clientX: number, clientY: number): void => {
+    const handleHover = (
+        taskId: string,
+        clientX: number,
+        clientY: number,
+    ): void => {
         props.onHover?.(taskId, clientX, clientY);
     };
 
@@ -188,7 +219,9 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
      * Returns a Set of task IDs that should move together.
      */
     const handleCollectDependents = (taskId: string): Set<string> => {
-        const getTask = props.taskStore?.getTask?.bind(props.taskStore) ?? (() => undefined);
+        const getTask =
+            props.taskStore?.getTask?.bind(props.taskStore) ??
+            (() => undefined);
         return collectDependentTasks(taskId, relationships(), getTask);
     };
 
@@ -196,8 +229,13 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
      * Clamp batch delta to prevent constraint violations.
      * Called during drag to ensure no task moves behind its predecessor.
      */
-    const handleClampBatchDelta = (batchOriginals: Map<string, BatchOriginal>, proposedDeltaX: number): number => {
-        const getTask = props.taskStore?.getTask?.bind(props.taskStore) ?? (() => undefined);
+    const handleClampBatchDelta = (
+        batchOriginals: Map<string, BatchOriginal>,
+        proposedDeltaX: number,
+    ): number => {
+        const getTask =
+            props.taskStore?.getTask?.bind(props.taskStore) ??
+            (() => undefined);
         // Get columnWidth for lag conversion (lag is in days, needs pixels)
         const columnWidth = props.ganttConfig?.columnWidth?.() ?? 45;
         return clampBatchDeltaX(
@@ -227,7 +265,8 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
     };
 
     // Get display resources from resourceStore (respects collapse state)
-    const displayResources = (): DisplayResource[] => props.resourceStore?.displayResources() || [];
+    const displayResources = (): DisplayResource[] =>
+        props.resourceStore?.displayResources() || [];
 
     // Viewport range for row virtualization
     const startRow = (): number => props.startRow ?? 0;
@@ -311,7 +350,10 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
                         const task = resourceTaskList[j];
                         if (!task) continue;
                         const bar = task._bar;
-                        if (!bar || (bar.x + bar.width >= sx - 200 && bar.x <= ex + 200)) {
+                        if (
+                            !bar ||
+                            (bar.x + bar.width >= sx - 200 && bar.x <= ex + 200)
+                        ) {
                             result.push(task.id);
                         }
                     }
@@ -327,7 +369,8 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
     };
 
     // Check if we're in simple mode (no expansion/subtasks)
-    const isSimpleMode = (): boolean => props.ganttConfig?.renderMode?.() === 'simple';
+    const isSimpleMode = (): boolean =>
+        props.ganttConfig?.renderMode?.() === 'simple';
 
     // Split visible tasks into three categories:
     // 1. expandedIds - tasks with subtasks that are expanded (render as ExpandedTaskContainer)
@@ -416,7 +459,11 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
     const pooledRegularTasks = createMemo((): (ProcessedTask | undefined)[] => {
         const ids = pooledRegularIds();
         const tasksObj = props.taskStore?.tasks ?? {};
-        return untrack(() => ids.map(id => id ? tasksObj[id] as ProcessedTask | undefined : undefined));
+        return untrack(() =>
+            ids.map((id) =>
+                id ? (tasksObj[id] as ProcessedTask | undefined) : undefined,
+            ),
+        );
     });
 
     const pooledSummaryIds = createMemo((): (string | undefined)[] => {
@@ -468,7 +515,15 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
     };
 
     return (
-        <div class="task-layer" style={{ contain: 'layout style', position: 'relative', width: '100%', height: '100%' }}>
+        <div
+            class="task-layer"
+            style={{
+                contain: 'layout style',
+                position: 'relative',
+                width: '100%',
+                height: '100%',
+            }}
+        >
             {/* Summary bars render BEHIND everything */}
             <div class="summary-layer" style={{ contain: 'layout style' }}>
                 <Index each={pooledSummaryIds()}>
@@ -505,7 +560,12 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
             <div class="task-bars-layer" style={{ contain: 'layout style' }}>
                 <Index each={pooledRegularTasks()}>
                     {(task: Accessor<ProcessedTask | undefined>) => (
-                        <div style={{ display: task() ? 'block' : 'none', 'pointer-events': 'auto' }}>
+                        <div
+                            style={{
+                                display: task() ? 'block' : 'none',
+                                'pointer-events': 'auto',
+                            }}
+                        >
                             <Bar
                                 task={task as Accessor<ProcessedTask>}
                                 taskStore={props.taskStore}

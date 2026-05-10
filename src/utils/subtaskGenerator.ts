@@ -82,23 +82,29 @@ function formatDate(date: Date): string {
 // Lighten a hex color
 function lightenColor(hex: string, percent = 20): string {
     const num = parseInt(hex.slice(1), 16);
-    const r = Math.min(255, ((num >> 16) & 0xff) + Math.round(255 * percent / 100));
-    const g = Math.min(255, ((num >> 8) & 0xff) + Math.round(255 * percent / 100));
-    const b = Math.min(255, (num & 0xff) + Math.round(255 * percent / 100));
+    const r = Math.min(
+        255,
+        ((num >> 16) & 0xff) + Math.round((255 * percent) / 100),
+    );
+    const g = Math.min(
+        255,
+        ((num >> 8) & 0xff) + Math.round((255 * percent) / 100),
+    );
+    const b = Math.min(255, (num & 0xff) + Math.round((255 * percent) / 100));
     return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
 }
 
 // Default configuration
 const DEFAULT_CONFIG: SubtaskConfig = {
     totalTasks: 100,
-    parentTaskRatio: 0.7,        // 70% are parents with subtasks
+    parentTaskRatio: 0.7, // 70% are parents with subtasks
     minSubtasks: 2,
     maxSubtasks: 4,
     subtaskLayouts: ['sequential', 'parallel', 'mixed'],
     startDate: '2024-01-01',
     taskDurationDays: { min: 7, max: 14 },
     subtaskDurationDays: { min: 2, max: 5 },
-    dependencyChance: 0.3,       // Lower to reduce arrow clutter
+    dependencyChance: 0.3, // Lower to reduce arrow clutter
     seed: 12345,
 };
 
@@ -113,20 +119,42 @@ const RESOURCES: ResourceDef[] = [
 
 // Task name prefixes for variety
 const TASK_NAMES: string[] = [
-    'Feature', 'Sprint', 'Phase', 'Module', 'Component',
-    'Update', 'Release', 'Build', 'Deploy', 'Review',
-    'Design', 'Implement', 'Test', 'Fix', 'Refactor',
+    'Feature',
+    'Sprint',
+    'Phase',
+    'Module',
+    'Component',
+    'Update',
+    'Release',
+    'Build',
+    'Deploy',
+    'Review',
+    'Design',
+    'Implement',
+    'Test',
+    'Fix',
+    'Refactor',
 ];
 
 const SUBTASK_NAMES: string[] = [
-    'Setup', 'Research', 'Design', 'Develop', 'Test',
-    'Review', 'Document', 'Deploy', 'Monitor', 'Optimize',
+    'Setup',
+    'Research',
+    'Design',
+    'Develop',
+    'Test',
+    'Review',
+    'Document',
+    'Deploy',
+    'Monitor',
+    'Optimize',
 ];
 
 /**
  * Generate random tasks with subtasks for demo/testing.
  */
-export function generateSubtaskDemo(config: Partial<SubtaskConfig> = {}): SubtaskDemoResult {
+export function generateSubtaskDemo(
+    config: Partial<SubtaskConfig> = {},
+): SubtaskDemoResult {
     const cfg = { ...DEFAULT_CONFIG, ...config };
     const random = createRandom(cfg.seed);
 
@@ -136,7 +164,9 @@ export function generateSubtaskDemo(config: Partial<SubtaskConfig> = {}): Subtas
 
     // Track tasks per resource for scheduling
     const resourceSchedule = new Map<string, Date>();
-    RESOURCES.forEach(r => resourceSchedule.set(r.id, new Date(cfg.startDate)));
+    RESOURCES.forEach((r) =>
+        resourceSchedule.set(r.id, new Date(cfg.startDate)),
+    );
 
     // Calculate how many parent tasks we need
     // With 70% ratio and avg 3 subtasks per parent:
@@ -144,9 +174,14 @@ export function generateSubtaskDemo(config: Partial<SubtaskConfig> = {}): Subtas
     // - For 100 tasks: ~17 parent groups (68 tasks) + ~32 standalone
     const avgSubtasks = (cfg.minSubtasks + cfg.maxSubtasks) / 2;
     const avgTasksPerParent = 1 + avgSubtasks;
-    const targetParents = Math.ceil(cfg.totalTasks * cfg.parentTaskRatio / avgTasksPerParent);
+    const targetParents = Math.ceil(
+        (cfg.totalTasks * cfg.parentTaskRatio) / avgTasksPerParent,
+    );
     const estimatedSubtasks = targetParents * avgSubtasks;
-    const targetStandalone = Math.max(0, cfg.totalTasks - targetParents - estimatedSubtasks);
+    const targetStandalone = Math.max(
+        0,
+        cfg.totalTasks - targetParents - estimatedSubtasks,
+    );
 
     // Generate parent tasks with subtasks
     for (let i = 0; i < targetParents; i++) {
@@ -159,7 +194,11 @@ export function generateSubtaskDemo(config: Partial<SubtaskConfig> = {}): Subtas
         const startDate = addDays(lastEndDate, 1); // Just 1 day gap for visual clarity
 
         // Parent task duration based on subtasks
-        const parentDuration = randInt(random, cfg.taskDurationDays.min, cfg.taskDurationDays.max);
+        const parentDuration = randInt(
+            random,
+            cfg.taskDurationDays.min,
+            cfg.taskDurationDays.max,
+        );
         const endDate = addDays(startDate, parentDuration);
 
         const parentId = `task-${taskId++}`;
@@ -185,7 +224,10 @@ export function generateSubtaskDemo(config: Partial<SubtaskConfig> = {}): Subtas
         const availableDays = parentDuration;
 
         // For sequential: calculate duration per subtask to fit within parent
-        const seqDurationPerSubtask = Math.max(1, Math.floor(availableDays / numSubtasks));
+        const seqDurationPerSubtask = Math.max(
+            1,
+            Math.floor(availableDays / numSubtasks),
+        );
 
         for (let j = 0; j < numSubtasks; j++) {
             let subtaskEnd: Date;
@@ -202,11 +244,18 @@ export function generateSubtaskDemo(config: Partial<SubtaskConfig> = {}): Subtas
                     subtaskEnd = new Date(endDate);
                 }
             } else if (layout === 'parallel') {
-                const subtaskDuration = randInt(random, cfg.subtaskDurationDays.min, cfg.subtaskDurationDays.max);
+                const subtaskDuration = randInt(
+                    random,
+                    cfg.subtaskDurationDays.min,
+                    cfg.subtaskDurationDays.max,
+                );
                 // Parallel: ALL subtasks start at the same time (parent start)
                 // Full time overlap → each subtask needs its own row (stacked vertically)
                 subtaskStart = new Date(startDate);
-                subtaskEnd = addDays(subtaskStart, Math.max(1, subtaskDuration));
+                subtaskEnd = addDays(
+                    subtaskStart,
+                    Math.max(1, subtaskDuration),
+                );
 
                 // Clamp to parent bounds
                 if (subtaskEnd > endDate) {
@@ -215,7 +264,11 @@ export function generateSubtaskDemo(config: Partial<SubtaskConfig> = {}): Subtas
             } else {
                 // Mixed: some overlap, some don't → auto-computed rows
                 // Strategy: first half start together (overlap), second half stagger
-                const subtaskDuration = randInt(random, cfg.subtaskDurationDays.min, cfg.subtaskDurationDays.max);
+                const subtaskDuration = randInt(
+                    random,
+                    cfg.subtaskDurationDays.min,
+                    cfg.subtaskDurationDays.max,
+                );
                 const halfPoint = Math.floor(numSubtasks / 2);
 
                 if (j < halfPoint) {
@@ -224,11 +277,18 @@ export function generateSubtaskDemo(config: Partial<SubtaskConfig> = {}): Subtas
                     subtaskStart = addDays(startDate, smallOffset);
                 } else {
                     // Second half: start after first batch would end
-                    const baseOffset = Math.floor(availableDays / 2) + randInt(random, 0, 2);
-                    subtaskStart = addDays(startDate, Math.min(baseOffset, availableDays - subtaskDuration));
+                    const baseOffset =
+                        Math.floor(availableDays / 2) + randInt(random, 0, 2);
+                    subtaskStart = addDays(
+                        startDate,
+                        Math.min(baseOffset, availableDays - subtaskDuration),
+                    );
                 }
 
-                subtaskEnd = addDays(subtaskStart, Math.max(1, subtaskDuration));
+                subtaskEnd = addDays(
+                    subtaskStart,
+                    Math.max(1, subtaskDuration),
+                );
 
                 // Clamp to parent bounds
                 if (subtaskEnd > endDate) {
@@ -271,7 +331,11 @@ export function generateSubtaskDemo(config: Partial<SubtaskConfig> = {}): Subtas
         const lastEndDate = resourceSchedule.get(resource.id)!;
         const startDate = addDays(lastEndDate, 1); // 1 day gap
 
-        const duration = randInt(random, cfg.taskDurationDays.min, cfg.taskDurationDays.max);
+        const duration = randInt(
+            random,
+            cfg.taskDurationDays.min,
+            cfg.taskDurationDays.max,
+        );
         const endDate = addDays(startDate, duration);
 
         const task: GeneratedSubtaskTask = {
@@ -290,7 +354,7 @@ export function generateSubtaskDemo(config: Partial<SubtaskConfig> = {}): Subtas
 
     // Add dependencies between parent/standalone tasks on the SAME resource only
     // Group top-level tasks by resource
-    const topLevelTasks = tasks.filter(t => !t.parentId);
+    const topLevelTasks = tasks.filter((t) => !t.parentId);
     const tasksByResource = new Map<string, GeneratedSubtaskTask[]>();
 
     for (const task of topLevelTasks) {
@@ -303,7 +367,9 @@ export function generateSubtaskDemo(config: Partial<SubtaskConfig> = {}): Subtas
     // Add dependencies within each resource
     for (const [_resource, resourceTasks] of tasksByResource) {
         // Sort by start date
-        resourceTasks.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+        resourceTasks.sort(
+            (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime(),
+        );
 
         for (let i = 1; i < resourceTasks.length; i++) {
             if (random() < cfg.dependencyChance) {
@@ -311,7 +377,9 @@ export function generateSubtaskDemo(config: Partial<SubtaskConfig> = {}): Subtas
                 // Find preceding task that ends before this starts
                 const candidates = resourceTasks
                     .slice(0, i)
-                    .filter(t => new Date(t.end) <= new Date(currentTask.start));
+                    .filter(
+                        (t) => new Date(t.end) <= new Date(currentTask.start),
+                    );
 
                 if (candidates.length > 0) {
                     // Pick the most recent predecessor

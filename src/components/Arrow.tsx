@@ -98,7 +98,11 @@ const DEFAULTS = {
 /**
  * Calculate the x,y coordinates of an anchor point on a bar.
  */
-function getAnchorPoint(bar: BarPosition, anchor: AnchorType, offset = 0.5): Point {
+function getAnchorPoint(
+    bar: BarPosition,
+    anchor: AnchorType,
+    offset = 0.5,
+): Point {
     const t = Math.max(0, Math.min(1, offset));
 
     switch (anchor) {
@@ -124,7 +128,11 @@ function getAnchorPoint(bar: BarPosition, anchor: AnchorType, offset = 0.5): Poi
  * - Different rows: Exit from BOTTOM (going down) or TOP (going up)
  * - Same row: Exit from side (RIGHT for FS/FF, LEFT for SS/SF)
  */
-function autoSelectStartAnchor(from: BarPosition, to: BarPosition, dependencyType: DependencyType = 'FS'): AnchorType {
+function autoSelectStartAnchor(
+    from: BarPosition,
+    to: BarPosition,
+    dependencyType: DependencyType = 'FS',
+): AnchorType {
     const fromCenterY = from.y + from.height / 2;
     const toCenterY = to.y + to.height / 2;
     const dy = toCenterY - fromCenterY;
@@ -156,7 +164,11 @@ function autoSelectStartAnchor(from: BarPosition, to: BarPosition, dependencyTyp
  * - -Start dependencies (FS, SS): enter from LEFT (the start of the task)
  * - -Finish dependencies (FF, SF): enter from RIGHT for same row, TOP for different rows
  */
-function autoSelectEndAnchor(from: BarPosition, to: BarPosition, dependencyType: DependencyType = 'FS'): AnchorType {
+function autoSelectEndAnchor(
+    from: BarPosition,
+    to: BarPosition,
+    dependencyType: DependencyType = 'FS',
+): AnchorType {
     const fromCenterY = from.y + from.height / 2;
     const toCenterY = to.y + to.height / 2;
     const dy = toCenterY - fromCenterY;
@@ -218,7 +230,11 @@ function calculateSmartOffset(
 /**
  * Generate arrow head pointing RIGHT (for horizontal entry from left)
  */
-function generateArrowHeadRight(shape: HeadShape, size: number, fill: boolean): string {
+function generateArrowHeadRight(
+    shape: HeadShape,
+    size: number,
+    fill: boolean,
+): string {
     if (size <= 0 || shape === 'none') {
         return '';
     }
@@ -271,7 +287,13 @@ function straightPath(start: Point, end: Point): string {
  * Generate an orthogonal path with rounded corners.
  * Returns just the line path (no arrow head).
  */
-function orthogonalPath(start: Point, end: Point, startAnchor: AnchorType, endAnchor: AnchorType, curveRadius: number): string {
+function orthogonalPath(
+    start: Point,
+    end: Point,
+    startAnchor: AnchorType,
+    endAnchor: AnchorType,
+    curveRadius: number,
+): string {
     const dx = end.x - start.x;
     const dy = end.y - start.y;
 
@@ -322,7 +344,11 @@ function orthogonalPath(start: Point, end: Point, startAnchor: AnchorType, endAn
  * Goes: down, horizontal, down to target.
  * Returns just the line path (no arrow head).
  */
-function verticalToVerticalPath(start: Point, end: Point, curve: number): string {
+function verticalToVerticalPath(
+    start: Point,
+    end: Point,
+    curve: number,
+): string {
     const dx = end.x - start.x;
     const dy = end.y - start.y;
 
@@ -374,7 +400,13 @@ function verticalToVerticalPath(start: Point, end: Point, curve: number): string
  * Goes: down, then horizontal to the target edge.
  * Returns just the line path (no arrow head).
  */
-function verticalToHorizontalPath(start: Point, end: Point, startAnchor: AnchorType, endAnchor: AnchorType, curve: number): string {
+function verticalToHorizontalPath(
+    start: Point,
+    end: Point,
+    startAnchor: AnchorType,
+    endAnchor: AnchorType,
+    curve: number,
+): string {
     const dy = end.y - start.y;
     const goingDown = startAnchor === 'bottom';
     const enteringLeft = endAnchor === 'left';
@@ -615,7 +647,9 @@ function generateArrowHeadPath(
 /**
  * Determine arrow head direction based on end anchor.
  */
-function getArrowHeadDirection(endAnchor: AnchorType): 'right' | 'left' | 'up' | 'down' {
+function getArrowHeadDirection(
+    endAnchor: AnchorType,
+): 'right' | 'left' | 'up' | 'down' {
     switch (endAnchor) {
         case 'top':
             return 'down'; // Arrow points down into top of bar
@@ -630,7 +664,11 @@ function getArrowHeadDirection(endAnchor: AnchorType): 'right' | 'left' | 'up' |
     }
 }
 
-function generatePath(from: BarPosition, to: BarPosition, config: ArrowConfig): PathResult {
+function generatePath(
+    from: BarPosition,
+    to: BarPosition,
+    config: ArrowConfig,
+): PathResult {
     const endProf = prof.start('Arrow.generatePath');
 
     const {
@@ -756,7 +794,8 @@ export function Arrow(props: ArrowProps): JSX.Element {
 
         // For expanded containers, force 'right' anchor (override 'auto')
         // This ensures arrows exit from container's right edge, not bottom
-        let startAnchor: AnchorType = props.startAnchor ?? DEFAULTS.START_ANCHOR;
+        let startAnchor: AnchorType =
+            props.startAnchor ?? DEFAULTS.START_ANCHOR;
         if (isExpanded && startAnchor === 'auto') {
             startAnchor = 'right';
         }
@@ -791,7 +830,8 @@ export function Arrow(props: ArrowProps): JSX.Element {
     const headFill = (): boolean => props.headFill ?? DEFAULTS.HEAD_FILL;
 
     // Chevron is always stroke-only, never filled
-    const shouldFillHead = (): boolean => headFill() && headShape() !== 'chevron';
+    const shouldFillHead = (): boolean =>
+        headFill() && headShape() !== 'chevron';
 
     return (
         <g
@@ -842,4 +882,11 @@ export {
     DEFAULTS as ARROW_DEFAULTS,
 };
 
-export type { ArrowProps, ArrowConfig, AnchorType, RoutingType, HeadShape, Point };
+export type {
+    ArrowProps,
+    ArrowConfig,
+    AnchorType,
+    RoutingType,
+    HeadShape,
+    Point,
+};

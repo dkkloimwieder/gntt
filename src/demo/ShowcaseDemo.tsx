@@ -707,7 +707,9 @@ export default function ShowcaseDemo() {
     });
 
     // Pre-build relationship index for O(1) lookups
-    const relationshipIndex = createMemo(() => buildRelationshipIndex(relationships()));
+    const relationshipIndex = createMemo(() =>
+        buildRelationshipIndex(relationships()),
+    );
 
     // Task positions for each constraint type to demonstrate behavior
     const PRESET_POSITIONS = {
@@ -914,7 +916,12 @@ export default function ShowcaseDemo() {
                 relationshipIndex: relationshipIndex(),
                 pixelsPerHour: 1,
             };
-            const result = resolveConstraints(taskId, taskBar.x, taskBar.width, context);
+            const result = resolveConstraints(
+                taskId,
+                taskBar.x,
+                taskBar.width,
+                context,
+            );
             if (result.cascadeUpdates) {
                 for (const [succId, update] of result.cascadeUpdates) {
                     taskStore.updateBarPosition(succId, update);

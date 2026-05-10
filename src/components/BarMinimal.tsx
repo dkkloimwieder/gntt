@@ -53,52 +53,66 @@ export function BarMinimal(props: BarMinimalProps): JSX.Element {
     });
 
     return (
-        <div style={{
-            position: 'absolute',
-            transform: `translate(${t().x}px, ${t().y}px)`,
-            width: `${t().width}px`,
-            height: `${t().height}px`,
-        }}>
+        <div
+            style={{
+                position: 'absolute',
+                transform: `translate(${t().x}px, ${t().y}px)`,
+                width: `${t().width}px`,
+                height: `${t().height}px`,
+            }}
+        >
             {/* Background - FIXED opacity */}
-            <div style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '100%',
-                'background-color': t().color,
-                opacity: 0.15,
-                'border-radius': '3px',
-            }} />
+            <div
+                style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    'background-color': t().color,
+                    opacity: 0.15,
+                    'border-radius': '3px',
+                }}
+            />
             {/* Progress bar - FIXED color/opacity */}
-            <div style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                height: '100%',
-                width: `${t().pw}px`,
-                'background-color': '#a3a3ff',
-                opacity: 0.3,
-                'border-radius': '3px',
-            }} />
+            <div
+                style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    height: '100%',
+                    width: `${t().pw}px`,
+                    'background-color': '#a3a3ff',
+                    opacity: 0.3,
+                    'border-radius': '3px',
+                }}
+            />
             {/* Task name */}
-            <div style={{
-                position: 'absolute',
-                top: '50%',
-                left: '8px',
-                transform: 'translateY(-50%)',
-                color: '#fff',
-                'font-size': '12px',
-                'white-space': 'nowrap',
-            }}>{t().name}</div>
+            <div
+                style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '8px',
+                    transform: 'translateY(-50%)',
+                    color: '#fff',
+                    'font-size': '12px',
+                    'white-space': 'nowrap',
+                }}
+            >
+                {t().name}
+            </div>
             {/* Task ID (for debugging) */}
-            <div style={{
-                position: 'absolute',
-                bottom: '2px',
-                right: '4px',
-                'font-size': '9px',
-                color: '#888',
-            }}>{t().id}</div>
+            <div
+                style={{
+                    position: 'absolute',
+                    bottom: '2px',
+                    right: '4px',
+                    'font-size': '9px',
+                    color: '#888',
+                }}
+            >
+                {t().id}
+            </div>
         </div>
     );
 }

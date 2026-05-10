@@ -42,22 +42,26 @@ export function TaskDataPopup(props: TaskDataPopupProps): JSX.Element {
     return (
         <Show when={props.visible?.()}>
             <div style={popupStyle()}>
-                <div style={{
-                    'font-family': 'monospace',
-                    'white-space': 'pre-line',
-                    'line-height': '1.5',
-                }}>
+                <div
+                    style={{
+                        'font-family': 'monospace',
+                        'white-space': 'pre-line',
+                        'line-height': '1.5',
+                    }}
+                >
                     {formattedData()}
                 </div>
-                <div style={{
-                    'margin-top': '10px',
-                    'padding-top': '8px',
-                    'border-top': '1px solid #eee',
-                    'font-size': '10px',
-                    color: '#999',
-                    'text-align': 'center',
-                    'font-family': 'sans-serif',
-                }}>
+                <div
+                    style={{
+                        'margin-top': '10px',
+                        'padding-top': '8px',
+                        'border-top': '1px solid #eee',
+                        'font-size': '10px',
+                        color: '#999',
+                        'text-align': 'center',
+                        'font-family': 'sans-serif',
+                    }}
+                >
                     Click for full data
                 </div>
             </div>

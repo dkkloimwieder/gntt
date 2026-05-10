@@ -23,10 +23,14 @@ interface SubtaskConfig {
 /**
  * ExpandedTaskContainer - Renders a parent task with subtasks inside.
  */
-export function ExpandedTaskContainer(props: ExpandedTaskContainerProps): JSX.Element {
+export function ExpandedTaskContainer(
+    props: ExpandedTaskContainerProps,
+): JSX.Element {
     // Get task from store
     const task = (): ProcessedTask | undefined => {
-        return props.taskStore?.tasks[props.taskId] as ProcessedTask | undefined;
+        return props.taskStore?.tasks[props.taskId] as
+            | ProcessedTask
+            | undefined;
     };
 
     // Get subtasks
@@ -44,16 +48,20 @@ export function ExpandedTaskContainer(props: ExpandedTaskContainerProps): JSX.El
 
     // Layout mode
     const layout = (): 'sequential' | 'parallel' | 'mixed' =>
-        (task()?.subtaskLayout as 'sequential' | 'parallel' | 'mixed') || 'sequential';
+        (task()?.subtaskLayout as 'sequential' | 'parallel' | 'mixed') ||
+        'sequential';
 
     // Config from ganttConfig
     const barHeight = (): number => props.ganttConfig?.barHeight?.() ?? 30;
     const padding = (): number => props.ganttConfig?.padding?.() ?? 18;
-    const subtaskHeightRatio = (): number => props.ganttConfig?.subtaskHeightRatio?.() ?? 0.5;
-    const cornerRadius = (): number => props.ganttConfig?.barCornerRadius?.() ?? 3;
+    const subtaskHeightRatio = (): number =>
+        props.ganttConfig?.subtaskHeightRatio?.() ?? 0.5;
+    const cornerRadius = (): number =>
+        props.ganttConfig?.barCornerRadius?.() ?? 3;
 
     // Parent bar geometry (from _bar)
-    const parentBar = () => task()?._bar || { x: 0, y: 0, width: 100, height: 30 };
+    const parentBar = () =>
+        task()?._bar || { x: 0, y: 0, width: 100, height: 30 };
 
     // Container dimensions
     const containerY = (): number => {
@@ -84,11 +92,16 @@ export function ExpandedTaskContainer(props: ExpandedTaskContainerProps): JSX.El
         const count = subtasks().length;
         const verticalPadding = (barHeight() - subtaskBarHeight) / 2;
 
-        return verticalPadding * 2 + count * subtaskBarHeight + (count - 1) * subtaskPadding;
+        return (
+            verticalPadding * 2 +
+            count * subtaskBarHeight +
+            (count - 1) * subtaskPadding
+        );
     };
 
     // Colors
-    const parentColor = (): string => (task()?.color as string) ?? 'var(--g-bar-color, #b8c2cc)';
+    const parentColor = (): string =>
+        (task()?.color as string) ?? 'var(--g-bar-color, #b8c2cc)';
 
     // Subtask config for SubtaskBar
     const subtaskConfig = (): SubtaskConfig => ({
@@ -114,7 +127,11 @@ export function ExpandedTaskContainer(props: ExpandedTaskContainerProps): JSX.El
         if (layout() === 'sequential') {
             return containerY() + verticalPadding;
         }
-        return containerY() + verticalPadding + index * (subtaskBarHeight + subtaskPadding);
+        return (
+            containerY() +
+            verticalPadding +
+            index * (subtaskBarHeight + subtaskPadding)
+        );
     };
 
     return (

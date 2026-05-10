@@ -45,16 +45,23 @@ interface TaskLike {
 
 type TaskMap = Map<string, TaskLike> | Record<string, TaskLike | undefined>;
 
-function iterateTasks(tasksObj: TaskMap | null | undefined): [string, TaskLike][] {
+function iterateTasks(
+    tasksObj: TaskMap | null | undefined,
+): [string, TaskLike][] {
     if (!tasksObj) return [];
     if (tasksObj instanceof Map) {
         return Array.from(tasksObj.entries());
     }
     // Filter out undefined values for Record type
-    return Object.entries(tasksObj).filter((entry): entry is [string, TaskLike] => entry[1] !== undefined);
+    return Object.entries(tasksObj).filter(
+        (entry): entry is [string, TaskLike] => entry[1] !== undefined,
+    );
 }
 
-function getTask(tasksObj: TaskMap | null | undefined, id: string): TaskLike | null {
+function getTask(
+    tasksObj: TaskMap | null | undefined,
+    id: string,
+): TaskLike | null {
     if (!tasksObj) return null;
     if (tasksObj instanceof Map) return tasksObj.get(id) ?? null;
     return (tasksObj as Record<string, TaskLike>)[id] ?? null;
@@ -64,13 +71,9 @@ export function calculateRowLayouts(
     displayRows: DisplayRow[],
     config: LayoutConfig,
     expandedTasks: Set<string> | null | undefined,
-    taskMap: TaskMap | null | undefined
+    taskMap: TaskMap | null | undefined,
 ): Map<string, RowLayout> {
-    const {
-        barHeight = 30,
-        padding = 18,
-        subtaskHeightRatio = 0.5,
-    } = config;
+    const { barHeight = 30, padding = 18, subtaskHeightRatio = 0.5 } = config;
 
     const baseRowHeight = barHeight + padding;
     const layouts = new Map<string, RowLayout>();
@@ -95,7 +98,11 @@ export function calculateRowLayouts(
             if (task.parentId) continue;
             if (task.type === 'project') continue;
 
-            if (expandedTasks?.has(task.id) && task._children && task._children.length > 0) {
+            if (
+                expandedTasks?.has(task.id) &&
+                task._children &&
+                task._children.length > 0
+            ) {
                 expandedTasksInRow.push(task);
             }
         }
@@ -103,10 +110,17 @@ export function calculateRowLayouts(
         if (expandedTasksInRow.length > 0) {
             let totalExpandedHeight = 0;
             for (const task of expandedTasksInRow) {
-                totalExpandedHeight += calculateExpandedRowHeight(task, config, taskMap);
+                totalExpandedHeight += calculateExpandedRowHeight(
+                    task,
+                    config,
+                    taskMap,
+                );
             }
-            const nonExpandedCount = resourceTasks.filter(t =>
-                !t.parentId && t.type !== 'project' && !expandedTasks?.has(t.id)
+            const nonExpandedCount = resourceTasks.filter(
+                (t) =>
+                    !t.parentId &&
+                    t.type !== 'project' &&
+                    !expandedTasks?.has(t.id),
             ).length;
             rowHeight = totalExpandedHeight + nonExpandedCount * baseRowHeight;
         }
@@ -115,12 +129,18 @@ export function calculateRowLayouts(
         const baseY = cumulativeY + padding / 2;
 
         const sortedTasks = [...resourceTasks]
-            .filter(t => !t.parentId)
+            .filter((t) => !t.parentId)
             .sort((a, b) => {
                 if (a.type === 'project' && b.type !== 'project') return -1;
                 if (b.type === 'project' && a.type !== 'project') return 1;
-                const aStart = a._start instanceof Date ? a._start.getTime() : (a._start ?? 0);
-                const bStart = b._start instanceof Date ? b._start.getTime() : (b._start ?? 0);
+                const aStart =
+                    a._start instanceof Date
+                        ? a._start.getTime()
+                        : (a._start ?? 0);
+                const bStart =
+                    b._start instanceof Date
+                        ? b._start.getTime()
+                        : (b._start ?? 0);
                 return aStart - bStart;
             });
 
@@ -134,7 +154,8 @@ export function calculateRowLayouts(
 
         const overlapsRow = (task: TaskLike, subRow: SubRow): boolean => {
             const taskStart = task._start ?? task._bar?.x ?? 0;
-            const taskEnd = task._end ?? ((task._bar?.x ?? 0) + (task._bar?.width ?? 1));
+            const taskEnd =
+                task._end ?? (task._bar?.x ?? 0) + (task._bar?.width ?? 1);
             for (const range of subRow.occupiedRanges) {
                 if (!(taskEnd <= range.start || taskStart >= range.end)) {
                     return true;
@@ -145,18 +166,23 @@ export function calculateRowLayouts(
 
         const findRowForTask = (task: TaskLike, taskHeight: number): number => {
             const taskStart = task._start ?? task._bar?.x ?? 0;
-            const taskEnd = task._end ?? ((task._bar?.x ?? 0) + (task._bar?.width ?? 1));
+            const taskEnd =
+                task._end ?? (task._bar?.x ?? 0) + (task._bar?.width ?? 1);
 
             for (const subRow of rows) {
                 if (!overlapsRow(task, subRow)) {
-                    subRow.occupiedRanges.push({ start: taskStart, end: taskEnd });
+                    subRow.occupiedRanges.push({
+                        start: taskStart,
+                        end: taskEnd,
+                    });
                     subRow.height = Math.max(subRow.height, taskHeight);
                     return subRow.y;
                 }
             }
 
             const lastRow = rows[rows.length - 1];
-            const newY = rows.length === 0 ? baseY : lastRow!.y + lastRow!.height;
+            const newY =
+                rows.length === 0 ? baseY : lastRow!.y + lastRow!.height;
             rows.push({
                 y: newY,
                 height: taskHeight,
@@ -166,7 +192,10 @@ export function calculateRowLayouts(
         };
 
         for (const task of sortedTasks) {
-            const isExpanded = expandedTasks?.has(task.id) && task._children && task._children.length > 0;
+            const isExpanded =
+                expandedTasks?.has(task.id) &&
+                task._children &&
+                task._children.length > 0;
             let taskHeight: number;
             let taskY: number;
 
@@ -174,8 +203,10 @@ export function calculateRowLayouts(
                 taskHeight = calculateExpandedRowHeight(task, config, taskMap);
                 const layout = task.subtaskLayout || 'sequential';
 
-                const containerHeight = layout === 'sequential' ? barHeight : taskHeight;
-                const visualHeight = layout === 'sequential' ? baseRowHeight : taskHeight;
+                const containerHeight =
+                    layout === 'sequential' ? barHeight : taskHeight;
+                const visualHeight =
+                    layout === 'sequential' ? baseRowHeight : taskHeight;
 
                 taskY = findRowForTask(task, visualHeight);
 
@@ -191,9 +222,10 @@ export function calculateRowLayouts(
                 const subtaskPadding = padding * 0.4;
 
                 if (task._children) {
-                    const rowAssignments = (layout === 'mixed' || layout === 'parallel')
-                        ? computeSubtaskRows(task._children, taskMap)
-                        : null;
+                    const rowAssignments =
+                        layout === 'mixed' || layout === 'parallel'
+                            ? computeSubtaskRows(task._children, taskMap)
+                            : null;
 
                     const verticalPadding = (barHeight - subtaskBarHeight) / 2;
 
@@ -206,8 +238,13 @@ export function calculateRowLayouts(
                         if (layout === 'sequential') {
                             childY = taskY + verticalPadding;
                         } else {
-                            const subtaskRow = rowAssignments?.get(childId) ?? index;
-                            childY = taskY + verticalPadding + subtaskRow * (subtaskBarHeight + subtaskPadding);
+                            const subtaskRow =
+                                rowAssignments?.get(childId) ?? index;
+                            childY =
+                                taskY +
+                                verticalPadding +
+                                subtaskRow *
+                                    (subtaskBarHeight + subtaskPadding);
                         }
 
                         taskPositions.set(childId, {
@@ -248,7 +285,7 @@ export function calculateRowLayouts(
             contentY: cumulativeY + padding / 2,
             contentHeight: actualRowHeight - padding,
             type: row.type,
-            expandedTasks: expandedTasksInRow.map(t => t.id),
+            expandedTasks: expandedTasksInRow.map((t) => t.id),
             taskPositions,
         });
 
@@ -263,13 +300,9 @@ export function calculateRowLayouts(
 export function calculateExpandedRowHeight(
     task: TaskLike,
     config: LayoutConfig,
-    taskMap: TaskMap | null | undefined
+    taskMap: TaskMap | null | undefined,
 ): number {
-    const {
-        barHeight = 30,
-        padding = 18,
-        subtaskHeightRatio = 0.5,
-    } = config;
+    const { barHeight = 30, padding = 18, subtaskHeightRatio = 0.5 } = config;
 
     const subtaskBarHeight = barHeight * subtaskHeightRatio;
     const subtaskPadding = padding * 0.4;
@@ -288,7 +321,11 @@ export function calculateExpandedRowHeight(
     if (layout === 'parallel') {
         const verticalPadding = (barHeight - subtaskBarHeight) / 2;
         const rowCount = children.length;
-        return verticalPadding * 2 + rowCount * subtaskBarHeight + (rowCount - 1) * subtaskPadding;
+        return (
+            verticalPadding * 2 +
+            rowCount * subtaskBarHeight +
+            (rowCount - 1) * subtaskPadding
+        );
     }
 
     if (layout === 'mixed') {
@@ -300,20 +337,22 @@ export function calculateExpandedRowHeight(
 
 function computeSubtaskRows(
     childIds: string[],
-    taskMap: TaskMap | null | undefined
+    taskMap: TaskMap | null | undefined,
 ): Map<string, number> {
     const rowAssignments = new Map<string, number>();
     if (!childIds?.length || !taskMap) return rowAssignments;
 
     const subtasks = childIds
-        .map(id => getTask(taskMap, id))
+        .map((id) => getTask(taskMap, id))
         .filter((t): t is TaskLike => t != null)
         .sort((a, b) => {
             if (a.order !== undefined && b.order !== undefined) {
                 return a.order - b.order;
             }
-            const aStart = a._start instanceof Date ? a._start.getTime() : (a._start ?? 0);
-            const bStart = b._start instanceof Date ? b._start.getTime() : (b._start ?? 0);
+            const aStart =
+                a._start instanceof Date ? a._start.getTime() : (a._start ?? 0);
+            const bStart =
+                b._start instanceof Date ? b._start.getTime() : (b._start ?? 0);
             return aStart - bStart;
         });
 
@@ -321,14 +360,21 @@ function computeSubtaskRows(
 
     for (const subtask of subtasks) {
         const startVal = subtask._start;
-        const start = startVal instanceof Date ? startVal.getTime() : (startVal ?? subtask._bar?.x ?? 0);
+        const start =
+            startVal instanceof Date
+                ? startVal.getTime()
+                : (startVal ?? subtask._bar?.x ?? 0);
         const endVal = subtask._end;
-        const end = endVal instanceof Date ? endVal.getTime() : (endVal ?? ((subtask._bar?.x ?? 0) + (subtask._bar?.width ?? 1)));
+        const end =
+            endVal instanceof Date
+                ? endVal.getTime()
+                : (endVal ??
+                  (subtask._bar?.x ?? 0) + (subtask._bar?.width ?? 1));
 
         let assignedRow = -1;
         for (let rowIdx = 0; rowIdx < rows.length; rowIdx++) {
-            const hasOverlap = rows[rowIdx]!.some(range =>
-                !(end <= range.start || start >= range.end)
+            const hasOverlap = rows[rowIdx]!.some(
+                (range) => !(end <= range.start || start >= range.end),
             );
             if (!hasOverlap) {
                 assignedRow = rowIdx;
@@ -351,13 +397,9 @@ function computeSubtaskRows(
 function calculateMixedLayoutHeight(
     task: TaskLike,
     config: LayoutConfig,
-    taskMap: TaskMap | null | undefined
+    taskMap: TaskMap | null | undefined,
 ): number {
-    const {
-        barHeight = 30,
-        padding = 18,
-        subtaskHeightRatio = 0.5,
-    } = config;
+    const { barHeight = 30, padding = 18, subtaskHeightRatio = 0.5 } = config;
 
     const subtaskBarHeight = barHeight * subtaskHeightRatio;
     const subtaskPadding = padding * 0.4;
@@ -372,7 +414,11 @@ function calculateMixedLayoutHeight(
 
     const rowCount = maxRow + 1;
     const verticalPadding = (barHeight - subtaskBarHeight) / 2;
-    return verticalPadding * 2 + rowCount * subtaskBarHeight + (rowCount - 1) * subtaskPadding;
+    return (
+        verticalPadding * 2 +
+        rowCount * subtaskBarHeight +
+        (rowCount - 1) * subtaskPadding
+    );
 }
 
 export function findRowAtY(sortedRows: RowLayout[], targetY: number): number {
@@ -400,7 +446,9 @@ export function findRowAtY(sortedRows: RowLayout[], targetY: number): number {
     return Math.min(left, sortedRows.length - 1);
 }
 
-export function rowLayoutsToSortedArray(rowLayouts: Map<string, RowLayout>): (RowLayout & { id: string })[] {
+export function rowLayoutsToSortedArray(
+    rowLayouts: Map<string, RowLayout>,
+): (RowLayout & { id: string })[] {
     const result: (RowLayout & { id: string })[] = [];
     for (const [id, layout] of rowLayouts) {
         if (id === '__total__') continue;
@@ -414,7 +462,7 @@ export function getVisibleRowRange(
     sortedRows: RowLayout[],
     scrollY: number,
     viewportHeight: number,
-    overscan = 2
+    overscan = 2,
 ): { startIndex: number; endIndex: number } {
     if (sortedRows.length === 0) {
         return { startIndex: 0, endIndex: 0 };
@@ -423,7 +471,7 @@ export function getVisibleRowRange(
     const startIndex = Math.max(0, findRowAtY(sortedRows, scrollY) - overscan);
     const endIndex = Math.min(
         sortedRows.length,
-        findRowAtY(sortedRows, scrollY + viewportHeight) + 1 + overscan
+        findRowAtY(sortedRows, scrollY + viewportHeight) + 1 + overscan,
     );
 
     return { startIndex, endIndex };
@@ -434,13 +482,9 @@ export function computeSubtaskY(
     parentContentY: number,
     layout: 'sequential' | 'parallel' | 'mixed',
     config: LayoutConfig,
-    subtaskRow = 0
+    subtaskRow = 0,
 ): number {
-    const {
-        barHeight = 30,
-        padding = 18,
-        subtaskHeightRatio = 0.5,
-    } = config;
+    const { barHeight = 30, padding = 18, subtaskHeightRatio = 0.5 } = config;
 
     const subtaskBarHeight = barHeight * subtaskHeightRatio;
     const subtaskPadding = padding * 0.4;
@@ -459,7 +503,7 @@ export function computeSubtaskY(
 
 export function calculateSimpleRowLayouts(
     displayRows: DisplayRow[],
-    config: LayoutConfig
+    config: LayoutConfig,
 ): Map<string, RowLayout> {
     const { barHeight = 30, padding = 18 } = config;
     const rowHeight = barHeight + padding;

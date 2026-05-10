@@ -26,7 +26,8 @@ export function SubtaskBar(props: SubtaskBarProps): JSX.Element {
     const task = (): ProcessedTask => props.task;
 
     // Bar geometry from task._bar
-    const bar = (): BarPosition => task()?._bar || { x: 0, y: 0, width: 100, height: 30 };
+    const bar = (): BarPosition =>
+        task()?._bar || { x: 0, y: 0, width: 100, height: 30 };
     const x = (): number => bar().x;
     const width = (): number => bar().width;
 
@@ -43,8 +44,12 @@ export function SubtaskBar(props: SubtaskBarProps): JSX.Element {
     const height = (): number => barHeight() * subtaskHeightRatio();
 
     // Colors - inherit from parent or use task's own color
-    const barColor = (): string => (task()?.color as string) ?? config().parentColor ?? 'var(--g-bar-color, #b8c2cc)';
-    const progressColor = (): string => (task()?.color_progress as string) ?? barColor();
+    const barColor = (): string =>
+        (task()?.color as string) ??
+        config().parentColor ??
+        'var(--g-bar-color, #b8c2cc)';
+    const progressColor = (): string =>
+        (task()?.color_progress as string) ?? barColor();
 
     // Progress
     const progress = (): number => task()?.progress ?? 0;
@@ -58,11 +63,7 @@ export function SubtaskBar(props: SubtaskBarProps): JSX.Element {
     const labelX = (): number => x() + width() / 2;
 
     return (
-        <g
-            class="subtask-bar"
-            data-id={task()?.id}
-            data-index={props.index}
-        >
+        <g class="subtask-bar" data-id={task()?.id} data-index={props.index}>
             {/* Background bar - outline style with subtle fill */}
             <rect
                 class="subtask-bar-bg"

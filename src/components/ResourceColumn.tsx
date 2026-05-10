@@ -118,12 +118,14 @@ export function ResourceColumn(props: ResourceColumnProps): JSX.Element {
             'padding-left': isGroup || isProject ? '4px' : '12px',
             'font-size': isGroup || isProject ? '11px' : '12px',
             'font-weight': isGroup || isProject ? 'bold' : 'normal',
-            color: isGroup || isProject
-                ? 'var(--g-group-text-color, #1f2937)'
-                : 'var(--g-text-color, #333)',
-            'background-color': isGroup || isProject
-                ? 'var(--g-group-bg-color, #e5e7eb)'
-                : 'transparent',
+            color:
+                isGroup || isProject
+                    ? 'var(--g-group-text-color, #1f2937)'
+                    : 'var(--g-text-color, #333)',
+            'background-color':
+                isGroup || isProject
+                    ? 'var(--g-group-bg-color, #e5e7eb)'
+                    : 'transparent',
             cursor: isGroup ? 'pointer' : 'default',
             'user-select': 'none' as const,
             'border-radius': isGroup || isProject ? '2px' : '0',
@@ -156,7 +158,9 @@ export function ResourceColumn(props: ResourceColumnProps): JSX.Element {
                     'margin-right': '4px',
                     'font-size': '10px',
                     transition: 'transform 0.15s ease',
-                    transform: isCollapsed() ? 'rotate(-90deg)' : 'rotate(0deg)',
+                    transform: isCollapsed()
+                        ? 'rotate(-90deg)'
+                        : 'rotate(0deg)',
                 }}
             >
                 ▼
@@ -193,7 +197,9 @@ export function ResourceColumn(props: ResourceColumnProps): JSX.Element {
                         </Show>
 
                         {/* Resource/project name */}
-                        <span class="resource-name">{item.name || item.id}</span>
+                        <span class="resource-name">
+                            {item.name || item.id}
+                        </span>
                     </div>
                 )}
             </For>

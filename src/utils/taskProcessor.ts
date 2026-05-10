@@ -48,7 +48,9 @@ function generateTaskId(task: GanttTask, index: number): string {
  * Parse dependencies array.
  * Dependencies must be an array of objects with { id, type?, lag?, max? }.
  */
-function parseDependencies(dependencies: Dependency[] | undefined): NormalizedDependency[] {
+function parseDependencies(
+    dependencies: Dependency[] | undefined,
+): NormalizedDependency[] {
     // No dependencies
     if (!dependencies) return [];
 
@@ -57,19 +59,22 @@ function parseDependencies(dependencies: Dependency[] | undefined): NormalizedDe
         console.warn(
             'parseDependencies: dependencies must be an array, got:',
             typeof dependencies,
-            dependencies
+            dependencies,
         );
         return [];
     }
 
     // Parse array of dependency objects
     return dependencies
-        .filter((d): d is Dependency => d != null && typeof d === 'object' && typeof d.id === 'string')
+        .filter(
+            (d): d is Dependency =>
+                d != null && typeof d === 'object' && typeof d.id === 'string',
+        )
         .map((d) => ({
             id: d.id,
             type: d.type || 'FS',
             lag: d.lag || 0,
-            max: d.max,  // Preserve max for gap behavior (undefined = elastic)
+            max: d.max, // Preserve max for gap behavior (undefined = elastic)
         }));
 }
 
@@ -77,7 +82,10 @@ function parseDependencies(dependencies: Dependency[] | undefined): NormalizedDe
  * Process a single task - parse dates, validate, normalize.
  * Returns a partially processed task (without _bar position - added in processTasks).
  */
-export function processTask(task: GanttTask, index: number): Omit<ProcessedTask, '_bar' | '_resourceIndex' | '_isHidden'> | null {
+export function processTask(
+    task: GanttTask,
+    index: number,
+): Omit<ProcessedTask, '_bar' | '_resourceIndex' | '_isHidden'> | null {
     // Generate ID if missing
     const id = task.id || generateTaskId(task, index);
 
@@ -165,10 +173,13 @@ export function processTask(task: GanttTask, index: number): Omit<ProcessedTask,
 export function processTasks(
     tasks: GanttTask[],
     config: ProcessConfig,
-    externalResourceIndexMap: Map<string, number> | null = null
+    externalResourceIndexMap: Map<string, number> | null = null,
 ): ProcessResult {
     // Partial tasks (without position info yet)
-    type PartialTask = Omit<ProcessedTask, '_bar' | '_resourceIndex' | '_isHidden'>;
+    type PartialTask = Omit<
+        ProcessedTask,
+        '_bar' | '_resourceIndex' | '_isHidden'
+    >;
     const partialTasks: PartialTask[] = [];
     const relationships: Relationship[] = [];
 
@@ -273,7 +284,7 @@ export function processTasks(
     if (cycleResult.hasCycle) {
         console.warn(
             `Circular dependency detected: ${cycleResult.cycle.join(' → ')}`,
-            '\nThis may cause unexpected behavior during task dragging.'
+            '\nThis may cause unexpected behavior during task dragging.',
         );
     }
 
@@ -316,7 +327,9 @@ interface TaskWithDependencies {
 /**
  * Build dependency map from tasks.
  */
-export function buildDependencyMap(tasks: TaskWithDependencies[]): Map<string, string[]> {
+export function buildDependencyMap(
+    tasks: TaskWithDependencies[],
+): Map<string, string[]> {
     const map = new Map<string, string[]>();
 
     for (const task of tasks) {

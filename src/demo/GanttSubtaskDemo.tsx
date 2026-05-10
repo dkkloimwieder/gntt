@@ -24,7 +24,7 @@ export function GanttSubtaskDemo() {
         'Diana',
         'QA',
         'Eve',
-        'Frank',  // Single-resource subtask demo
+        'Frank', // Single-resource subtask demo
     ]);
 
     // Hierarchical tasks with parentId relationships
@@ -278,7 +278,8 @@ export function GanttSubtaskDemo() {
         'max-width': '1400px',
         margin: '0 auto',
         padding: '20px',
-        'font-family': '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        'font-family':
+            '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     };
 
     const headerStyle = {
@@ -307,7 +308,8 @@ export function GanttSubtaskDemo() {
                     Subtasks Demo
                 </h1>
                 <p style={{ margin: 0, color: '#666' }}>
-                    Hierarchical tasks with collapsible subtasks. Click the chevron icons to collapse/expand.
+                    Hierarchical tasks with collapsible subtasks. Click the
+                    chevron icons to collapse/expand.
                 </p>
             </div>
 
@@ -325,23 +327,36 @@ export function GanttSubtaskDemo() {
             <div style={infoStyle}>
                 <strong>Subtask Features:</strong>
                 <ul style={{ margin: '10px 0 0 0', 'padding-left': '20px' }}>
-                    <li>Click chevron icons on summary bars to collapse/expand children</li>
-                    <li>Cross-resource: parent bar visible, children on different rows</li>
-                    <li>Single-resource: children shown inline, parent hidden when expanded</li>
+                    <li>
+                        Click chevron icons on summary bars to collapse/expand
+                        children
+                    </li>
+                    <li>
+                        Cross-resource: parent bar visible, children on
+                        different rows
+                    </li>
+                    <li>
+                        Single-resource: children shown inline, parent hidden
+                        when expanded
+                    </li>
                     <li>Dragging a parent moves all its children together</li>
-                    <li>Unlimited nesting depth (project &gt; phase &gt; task)</li>
+                    <li>
+                        Unlimited nesting depth (project &gt; phase &gt; task)
+                    </li>
                 </ul>
                 <p style={{ margin: '10px 0 0 0' }}>
                     <strong>Data Structure:</strong>
                 </p>
-                <pre style={{
-                    'background-color': '#fff',
-                    padding: '10px',
-                    'border-radius': '4px',
-                    overflow: 'auto',
-                    'font-size': '12px',
-                }}>
-{`// Parent task (summary)
+                <pre
+                    style={{
+                        'background-color': '#fff',
+                        padding: '10px',
+                        'border-radius': '4px',
+                        overflow: 'auto',
+                        'font-size': '12px',
+                    }}
+                >
+                    {`// Parent task (summary)
 {
   id: 'project-1',
   name: 'Website Redesign',

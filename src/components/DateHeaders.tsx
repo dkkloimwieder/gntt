@@ -60,7 +60,10 @@ export function DateHeaders(props: DateHeadersProps): JSX.Element {
         const startInfo = infos[start];
         const startText = startInfo?.upperText;
         if (startText) {
-            while (groupStart > 0 && infos[groupStart - 1]?.upperText === startText) {
+            while (
+                groupStart > 0 &&
+                infos[groupStart - 1]?.upperText === startText
+            ) {
                 groupStart--;
             }
         }
@@ -95,7 +98,10 @@ export function DateHeaders(props: DateHeadersProps): JSX.Element {
         // Add final entry - find where this group ends
         if (currentText !== null) {
             let groupEnd = end;
-            while (groupEnd < infos.length && infos[groupEnd]?.upperText === currentText) {
+            while (
+                groupEnd < infos.length &&
+                infos[groupEnd]?.upperText === currentText
+            ) {
                 groupEnd++;
             }
             const endInfo = infos[groupEnd];

@@ -22,7 +22,9 @@ interface TaskWithResource {
  * Normalize resources to typed object format.
  * Converts simple string arrays to typed objects.
  */
-export function normalizeResources(rawResources: ResourceInput[] | null | undefined): Resource[] {
+export function normalizeResources(
+    rawResources: ResourceInput[] | null | undefined,
+): Resource[] {
     if (!rawResources || rawResources.length === 0) {
         return [];
     }
@@ -53,7 +55,7 @@ export function normalizeResources(rawResources: ResourceInput[] | null | undefi
  */
 export function computeDisplayResources(
     resources: Resource[],
-    collapsedGroups: Set<string>
+    collapsedGroups: Set<string>,
 ): DisplayResource[] {
     const result: DisplayResource[] = [];
 
@@ -86,7 +88,9 @@ export function computeDisplayResources(
  * Extract resources from tasks (for backward compatibility).
  * Used when no explicit resources are provided.
  */
-export function extractResourcesFromTasks(tasks: TaskWithResource[] | null | undefined): Resource[] {
+export function extractResourcesFromTasks(
+    tasks: TaskWithResource[] | null | undefined,
+): Resource[] {
     if (!tasks || tasks.length === 0) {
         return [];
     }
@@ -125,7 +129,10 @@ export function buildGroupMap(resources: Resource[]): Map<string, Resource> {
 /**
  * Get all resources belonging to a specific group.
  */
-export function getResourcesInGroup(resources: Resource[], groupId: string): Resource[] {
+export function getResourcesInGroup(
+    resources: Resource[],
+    groupId: string,
+): Resource[] {
     return resources.filter(
         (r) => r.type === 'resource' && r.group === groupId,
     );
@@ -134,7 +141,9 @@ export function getResourcesInGroup(resources: Resource[], groupId: string): Res
 /**
  * Count resources in each group.
  */
-export function countResourcesPerGroup(resources: Resource[]): Map<string, number> {
+export function countResourcesPerGroup(
+    resources: Resource[],
+): Map<string, number> {
     const counts = new Map<string, number>();
 
     for (const item of resources) {

@@ -1,5 +1,14 @@
 // @ts-nocheck
-import { createSignal, createMemo, onMount, onCleanup, Index, For, Show, batch } from 'solid-js';
+import {
+    createSignal,
+    createMemo,
+    onMount,
+    onCleanup,
+    Index,
+    For,
+    Show,
+    batch,
+} from 'solid-js';
 import { createStore, produce } from 'solid-js/store';
 import calendarData from '../data/generated/calendar.json';
 import constraintTestData from '../data/fixtures/constraint-test.json';
@@ -54,9 +63,7 @@ const topologyParam = urlParams.get('topology');
 const dataParam = urlParams.get('data') || 'calendar';
 
 // Topology takes precedence over data param
-const dataSource = topologyParam
-    ? `topology-${topologyParam}`
-    : dataParam;
+const dataSource = topologyParam ? `topology-${topologyParam}` : dataParam;
 
 const sourceData = (() => {
     if (topologyParam === 'breadth') return topologyBreadthData;
@@ -68,25 +75,32 @@ const sourceData = (() => {
 })();
 
 // Parse tasks and compute TIME-based positions (hours from start)
-const parsedTasks = sourceData.tasks.map(task => ({
+const parsedTasks = sourceData.tasks.map((task) => ({
     ...task,
     _start: date_utils.parse(task.start),
     _end: date_utils.parse(task.end),
 }));
-const ganttStart = new Date(Math.min(...parsedTasks.map(t => t._start.getTime())));
+const ganttStart = new Date(
+    Math.min(...parsedTasks.map((t) => t._start.getTime())),
+);
 const ganttStartMs = ganttStart.getTime();
 
 // Calculate average task duration to auto-adjust zoom for short tasks
-const avgDurationHours = parsedTasks.reduce((sum, t) => {
-    return sum + (t._end.getTime() - t._start.getTime()) / (1000 * 60 * 60);
-}, 0) / parsedTasks.length;
+const avgDurationHours =
+    parsedTasks.reduce((sum, t) => {
+        return sum + (t._end.getTime() - t._start.getTime()) / (1000 * 60 * 60);
+    }, 0) / parsedTasks.length;
 
 // Auto-zoom: if tasks avg < 1 hour, show 3 hours; if < 4 hours show 1 day; else 5 days
 // Can override with ?hours=N URL param
 const hoursParam = urlParams.get('hours');
 const HOURS_VISIBLE = hoursParam
     ? parseFloat(hoursParam)
-    : avgDurationHours < 0.5 ? 3 : avgDurationHours < 4 ? 24 : 120;
+    : avgDurationHours < 0.5
+      ? 3
+      : avgDurationHours < 4
+        ? 24
+        : 120;
 const DAYS_VISIBLE = HOURS_VISIBLE / 24;
 
 // Get unique resources - preserve generator order (A, B, C, ..., Z, AA, AB, ...)
@@ -103,7 +117,7 @@ const resourceToRow = Object.fromEntries(uniqueResources.map((r, i) => [r, i]));
 const TOTAL_ROWS = uniqueResources.length;
 
 // Timeline dimensions in HOURS (not pixels - scale at render time)
-const maxEndTime = Math.max(...parsedTasks.map(t => t._end.getTime()));
+const maxEndTime = Math.max(...parsedTasks.map((t) => t._end.getTime()));
 const TOTAL_HOURS = (maxEndTime - ganttStartMs) / (1000 * 60 * 60);
 const TOTAL_DAYS = Math.ceil(TOTAL_HOURS / 24) + 1;
 const TOTAL_HEIGHT = TOTAL_ROWS * (ROW_HEIGHT + GAP);
@@ -116,14 +130,19 @@ const initialTasks = (() => {
     const result = {};
     parsedTasks.forEach((task, i) => {
         const row = resourceToRow[task.resource] ?? 0;
-        const startHours = (task._start.getTime() - ganttStartMs) / (1000 * 60 * 60);
-        const endHours = (task._end.getTime() - ganttStartMs) / (1000 * 60 * 60);
+        const startHours =
+            (task._start.getTime() - ganttStartMs) / (1000 * 60 * 60);
+        const endHours =
+            (task._end.getTime() - ganttStartMs) / (1000 * 60 * 60);
         const durationHours = endHours - startHours;
         // Apply minStart constraint to initial position
         let effectiveStartHours = startHours;
         if (task.constraints?.minStart) {
-            const minStartTime = date_utils.parse(task.constraints.minStart).getTime();
-            const minStartHours = (minStartTime - ganttStartMs) / (1000 * 60 * 60);
+            const minStartTime = date_utils
+                .parse(task.constraints.minStart)
+                .getTime();
+            const minStartHours =
+                (minStartTime - ganttStartMs) / (1000 * 60 * 60);
             effectiveStartHours = Math.max(startHours, minStartHours);
         }
 
@@ -135,7 +154,9 @@ const initialTasks = (() => {
             durationHours,
             _bar: {
                 x: effectiveStartHours * DEFAULT_HOUR_WIDTH,
-                y: row * (ROW_HEIGHT + GAP) + (ROW_HEIGHT + GAP - BAR_HEIGHT) / 2,
+                y:
+                    row * (ROW_HEIGHT + GAP) +
+                    (ROW_HEIGHT + GAP - BAR_HEIGHT) / 2,
                 width: durationHours * DEFAULT_HOUR_WIDTH,
                 height: BAR_HEIGHT,
             },
@@ -184,10 +205,10 @@ const relationships = (() => {
         for (const dep of deps) {
             const isObj = typeof dep === 'object' && dep !== null;
             const depId = isObj ? dep.id : dep;
-            const depType = isObj ? (dep.type || 'FS') : 'FS';
-            const lag = isObj ? (dep.lag || 0) : 0;
+            const depType = isObj ? dep.type || 'FS' : 'FS';
+            const lag = isObj ? dep.lag || 0 : 0;
             const min = isObj ? (dep.min ?? 0) : 0;
-            const max = isObj ? dep.max : undefined;  // undefined/null = elastic (default), 0 = fixed, N = bounded
+            const max = isObj ? dep.max : undefined; // undefined/null = elastic (default), 0 = fixed, N = bounded
 
             rels.push({
                 from: depId,
@@ -205,7 +226,9 @@ const relationships = (() => {
 // Pre-build relationship index for O(1) constraint lookups (built once, reused for all drags)
 const relationshipIndex = buildRelationshipIndex(relationships);
 
-console.log(`PerfIsolate [${dataSource}]: ${Object.keys(initialTasks).length} tasks, ${TOTAL_ROWS} rows, ${TOTAL_DAYS} days, ${relationships.length} deps`);
+console.log(
+    `PerfIsolate [${dataSource}]: ${Object.keys(initialTasks).length} tasks, ${TOTAL_ROWS} rows, ${TOTAL_DAYS} days, ${relationships.length} deps`,
+);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // BAR VARIANTS - Toggle to find overhead
@@ -216,14 +239,16 @@ function BarMinimal(props) {
     const task = props.task;
     const bar = task._bar;
     return (
-        <div style={{
-            position: 'absolute',
-            transform: `translate(${bar.x}px, ${bar.y}px)`,
-            width: `${bar.width}px`,
-            height: `${bar.height}px`,
-            background: task.color,
-            'border-radius': '3px',
-        }} />
+        <div
+            style={{
+                position: 'absolute',
+                transform: `translate(${bar.x}px, ${bar.y}px)`,
+                width: `${bar.width}px`,
+                height: `${bar.height}px`,
+                background: task.color,
+                'border-radius': '3px',
+            }}
+        />
     );
 }
 
@@ -232,19 +257,21 @@ function BarWithText(props) {
     const task = props.task;
     const bar = task._bar;
     return (
-        <div style={{
-            position: 'absolute',
-            transform: `translate(${bar.x}px, ${bar.y}px)`,
-            width: `${bar.width}px`,
-            height: `${bar.height}px`,
-            background: task.color,
-            'border-radius': '3px',
-            color: '#fff',
-            'font-size': '11px',
-            'line-height': `${bar.height}px`,
-            'padding-left': '4px',
-            overflow: 'hidden',
-        }}>
+        <div
+            style={{
+                position: 'absolute',
+                transform: `translate(${bar.x}px, ${bar.y}px)`,
+                width: `${bar.width}px`,
+                height: `${bar.height}px`,
+                background: task.color,
+                'border-radius': '3px',
+                color: '#fff',
+                'font-size': '11px',
+                'line-height': `${bar.height}px`,
+                'padding-left': '4px',
+                overflow: 'hidden',
+            }}
+        >
             {task.name}
         </div>
     );
@@ -255,22 +282,42 @@ function BarWithHandles(props) {
     const task = props.task;
     const bar = task._bar;
     return (
-        <div style={{
-            position: 'absolute',
-            transform: `translate(${bar.x}px, ${bar.y}px)`,
-            width: `${bar.width}px`,
-            height: `${bar.height}px`,
-            background: task.color,
-            'border-radius': '3px',
-            color: '#fff',
-            'font-size': '11px',
-            'line-height': `${bar.height}px`,
-            'padding-left': '4px',
-            overflow: 'hidden',
-        }}>
+        <div
+            style={{
+                position: 'absolute',
+                transform: `translate(${bar.x}px, ${bar.y}px)`,
+                width: `${bar.width}px`,
+                height: `${bar.height}px`,
+                background: task.color,
+                'border-radius': '3px',
+                color: '#fff',
+                'font-size': '11px',
+                'line-height': `${bar.height}px`,
+                'padding-left': '4px',
+                overflow: 'hidden',
+            }}
+        >
             {task.name}
-            <div style={{ position: 'absolute', left: 0, top: 0, width: '6px', height: '100%', cursor: 'ew-resize' }} />
-            <div style={{ position: 'absolute', right: 0, top: 0, width: '6px', height: '100%', cursor: 'ew-resize' }} />
+            <div
+                style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    width: '6px',
+                    height: '100%',
+                    cursor: 'ew-resize',
+                }}
+            />
+            <div
+                style={{
+                    position: 'absolute',
+                    right: 0,
+                    top: 0,
+                    width: '6px',
+                    height: '100%',
+                    cursor: 'ew-resize',
+                }}
+            />
         </div>
     );
 }
@@ -280,22 +327,42 @@ function BarReactive(props) {
     const t = () => props.task;
     const bar = () => t()._bar;
     return (
-        <div style={{
-            position: 'absolute',
-            transform: `translate(${bar().x}px, ${bar().y}px)`,
-            width: `${bar().width}px`,
-            height: `${bar().height}px`,
-            background: t().color,
-            'border-radius': '3px',
-            color: '#fff',
-            'font-size': '11px',
-            'line-height': `${bar().height}px`,
-            'padding-left': '4px',
-            overflow: 'hidden',
-        }}>
+        <div
+            style={{
+                position: 'absolute',
+                transform: `translate(${bar().x}px, ${bar().y}px)`,
+                width: `${bar().width}px`,
+                height: `${bar().height}px`,
+                background: t().color,
+                'border-radius': '3px',
+                color: '#fff',
+                'font-size': '11px',
+                'line-height': `${bar().height}px`,
+                'padding-left': '4px',
+                overflow: 'hidden',
+            }}
+        >
             {t().name}
-            <div style={{ position: 'absolute', left: 0, top: 0, width: '6px', height: '100%', cursor: 'ew-resize' }} />
-            <div style={{ position: 'absolute', right: 0, top: 0, width: '6px', height: '100%', cursor: 'ew-resize' }} />
+            <div
+                style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    width: '6px',
+                    height: '100%',
+                    cursor: 'ew-resize',
+                }}
+            />
+            <div
+                style={{
+                    position: 'absolute',
+                    right: 0,
+                    top: 0,
+                    width: '6px',
+                    height: '100%',
+                    cursor: 'ew-resize',
+                }}
+            />
         </div>
     );
 }
@@ -311,7 +378,9 @@ function BarWithDrag(props) {
     });
     return (
         <div
-            onMouseDown={(e) => startDrag(e, 'dragging_bar', { taskId: t().id })}
+            onMouseDown={(e) =>
+                startDrag(e, 'dragging_bar', { taskId: t().id })
+            }
             style={{
                 position: 'absolute',
                 transform: `translate(${bar().x}px, ${bar().y}px)`,
@@ -325,10 +394,37 @@ function BarWithDrag(props) {
                 'line-height': `${bar().height}px`,
                 'padding-left': '4px',
                 overflow: 'hidden',
-            }}>
+            }}
+        >
             {t().name}
-            <div onMouseDown={(e) => { e.stopPropagation(); startDrag(e, 'dragging_left', { taskId: t().id }); }} style={{ position: 'absolute', left: 0, top: 0, width: '6px', height: '100%', cursor: 'ew-resize' }} />
-            <div onMouseDown={(e) => { e.stopPropagation(); startDrag(e, 'dragging_right', { taskId: t().id }); }} style={{ position: 'absolute', right: 0, top: 0, width: '6px', height: '100%', cursor: 'ew-resize' }} />
+            <div
+                onMouseDown={(e) => {
+                    e.stopPropagation();
+                    startDrag(e, 'dragging_left', { taskId: t().id });
+                }}
+                style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    width: '6px',
+                    height: '100%',
+                    cursor: 'ew-resize',
+                }}
+            />
+            <div
+                onMouseDown={(e) => {
+                    e.stopPropagation();
+                    startDrag(e, 'dragging_right', { taskId: t().id });
+                }}
+                style={{
+                    position: 'absolute',
+                    right: 0,
+                    top: 0,
+                    width: '6px',
+                    height: '100%',
+                    cursor: 'ew-resize',
+                }}
+            />
         </div>
     );
 }
@@ -348,7 +444,9 @@ function BarWithEvents(props) {
             onMouseEnter={(e) => events.onHover?.(t().id, e.clientX, e.clientY)}
             onMouseLeave={() => events.onHoverEnd?.()}
             onClick={(e) => events.onTaskClick?.(t().id, e)}
-            onMouseDown={(e) => startDrag(e, 'dragging_bar', { taskId: t().id })}
+            onMouseDown={(e) =>
+                startDrag(e, 'dragging_bar', { taskId: t().id })
+            }
             style={{
                 position: 'absolute',
                 transform: `translate(${bar().x}px, ${bar().y}px)`,
@@ -362,10 +460,37 @@ function BarWithEvents(props) {
                 'line-height': `${bar().height}px`,
                 'padding-left': '4px',
                 overflow: 'hidden',
-            }}>
+            }}
+        >
             {t().name}
-            <div onMouseDown={(e) => { e.stopPropagation(); startDrag(e, 'dragging_left', { taskId: t().id }); }} style={{ position: 'absolute', left: 0, top: 0, width: '6px', height: '100%', cursor: 'ew-resize' }} />
-            <div onMouseDown={(e) => { e.stopPropagation(); startDrag(e, 'dragging_right', { taskId: t().id }); }} style={{ position: 'absolute', right: 0, top: 0, width: '6px', height: '100%', cursor: 'ew-resize' }} />
+            <div
+                onMouseDown={(e) => {
+                    e.stopPropagation();
+                    startDrag(e, 'dragging_left', { taskId: t().id });
+                }}
+                style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    width: '6px',
+                    height: '100%',
+                    cursor: 'ew-resize',
+                }}
+            />
+            <div
+                onMouseDown={(e) => {
+                    e.stopPropagation();
+                    startDrag(e, 'dragging_right', { taskId: t().id });
+                }}
+                style={{
+                    position: 'absolute',
+                    right: 0,
+                    top: 0,
+                    width: '6px',
+                    height: '100%',
+                    cursor: 'ew-resize',
+                }}
+            />
         </div>
     );
 }
@@ -395,7 +520,9 @@ function BarFull(props) {
             onMouseEnter={(e) => events.onHover?.(t().id, e.clientX, e.clientY)}
             onMouseLeave={() => events.onHoverEnd?.()}
             onClick={(e) => events.onTaskClick?.(t().id, e)}
-            onMouseDown={(e) => startDrag(e, 'dragging_bar', { taskId: t().id })}
+            onMouseDown={(e) =>
+                startDrag(e, 'dragging_bar', { taskId: t().id })
+            }
             style={{
                 position: 'absolute',
                 transform: `translate(${bar().x}px, ${bar().y}px)`,
@@ -409,10 +536,37 @@ function BarFull(props) {
                 'line-height': `${bar().height}px`,
                 'padding-left': '4px',
                 overflow: 'hidden',
-            }}>
+            }}
+        >
             {t().name}
-            <div onMouseDown={(e) => { e.stopPropagation(); startDrag(e, 'dragging_left', { taskId: t().id }); }} style={{ position: 'absolute', left: 0, top: 0, width: '6px', height: '100%', cursor: 'ew-resize' }} />
-            <div onMouseDown={(e) => { e.stopPropagation(); startDrag(e, 'dragging_right', { taskId: t().id }); }} style={{ position: 'absolute', right: 0, top: 0, width: '6px', height: '100%', cursor: 'ew-resize' }} />
+            <div
+                onMouseDown={(e) => {
+                    e.stopPropagation();
+                    startDrag(e, 'dragging_left', { taskId: t().id });
+                }}
+                style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    width: '6px',
+                    height: '100%',
+                    cursor: 'ew-resize',
+                }}
+            />
+            <div
+                onMouseDown={(e) => {
+                    e.stopPropagation();
+                    startDrag(e, 'dragging_right', { taskId: t().id });
+                }}
+                style={{
+                    position: 'absolute',
+                    right: 0,
+                    top: 0,
+                    width: '6px',
+                    height: '100%',
+                    cursor: 'ew-resize',
+                }}
+            />
         </div>
     );
 }
@@ -420,7 +574,8 @@ function BarFull(props) {
 // V8: Exact copy of GanttExperiments TestBarBaseline
 function BarExperiments(props) {
     const events = useGanttEvents();
-    const getTask = () => typeof props.task === 'function' ? props.task() : props.task;
+    const getTask = () =>
+        typeof props.task === 'function' ? props.task() : props.task;
 
     const t = createMemo(() => {
         const task = getTask();
@@ -447,14 +602,20 @@ function BarExperiments(props) {
         return `linear-gradient(to right, ${data.colorFill} 0px, ${data.colorFill} ${pw}px, ${data.colorBg} ${pw}px, ${data.colorBg} 100%)${data.locked ? ', repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(0,0,0,0.15) 3px, rgba(0,0,0,0.15) 6px)' : ''}`;
     };
 
-    const { isDragging, startDrag } = useDrag({ onDragStart: () => {}, onDragMove: () => {}, onDragEnd: () => {} });
+    const { isDragging, startDrag } = useDrag({
+        onDragStart: () => {},
+        onDragMove: () => {},
+        onDragEnd: () => {},
+    });
 
     return (
         <div
             onMouseEnter={(e) => events.onHover?.(t().id, e.clientX, e.clientY)}
             onMouseLeave={() => events.onHoverEnd?.()}
             onClick={(e) => events.onTaskClick?.(t().id, e)}
-            onMouseDown={(e) => startDrag(e, 'dragging_bar', { taskId: t().id })}
+            onMouseDown={(e) =>
+                startDrag(e, 'dragging_bar', { taskId: t().id })
+            }
             style={{
                 position: 'absolute',
                 transform: `translate(${t().x}px, ${t().y}px)`,
@@ -471,10 +632,37 @@ function BarExperiments(props) {
                 'white-space': 'nowrap',
                 'text-overflow': 'ellipsis',
                 'box-sizing': 'border-box',
-            }}>
+            }}
+        >
             {t().name}
-            <div onMouseDown={(e) => { e.stopPropagation(); startDrag(e, 'dragging_left', { taskId: t().id }); }} style={{ position: 'absolute', left: 0, top: 0, width: '6px', height: '100%', cursor: 'ew-resize' }} />
-            <div onMouseDown={(e) => { e.stopPropagation(); startDrag(e, 'dragging_right', { taskId: t().id }); }} style={{ position: 'absolute', right: 0, top: 0, width: '6px', height: '100%', cursor: 'ew-resize' }} />
+            <div
+                onMouseDown={(e) => {
+                    e.stopPropagation();
+                    startDrag(e, 'dragging_left', { taskId: t().id });
+                }}
+                style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    width: '6px',
+                    height: '100%',
+                    cursor: 'ew-resize',
+                }}
+            />
+            <div
+                onMouseDown={(e) => {
+                    e.stopPropagation();
+                    startDrag(e, 'dragging_right', { taskId: t().id });
+                }}
+                style={{
+                    position: 'absolute',
+                    right: 0,
+                    top: 0,
+                    width: '6px',
+                    height: '100%',
+                    cursor: 'ew-resize',
+                }}
+            />
         </div>
     );
 }
@@ -482,13 +670,14 @@ function BarExperiments(props) {
 // V9: No child divs - detect resize zones from click position
 function BarNoChildren(props) {
     const events = useGanttEvents();
-    const getTask = () => typeof props.task === 'function' ? props.task() : props.task;
+    const getTask = () =>
+        typeof props.task === 'function' ? props.task() : props.task;
 
     const t = createMemo(() => {
         const task = getTask();
         const bar = task?._bar;
         const progress = task?.progress ?? 0;
-        const hw = props.hourWidth || 7;  // fallback
+        const hw = props.hourWidth || 7; // fallback
         const x = (task?.startHours ?? 0) * hw;
         const width = Math.max((task?.durationHours ?? 1) * hw, 6);
         return {
@@ -511,7 +700,11 @@ function BarNoChildren(props) {
         return `linear-gradient(to right, ${data.colorFill} 0px, ${data.colorFill} ${pw}px, ${data.colorBg} ${pw}px, ${data.colorBg} 100%)${data.locked ? ', repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(0,0,0,0.15) 3px, rgba(0,0,0,0.15) 6px)' : ''}`;
     };
 
-    const { isDragging, startDrag } = useDrag({ onDragStart: () => {}, onDragMove: () => {}, onDragEnd: () => {} });
+    const { isDragging, startDrag } = useDrag({
+        onDragStart: () => {},
+        onDragMove: () => {},
+        onDragEnd: () => {},
+    });
 
     const handleMouseDown = (e) => {
         const rect = e.currentTarget.getBoundingClientRect();
@@ -549,7 +742,8 @@ function BarNoChildren(props) {
                 'white-space': 'nowrap',
                 'text-overflow': 'ellipsis',
                 'box-sizing': 'border-box',
-            }}>
+            }}
+        >
             {t().name}
         </div>
     );
@@ -558,7 +752,8 @@ function BarNoChildren(props) {
 // V10: NoChildren + CSS containment
 function BarContained(props) {
     const events = useGanttEvents();
-    const getTask = () => typeof props.task === 'function' ? props.task() : props.task;
+    const getTask = () =>
+        typeof props.task === 'function' ? props.task() : props.task;
 
     const t = createMemo(() => {
         const task = getTask();
@@ -587,7 +782,11 @@ function BarContained(props) {
         return `linear-gradient(to right, ${data.colorFill} 0px, ${data.colorFill} ${pw}px, ${data.colorBg} ${pw}px, ${data.colorBg} 100%)${data.locked ? ', repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(0,0,0,0.15) 3px, rgba(0,0,0,0.15) 6px)' : ''}`;
     };
 
-    const { isDragging, startDrag } = useDrag({ onDragStart: () => {}, onDragMove: () => {}, onDragEnd: () => {} });
+    const { isDragging, startDrag } = useDrag({
+        onDragStart: () => {},
+        onDragMove: () => {},
+        onDragEnd: () => {},
+    });
 
     const handleMouseDown = (e) => {
         const rect = e.currentTarget.getBoundingClientRect();
@@ -625,7 +824,8 @@ function BarContained(props) {
                 'text-overflow': 'ellipsis',
                 'box-sizing': 'border-box',
                 contain: 'layout style paint',
-            }}>
+            }}
+        >
             {t().name}
         </div>
     );
@@ -634,7 +834,8 @@ function BarContained(props) {
 // V11: NoChildren + will-change: transform
 function BarWillChange(props) {
     const events = useGanttEvents();
-    const getTask = () => typeof props.task === 'function' ? props.task() : props.task;
+    const getTask = () =>
+        typeof props.task === 'function' ? props.task() : props.task;
 
     const t = createMemo(() => {
         const task = getTask();
@@ -663,7 +864,11 @@ function BarWillChange(props) {
         return `linear-gradient(to right, ${data.colorFill} 0px, ${data.colorFill} ${pw}px, ${data.colorBg} ${pw}px, ${data.colorBg} 100%)${data.locked ? ', repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(0,0,0,0.15) 3px, rgba(0,0,0,0.15) 6px)' : ''}`;
     };
 
-    const { isDragging, startDrag } = useDrag({ onDragStart: () => {}, onDragMove: () => {}, onDragEnd: () => {} });
+    const { isDragging, startDrag } = useDrag({
+        onDragStart: () => {},
+        onDragMove: () => {},
+        onDragEnd: () => {},
+    });
 
     const handleMouseDown = (e) => {
         const rect = e.currentTarget.getBoundingClientRect();
@@ -701,7 +906,8 @@ function BarWillChange(props) {
                 'text-overflow': 'ellipsis',
                 'box-sizing': 'border-box',
                 'will-change': 'transform',
-            }}>
+            }}
+        >
             {t().name}
         </div>
     );
@@ -710,7 +916,8 @@ function BarWillChange(props) {
 // V12: NoChildren + will-change + contain (combined)
 function BarCombined(props) {
     const events = useGanttEvents();
-    const getTask = () => typeof props.task === 'function' ? props.task() : props.task;
+    const getTask = () =>
+        typeof props.task === 'function' ? props.task() : props.task;
 
     const t = createMemo(() => {
         const task = getTask();
@@ -739,7 +946,11 @@ function BarCombined(props) {
         return `linear-gradient(to right, ${data.colorFill} 0px, ${data.colorFill} ${pw}px, ${data.colorBg} ${pw}px, ${data.colorBg} 100%)${data.locked ? ', repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(0,0,0,0.15) 3px, rgba(0,0,0,0.15) 6px)' : ''}`;
     };
 
-    const { isDragging, startDrag } = useDrag({ onDragStart: () => {}, onDragMove: () => {}, onDragEnd: () => {} });
+    const { isDragging, startDrag } = useDrag({
+        onDragStart: () => {},
+        onDragMove: () => {},
+        onDragEnd: () => {},
+    });
 
     const handleMouseDown = (e) => {
         const rect = e.currentTarget.getBoundingClientRect();
@@ -778,7 +989,8 @@ function BarCombined(props) {
                 'box-sizing': 'border-box',
                 'will-change': 'transform',
                 contain: 'layout style paint',
-            }}>
+            }}
+        >
             {t().name}
         </div>
     );
@@ -786,7 +998,8 @@ function BarCombined(props) {
 
 // V13: Hover popup - measures cost of onMouseEnter/Leave handlers
 function BarHoverPopup(props) {
-    const getTask = () => typeof props.task === 'function' ? props.task() : props.task;
+    const getTask = () =>
+        typeof props.task === 'function' ? props.task() : props.task;
 
     const t = createMemo(() => {
         const task = getTask();
@@ -806,8 +1019,22 @@ function BarHoverPopup(props) {
 
     return (
         <div
-            onMouseEnter={(e) => props.setPopupState?.({ visible: true, taskId: t().id, x: e.clientX, y: e.clientY })}
-            onMouseLeave={() => props.setPopupState?.({ visible: false, taskId: null, x: 0, y: 0 })}
+            onMouseEnter={(e) =>
+                props.setPopupState?.({
+                    visible: true,
+                    taskId: t().id,
+                    x: e.clientX,
+                    y: e.clientY,
+                })
+            }
+            onMouseLeave={() =>
+                props.setPopupState?.({
+                    visible: false,
+                    taskId: null,
+                    x: 0,
+                    y: 0,
+                })
+            }
             style={{
                 position: 'absolute',
                 transform: `translate(${t().x}px, ${t().y}px)`,
@@ -823,7 +1050,8 @@ function BarHoverPopup(props) {
                 'white-space': 'nowrap',
                 'text-overflow': 'ellipsis',
                 'box-sizing': 'border-box',
-            }}>
+            }}
+        >
             {t().name}
         </div>
     );
@@ -831,7 +1059,8 @@ function BarHoverPopup(props) {
 
 // V14: Click modal - measures cost of onClick handler
 function BarClickModal(props) {
-    const getTask = () => typeof props.task === 'function' ? props.task() : props.task;
+    const getTask = () =>
+        typeof props.task === 'function' ? props.task() : props.task;
 
     const t = createMemo(() => {
         const task = getTask();
@@ -851,7 +1080,9 @@ function BarClickModal(props) {
 
     return (
         <div
-            onClick={() => props.setModalState?.({ visible: true, taskId: t().id })}
+            onClick={() =>
+                props.setModalState?.({ visible: true, taskId: t().id })
+            }
             style={{
                 position: 'absolute',
                 transform: `translate(${t().x}px, ${t().y}px)`,
@@ -867,7 +1098,8 @@ function BarClickModal(props) {
                 'white-space': 'nowrap',
                 'text-overflow': 'ellipsis',
                 'box-sizing': 'border-box',
-            }}>
+            }}
+        >
             {t().name}
         </div>
     );
@@ -875,7 +1107,8 @@ function BarClickModal(props) {
 
 // V15: Baseline for drag comparison - same as dragfunc but NO handlers
 function BarDragBaseline(props) {
-    const getTask = () => typeof props.task === 'function' ? props.task() : props.task;
+    const getTask = () =>
+        typeof props.task === 'function' ? props.task() : props.task;
 
     const t = createMemo(() => {
         const task = getTask();
@@ -913,7 +1146,8 @@ function BarDragBaseline(props) {
                 'white-space': 'nowrap',
                 'text-overflow': 'ellipsis',
                 'box-sizing': 'border-box',
-            }}>
+            }}
+        >
             {t().name}
         </div>
     );
@@ -921,7 +1155,8 @@ function BarDragBaseline(props) {
 
 // V16: Functional drag - actually updates store positions
 function BarDragFunctional(props) {
-    const getTask = () => typeof props.task === 'function' ? props.task() : props.task;
+    const getTask = () =>
+        typeof props.task === 'function' ? props.task() : props.task;
     const [hoverZone, setHoverZone] = createSignal('move'); // 'left', 'right', 'move'
 
     const t = createMemo(() => {
@@ -930,7 +1165,8 @@ function BarDragFunctional(props) {
         const hw = props.hourWidth || 7;
         // Use _bar.x/width if set (from drag), else compute from startHours/durationHours
         const x = bar?.x ?? (task?.startHours ?? 0) * hw;
-        const width = bar?.width ?? Math.max((task?.durationHours ?? 1) * hw, 6);
+        const width =
+            bar?.width ?? Math.max((task?.durationHours ?? 1) * hw, 6);
         return {
             id: task?.id ?? '',
             name: task?.name ?? '',
@@ -955,7 +1191,6 @@ function BarDragFunctional(props) {
                 // Move bar horizontally
                 const newX = data.originalX + move.deltaX;
                 props.updateBarPosition?.(t().id, { x: newX });
-
             } else if (state === 'dragging_left') {
                 // Resize from left - adjust x and width
                 let newX = data.originalX + move.deltaX;
@@ -965,10 +1200,12 @@ function BarDragFunctional(props) {
                     newX = data.originalX + data.originalWidth - MIN_WIDTH;
                 }
                 props.updateBarPosition?.(t().id, { x: newX, width: newWidth });
-
             } else if (state === 'dragging_right') {
                 // Resize from right - only adjust width
-                let newWidth = Math.max(MIN_WIDTH, data.originalWidth + move.deltaX);
+                let newWidth = Math.max(
+                    MIN_WIDTH,
+                    data.originalWidth + move.deltaX,
+                );
                 props.updateBarPosition?.(t().id, { width: newWidth });
             }
         },
@@ -1002,7 +1239,8 @@ function BarDragFunctional(props) {
     // Cursor based on drag state or hover zone
     const getCursor = () => {
         const state = dragState();
-        if (state === 'dragging_left' || state === 'dragging_right') return 'ew-resize';
+        if (state === 'dragging_left' || state === 'dragging_right')
+            return 'ew-resize';
         if (state === 'dragging_bar') return 'grabbing';
         // Not dragging - use hover zone
         const zone = hoverZone();
@@ -1031,7 +1269,8 @@ function BarDragFunctional(props) {
                 'white-space': 'nowrap',
                 'text-overflow': 'ellipsis',
                 'box-sizing': 'border-box',
-            }}>
+            }}
+        >
             {t().name}
         </div>
     );
@@ -1041,7 +1280,8 @@ function BarDragFunctional(props) {
 // BarDragConstrained: Identical to BarNoChildren + constraint logic in drag handlers
 function BarDragConstrained(props) {
     const events = useGanttEvents();
-    const getTask = () => typeof props.task === 'function' ? props.task() : props.task;
+    const getTask = () =>
+        typeof props.task === 'function' ? props.task() : props.task;
     const [hoverZone, setHoverZone] = createSignal('move');
 
     const t = createMemo(() => {
@@ -1089,7 +1329,6 @@ function BarDragConstrained(props) {
                 } else {
                     props.updateBarPosition?.(t().id, { x: newX });
                 }
-
             } else if (state === 'dragging_left') {
                 let newX = data.originalX + move.deltaX;
                 let newWidth = data.originalWidth - move.deltaX;
@@ -1100,11 +1339,16 @@ function BarDragConstrained(props) {
                 if (props.onConstrainResize) {
                     props.onConstrainResize(t().id, newX, newWidth);
                 } else {
-                    props.updateBarPosition?.(t().id, { x: newX, width: newWidth });
+                    props.updateBarPosition?.(t().id, {
+                        x: newX,
+                        width: newWidth,
+                    });
                 }
-
             } else if (state === 'dragging_right') {
-                let newWidth = Math.max(MIN_WIDTH, data.originalWidth + move.deltaX);
+                let newWidth = Math.max(
+                    MIN_WIDTH,
+                    data.originalWidth + move.deltaX,
+                );
                 if (props.onConstrainResize) {
                     props.onConstrainResize(t().id, t().x, newWidth);
                 } else {
@@ -1127,7 +1371,8 @@ function BarDragConstrained(props) {
 
     const getCursor = () => {
         const state = dragState();
-        if (state === 'dragging_left' || state === 'dragging_right') return 'ew-resize';
+        if (state === 'dragging_left' || state === 'dragging_right')
+            return 'ew-resize';
         if (state === 'dragging_bar') return 'grabbing';
         const zone = hoverZone();
         if (zone === 'left' || zone === 'right') return 'ew-resize';
@@ -1171,7 +1416,8 @@ function BarDragConstrained(props) {
                 'white-space': 'nowrap',
                 'text-overflow': 'ellipsis',
                 'box-sizing': 'border-box',
-            }}>
+            }}
+        >
             {t().name}
         </div>
     );
@@ -1215,16 +1461,24 @@ export function GanttPerfIsolate() {
 
     // Feature toggles: grid=1, headers=1, resources=1, context=1, headerOpt=1, arrows=1
     const showGrid = params.get('grid') === '1';
-    const showHeaders = params.get('headers') === '1' || dataSource === 'constraint';
+    const showHeaders =
+        params.get('headers') === '1' || dataSource === 'constraint';
     const showResources = params.get('resources') === '1';
     const showArrows = params.get('arrows') === '1';
-    const useContext = params.get('context') === '1' || ['events', 'full'].includes(barVariant);
+    const useContext =
+        params.get('context') === '1' ||
+        ['events', 'full'].includes(barVariant);
     const useOptimizedHeaders = params.get('headerOpt') === '1';
 
     const BarComponent = BAR_VARIANTS[barVariant] || BarMinimal;
 
     // Mock stores for Grid/Headers/Resources
-    const resources = uniqueResources.map((r, i) => ({ id: r, name: r, type: 'resource', displayIndex: i }));
+    const resources = uniqueResources.map((r, i) => ({
+        id: r,
+        name: r,
+        type: 'resource',
+        displayIndex: i,
+    }));
     const mockResourceStore = { displayResources: () => resources };
     const mockGanttConfig = { barHeight: () => ROW_HEIGHT, padding: () => GAP };
 
@@ -1234,12 +1488,22 @@ export function GanttPerfIsolate() {
     const [scrollY, setScrollY] = createSignal(0);
 
     // Popup/modal state for hoverpopup and clickmodal variants
-    const [popupState, setPopupState] = createSignal({ visible: false, taskId: null, x: 0, y: 0 });
-    const [modalState, setModalState] = createSignal({ visible: false, taskId: null });
+    const [popupState, setPopupState] = createSignal({
+        visible: false,
+        taskId: null,
+        x: 0,
+        y: 0,
+    });
+    const [modalState, setModalState] = createSignal({
+        visible: false,
+        taskId: null,
+    });
 
     // Dynamic scale: days visible fits in viewport (account for resource column)
     const RESOURCE_COL_WIDTH = 120;
-    const chartWidth = createMemo(() => viewportWidth() - (showResources ? RESOURCE_COL_WIDTH : 0));
+    const chartWidth = createMemo(
+        () => viewportWidth() - (showResources ? RESOURCE_COL_WIDTH : 0),
+    );
     const dayWidth = createMemo(() => chartWidth() / DAYS_VISIBLE);
     const hourWidth = createMemo(() => dayWidth() / 24);
     const totalWidth = createMemo(() => TOTAL_DAYS * dayWidth());
@@ -1248,20 +1512,22 @@ export function GanttPerfIsolate() {
     // Note: Arrow re-render is triggered ONCE after batch via setPositionVersion
     const updateBarPosition = (id, updates) => {
         const hw = hourWidth();
-        setTasks(produce(state => {
-            if (state[id]) {
-                if (updates.x !== undefined) {
-                    state[id].startHours = updates.x / hw;
+        setTasks(
+            produce((state) => {
+                if (state[id]) {
+                    if (updates.x !== undefined) {
+                        state[id].startHours = updates.x / hw;
+                    }
+                    if (updates.width !== undefined) {
+                        state[id].durationHours = updates.width / hw;
+                    }
                 }
-                if (updates.width !== undefined) {
-                    state[id].durationHours = updates.width / hw;
-                }
-            }
-        }));
+            }),
+        );
     };
 
     // Separate function to trigger arrow re-render (call once after batch)
-    const triggerArrowUpdate = () => setPositionVersion(v => v + 1);
+    const triggerArrowUpdate = () => setPositionVersion((v) => v + 1);
 
     // Mock taskStore for ArrowLayerBatched and constraints
     // IMPORTANT: Always calculate pixel positions from hours * hourWidth() to handle viewport resize
@@ -1274,7 +1540,9 @@ export function GanttPerfIsolate() {
             const hw = hourWidth();
             return {
                 x: task.startHours * hw,
-                y: task.row * (ROW_HEIGHT + GAP) + (ROW_HEIGHT + GAP - BAR_HEIGHT) / 2,
+                y:
+                    task.row * (ROW_HEIGHT + GAP) +
+                    (ROW_HEIGHT + GAP - BAR_HEIGHT) / 2,
                 width: task.durationHours * hw,
                 height: BAR_HEIGHT,
             };
@@ -1297,7 +1565,7 @@ export function GanttPerfIsolate() {
             getBarPosition: mockTaskStore.getBarPosition,
             getTask: mockTaskStore.getTask,
             relationships,
-            relationshipIndex,  // Pre-built index for O(1) lookups
+            relationshipIndex, // Pre-built index for O(1) lookups
             pixelsPerHour: hw,
             ganttStartDate: ganttStart,
         };
@@ -1333,11 +1601,11 @@ export function GanttPerfIsolate() {
         }
 
         const isLeftResize = newX !== taskBar.x;
-        const isRightResize = (newX + newWidth) !== (taskBar.x + taskBar.width);
+        const isRightResize = newX + newWidth !== taskBar.x + taskBar.width;
 
         // Check lock states for specific resize directions
         if (task?.constraints?.locked === true) {
-            return;  // Fully locked
+            return; // Fully locked
         }
         if (isLeftResize && isLeftResizeLocked(task?.constraints?.locked)) {
             newX = taskBar.x;
@@ -1352,7 +1620,7 @@ export function GanttPerfIsolate() {
             getBarPosition: mockTaskStore.getBarPosition,
             getTask: mockTaskStore.getTask,
             relationships,
-            relationshipIndex,  // Pre-built index for O(1) lookups
+            relationshipIndex, // Pre-built index for O(1) lookups
             pixelsPerHour: hw,
             ganttStartDate: ganttStart,
         };
@@ -1377,7 +1645,11 @@ export function GanttPerfIsolate() {
             updateBarPosition(taskId, { x: finalX, width: finalWidth });
 
             // Calculate and apply cascade updates for the final position
-            const cascadeUpdates = calculateCascadeUpdates(taskId, finalX, context);
+            const cascadeUpdates = calculateCascadeUpdates(
+                taskId,
+                finalX,
+                context,
+            );
             for (const [succId, update] of cascadeUpdates) {
                 updateBarPosition(succId, update);
             }
@@ -1390,8 +1662,13 @@ export function GanttPerfIsolate() {
     const visibleRowRange = createMemo(() => {
         const y = scrollY();
         const startRow = Math.floor(y / (ROW_HEIGHT + GAP));
-        const endRow = Math.ceil((y + viewportHeight()) / (ROW_HEIGHT + GAP)) + OVERSCAN_ROWS;
-        return { start: Math.max(0, startRow - OVERSCAN_ROWS), end: Math.min(endRow, TOTAL_ROWS) };
+        const endRow =
+            Math.ceil((y + viewportHeight()) / (ROW_HEIGHT + GAP)) +
+            OVERSCAN_ROWS;
+        return {
+            start: Math.max(0, startRow - OVERSCAN_ROWS),
+            end: Math.min(endRow, TOTAL_ROWS),
+        };
     });
 
     // Visible day range (for 2D index lookup)
@@ -1400,11 +1677,16 @@ export function GanttPerfIsolate() {
         const dw = dayWidth();
         const startDay = Math.floor((x - OVERSCAN_PX) / dw);
         const endDay = Math.ceil((x + viewportWidth() + OVERSCAN_PX) / dw);
-        return { start: Math.max(0, startDay), end: Math.min(endDay, TOTAL_DAYS) };
+        return {
+            start: Math.max(0, startDay),
+            end: Math.min(endDay, TOTAL_DAYS),
+        };
     });
 
     // URL param to enable dummy memos - use a signal so guards create subscriptions
-    const [dummyMemosActive] = createSignal(params.get('memos') === '1' ? 'active' : 'off');
+    const [dummyMemosActive] = createSignal(
+        params.get('memos') === '1' ? 'active' : 'off',
+    );
 
     // 2D virtualization - returns tasks for Index (uses day-based buckets)
     const visibleTasks = createMemo(() => {
@@ -1417,7 +1699,7 @@ export function GanttPerfIsolate() {
         for (let row = rowRange.start; row < rowRange.end; row++) {
             const rowBuckets = taskIds2D[row] || {};
             for (let d = dayRange.start; d <= dayRange.end; d++) {
-                for (const id of (rowBuckets[d] || [])) {
+                for (const id of rowBuckets[d] || []) {
                     if (seen[id]) continue;
                     seen[id] = true;
                     result.push(tasks[id]);
@@ -1429,16 +1711,46 @@ export function GanttPerfIsolate() {
 
     // Dummy guarded memos to simulate GanttExperiments overhead (when memos=1)
     // Each memo reads dummyMemosActive() creating a subscription, just like GanttExperiments
-    const dummyMemo1 = createMemo(() => { if (dummyMemosActive() !== 'mode1') return []; return visibleDayRange(); });
-    const dummyMemo2 = createMemo(() => { if (dummyMemosActive() !== 'mode2') return []; return visibleDayRange(); });
-    const dummyMemo3 = createMemo(() => { if (dummyMemosActive() !== 'mode3') return []; return visibleDayRange(); });
-    const dummyMemo4 = createMemo(() => { if (dummyMemosActive() !== 'mode4') return []; return visibleDayRange(); });
-    const dummyMemo5 = createMemo(() => { if (dummyMemosActive() !== 'mode5') return []; return visibleDayRange(); });
-    const dummyMemo6 = createMemo(() => { if (dummyMemosActive() !== 'mode6') return []; return visibleDayRange(); });
-    const dummyMemo7 = createMemo(() => { if (dummyMemosActive() !== 'mode7') return []; return visibleDayRange(); });
-    const dummyMemo8 = createMemo(() => { if (dummyMemosActive() !== 'mode8') return []; return visibleDayRange(); });
-    const dummyMemo9 = createMemo(() => { if (dummyMemosActive() !== 'mode9') return []; return visibleDayRange(); });
-    const dummyMemo10 = createMemo(() => { if (dummyMemosActive() !== 'mode10') return []; return visibleDayRange(); });
+    const dummyMemo1 = createMemo(() => {
+        if (dummyMemosActive() !== 'mode1') return [];
+        return visibleDayRange();
+    });
+    const dummyMemo2 = createMemo(() => {
+        if (dummyMemosActive() !== 'mode2') return [];
+        return visibleDayRange();
+    });
+    const dummyMemo3 = createMemo(() => {
+        if (dummyMemosActive() !== 'mode3') return [];
+        return visibleDayRange();
+    });
+    const dummyMemo4 = createMemo(() => {
+        if (dummyMemosActive() !== 'mode4') return [];
+        return visibleDayRange();
+    });
+    const dummyMemo5 = createMemo(() => {
+        if (dummyMemosActive() !== 'mode5') return [];
+        return visibleDayRange();
+    });
+    const dummyMemo6 = createMemo(() => {
+        if (dummyMemosActive() !== 'mode6') return [];
+        return visibleDayRange();
+    });
+    const dummyMemo7 = createMemo(() => {
+        if (dummyMemosActive() !== 'mode7') return [];
+        return visibleDayRange();
+    });
+    const dummyMemo8 = createMemo(() => {
+        if (dummyMemosActive() !== 'mode8') return [];
+        return visibleDayRange();
+    });
+    const dummyMemo9 = createMemo(() => {
+        if (dummyMemosActive() !== 'mode9') return [];
+        return visibleDayRange();
+    });
+    const dummyMemo10 = createMemo(() => {
+        if (dummyMemosActive() !== 'mode10') return [];
+        return visibleDayRange();
+    });
 
     let containerRef;
     let scrollerRef;
@@ -1449,7 +1761,7 @@ export function GanttPerfIsolate() {
                 setViewportWidth(containerRef.clientWidth);
                 setViewportHeight(containerRef.clientHeight - 40); // minus header
                 // Trigger arrow re-render when viewport changes (hourWidth changes)
-                setPositionVersion(v => v + 1);
+                setPositionVersion((v) => v + 1);
             }
         };
         updateSize();
@@ -1469,14 +1781,24 @@ export function GanttPerfIsolate() {
 
                 if (autoTest === 'horizontal' || autoTest === 'both') {
                     currentH += hDir * 150;
-                    if (currentH >= maxScrollH) { hDir = -1; currentH = maxScrollH; }
-                    else if (currentH <= 0) { hDir = 1; currentH = 0; }
+                    if (currentH >= maxScrollH) {
+                        hDir = -1;
+                        currentH = maxScrollH;
+                    } else if (currentH <= 0) {
+                        hDir = 1;
+                        currentH = 0;
+                    }
                     scrollerRef.scrollLeft = currentH;
                 }
                 if (autoTest === 'vertical' || autoTest === 'both') {
                     currentV += vDir * 100;
-                    if (currentV >= maxScrollV) { vDir = -1; currentV = maxScrollV; }
-                    else if (currentV <= 0) { vDir = 1; currentV = 0; }
+                    if (currentV >= maxScrollV) {
+                        vDir = -1;
+                        currentV = maxScrollV;
+                    } else if (currentV <= 0) {
+                        vDir = 1;
+                        currentV = 0;
+                    }
                     scrollerRef.scrollTop = currentV;
                 }
                 requestAnimationFrame(tick);
@@ -1496,16 +1818,34 @@ export function GanttPerfIsolate() {
         const dw = dayWidth();
         const startCol = Math.floor(x / dw);
         const endCol = Math.ceil((x + viewportWidth()) / dw) + 2;
-        return { start: Math.max(0, startCol - 1), end: Math.min(endCol, TOTAL_DAYS) };
+        return {
+            start: Math.max(0, startCol - 1),
+            end: Math.min(endCol, TOTAL_DAYS),
+        };
     });
 
     // Build dateInfos for headers (dynamic based on dayWidth)
     const dateInfos = createMemo(() => {
         const dw = dayWidth();
         const result = [];
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const months = [
+            'Jan',
+            'Feb',
+            'Mar',
+            'Apr',
+            'May',
+            'Jun',
+            'Jul',
+            'Aug',
+            'Sep',
+            'Oct',
+            'Nov',
+            'Dec',
+        ];
         for (let d = 0; d < TOTAL_DAYS; d++) {
-            const dayDate = new Date(ganttStart.getTime() + d * 24 * 60 * 60 * 1000);
+            const dayDate = new Date(
+                ganttStart.getTime() + d * 24 * 60 * 60 * 1000,
+            );
             const month = months[dayDate.getUTCMonth()];
             const day = dayDate.getUTCDate();
             result.push({
@@ -1519,27 +1859,51 @@ export function GanttPerfIsolate() {
         return result;
     });
 
-    const features = [
-        showGrid && 'grid',
-        showHeaders && (useOptimizedHeaders ? 'headers(opt)' : 'headers'),
-        showResources && 'resources',
-        showArrows && `arrows(${relationships.length})`,
-        useContext && 'context'
-    ].filter(Boolean).join('+') || 'none';
+    const features =
+        [
+            showGrid && 'grid',
+            showHeaders && (useOptimizedHeaders ? 'headers(opt)' : 'headers'),
+            showResources && 'resources',
+            showArrows && `arrows(${relationships.length})`,
+            useContext && 'context',
+        ]
+            .filter(Boolean)
+            .join('+') || 'none';
 
-    const HeaderComponent = useOptimizedHeaders ? DateHeadersOptimized : DateHeaders;
+    const HeaderComponent = useOptimizedHeaders
+        ? DateHeadersOptimized
+        : DateHeaders;
 
     const content = (
-        <div ref={(el) => containerRef = el} style={{ height: '100%', display: 'flex', 'flex-direction': 'column' }}>
+        <div
+            ref={(el) => (containerRef = el)}
+            style={{
+                height: '100%',
+                display: 'flex',
+                'flex-direction': 'column',
+            }}
+        >
             {/* Header */}
-            <div style={{ padding: '8px 16px', background: '#2a2a2a', display: 'flex', gap: '16px', 'align-items': 'center', 'flex-wrap': 'wrap' }}>
+            <div
+                style={{
+                    padding: '8px 16px',
+                    background: '#2a2a2a',
+                    display: 'flex',
+                    gap: '16px',
+                    'align-items': 'center',
+                    'flex-wrap': 'wrap',
+                }}
+            >
                 <span style={{ 'font-weight': 'bold' }}>PerfIsolate</span>
-                <span>Data: {dataSource} ({HOURS_VISIBLE}h view)</span>
+                <span>
+                    Data: {dataSource} ({HOURS_VISIBLE}h view)
+                </span>
                 <span>Bar: {barVariant}</span>
                 <span>Features: {features}</span>
                 <span>Visible: {visibleTasks().length}</span>
                 <span style={{ color: '#888', 'font-size': '11px' }}>
-                    ?topology=breadth|depth|balanced &amp; bar=dragconst &amp; arrows=1
+                    ?topology=breadth|depth|balanced &amp; bar=dragconst &amp;
+                    arrows=1
                 </span>
             </div>
 
@@ -1547,9 +1911,19 @@ export function GanttPerfIsolate() {
             <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
                 {/* Resource column */}
                 <Show when={showResources}>
-                    <div style={{ width: '120px', 'flex-shrink': 0, background: '#222', 'border-right': '1px solid #444', overflow: 'hidden' }}>
+                    <div
+                        style={{
+                            width: '120px',
+                            'flex-shrink': 0,
+                            background: '#222',
+                            'border-right': '1px solid #444',
+                            overflow: 'hidden',
+                        }}
+                    >
                         <div style={{ height: showHeaders ? '30px' : '0' }} />
-                        <div style={{ transform: `translateY(-${scrollY()}px)` }}>
+                        <div
+                            style={{ transform: `translateY(-${scrollY()}px)` }}
+                        >
                             <ResourceColumn
                                 resourceStore={mockResourceStore}
                                 ganttConfig={mockGanttConfig}
@@ -1562,13 +1936,21 @@ export function GanttPerfIsolate() {
 
                 {/* Scrollable viewport */}
                 <div
-                    ref={(el) => scrollerRef = el}
+                    ref={(el) => (scrollerRef = el)}
                     onScroll={handleScroll}
                     style={{ flex: 1, overflow: 'auto', position: 'relative' }}
                 >
                     {/* Headers */}
                     <Show when={showHeaders}>
-                        <div style={{ position: 'sticky', top: 0, 'z-index': 10, '--g-header-bg-color': '#1a1a1a', '--g-header-text-color-secondary': '#999' }}>
+                        <div
+                            style={{
+                                position: 'sticky',
+                                top: 0,
+                                'z-index': 10,
+                                '--g-header-bg-color': '#1a1a1a',
+                                '--g-header-text-color-secondary': '#999',
+                            }}
+                        >
                             <HeaderComponent
                                 dateInfos={dateInfos()}
                                 gridWidth={totalWidth()}
@@ -1581,15 +1963,26 @@ export function GanttPerfIsolate() {
                     </Show>
 
                     {/* Content sizer - background matches grid so empty areas don't flash black */}
-                    <div style={{
-                        width: `${totalWidth()}px`,
-                        height: `${TOTAL_HEIGHT}px`,
-                        position: 'relative',
-                        background: 'var(--g-grid-bg-color, #1a1a1a)',
-                    }}>
+                    <div
+                        style={{
+                            width: `${totalWidth()}px`,
+                            height: `${TOTAL_HEIGHT}px`,
+                            position: 'relative',
+                            background: 'var(--g-grid-bg-color, #1a1a1a)',
+                        }}
+                    >
                         {/* Grid SVG */}
                         <Show when={showGrid}>
-                            <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', 'pointer-events': 'none' }}>
+                            <svg
+                                style={{
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: 0,
+                                    width: '100%',
+                                    height: '100%',
+                                    'pointer-events': 'none',
+                                }}
+                            >
                                 <Grid
                                     width={totalWidth()}
                                     height={TOTAL_HEIGHT}
@@ -1609,7 +2002,16 @@ export function GanttPerfIsolate() {
 
                         {/* Arrow layer */}
                         <Show when={showArrows}>
-                            <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', 'pointer-events': 'none' }}>
+                            <svg
+                                style={{
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: 0,
+                                    width: '100%',
+                                    height: '100%',
+                                    'pointer-events': 'none',
+                                }}
+                            >
                                 <ArrowLayerBatched
                                     relationships={relationships}
                                     taskStore={mockTaskStore}
@@ -1638,7 +2040,9 @@ export function GanttPerfIsolate() {
                                     setPopupState={setPopupState}
                                     setModalState={setModalState}
                                     updateBarPosition={updateBarPosition}
-                                    onConstrainPosition={handleConstrainPosition}
+                                    onConstrainPosition={
+                                        handleConstrainPosition
+                                    }
                                     onConstrainResize={handleConstrainResize}
                                 />
                             )}
@@ -1648,7 +2052,10 @@ export function GanttPerfIsolate() {
                         <Show when={popupState().visible}>
                             <TaskDataPopup
                                 visible={() => popupState().visible}
-                                position={() => ({ x: popupState().x, y: popupState().y })}
+                                position={() => ({
+                                    x: popupState().x,
+                                    y: popupState().y,
+                                })}
                                 task={() => tasks[popupState().taskId]}
                                 barPosition={() => null}
                             />
@@ -1661,7 +2068,12 @@ export function GanttPerfIsolate() {
                                 task={() => tasks[modalState().taskId]}
                                 barPosition={() => null}
                                 relationships={() => []}
-                                onClose={() => setModalState({ visible: false, taskId: null })}
+                                onClose={() =>
+                                    setModalState({
+                                        visible: false,
+                                        taskId: null,
+                                    })
+                                }
                             />
                         </Show>
                     </div>
@@ -1671,7 +2083,11 @@ export function GanttPerfIsolate() {
     );
 
     // Wrap in context if needed
-    return useContext ? <GanttEventsProvider>{content}</GanttEventsProvider> : content;
+    return useContext ? (
+        <GanttEventsProvider>{content}</GanttEventsProvider>
+    ) : (
+        content
+    );
 }
 
 export default GanttPerfIsolate;

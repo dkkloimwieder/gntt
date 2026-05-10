@@ -146,7 +146,8 @@ export function GanttResourceGroupsDemo() {
         'max-width': '1400px',
         margin: '0 auto',
         padding: '20px',
-        'font-family': '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        'font-family':
+            '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     };
 
     const headerStyle = {
@@ -193,23 +194,33 @@ export function GanttResourceGroupsDemo() {
             <div style={infoStyle}>
                 <strong>Resource Groups Features:</strong>
                 <ul style={{ margin: '10px 0 0 0', 'padding-left': '20px' }}>
-                    <li>Click on group headers (Engineering, Design, QA) to collapse/expand</li>
+                    <li>
+                        Click on group headers (Engineering, Design, QA) to
+                        collapse/expand
+                    </li>
                     <li>Group rows have distinct styling (gray background)</li>
-                    <li>Resources belong to groups via the <code>group</code> property</li>
-                    <li>Tasks are assigned to resources and appear in their rows</li>
+                    <li>
+                        Resources belong to groups via the <code>group</code>{' '}
+                        property
+                    </li>
+                    <li>
+                        Tasks are assigned to resources and appear in their rows
+                    </li>
                     <li>Virtualization respects collapse state</li>
                 </ul>
                 <p style={{ margin: '10px 0 0 0' }}>
                     <strong>Data Structure:</strong>
                 </p>
-                <pre style={{
-                    'background-color': '#fff',
-                    padding: '10px',
-                    'border-radius': '4px',
-                    overflow: 'auto',
-                    'font-size': '12px',
-                }}>
-{`// Resources with groups
+                <pre
+                    style={{
+                        'background-color': '#fff',
+                        padding: '10px',
+                        'border-radius': '4px',
+                        overflow: 'auto',
+                        'font-size': '12px',
+                    }}
+                >
+                    {`// Resources with groups
 [
   { id: 'Engineering', type: 'group' },
   { id: 'Alice', type: 'resource', group: 'Engineering' },

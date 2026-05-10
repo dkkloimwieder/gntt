@@ -39,14 +39,18 @@ export interface ResourceStore {
  * - Typed objects: [{ id: 'A', type: 'resource' }, ...]
  * - With groups: [{ id: 'Team1', type: 'group' }, { id: 'A', type: 'resource', group: 'Team1' }, ...]
  */
-export function createResourceStore(initialResources: ResourceInput[] = []): ResourceStore {
+export function createResourceStore(
+    initialResources: ResourceInput[] = [],
+): ResourceStore {
     // Normalized resources (all converted to typed objects)
     const [resources, setResources] = createSignal<Resource[]>(
         normalizeResources(initialResources),
     );
 
     // Set of collapsed group IDs
-    const [collapsedGroups, setCollapsedGroups] = createSignal<Set<string>>(new Set());
+    const [collapsedGroups, setCollapsedGroups] = createSignal<Set<string>>(
+        new Set(),
+    );
 
     // Computed: visible resources with display indices
     // Filters out resources in collapsed groups

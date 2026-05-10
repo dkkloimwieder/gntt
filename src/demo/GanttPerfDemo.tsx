@@ -32,7 +32,8 @@ export function GanttPerfDemo() {
 
     // Stress test state
     const [stressTestRunning, setStressTestRunning] = createSignal(false);
-    const [verticalStressTestRunning, setVerticalStressTestRunning] = createSignal(false);
+    const [verticalStressTestRunning, setVerticalStressTestRunning] =
+        createSignal(false);
     const [scrollEventsPerSec, setScrollEventsPerSec] = createSignal(0);
 
     // Buffer controls for testing virtualization tradeoffs
@@ -79,21 +80,26 @@ export function GanttPerfDemo() {
 
             if (frameTimes.length > 0) {
                 const maxFrame = Math.max(...frameTimes);
-                const avgFrame = frameTimes.reduce((a, b) => a + b, 0) / frameTimes.length;
+                const avgFrame =
+                    frameTimes.reduce((a, b) => a + b, 0) / frameTimes.length;
                 setWorstFrameTime(maxFrame.toFixed(1));
                 setAvgFrameTime(avgFrame.toFixed(1));
             }
 
             const scrollElapsed = timestamp - lastScrollCountUpdate;
             if (scrollElapsed >= 1000) {
-                setScrollEventsPerSec(Math.round((scrollEventCount * 1000) / scrollElapsed));
+                setScrollEventsPerSec(
+                    Math.round((scrollEventCount * 1000) / scrollElapsed),
+                );
                 scrollEventCount = 0;
                 lastScrollCountUpdate = timestamp;
             }
 
             // Memory tracking (Chrome only)
             if (performance.memory) {
-                setHeapSize((performance.memory.usedJSHeapSize / 1048576).toFixed(1));
+                setHeapSize(
+                    (performance.memory.usedJSHeapSize / 1048576).toFixed(1),
+                );
             }
         }
     });
@@ -125,13 +131,20 @@ export function GanttPerfDemo() {
         const fireScrollEvent = () => {
             if (controller.abort || performance.now() - startTime > duration) {
                 setStressTestRunning(false);
-                console.log('H-Scroll test complete:', { worst: worstFrameTime(), avg: avgFrameTime() });
+                console.log('H-Scroll test complete:', {
+                    worst: worstFrameTime(),
+                    avg: avgFrameTime(),
+                });
                 return;
             }
 
             const deltaX = direction * 200;
             scrollPos += deltaX;
-            if (scrollPos > scrollArea.scrollWidth - scrollArea.clientWidth - 500) direction = -1;
+            if (
+                scrollPos >
+                scrollArea.scrollWidth - scrollArea.clientWidth - 500
+            )
+                direction = -1;
             else if (scrollPos < 500) direction = 1;
             scrollArea.scrollLeft = scrollPos;
 
@@ -169,13 +182,20 @@ export function GanttPerfDemo() {
         const fireScrollEvent = () => {
             if (controller.abort || performance.now() - startTime > duration) {
                 setVerticalStressTestRunning(false);
-                console.log('V-Scroll test complete:', { worst: worstFrameTime(), avg: avgFrameTime() });
+                console.log('V-Scroll test complete:', {
+                    worst: worstFrameTime(),
+                    avg: avgFrameTime(),
+                });
                 return;
             }
 
             const deltaY = direction * 100;
             scrollPos += deltaY;
-            if (scrollPos > scrollArea.scrollHeight - scrollArea.clientHeight - 200) direction = -1;
+            if (
+                scrollPos >
+                scrollArea.scrollHeight - scrollArea.clientHeight - 200
+            )
+                direction = -1;
             else if (scrollPos < 200) direction = 1;
             scrollArea.scrollTop = scrollPos;
 
@@ -239,7 +259,9 @@ export function GanttPerfDemo() {
         if (result) {
             downloadJSON(result);
         } else {
-            console.warn('No benchmark results to export. Run a benchmark first.');
+            console.warn(
+                'No benchmark results to export. Run a benchmark first.',
+            );
         }
     };
 
@@ -248,8 +270,12 @@ export function GanttPerfDemo() {
         const scrollArea = document.querySelector('.gantt-scroll-area');
         if (scrollArea) {
             const trackScroll = () => scrollEventCount++;
-            scrollArea.addEventListener('scroll', trackScroll, { passive: true });
-            onCleanup(() => scrollArea.removeEventListener('scroll', trackScroll));
+            scrollArea.addEventListener('scroll', trackScroll, {
+                passive: true,
+            });
+            onCleanup(() =>
+                scrollArea.removeEventListener('scroll', trackScroll),
+            );
         }
 
         // Perf stats logger - logs every 2 seconds during stress test
@@ -297,7 +323,8 @@ export function GanttPerfDemo() {
                     setRenderTime((performance.now() - startTime).toFixed(1));
                     setDomStats({
                         tasks: document.querySelectorAll('.bar-wrapper').length,
-                        arrows: document.querySelectorAll('.arrow-layer > g').length,
+                        arrows: document.querySelectorAll('.arrow-layer > g')
+                            .length,
                     });
                 }, 0);
             });
@@ -320,7 +347,8 @@ export function GanttPerfDemo() {
             'flex-direction': 'column',
             'box-sizing': 'border-box',
             overflow: 'hidden',
-            'font-family': '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+            'font-family':
+                '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
         },
         header: {
             'margin-bottom': '10px',
@@ -369,13 +397,17 @@ export function GanttPerfDemo() {
         },
     };
 
-    const fpsColor = () => fps() >= 55 ? '#10b981' : fps() >= 30 ? '#f59e0b' : '#ef4444';
-    const frameColor = (v) => v <= 16.67 ? '#10b981' : v <= 33 ? '#f59e0b' : '#ef4444';
+    const fpsColor = () =>
+        fps() >= 55 ? '#10b981' : fps() >= 30 ? '#f59e0b' : '#ef4444';
+    const frameColor = (v) =>
+        v <= 16.67 ? '#10b981' : v <= 33 ? '#f59e0b' : '#ef4444';
 
     return (
         <div style={styles.container}>
             <div style={styles.header}>
-                <h1 style={{ margin: 0, 'font-size': '20px' }}>Performance Test</h1>
+                <h1 style={{ margin: 0, 'font-size': '20px' }}>
+                    Performance Test
+                </h1>
 
                 <div style={styles.stats}>
                     <div style={styles.statItem}>
@@ -384,31 +416,57 @@ export function GanttPerfDemo() {
                     </div>
                     <div style={styles.statItem}>
                         <span style={styles.statLabel}>Arrows:</span>
-                        <span style={styles.statValue}>{domStats().arrows}</span>
+                        <span style={styles.statValue}>
+                            {domStats().arrows}
+                        </span>
                     </div>
                     <div style={styles.statItem}>
                         <span style={styles.statLabel}>Render:</span>
-                        <span style={styles.statValue}>{renderTime() ? `${renderTime()}ms` : '...'}</span>
+                        <span style={styles.statValue}>
+                            {renderTime() ? `${renderTime()}ms` : '...'}
+                        </span>
                     </div>
                     <div style={styles.statItem}>
                         <span style={styles.statLabel}>FPS:</span>
-                        <span style={{ ...styles.statValue, color: fpsColor() }}>{fps()}</span>
+                        <span
+                            style={{ ...styles.statValue, color: fpsColor() }}
+                        >
+                            {fps()}
+                        </span>
                     </div>
                     <div style={styles.statItem}>
                         <span style={styles.statLabel}>Worst:</span>
-                        <span style={{ ...styles.statValue, color: frameColor(worstFrameTime()) }}>{worstFrameTime()}ms</span>
+                        <span
+                            style={{
+                                ...styles.statValue,
+                                color: frameColor(worstFrameTime()),
+                            }}
+                        >
+                            {worstFrameTime()}ms
+                        </span>
                     </div>
                     <div style={styles.statItem}>
                         <span style={styles.statLabel}>Avg:</span>
-                        <span style={{ ...styles.statValue, color: frameColor(avgFrameTime()) }}>{avgFrameTime()}ms</span>
+                        <span
+                            style={{
+                                ...styles.statValue,
+                                color: frameColor(avgFrameTime()),
+                            }}
+                        >
+                            {avgFrameTime()}ms
+                        </span>
                     </div>
                     <div style={styles.statItem}>
                         <span style={styles.statLabel}>Scroll/s:</span>
-                        <span style={styles.statValue}>{scrollEventsPerSec()}</span>
+                        <span style={styles.statValue}>
+                            {scrollEventsPerSec()}
+                        </span>
                     </div>
                     <div style={styles.statItem}>
                         <span style={styles.statLabel}>Heap:</span>
-                        <span style={styles.statValue}>{heapSize() ? `${heapSize()}MB` : 'N/A'}</span>
+                        <span style={styles.statValue}>
+                            {heapSize() ? `${heapSize()}MB` : 'N/A'}
+                        </span>
                     </div>
                 </div>
 
@@ -418,7 +476,11 @@ export function GanttPerfDemo() {
                         <select
                             value={viewMode()}
                             onChange={(e) => setViewMode(e.target.value)}
-                            style={{ ...styles.select, width: '100px', 'margin-left': '5px' }}
+                            style={{
+                                ...styles.select,
+                                width: '100px',
+                                'margin-left': '5px',
+                            }}
                         >
                             <option value="Hour">Hour</option>
                             <option value="Day">Day</option>
@@ -426,29 +488,51 @@ export function GanttPerfDemo() {
                             <option value="Month">Month</option>
                         </select>
                     </label>
-                    <button onClick={loadTasks} style={styles.button}>Reload</button>
+                    <button onClick={loadTasks} style={styles.button}>
+                        Reload
+                    </button>
                     <button
                         onClick={runScrollStressTest}
-                        style={{ ...styles.button, 'background-color': stressTestRunning() ? '#ef4444' : '#8b5cf6' }}
+                        style={{
+                            ...styles.button,
+                            'background-color': stressTestRunning()
+                                ? '#ef4444'
+                                : '#8b5cf6',
+                        }}
                     >
                         {stressTestRunning() ? 'Stop' : 'H-Scroll'}
                     </button>
                     <button
                         onClick={runVerticalScrollStressTest}
-                        style={{ ...styles.button, 'background-color': verticalStressTestRunning() ? '#ef4444' : '#8b5cf6' }}
+                        style={{
+                            ...styles.button,
+                            'background-color': verticalStressTestRunning()
+                                ? '#ef4444'
+                                : '#8b5cf6',
+                        }}
                     >
                         {verticalStressTestRunning() ? 'Stop' : 'V-Scroll'}
                     </button>
                     <span style={{ color: '#9ca3af', margin: '0 5px' }}>|</span>
                     <button
                         onClick={startBenchmark}
-                        style={{ ...styles.button, 'background-color': benchmarkRunning() ? '#ef4444' : '#059669' }}
+                        style={{
+                            ...styles.button,
+                            'background-color': benchmarkRunning()
+                                ? '#ef4444'
+                                : '#059669',
+                        }}
                     >
                         {benchmarkRunning() ? 'Stop Bench' : 'Benchmark'}
                     </button>
                     <button
                         onClick={exportBenchmark}
-                        style={{ ...styles.button, 'background-color': lastBenchmarkResult() ? '#0891b2' : '#6b7280' }}
+                        style={{
+                            ...styles.button,
+                            'background-color': lastBenchmarkResult()
+                                ? '#0891b2'
+                                : '#6b7280',
+                        }}
                         disabled={!lastBenchmarkResult()}
                     >
                         Export JSON
@@ -458,7 +542,11 @@ export function GanttPerfDemo() {
                         <select
                             value={arrowRenderer()}
                             onChange={(e) => setArrowRenderer(e.target.value)}
-                            style={{ ...styles.select, width: '100px', 'margin-left': '5px' }}
+                            style={{
+                                ...styles.select,
+                                width: '100px',
+                                'margin-left': '5px',
+                            }}
                         >
                             <option value="individual">Individual</option>
                             <option value="batched">Batched</option>
@@ -469,7 +557,11 @@ export function GanttPerfDemo() {
                         <select
                             value={renderMode()}
                             onChange={(e) => setRenderMode(e.target.value)}
-                            style={{ ...styles.select, width: '100px', 'margin-left': '5px' }}
+                            style={{
+                                ...styles.select,
+                                width: '100px',
+                                'margin-left': '5px',
+                            }}
                         >
                             <option value="simple">Simple</option>
                             <option value="detailed">Detailed</option>
@@ -480,7 +572,11 @@ export function GanttPerfDemo() {
                         <select
                             value={taskLayerMode()}
                             onChange={(e) => setTaskLayerMode(e.target.value)}
-                            style={{ ...styles.select, width: '100px', 'margin-left': '5px' }}
+                            style={{
+                                ...styles.select,
+                                width: '100px',
+                                'margin-left': '5px',
+                            }}
                         >
                             <option value="full">Full</option>
                             <option value="minimal">Minimal (V7j)</option>
@@ -488,25 +584,76 @@ export function GanttPerfDemo() {
                     </label>
                 </div>
 
-                <div style={{ display: 'flex', gap: '15px', 'align-items': 'center', 'font-size': '12px', color: '#6b7280' }}>
+                <div
+                    style={{
+                        display: 'flex',
+                        gap: '15px',
+                        'align-items': 'center',
+                        'font-size': '12px',
+                        color: '#6b7280',
+                    }}
+                >
                     <span style={{ 'font-weight': 'bold' }}>Buffers:</span>
-                    <label style={{ display: 'flex', 'align-items': 'center', gap: '4px' }}>
+                    <label
+                        style={{
+                            display: 'flex',
+                            'align-items': 'center',
+                            gap: '4px',
+                        }}
+                    >
                         Rows:
-                        <input type="range" min="1" max="30" value={overscanRows()}
-                               onInput={(e) => setOverscanRows(+e.target.value)} style={{ width: '60px' }} />
-                        <span style={{ 'min-width': '20px' }}>{overscanRows()}</span>
+                        <input
+                            type="range"
+                            min="1"
+                            max="30"
+                            value={overscanRows()}
+                            onInput={(e) => setOverscanRows(+e.target.value)}
+                            style={{ width: '60px' }}
+                        />
+                        <span style={{ 'min-width': '20px' }}>
+                            {overscanRows()}
+                        </span>
                     </label>
-                    <label style={{ display: 'flex', 'align-items': 'center', gap: '4px' }}>
+                    <label
+                        style={{
+                            display: 'flex',
+                            'align-items': 'center',
+                            gap: '4px',
+                        }}
+                    >
                         X:
-                        <input type="range" min="200" max="3000" step="100" value={overscanX()}
-                               onInput={(e) => setOverscanX(+e.target.value)} style={{ width: '60px' }} />
-                        <span style={{ 'min-width': '45px' }}>{overscanX()}px</span>
+                        <input
+                            type="range"
+                            min="200"
+                            max="3000"
+                            step="100"
+                            value={overscanX()}
+                            onInput={(e) => setOverscanX(+e.target.value)}
+                            style={{ width: '60px' }}
+                        />
+                        <span style={{ 'min-width': '45px' }}>
+                            {overscanX()}px
+                        </span>
                     </label>
-                    <label style={{ display: 'flex', 'align-items': 'center', gap: '4px' }}>
+                    <label
+                        style={{
+                            display: 'flex',
+                            'align-items': 'center',
+                            gap: '4px',
+                        }}
+                    >
                         Cols:
-                        <input type="range" min="1" max="30" value={overscanCols()}
-                               onInput={(e) => setOverscanCols(+e.target.value)} style={{ width: '60px' }} />
-                        <span style={{ 'min-width': '20px' }}>{overscanCols()}</span>
+                        <input
+                            type="range"
+                            min="1"
+                            max="30"
+                            value={overscanCols()}
+                            onInput={(e) => setOverscanCols(+e.target.value)}
+                            style={{ width: '60px' }}
+                        />
+                        <span style={{ 'min-width': '20px' }}>
+                            {overscanCols()}
+                        </span>
                     </label>
                 </div>
             </div>
@@ -520,8 +667,12 @@ export function GanttPerfDemo() {
                     overscanCols={overscanCols()}
                     arrowRenderer={arrowRenderer()}
                     taskLayerMode={taskLayerMode()}
-                    onDateChange={(id, pos) => console.log('Date changed:', id, pos)}
-                    onProgressChange={(id, prog) => console.log('Progress changed:', id, prog)}
+                    onDateChange={(id, pos) =>
+                        console.log('Date changed:', id, pos)
+                    }
+                    onProgressChange={(id, prog) =>
+                        console.log('Progress changed:', id, prog)
+                    }
                     onTaskClick={(id) => console.log('Task clicked:', id)}
                 />
             </div>

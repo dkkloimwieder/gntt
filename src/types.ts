@@ -182,7 +182,10 @@ export interface GanttTask {
  * Processed task (internal representation after processing)
  * Includes computed fields prefixed with _ or $
  */
-export interface ProcessedTask extends Omit<GanttTask, 'dependencies' | 'constraints'> {
+export interface ProcessedTask extends Omit<
+    GanttTask,
+    'dependencies' | 'constraints'
+> {
     /** Parsed start date */
     _start: Date;
     /** Parsed end date */
@@ -274,9 +277,13 @@ export interface ViewMode {
     /** Date format string */
     date_format?: string;
     /** Lower header text - string or function */
-    lower_text: string | ((date: Date, lastDate: Date | null, language: string) => string);
+    lower_text:
+        | string
+        | ((date: Date, lastDate: Date | null, language: string) => string);
     /** Upper header text - string or function */
-    upper_text?: string | ((date: Date, lastDate: Date | null, language: string) => string);
+    upper_text?:
+        | string
+        | ((date: Date, lastDate: Date | null, language: string) => string);
     /** How often upper text changes (thin lines per thick) */
     upper_text_frequency?: number;
     /** Function to determine thick separator lines */

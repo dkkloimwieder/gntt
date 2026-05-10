@@ -17,7 +17,10 @@ export { createResourceStore } from './stores/resourceStore';
 export { GanttEventsProvider, useGanttEvents } from './contexts/GanttEvents';
 
 // Utilities
-export { resolveConstraints, calculateCascadeUpdates } from './utils/constraintEngine';
+export {
+    resolveConstraints,
+    calculateCascadeUpdates,
+} from './utils/constraintEngine';
 export { buildHierarchy, collectDescendants } from './utils/hierarchyProcessor';
 export { generateSubtaskDemo } from './utils/subtaskGenerator';
 

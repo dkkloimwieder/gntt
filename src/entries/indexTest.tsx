@@ -1,6 +1,16 @@
 // @ts-nocheck
 import { render, Dynamic } from 'solid-js/web';
-import { createSignal, createMemo, Index, Show, onMount, onCleanup, createContext, useContext, createEffect } from 'solid-js';
+import {
+    createSignal,
+    createMemo,
+    Index,
+    Show,
+    onMount,
+    onCleanup,
+    createContext,
+    useContext,
+    createEffect,
+} from 'solid-js';
 import { createStore } from 'solid-js/store';
 import { createRAF } from '@solid-primitives/raf';
 import calendarData from '../data/generated/calendar.json';
@@ -132,28 +142,33 @@ const SCROLL_STEP = 10; // How many tasks to shift per "frame"
  * Position comes from SLOT (fixed), data comes from TASK (changes)
  */
 function TestBarMinimal(props) {
-    const taskId = () => typeof props.taskId === 'function' ? props.taskId() : props.taskId;
+    const taskId = () =>
+        typeof props.taskId === 'function' ? props.taskId() : props.taskId;
     const task = () => props.tasks[taskId()];
     // FIXED position from slot index - this never changes for this DOM node
     const pos = () => slotPositions[props.slotIndex] ?? { x: 0, y: 0 };
 
     return (
-        <div style={{
-            position: 'absolute',
-            transform: `translate(${pos().x}px, ${pos().y}px)`,
-            width: `${SLOT_WIDTH}px`,
-            height: `${SLOT_HEIGHT}px`,
-            background: task()?.color ?? '#3b82f6',
-            'border-radius': '3px',
-        }}>
-            <span style={{
-                color: '#fff',
-                'font-size': '11px',
-                padding: '4px',
-                display: 'block',
-                overflow: 'hidden',
-                'white-space': 'nowrap',
-            }}>
+        <div
+            style={{
+                position: 'absolute',
+                transform: `translate(${pos().x}px, ${pos().y}px)`,
+                width: `${SLOT_WIDTH}px`,
+                height: `${SLOT_HEIGHT}px`,
+                background: task()?.color ?? '#3b82f6',
+                'border-radius': '3px',
+            }}
+        >
+            <span
+                style={{
+                    color: '#fff',
+                    'font-size': '11px',
+                    padding: '4px',
+                    display: 'block',
+                    overflow: 'hidden',
+                    'white-space': 'nowrap',
+                }}
+            >
                 {task()?.name ?? ''}
             </span>
         </div>
@@ -164,7 +179,8 @@ function TestBarMinimal(props) {
  * V2: With memoized properties (like real Bar)
  */
 function TestBarWithMemo(props) {
-    const taskId = () => typeof props.taskId === 'function' ? props.taskId() : props.taskId;
+    const taskId = () =>
+        typeof props.taskId === 'function' ? props.taskId() : props.taskId;
     const task = () => props.tasks[taskId()];
     const pos = () => slotPositions[props.slotIndex] ?? { x: 0, y: 0 };
 
@@ -173,22 +189,26 @@ function TestBarWithMemo(props) {
     const name = createMemo(() => task()?.name ?? '');
 
     return (
-        <div style={{
-            position: 'absolute',
-            transform: `translate(${pos().x}px, ${pos().y}px)`,
-            width: `${SLOT_WIDTH}px`,
-            height: `${SLOT_HEIGHT}px`,
-            background: color(),
-            'border-radius': '3px',
-        }}>
-            <span style={{
-                color: '#fff',
-                'font-size': '11px',
-                padding: '4px',
-                display: 'block',
-                overflow: 'hidden',
-                'white-space': 'nowrap',
-            }}>
+        <div
+            style={{
+                position: 'absolute',
+                transform: `translate(${pos().x}px, ${pos().y}px)`,
+                width: `${SLOT_WIDTH}px`,
+                height: `${SLOT_HEIGHT}px`,
+                background: color(),
+                'border-radius': '3px',
+            }}
+        >
+            <span
+                style={{
+                    color: '#fff',
+                    'font-size': '11px',
+                    padding: '4px',
+                    display: 'block',
+                    overflow: 'hidden',
+                    'white-space': 'nowrap',
+                }}
+            >
                 {name()}
             </span>
         </div>
@@ -199,7 +219,8 @@ function TestBarWithMemo(props) {
  * V3: With <Show> conditions (suspected cause of cleanNode)
  */
 function TestBarWithShow(props) {
-    const taskId = () => typeof props.taskId === 'function' ? props.taskId() : props.taskId;
+    const taskId = () =>
+        typeof props.taskId === 'function' ? props.taskId() : props.taskId;
     const task = () => props.tasks[taskId()];
     const pos = () => slotPositions[props.slotIndex] ?? { x: 0, y: 0 };
 
@@ -209,49 +230,57 @@ function TestBarWithShow(props) {
     const isLocked = createMemo(() => task()?.locked ?? false);
 
     return (
-        <div style={{
-            position: 'absolute',
-            transform: `translate(${pos().x}px, ${pos().y}px)`,
-            width: `${SLOT_WIDTH}px`,
-            height: `${SLOT_HEIGHT}px`,
-            background: color(),
-            'border-radius': '3px',
-        }}>
+        <div
+            style={{
+                position: 'absolute',
+                transform: `translate(${pos().x}px, ${pos().y}px)`,
+                width: `${SLOT_WIDTH}px`,
+                height: `${SLOT_HEIGHT}px`,
+                background: color(),
+                'border-radius': '3px',
+            }}
+        >
             {/* This <Show> might cause cleanNode when taskId changes! */}
             <Show when={progress() > 0}>
-                <div style={{
-                    position: 'absolute',
-                    left: 0,
-                    top: 0,
-                    width: `${(SLOT_WIDTH * progress()) / 100}px`,
-                    height: '100%',
-                    background: 'rgba(0,0,0,0.3)',
-                    'border-radius': '3px',
-                }} />
+                <div
+                    style={{
+                        position: 'absolute',
+                        left: 0,
+                        top: 0,
+                        width: `${(SLOT_WIDTH * progress()) / 100}px`,
+                        height: '100%',
+                        background: 'rgba(0,0,0,0.3)',
+                        'border-radius': '3px',
+                    }}
+                />
             </Show>
 
             {/* Another <Show> - lock indicator */}
             <Show when={isLocked()}>
-                <div style={{
-                    position: 'absolute',
-                    right: '4px',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    color: '#fff',
-                    'font-size': '10px',
-                }}>
+                <div
+                    style={{
+                        position: 'absolute',
+                        right: '4px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        color: '#fff',
+                        'font-size': '10px',
+                    }}
+                >
                     🔒
                 </div>
             </Show>
 
-            <span style={{
-                color: '#fff',
-                'font-size': '11px',
-                padding: '4px',
-                display: 'block',
-                overflow: 'hidden',
-                'white-space': 'nowrap',
-            }}>
+            <span
+                style={{
+                    color: '#fff',
+                    'font-size': '11px',
+                    padding: '4px',
+                    display: 'block',
+                    overflow: 'hidden',
+                    'white-space': 'nowrap',
+                }}
+            >
                 {name()}
             </span>
         </div>
@@ -262,7 +291,8 @@ function TestBarWithShow(props) {
  * V4: Using CSS visibility instead of <Show> (potential fix)
  */
 function TestBarCSSOnly(props) {
-    const taskId = () => typeof props.taskId === 'function' ? props.taskId() : props.taskId;
+    const taskId = () =>
+        typeof props.taskId === 'function' ? props.taskId() : props.taskId;
     const task = () => props.tasks[taskId()];
     const pos = () => slotPositions[props.slotIndex] ?? { x: 0, y: 0 };
 
@@ -272,47 +302,55 @@ function TestBarCSSOnly(props) {
     const isLocked = createMemo(() => task()?.locked ?? false);
 
     return (
-        <div style={{
-            position: 'absolute',
-            transform: `translate(${pos().x}px, ${pos().y}px)`,
-            width: `${SLOT_WIDTH}px`,
-            height: `${SLOT_HEIGHT}px`,
-            background: color(),
-            'border-radius': '3px',
-        }}>
-            {/* CSS display:none instead of <Show> - no unmount/remount */}
-            <div style={{
+        <div
+            style={{
                 position: 'absolute',
-                left: 0,
-                top: 0,
-                width: `${(SLOT_WIDTH * progress()) / 100}px`,
-                height: '100%',
-                background: 'rgba(0,0,0,0.3)',
+                transform: `translate(${pos().x}px, ${pos().y}px)`,
+                width: `${SLOT_WIDTH}px`,
+                height: `${SLOT_HEIGHT}px`,
+                background: color(),
                 'border-radius': '3px',
-                display: progress() > 0 ? 'block' : 'none',
-            }} />
+            }}
+        >
+            {/* CSS display:none instead of <Show> - no unmount/remount */}
+            <div
+                style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    width: `${(SLOT_WIDTH * progress()) / 100}px`,
+                    height: '100%',
+                    background: 'rgba(0,0,0,0.3)',
+                    'border-radius': '3px',
+                    display: progress() > 0 ? 'block' : 'none',
+                }}
+            />
 
             {/* Lock indicator with CSS display */}
-            <div style={{
-                position: 'absolute',
-                right: '4px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                color: '#fff',
-                'font-size': '10px',
-                display: isLocked() ? 'block' : 'none',
-            }}>
+            <div
+                style={{
+                    position: 'absolute',
+                    right: '4px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: '#fff',
+                    'font-size': '10px',
+                    display: isLocked() ? 'block' : 'none',
+                }}
+            >
                 🔒
             </div>
 
-            <span style={{
-                color: '#fff',
-                'font-size': '11px',
-                padding: '4px',
-                display: 'block',
-                overflow: 'hidden',
-                'white-space': 'nowrap',
-            }}>
+            <span
+                style={{
+                    color: '#fff',
+                    'font-size': '11px',
+                    padding: '4px',
+                    display: 'block',
+                    overflow: 'hidden',
+                    'white-space': 'nowrap',
+                }}
+            >
                 {name()}
             </span>
         </div>
@@ -323,7 +361,8 @@ function TestBarCSSOnly(props) {
  * V5: Many Memos (like real Bar - 15+ memos)
  */
 function TestBarManyMemos(props) {
-    const taskId = () => typeof props.taskId === 'function' ? props.taskId() : props.taskId;
+    const taskId = () =>
+        typeof props.taskId === 'function' ? props.taskId() : props.taskId;
     const task = () => props.tasks[taskId()];
     const pos = () => slotPositions[props.slotIndex] ?? { x: 0, y: 0 };
 
@@ -350,45 +389,61 @@ function TestBarManyMemos(props) {
     const customClass = createMemo(() => task()?.custom_class ?? '');
     const showHandles = createMemo(() => !readonly());
     const showDateHandles = createMemo(() => showHandles() && !readonlyDates());
-    const showProgressHandle = createMemo(() => showHandles() && !readonlyProgress());
-    const barTransform = createMemo(() => `translate(${pos().x}px, ${pos().y}px)`);
+    const showProgressHandle = createMemo(
+        () => showHandles() && !readonlyProgress(),
+    );
+    const barTransform = createMemo(
+        () => `translate(${pos().x}px, ${pos().y}px)`,
+    );
 
     return (
-        <div style={{
-            position: 'absolute',
-            transform: barTransform(),
-            width: `${SLOT_WIDTH}px`,
-            height: `${SLOT_HEIGHT}px`,
-            background: color(),
-            'border-radius': `${barCornerRadius()}px`,
-        }}>
-            <div style={{
+        <div
+            style={{
                 position: 'absolute',
-                left: 0,
-                top: 0,
-                width: `${progressWidth()}px`,
-                height: '100%',
-                background: 'rgba(0,0,0,0.3)',
+                transform: barTransform(),
+                width: `${SLOT_WIDTH}px`,
+                height: `${SLOT_HEIGHT}px`,
+                background: color(),
                 'border-radius': `${barCornerRadius()}px`,
-                display: progress() > 0 ? 'block' : 'none',
-            }} />
-            <div style={{
-                position: 'absolute',
-                right: '4px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                color: '#fff',
-                'font-size': '10px',
-                display: isLocked() ? 'block' : 'none',
-            }}>🔒</div>
-            <span style={{
-                color: '#fff',
-                'font-size': '11px',
-                padding: '4px',
-                display: 'block',
-                overflow: 'hidden',
-                'white-space': 'nowrap',
-            }}>{name()}</span>
+            }}
+        >
+            <div
+                style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    width: `${progressWidth()}px`,
+                    height: '100%',
+                    background: 'rgba(0,0,0,0.3)',
+                    'border-radius': `${barCornerRadius()}px`,
+                    display: progress() > 0 ? 'block' : 'none',
+                }}
+            />
+            <div
+                style={{
+                    position: 'absolute',
+                    right: '4px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: '#fff',
+                    'font-size': '10px',
+                    display: isLocked() ? 'block' : 'none',
+                }}
+            >
+                🔒
+            </div>
+            <span
+                style={{
+                    color: '#fff',
+                    'font-size': '11px',
+                    padding: '4px',
+                    display: 'block',
+                    overflow: 'hidden',
+                    'white-space': 'nowrap',
+                }}
+            >
+                {name()}
+            </span>
         </div>
     );
 }
@@ -397,7 +452,8 @@ function TestBarManyMemos(props) {
  * V6: Event Handlers (8 handlers like real Bar)
  */
 function TestBarWithHandlers(props) {
-    const taskId = () => typeof props.taskId === 'function' ? props.taskId() : props.taskId;
+    const taskId = () =>
+        typeof props.taskId === 'function' ? props.taskId() : props.taskId;
     const task = () => props.tasks[taskId()];
     const pos = () => slotPositions[props.slotIndex] ?? { x: 0, y: 0 };
 
@@ -407,13 +463,27 @@ function TestBarWithHandlers(props) {
     const isLocked = createMemo(() => task()?.locked ?? false);
 
     // 8 event handlers like real Bar
-    const handleBarMouseDown = (e) => { /* noop */ };
-    const handleMouseEnter = (e) => { /* noop */ };
-    const handleMouseLeave = () => { /* noop */ };
-    const handleClick = (e) => { /* noop */ };
-    const handleLeftHandleMouseDown = (e) => { /* noop */ };
-    const handleRightHandleMouseDown = (e) => { /* noop */ };
-    const handleProgressMouseDown = (e) => { /* noop */ };
+    const handleBarMouseDown = (e) => {
+        /* noop */
+    };
+    const handleMouseEnter = (e) => {
+        /* noop */
+    };
+    const handleMouseLeave = () => {
+        /* noop */
+    };
+    const handleClick = (e) => {
+        /* noop */
+    };
+    const handleLeftHandleMouseDown = (e) => {
+        /* noop */
+    };
+    const handleRightHandleMouseDown = (e) => {
+        /* noop */
+    };
+    const handleProgressMouseDown = (e) => {
+        /* noop */
+    };
 
     return (
         <div
@@ -430,15 +500,17 @@ function TestBarWithHandlers(props) {
                 'border-radius': '3px',
             }}
         >
-            <div style={{
-                position: 'absolute',
-                left: 0,
-                top: 0,
-                width: `${(SLOT_WIDTH * progress()) / 100}px`,
-                height: '100%',
-                background: 'rgba(0,0,0,0.3)',
-                display: progress() > 0 ? 'block' : 'none',
-            }} />
+            <div
+                style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    width: `${(SLOT_WIDTH * progress()) / 100}px`,
+                    height: '100%',
+                    background: 'rgba(0,0,0,0.3)',
+                    display: progress() > 0 ? 'block' : 'none',
+                }}
+            />
             <div
                 onMouseDown={handleLeftHandleMouseDown}
                 style={{
@@ -475,12 +547,16 @@ function TestBarWithHandlers(props) {
                     display: 'none',
                 }}
             />
-            <span style={{
-                color: '#fff',
-                'font-size': '11px',
-                padding: '4px',
-                display: 'block',
-            }}>{name()}</span>
+            <span
+                style={{
+                    color: '#fff',
+                    'font-size': '11px',
+                    padding: '4px',
+                    display: 'block',
+                }}
+            >
+                {name()}
+            </span>
         </div>
     );
 }
@@ -489,7 +565,8 @@ function TestBarWithHandlers(props) {
  * V7: Full DOM Structure (all child elements like real Bar)
  */
 function TestBarFullDOM(props) {
-    const taskId = () => typeof props.taskId === 'function' ? props.taskId() : props.taskId;
+    const taskId = () =>
+        typeof props.taskId === 'function' ? props.taskId() : props.taskId;
     const task = () => props.tasks[taskId()];
     const pos = () => slotPositions[props.slotIndex] ?? { x: 0, y: 0 };
 
@@ -581,7 +658,9 @@ function TestBarFullDOM(props) {
                     'pointer-events': 'none',
                     display: isLocked() ? 'block' : 'none',
                 }}
-            >🔒</div>
+            >
+                🔒
+            </div>
             {/* Left handle */}
             <div
                 class="handle handle-left"
@@ -645,7 +724,8 @@ function TestBarFullDOM(props) {
  * - Fewer individual style properties to recalculate
  */
 function TestBarFullDOMOptimized(props) {
-    const taskId = () => typeof props.taskId === 'function' ? props.taskId() : props.taskId;
+    const taskId = () =>
+        typeof props.taskId === 'function' ? props.taskId() : props.taskId;
     const task = () => props.tasks[taskId()];
     const pos = () => slotPositions[props.slotIndex] ?? { x: 0, y: 0 };
 
@@ -673,19 +753,27 @@ function TestBarFullDOMOptimized(props) {
                 height: 'var(--h)',
             }}
         >
-            <div class="bar-opt-inner" style={{
-                'background-color': 'var(--color)',
-                'border-color': 'var(--color)',
-            }} />
+            <div
+                class="bar-opt-inner"
+                style={{
+                    'background-color': 'var(--color)',
+                    'border-color': 'var(--color)',
+                }}
+            />
             <div class="bar-opt-progress" style={{ width: 'var(--pw)' }} />
             <div class="bar-opt-label">{name()}</div>
-            <div class="bar-opt-lock" style={{ display: 'var(--lock)' }}>🔒</div>
+            <div class="bar-opt-lock" style={{ display: 'var(--lock)' }}>
+                🔒
+            </div>
             <div class="bar-opt-handle bar-opt-handle-left" />
             <div class="bar-opt-handle bar-opt-handle-right" />
-            <div class="bar-opt-handle-progress" style={{
-                left: `calc(var(--pw) - 5px)`,
-                display: 'var(--prog-vis)',
-            }} />
+            <div
+                class="bar-opt-handle-progress"
+                style={{
+                    left: `calc(var(--pw) - 5px)`,
+                    display: 'var(--prog-vis)',
+                }}
+            />
         </div>
     );
 }
@@ -695,7 +783,8 @@ function TestBarFullDOMOptimized(props) {
  * Tests if text node updates are the bottleneck
  */
 function TestBarFullDOMNoText(props) {
-    const taskId = () => typeof props.taskId === 'function' ? props.taskId() : props.taskId;
+    const taskId = () =>
+        typeof props.taskId === 'function' ? props.taskId() : props.taskId;
     const task = () => props.tasks[taskId()];
     const pos = () => slotPositions[props.slotIndex] ?? { x: 0, y: 0 };
 
@@ -712,19 +801,28 @@ function TestBarFullDOMNoText(props) {
                 height: `${SLOT_HEIGHT}px`,
             }}
         >
-            <div class="bar-opt-inner" style={{
-                'background-color': color(),
-                'border': `1.5px solid ${color()}`,
-            }} />
-            <div class="bar-opt-progress" style={{ width: `${progressWidth()}px` }} />
+            <div
+                class="bar-opt-inner"
+                style={{
+                    'background-color': color(),
+                    border: `1.5px solid ${color()}`,
+                }}
+            />
+            <div
+                class="bar-opt-progress"
+                style={{ width: `${progressWidth()}px` }}
+            />
             {/* NO text update - static placeholder */}
             <div class="bar-opt-label">Task</div>
             <div class="bar-opt-handle bar-opt-handle-left" />
             <div class="bar-opt-handle bar-opt-handle-right" />
-            <div class="bar-opt-handle-progress" style={{
-                left: `${progressWidth() - 5}px`,
-                display: progress() > 0 ? 'block' : 'none',
-            }} />
+            <div
+                class="bar-opt-handle-progress"
+                style={{
+                    left: `${progressWidth() - 5}px`,
+                    display: progress() > 0 ? 'block' : 'none',
+                }}
+            />
         </div>
     );
 }
@@ -734,7 +832,8 @@ function TestBarFullDOMNoText(props) {
  * Tests if the memo evaluation itself is slow (vs text node rendering)
  */
 function TestBarFullDOMOptText(props) {
-    const taskId = () => typeof props.taskId === 'function' ? props.taskId() : props.taskId;
+    const taskId = () =>
+        typeof props.taskId === 'function' ? props.taskId() : props.taskId;
     const task = () => props.tasks[taskId()];
     const pos = () => slotPositions[props.slotIndex] ?? { x: 0, y: 0 };
 
@@ -757,20 +856,34 @@ function TestBarFullDOMOptText(props) {
                 height: `${SLOT_HEIGHT}px`,
             }}
         >
-            <div class="bar-opt-inner" style={{
-                'background-color': color(),
-                'border': `1.5px solid ${color()}`,
-            }} />
-            <div class="bar-opt-progress" style={{ width: `${progressWidth()}px` }} />
+            <div
+                class="bar-opt-inner"
+                style={{
+                    'background-color': color(),
+                    border: `1.5px solid ${color()}`,
+                }}
+            />
+            <div
+                class="bar-opt-progress"
+                style={{ width: `${progressWidth()}px` }}
+            />
             {/* Static text - memo evaluated but not rendered */}
             <div class="bar-opt-label">Task</div>
-            <div class="bar-opt-lock" style={{ display: isLocked() ? 'block' : 'none' }}>🔒</div>
+            <div
+                class="bar-opt-lock"
+                style={{ display: isLocked() ? 'block' : 'none' }}
+            >
+                🔒
+            </div>
             <div class="bar-opt-handle bar-opt-handle-left" />
             <div class="bar-opt-handle bar-opt-handle-right" />
-            <div class="bar-opt-handle-progress" style={{
-                left: `${progressWidth() - 5}px`,
-                display: progress() > 0 ? 'block' : 'none',
-            }} />
+            <div
+                class="bar-opt-handle-progress"
+                style={{
+                    left: `${progressWidth() - 5}px`,
+                    display: progress() > 0 ? 'block' : 'none',
+                }}
+            />
         </div>
     );
 }
@@ -780,7 +893,8 @@ function TestBarFullDOMOptText(props) {
  * Tests if memo wrapper itself adds overhead (vs direct access)
  */
 function TestBarNoMemos(props) {
-    const taskId = () => typeof props.taskId === 'function' ? props.taskId() : props.taskId;
+    const taskId = () =>
+        typeof props.taskId === 'function' ? props.taskId() : props.taskId;
     const task = () => props.tasks[taskId()];
     const pos = () => slotPositions[props.slotIndex] ?? { x: 0, y: 0 };
 
@@ -797,23 +911,37 @@ function TestBarNoMemos(props) {
                 height: `${SLOT_HEIGHT}px`,
             }}
         >
-            <div class="bar-opt-inner" style={{
-                'background-color': task()?.color ?? '#3b82f6',
-                'border': `1.5px solid ${task()?.color ?? '#3b82f6'}`,
-            }} />
-            <div class="bar-opt-progress" style={{
-                width: `${(SLOT_WIDTH * (task()?.progress ?? 0)) / 100}px`
-            }} />
+            <div
+                class="bar-opt-inner"
+                style={{
+                    'background-color': task()?.color ?? '#3b82f6',
+                    border: `1.5px solid ${task()?.color ?? '#3b82f6'}`,
+                }}
+            />
+            <div
+                class="bar-opt-progress"
+                style={{
+                    width: `${(SLOT_WIDTH * (task()?.progress ?? 0)) / 100}px`,
+                }}
+            />
             <div class="bar-opt-label">Task</div>
-            <div class="bar-opt-lock" style={{
-                display: task()?.locked ? 'block' : 'none'
-            }}>🔒</div>
+            <div
+                class="bar-opt-lock"
+                style={{
+                    display: task()?.locked ? 'block' : 'none',
+                }}
+            >
+                🔒
+            </div>
             <div class="bar-opt-handle bar-opt-handle-left" />
             <div class="bar-opt-handle bar-opt-handle-right" />
-            <div class="bar-opt-handle-progress" style={{
-                left: `${(SLOT_WIDTH * (task()?.progress ?? 0)) / 100 - 5}px`,
-                display: (task()?.progress ?? 0) > 0 ? 'block' : 'none',
-            }} />
+            <div
+                class="bar-opt-handle-progress"
+                style={{
+                    left: `${(SLOT_WIDTH * (task()?.progress ?? 0)) / 100 - 5}px`,
+                    display: (task()?.progress ?? 0) > 0 ? 'block' : 'none',
+                }}
+            />
         </div>
     );
 }
@@ -823,7 +951,8 @@ function TestBarNoMemos(props) {
  * Tests if single batched memo is faster than multiple memos
  */
 function TestBarSingleMemo(props) {
-    const taskId = () => typeof props.taskId === 'function' ? props.taskId() : props.taskId;
+    const taskId = () =>
+        typeof props.taskId === 'function' ? props.taskId() : props.taskId;
     const task = () => props.tasks[taskId()];
     const pos = () => slotPositions[props.slotIndex] ?? { x: 0, y: 0 };
 
@@ -853,21 +982,35 @@ function TestBarSingleMemo(props) {
                 height: `${SLOT_HEIGHT}px`,
             }}
         >
-            <div class="bar-opt-inner" style={{
-                'background-color': taskData().color,
-                'border': `1.5px solid ${taskData().color}`,
-            }} />
-            <div class="bar-opt-progress" style={{ width: `${progressWidth()}px` }} />
+            <div
+                class="bar-opt-inner"
+                style={{
+                    'background-color': taskData().color,
+                    border: `1.5px solid ${taskData().color}`,
+                }}
+            />
+            <div
+                class="bar-opt-progress"
+                style={{ width: `${progressWidth()}px` }}
+            />
             <div class="bar-opt-label">Task</div>
-            <div class="bar-opt-lock" style={{
-                display: taskData().locked ? 'block' : 'none'
-            }}>🔒</div>
+            <div
+                class="bar-opt-lock"
+                style={{
+                    display: taskData().locked ? 'block' : 'none',
+                }}
+            >
+                🔒
+            </div>
             <div class="bar-opt-handle bar-opt-handle-left" />
             <div class="bar-opt-handle bar-opt-handle-right" />
-            <div class="bar-opt-handle-progress" style={{
-                left: `${progressWidth() - 5}px`,
-                display: taskData().progress > 0 ? 'block' : 'none',
-            }} />
+            <div
+                class="bar-opt-handle-progress"
+                style={{
+                    left: `${progressWidth() - 5}px`,
+                    display: taskData().progress > 0 ? 'block' : 'none',
+                }}
+            />
         </div>
     );
 }
@@ -877,7 +1020,8 @@ function TestBarSingleMemo(props) {
  * Same as V7 but with name rendered
  */
 function TestBarWithText(props) {
-    const taskId = () => typeof props.taskId === 'function' ? props.taskId() : props.taskId;
+    const taskId = () =>
+        typeof props.taskId === 'function' ? props.taskId() : props.taskId;
     const task = () => props.tasks[taskId()];
     const pos = () => slotPositions[props.slotIndex] ?? { x: 0, y: 0 };
 
@@ -896,20 +1040,34 @@ function TestBarWithText(props) {
                 height: `${SLOT_HEIGHT}px`,
             }}
         >
-            <div class="bar-opt-inner" style={{
-                'background-color': color(),
-                'border': `1.5px solid ${color()}`,
-            }} />
-            <div class="bar-opt-progress" style={{ width: `${progressWidth()}px` }} />
+            <div
+                class="bar-opt-inner"
+                style={{
+                    'background-color': color(),
+                    border: `1.5px solid ${color()}`,
+                }}
+            />
+            <div
+                class="bar-opt-progress"
+                style={{ width: `${progressWidth()}px` }}
+            />
             {/* ACTUAL text render - this is the bottleneck */}
             <div class="bar-opt-label">{name()}</div>
-            <div class="bar-opt-lock" style={{ display: isLocked() ? 'block' : 'none' }}>🔒</div>
+            <div
+                class="bar-opt-lock"
+                style={{ display: isLocked() ? 'block' : 'none' }}
+            >
+                🔒
+            </div>
             <div class="bar-opt-handle bar-opt-handle-left" />
             <div class="bar-opt-handle bar-opt-handle-right" />
-            <div class="bar-opt-handle-progress" style={{
-                left: `${progressWidth() - 5}px`,
-                display: progress() > 0 ? 'block' : 'none',
-            }} />
+            <div
+                class="bar-opt-handle-progress"
+                style={{
+                    left: `${progressWidth() - 5}px`,
+                    display: progress() > 0 ? 'block' : 'none',
+                }}
+            />
         </div>
     );
 }
@@ -919,7 +1077,8 @@ function TestBarWithText(props) {
  * Uses CSS classes + custom properties for dynamic values
  */
 function TestBarDirectTask(props) {
-    const getTask = () => typeof props.task === 'function' ? props.task() : props.task;
+    const getTask = () =>
+        typeof props.task === 'function' ? props.task() : props.task;
     const pos = () => slotPositions[props.slotIndex] ?? { x: 0, y: 0 };
 
     // Single memo - one read, cached result
@@ -942,10 +1101,13 @@ function TestBarDirectTask(props) {
                 height: `${SLOT_HEIGHT}px`,
             }}
         >
-            <div class="bar-opt-inner" style={{
-                'background-color': t().color,
-                'border': `1.5px solid ${t().color}`,
-            }} />
+            <div
+                class="bar-opt-inner"
+                style={{
+                    'background-color': t().color,
+                    border: `1.5px solid ${t().color}`,
+                }}
+            />
             <div class="bar-opt-progress" style={{ width: `${t().pw}px` }} />
             <div class="bar-opt-label">{t().name}</div>
         </div>
@@ -956,7 +1118,8 @@ function TestBarDirectTask(props) {
  * V7i: V7h + lock icon + extra text (find breaking point)
  */
 function TestBarDirectTaskFull(props) {
-    const getTask = () => typeof props.task === 'function' ? props.task() : props.task;
+    const getTask = () =>
+        typeof props.task === 'function' ? props.task() : props.task;
     const pos = () => slotPositions[props.slotIndex] ?? { x: 0, y: 0 };
 
     const t = createMemo(() => {
@@ -981,23 +1144,35 @@ function TestBarDirectTaskFull(props) {
                 height: `${SLOT_HEIGHT}px`,
             }}
         >
-            <div class="bar-opt-inner" style={{
-                'background-color': t().color,
-                'border': `1.5px solid ${t().color}`,
-            }} />
+            <div
+                class="bar-opt-inner"
+                style={{
+                    'background-color': t().color,
+                    border: `1.5px solid ${t().color}`,
+                }}
+            />
             <div class="bar-opt-progress" style={{ width: `${t().pw}px` }} />
             <div class="bar-opt-label">{t().name}</div>
-            <div class="bar-opt-lock" style={{
-                display: t().locked ? 'block' : 'none'
-            }}>🔒</div>
-            <div style={{
-                position: 'absolute',
-                bottom: '2px',
-                right: '4px',
-                'font-size': '9px',
-                color: '#888',
-                'pointer-events': 'none',
-            }}>{t().id}</div>
+            <div
+                class="bar-opt-lock"
+                style={{
+                    display: t().locked ? 'block' : 'none',
+                }}
+            >
+                🔒
+            </div>
+            <div
+                style={{
+                    position: 'absolute',
+                    bottom: '2px',
+                    right: '4px',
+                    'font-size': '9px',
+                    color: '#888',
+                    'pointer-events': 'none',
+                }}
+            >
+                {t().id}
+            </div>
         </div>
     );
 }
@@ -1006,7 +1181,8 @@ function TestBarDirectTaskFull(props) {
  * V7j: Minimal CSS - no contain, will-change, etc.
  */
 function TestBarMinimalCSS(props) {
-    const getTask = () => typeof props.task === 'function' ? props.task() : props.task;
+    const getTask = () =>
+        typeof props.task === 'function' ? props.task() : props.task;
     const pos = () => slotPositions[props.slotIndex] ?? { x: 0, y: 0 };
 
     const t = createMemo(() => {
@@ -1023,54 +1199,72 @@ function TestBarMinimalCSS(props) {
     });
 
     return (
-        <div style={{
-            position: 'absolute',
-            transform: `translate(${pos().x}px, ${pos().y}px)`,
-            width: `${SLOT_WIDTH}px`,
-            height: `${SLOT_HEIGHT}px`,
-        }}>
-            <div style={{
+        <div
+            style={{
                 position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '100%',
-                'background-color': t().color,
-                opacity: 0.15,
-                'border-radius': '3px',
-            }} />
-            <div style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                height: '100%',
-                width: `${t().pw}px`,
-                'background-color': '#a3a3ff',
-                opacity: 0.3,
-                'border-radius': '3px',
-            }} />
-            <div style={{
-                position: 'absolute',
-                top: '50%',
-                left: '8px',
-                transform: 'translateY(-50%)',
-                color: '#fff',
-                'font-size': '12px',
-            }}>{t().name}</div>
-            <div style={{
-                position: 'absolute',
-                top: '2px',
-                right: '4px',
-                'font-size': '10px',
-                display: t().locked ? 'block' : 'none',
-            }}>🔒</div>
-            <div style={{
-                position: 'absolute',
-                bottom: '2px',
-                right: '4px',
-                'font-size': '9px',
-                color: '#888',
-            }}>{t().id}</div>
+                transform: `translate(${pos().x}px, ${pos().y}px)`,
+                width: `${SLOT_WIDTH}px`,
+                height: `${SLOT_HEIGHT}px`,
+            }}
+        >
+            <div
+                style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    'background-color': t().color,
+                    opacity: 0.15,
+                    'border-radius': '3px',
+                }}
+            />
+            <div
+                style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    height: '100%',
+                    width: `${t().pw}px`,
+                    'background-color': '#a3a3ff',
+                    opacity: 0.3,
+                    'border-radius': '3px',
+                }}
+            />
+            <div
+                style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '8px',
+                    transform: 'translateY(-50%)',
+                    color: '#fff',
+                    'font-size': '12px',
+                }}
+            >
+                {t().name}
+            </div>
+            <div
+                style={{
+                    position: 'absolute',
+                    top: '2px',
+                    right: '4px',
+                    'font-size': '10px',
+                    display: t().locked ? 'block' : 'none',
+                }}
+            >
+                🔒
+            </div>
+            <div
+                style={{
+                    position: 'absolute',
+                    bottom: '2px',
+                    right: '4px',
+                    'font-size': '9px',
+                    color: '#888',
+                }}
+            >
+                {t().id}
+            </div>
         </div>
     );
 }
@@ -1079,7 +1273,8 @@ function TestBarMinimalCSS(props) {
  * V8: With Context (reads from context like real Bar reads GanttEvents)
  */
 function TestBarWithContext(props) {
-    const taskId = () => typeof props.taskId === 'function' ? props.taskId() : props.taskId;
+    const taskId = () =>
+        typeof props.taskId === 'function' ? props.taskId() : props.taskId;
     const task = () => props.tasks[taskId()];
     const pos = () => slotPositions[props.slotIndex] ?? { x: 0, y: 0 };
 
@@ -1092,8 +1287,12 @@ function TestBarWithContext(props) {
     const name = createMemo(() => task()?.name ?? '');
     const progress = createMemo(() => task()?.progress ?? 0);
 
-    const handleMouseEnter = (e) => { onHover?.(taskId(), e); };
-    const handleClick = (e) => { onClick?.(taskId(), e); };
+    const handleMouseEnter = (e) => {
+        onHover?.(taskId(), e);
+    };
+    const handleClick = (e) => {
+        onClick?.(taskId(), e);
+    };
 
     return (
         <div
@@ -1108,21 +1307,27 @@ function TestBarWithContext(props) {
                 'border-radius': '3px',
             }}
         >
-            <div style={{
-                position: 'absolute',
-                left: 0,
-                top: 0,
-                width: `${(SLOT_WIDTH * progress()) / 100}px`,
-                height: '100%',
-                background: 'rgba(0,0,0,0.3)',
-                display: progress() > 0 ? 'block' : 'none',
-            }} />
-            <span style={{
-                color: '#fff',
-                'font-size': '11px',
-                padding: '4px',
-                display: 'block',
-            }}>{name()}</span>
+            <div
+                style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    width: `${(SLOT_WIDTH * progress()) / 100}px`,
+                    height: '100%',
+                    background: 'rgba(0,0,0,0.3)',
+                    display: progress() > 0 ? 'block' : 'none',
+                }}
+            />
+            <span
+                style={{
+                    color: '#fff',
+                    'font-size': '11px',
+                    padding: '4px',
+                    display: 'block',
+                }}
+            >
+                {name()}
+            </span>
         </div>
     );
 }
@@ -1132,7 +1337,8 @@ function TestBarWithContext(props) {
  * This tests whether store proxy access patterns cause subscriptions
  */
 function TestBarRealStore(props) {
-    const taskId = () => typeof props.taskId === 'function' ? props.taskId() : props.taskId;
+    const taskId = () =>
+        typeof props.taskId === 'function' ? props.taskId() : props.taskId;
 
     // Access store the way real Bar.jsx does (through _bar)
     const getPosition = () => {
@@ -1144,7 +1350,14 @@ function TestBarRealStore(props) {
             }
         }
         // Fallback to slot position
-        return slotPositions[props.slotIndex] ?? { x: 0, y: 0, width: SLOT_WIDTH, height: SLOT_HEIGHT };
+        return (
+            slotPositions[props.slotIndex] ?? {
+                x: 0,
+                y: 0,
+                width: SLOT_WIDTH,
+                height: SLOT_HEIGHT,
+            }
+        );
     };
 
     const task = () => {
@@ -1163,29 +1376,37 @@ function TestBarRealStore(props) {
     const progress = createMemo(() => task()?.progress ?? 0);
 
     return (
-        <div style={{
-            position: 'absolute',
-            transform: `translate(${x()}px, ${y()}px)`,
-            width: `${width()}px`,
-            height: `${height()}px`,
-            background: color(),
-            'border-radius': '3px',
-        }}>
-            <div style={{
+        <div
+            style={{
                 position: 'absolute',
-                left: 0,
-                top: 0,
-                width: `${(width() * progress()) / 100}px`,
-                height: '100%',
-                background: 'rgba(0,0,0,0.3)',
-                display: progress() > 0 ? 'block' : 'none',
-            }} />
-            <span style={{
-                color: '#fff',
-                'font-size': '11px',
-                padding: '4px',
-                display: 'block',
-            }}>{name()}</span>
+                transform: `translate(${x()}px, ${y()}px)`,
+                width: `${width()}px`,
+                height: `${height()}px`,
+                background: color(),
+                'border-radius': '3px',
+            }}
+        >
+            <div
+                style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    width: `${(width() * progress()) / 100}px`,
+                    height: '100%',
+                    background: 'rgba(0,0,0,0.3)',
+                    display: progress() > 0 ? 'block' : 'none',
+                }}
+            />
+            <span
+                style={{
+                    color: '#fff',
+                    'font-size': '11px',
+                    padding: '4px',
+                    display: 'block',
+                }}
+            >
+                {name()}
+            </span>
         </div>
     );
 }
@@ -1195,7 +1416,8 @@ function TestBarRealStore(props) {
  * Tests if useDrag's global listeners and RAF cause issues
  */
 function TestBarWithDrag(props) {
-    const taskId = () => typeof props.taskId === 'function' ? props.taskId() : props.taskId;
+    const taskId = () =>
+        typeof props.taskId === 'function' ? props.taskId() : props.taskId;
     const task = () => props.tasks[taskId()];
     const pos = () => slotPositions[props.slotIndex] ?? { x: 0, y: 0 };
 
@@ -1243,21 +1465,27 @@ function TestBarWithDrag(props) {
                 cursor: 'grab',
             }}
         >
-            <div style={{
-                position: 'absolute',
-                left: 0,
-                top: 0,
-                width: `${(SLOT_WIDTH * progress()) / 100}px`,
-                height: '100%',
-                background: 'rgba(0,0,0,0.3)',
-                display: progress() > 0 ? 'block' : 'none',
-            }} />
-            <span style={{
-                color: '#fff',
-                'font-size': '11px',
-                padding: '4px',
-                display: 'block',
-            }}>{name()}</span>
+            <div
+                style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    width: `${(SLOT_WIDTH * progress()) / 100}px`,
+                    height: '100%',
+                    background: 'rgba(0,0,0,0.3)',
+                    display: progress() > 0 ? 'block' : 'none',
+                }}
+            />
+            <span
+                style={{
+                    color: '#fff',
+                    'font-size': '11px',
+                    padding: '4px',
+                    display: 'block',
+                }}
+            >
+                {name()}
+            </span>
         </div>
     );
 }
@@ -1267,7 +1495,8 @@ function TestBarWithDrag(props) {
  * This matches the real Bar.jsx complexity
  */
 function TestBarCombined(props) {
-    const taskId = () => typeof props.taskId === 'function' ? props.taskId() : props.taskId;
+    const taskId = () =>
+        typeof props.taskId === 'function' ? props.taskId() : props.taskId;
     const task = () => props.tasks[taskId()];
     const pos = () => slotPositions[props.slotIndex] ?? { x: 0, y: 0 };
 
@@ -1291,15 +1520,21 @@ function TestBarCombined(props) {
     const hasSubtasks = createMemo(() => task()?._children?.length > 0);
     const showHandles = createMemo(() => !readonly());
     const showDateHandles = createMemo(() => showHandles() && !readonlyDates());
-    const showProgressHandle = createMemo(() => showHandles() && !readonlyProgress());
+    const showProgressHandle = createMemo(
+        () => showHandles() && !readonlyProgress(),
+    );
 
     // useDrag hook (like real Bar)
     const { dragState, isDragging, startDrag } = useDrag({
         onDragStart: (data, state) => {
             data.originalX = pos().x;
         },
-        onDragMove: (move, data, state) => { /* noop */ },
-        onDragEnd: (move, data, state) => { /* noop */ },
+        onDragMove: (move, data, state) => {
+            /* noop */
+        },
+        onDragEnd: (move, data, state) => {
+            /* noop */
+        },
     });
 
     const dragStateClass = () => {
@@ -1314,9 +1549,15 @@ function TestBarCombined(props) {
         e.stopPropagation();
         startDrag(e, 'dragging_bar');
     };
-    const handleMouseEnter = (e) => { onHover?.(taskId(), e); };
-    const handleMouseLeave = () => { /* noop */ };
-    const handleClick = (e) => { /* noop */ };
+    const handleMouseEnter = (e) => {
+        onHover?.(taskId(), e);
+    };
+    const handleMouseLeave = () => {
+        /* noop */
+    };
+    const handleClick = (e) => {
+        /* noop */
+    };
     const handleLeftHandleMouseDown = (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -1407,7 +1648,9 @@ function TestBarCombined(props) {
                     'pointer-events': 'none',
                     display: isLocked() ? 'block' : 'none',
                 }}
-            >🔒</div>
+            >
+                🔒
+            </div>
             {/* Left handle */}
             <div
                 class="handle handle-left"
@@ -1422,7 +1665,8 @@ function TestBarCombined(props) {
                     'background-color': '#ddd',
                     cursor: 'ew-resize',
                     opacity: 0,
-                    display: showDateHandles() && !isLocked() ? 'block' : 'none',
+                    display:
+                        showDateHandles() && !isLocked() ? 'block' : 'none',
                 }}
             />
             {/* Right handle */}
@@ -1439,7 +1683,8 @@ function TestBarCombined(props) {
                     'background-color': '#ddd',
                     cursor: 'ew-resize',
                     opacity: 0,
-                    display: showDateHandles() && !isLocked() ? 'block' : 'none',
+                    display:
+                        showDateHandles() && !isLocked() ? 'block' : 'none',
                 }}
             />
             {/* Progress handle */}
@@ -1459,7 +1704,10 @@ function TestBarCombined(props) {
                     cursor: 'ew-resize',
                     opacity: 0,
                     'box-sizing': 'border-box',
-                    display: showProgressHandle() && progress() > 0 && !isLocked() ? 'block' : 'none',
+                    display:
+                        showProgressHandle() && progress() > 0 && !isLocked()
+                            ? 'block'
+                            : 'none',
                 }}
             />
         </div>
@@ -1602,7 +1850,7 @@ function IndexTestDemo() {
     const visibleTasks = createMemo(() => {
         const start = offset();
         const end = Math.min(start + VISIBLE_COUNT, allTaskIds.length);
-        return allTaskIds.slice(start, end).map(id => tasks[id]);
+        return allTaskIds.slice(start, end).map((id) => tasks[id]);
     });
 
     // Test controls
@@ -1645,7 +1893,12 @@ function IndexTestDemo() {
 
             if (frameTimes.length > 0) {
                 setWorstFrame(Math.max(...frameTimes).toFixed(2));
-                setAvgFrame((frameTimes.reduce((a, b) => a + b, 0) / frameTimes.length).toFixed(2));
+                setAvgFrame(
+                    (
+                        frameTimes.reduce((a, b) => a + b, 0) /
+                        frameTimes.length
+                    ).toFixed(2),
+                );
             }
             frameTimes = [];
         }
@@ -1663,14 +1916,17 @@ function IndexTestDemo() {
         const rowHeight = SLOT_HEIGHT + GAP;
         const newOffset = Math.floor(scrollTop / rowHeight) * COLS;
 
-        setOffset(Math.max(0, Math.min(newOffset, allTaskIds.length - VISIBLE_COUNT)));
+        setOffset(
+            Math.max(0, Math.min(newOffset, allTaskIds.length - VISIBLE_COUNT)),
+        );
     };
 
     // Auto-scroll animation for real scroll mode
     const autoScroll = () => {
         if (!scrollContainerRef || !running() || !realScrollMode()) return;
 
-        const maxScroll = scrollContainerRef.scrollHeight - scrollContainerRef.clientHeight;
+        const maxScroll =
+            scrollContainerRef.scrollHeight - scrollContainerRef.clientHeight;
         let currentScroll = scrollContainerRef.scrollTop;
 
         currentScroll += direction() * 5;
@@ -1705,7 +1961,7 @@ function IndexTestDemo() {
         } else {
             // Interval mode - just update offset, frame timing measured in RAF
             intervalId = setInterval(() => {
-                setOffset(prev => {
+                setOffset((prev) => {
                     let next = prev + direction() * SCROLL_STEP;
 
                     // Bounce at edges
@@ -1741,41 +1997,55 @@ function IndexTestDemo() {
     });
 
     // Stats color helpers
-    const fpsColor = () => fps() >= 55 ? '#10b981' : fps() >= 30 ? '#f59e0b' : '#ef4444';
-    const frameColor = (v) => parseFloat(v) <= 16 ? '#10b981' : parseFloat(v) <= 33 ? '#f59e0b' : '#ef4444';
+    const fpsColor = () =>
+        fps() >= 55 ? '#10b981' : fps() >= 30 ? '#f59e0b' : '#ef4444';
+    const frameColor = (v) =>
+        parseFloat(v) <= 16
+            ? '#10b981'
+            : parseFloat(v) <= 33
+              ? '#f59e0b'
+              : '#ef4444';
 
     return (
-        <div style={{
-            height: '100vh',
-            display: 'flex',
-            'flex-direction': 'column',
-            padding: '15px',
-        }}>
-            {/* Header */}
-            <div style={{
+        <div
+            style={{
+                height: '100vh',
                 display: 'flex',
-                gap: '20px',
-                'align-items': 'center',
-                'margin-bottom': '15px',
-                'flex-wrap': 'wrap',
-            }}>
+                'flex-direction': 'column',
+                padding: '15px',
+            }}
+        >
+            {/* Header */}
+            <div
+                style={{
+                    display: 'flex',
+                    gap: '20px',
+                    'align-items': 'center',
+                    'margin-bottom': '15px',
+                    'flex-wrap': 'wrap',
+                }}
+            >
                 <h1 style={{ margin: 0, 'font-size': '18px' }}>
                     Index Recycling Test
                 </h1>
 
                 {/* Stats */}
-                <div style={{
-                    display: 'flex',
-                    gap: '15px',
-                    padding: '8px 15px',
-                    background: '#2d2d44',
-                    'border-radius': '6px',
-                    'font-family': 'monospace',
-                    'font-size': '13px',
-                }}>
+                <div
+                    style={{
+                        display: 'flex',
+                        gap: '15px',
+                        padding: '8px 15px',
+                        background: '#2d2d44',
+                        'border-radius': '6px',
+                        'font-family': 'monospace',
+                        'font-size': '13px',
+                    }}
+                >
                     <span>
                         <span style={{ color: '#888' }}>Visible: </span>
-                        <span style={{ color: '#10b981' }}>{visibleTaskIds().length}</span>
+                        <span style={{ color: '#10b981' }}>
+                            {visibleTaskIds().length}
+                        </span>
                     </span>
                     <span>
                         <span style={{ color: '#888' }}>Offset: </span>
@@ -1787,20 +2057,32 @@ function IndexTestDemo() {
                     </span>
                     <span>
                         <span style={{ color: '#888' }}>Update: </span>
-                        <span style={{ color: frameColor(updateTime()) }}>{updateTime()}ms</span>
+                        <span style={{ color: frameColor(updateTime()) }}>
+                            {updateTime()}ms
+                        </span>
                     </span>
                     <span>
                         <span style={{ color: '#888' }}>Worst: </span>
-                        <span style={{ color: frameColor(worstFrame()) }}>{worstFrame()}ms</span>
+                        <span style={{ color: frameColor(worstFrame()) }}>
+                            {worstFrame()}ms
+                        </span>
                     </span>
                     <span>
                         <span style={{ color: '#888' }}>Avg: </span>
-                        <span style={{ color: frameColor(avgFrame()) }}>{avgFrame()}ms</span>
+                        <span style={{ color: frameColor(avgFrame()) }}>
+                            {avgFrame()}ms
+                        </span>
                     </span>
                 </div>
 
                 {/* Controls */}
-                <div style={{ display: 'flex', gap: '10px', 'align-items': 'center' }}>
+                <div
+                    style={{
+                        display: 'flex',
+                        gap: '10px',
+                        'align-items': 'center',
+                    }}
+                >
                     <select
                         value={variant()}
                         onChange={(e) => setVariant(e.target.value)}
@@ -1817,22 +2099,46 @@ function IndexTestDemo() {
                         <option value="memo">V2: + Memos</option>
                         <option value="show">V3: + Show (suspected)</option>
                         <option value="css">V4: CSS Only (fix)</option>
-                        <option value="manyMemos">V5: + Many Memos (20+)</option>
-                        <option value="handlers">V6: + Event Handlers (8)</option>
-                        <option value="fullDOM">V7: + Full DOM (8 elements)</option>
-                        <option value="fullDOMOpt">V7b: Full DOM + CSS vars</option>
-                        <option value="fullDOMNoText">V7c: Full DOM NO TEXT</option>
-                        <option value="fullDOMOptText">V7d: Memo eval only (no render)</option>
+                        <option value="manyMemos">
+                            V5: + Many Memos (20+)
+                        </option>
+                        <option value="handlers">
+                            V6: + Event Handlers (8)
+                        </option>
+                        <option value="fullDOM">
+                            V7: + Full DOM (8 elements)
+                        </option>
+                        <option value="fullDOMOpt">
+                            V7b: Full DOM + CSS vars
+                        </option>
+                        <option value="fullDOMNoText">
+                            V7c: Full DOM NO TEXT
+                        </option>
+                        <option value="fullDOMOptText">
+                            V7d: Memo eval only (no render)
+                        </option>
                         <option value="noMemos">V7e: NO MEMOS (no text)</option>
-                        <option value="singleMemo">V7f: SINGLE MEMO (no text)</option>
+                        <option value="singleMemo">
+                            V7f: SINGLE MEMO (no text)
+                        </option>
                         <option value="withText">V7g: WITH TEXT RENDER</option>
-                        <option value="directTask">V7h: DIRECT TASK (no lookup)</option>
-                        <option value="directTaskFull">V7i: + lock + id text</option>
-                        <option value="minimalCSS">V7j: MINIMAL CSS (no contain/will-change)</option>
+                        <option value="directTask">
+                            V7h: DIRECT TASK (no lookup)
+                        </option>
+                        <option value="directTaskFull">
+                            V7i: + lock + id text
+                        </option>
+                        <option value="minimalCSS">
+                            V7j: MINIMAL CSS (no contain/will-change)
+                        </option>
                         <option value="context">V8: + Context</option>
                         <option value="useDrag">V9: + useDrag Hook</option>
-                        <option value="realStore">V10: Real Store Pattern</option>
-                        <option value="combined">V11: COMBINED (all features)</option>
+                        <option value="realStore">
+                            V10: Real Store Pattern
+                        </option>
+                        <option value="combined">
+                            V11: COMBINED (all features)
+                        </option>
                     </select>
 
                     <button
@@ -1850,54 +2156,109 @@ function IndexTestDemo() {
                         {running() ? 'Stop' : 'Start'}
                     </button>
 
-                    <label style={{ display: 'flex', 'align-items': 'center', gap: '5px', cursor: 'pointer' }}>
+                    <label
+                        style={{
+                            display: 'flex',
+                            'align-items': 'center',
+                            gap: '5px',
+                            cursor: 'pointer',
+                        }}
+                    >
                         <input
                             type="checkbox"
                             checked={showArrows()}
                             onChange={(e) => setShowArrows(e.target.checked)}
                         />
-                        <span style={{ color: '#aaa', 'font-size': '12px' }}>+ Arrows</span>
+                        <span style={{ color: '#aaa', 'font-size': '12px' }}>
+                            + Arrows
+                        </span>
                     </label>
 
-                    <label style={{ display: 'flex', 'align-items': 'center', gap: '5px', cursor: 'pointer' }}>
+                    <label
+                        style={{
+                            display: 'flex',
+                            'align-items': 'center',
+                            gap: '5px',
+                            cursor: 'pointer',
+                        }}
+                    >
                         <input
                             type="checkbox"
                             checked={realScrollMode()}
-                            onChange={(e) => setRealScrollMode(e.target.checked)}
+                            onChange={(e) =>
+                                setRealScrollMode(e.target.checked)
+                            }
                         />
-                        <span style={{ color: '#aaa', 'font-size': '12px' }}>Real Scroll</span>
+                        <span style={{ color: '#aaa', 'font-size': '12px' }}>
+                            Real Scroll
+                        </span>
                     </label>
                 </div>
             </div>
 
             {/* Explanation */}
-            <div style={{
-                padding: '10px 15px',
-                background: '#2d2d44',
-                'border-radius': '6px',
-                'margin-bottom': '15px',
-                'font-size': '11px',
-                color: '#aaa',
-            }}>
-                <strong style={{ color: '#fff' }}>Test variants (progressive complexity):</strong>
-                <div style={{ display: 'flex', gap: '20px', 'margin-top': '5px' }}>
+            <div
+                style={{
+                    padding: '10px 15px',
+                    background: '#2d2d44',
+                    'border-radius': '6px',
+                    'margin-bottom': '15px',
+                    'font-size': '11px',
+                    color: '#aaa',
+                }}
+            >
+                <strong style={{ color: '#fff' }}>
+                    Test variants (progressive complexity):
+                </strong>
+                <div
+                    style={{
+                        display: 'flex',
+                        gap: '20px',
+                        'margin-top': '5px',
+                    }}
+                >
                     <ul style={{ margin: 0, 'padding-left': '15px' }}>
-                        <li><strong>V1:</strong> Minimal div</li>
-                        <li><strong>V2:</strong> + memos (2)</li>
-                        <li><strong>V3:</strong> + Show (SLOW)</li>
-                        <li><strong>V4:</strong> CSS display</li>
+                        <li>
+                            <strong>V1:</strong> Minimal div
+                        </li>
+                        <li>
+                            <strong>V2:</strong> + memos (2)
+                        </li>
+                        <li>
+                            <strong>V3:</strong> + Show (SLOW)
+                        </li>
+                        <li>
+                            <strong>V4:</strong> CSS display
+                        </li>
                     </ul>
                     <ul style={{ margin: 0, 'padding-left': '15px' }}>
-                        <li><strong>V5:</strong> + 20 memos</li>
-                        <li><strong>V6:</strong> + 8 handlers</li>
-                        <li><strong>V7:</strong> + Full DOM</li>
-                        <li><strong>V7e:</strong> NO memos</li>
-                        <li><strong>V7f:</strong> Single memo</li>
+                        <li>
+                            <strong>V5:</strong> + 20 memos
+                        </li>
+                        <li>
+                            <strong>V6:</strong> + 8 handlers
+                        </li>
+                        <li>
+                            <strong>V7:</strong> + Full DOM
+                        </li>
+                        <li>
+                            <strong>V7e:</strong> NO memos
+                        </li>
+                        <li>
+                            <strong>V7f:</strong> Single memo
+                        </li>
                     </ul>
                     <ul style={{ margin: 0, 'padding-left': '15px' }}>
-                        <li><strong>V9:</strong> + useDrag hook</li>
-                        <li><strong>V10:</strong> Real store</li>
-                        <li><strong style={{ color: '#f59e0b' }}>V11:</strong> ALL COMBINED</li>
+                        <li>
+                            <strong>V9:</strong> + useDrag hook
+                        </li>
+                        <li>
+                            <strong>V10:</strong> Real store
+                        </li>
+                        <li>
+                            <strong style={{ color: '#f59e0b' }}>V11:</strong>{' '}
+                            ALL COMBINED
+                        </li>
                     </ul>
                 </div>
             </div>
@@ -1916,35 +2277,48 @@ function IndexTestDemo() {
             >
                 {/* Virtual scroll content height (for real scroll mode) */}
                 {realScrollMode() && (
-                    <div style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '1px',
-                        height: `${(allTaskIds.length / COLS) * (SLOT_HEIGHT + GAP)}px`,
-                        'pointer-events': 'none',
-                    }} />
+                    <div
+                        style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '1px',
+                            height: `${(allTaskIds.length / COLS) * (SLOT_HEIGHT + GAP)}px`,
+                            'pointer-events': 'none',
+                        }}
+                    />
                 )}
 
                 {/* Arrows layer (conditional) */}
-                {showArrows() && <SimpleArrowLayer visibleTaskIds={visibleTaskIds()} />}
+                {showArrows() && (
+                    <SimpleArrowLayer visibleTaskIds={visibleTaskIds()} />
+                )}
 
                 {variant() === 'directTask' ? (
                     <Index each={visibleTasks()}>
                         {(task, slotIndex) => (
-                            <TestBarDirectTask task={task} slotIndex={slotIndex} />
+                            <TestBarDirectTask
+                                task={task}
+                                slotIndex={slotIndex}
+                            />
                         )}
                     </Index>
                 ) : variant() === 'directTaskFull' ? (
                     <Index each={visibleTasks()}>
                         {(task, slotIndex) => (
-                            <TestBarDirectTaskFull task={task} slotIndex={slotIndex} />
+                            <TestBarDirectTaskFull
+                                task={task}
+                                slotIndex={slotIndex}
+                            />
                         )}
                     </Index>
                 ) : variant() === 'minimalCSS' ? (
                     <Index each={visibleTasks()}>
                         {(task, slotIndex) => (
-                            <TestBarMinimalCSS task={task} slotIndex={slotIndex} />
+                            <TestBarMinimalCSS
+                                task={task}
+                                slotIndex={slotIndex}
+                            />
                         )}
                     </Index>
                 ) : (
@@ -1964,14 +2338,23 @@ function IndexTestDemo() {
     );
 }
 
-render(() => (
-    <TestEventsContext.Provider value={{
-        onHover: (id, e) => { /* noop */ },
-        onClick: (id, e) => { /* noop */ },
-        onDragStart: null,
-        onDragEnd: null,
-        onResize: null,
-    }}>
-        <IndexTestDemo />
-    </TestEventsContext.Provider>
-), document.getElementById('app'));
+render(
+    () => (
+        <TestEventsContext.Provider
+            value={{
+                onHover: (id, e) => {
+                    /* noop */
+                },
+                onClick: (id, e) => {
+                    /* noop */
+                },
+                onDragStart: null,
+                onDragEnd: null,
+                onResize: null,
+            }}
+        >
+            <IndexTestDemo />
+        </TestEventsContext.Provider>
+    ),
+    document.getElementById('app'),
+);

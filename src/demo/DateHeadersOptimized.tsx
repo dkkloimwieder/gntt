@@ -49,7 +49,10 @@ export function DateHeadersOptimized(props) {
         const startText = infos[start]?.upperText;
         if (startText) {
             let scanBack = start;
-            while (scanBack > 0 && infos[scanBack - 1]?.upperText === startText) {
+            while (
+                scanBack > 0 &&
+                infos[scanBack - 1]?.upperText === startText
+            ) {
                 scanBack--;
             }
             groupStartIndex = scanBack;
@@ -75,7 +78,10 @@ export function DateHeadersOptimized(props) {
         // Final group - find where it ends
         if (currentText !== null) {
             let groupEnd = end;
-            while (groupEnd < infos.length && infos[groupEnd]?.upperText === currentText) {
+            while (
+                groupEnd < infos.length &&
+                infos[groupEnd]?.upperText === currentText
+            ) {
                 groupEnd++;
             }
             slots.push({
@@ -159,8 +165,10 @@ export function DateHeadersOptimized(props) {
                 >
                     <Index each={upperSlots()}>
                         {(slot) => {
-                            const startInfo = () => dateInfos()[slot().startIndex];
-                            const endInfo = () => dateInfos()[slot().endIndex + 1] || null;
+                            const startInfo = () =>
+                                dateInfos()[slot().startIndex];
+                            const endInfo = () =>
+                                dateInfos()[slot().endIndex + 1] || null;
                             const x = () => startInfo()?.x ?? 0;
                             const width = () => {
                                 const endX = endInfo()?.x ?? gridWidth();
@@ -209,7 +217,8 @@ export function DateHeadersOptimized(props) {
                                     'justify-content': 'center',
                                     'font-size': '12px',
                                     color: 'var(--g-header-text-color-secondary, #666)',
-                                    'border-right': '1px solid var(--g-grid-line-color, #e0e0e0)',
+                                    'border-right':
+                                        '1px solid var(--g-grid-line-color, #e0e0e0)',
                                     'box-sizing': 'border-box',
                                     // Dynamic props - only these should trigger updates
                                     left: `${entry()?.x ?? 0}px`,

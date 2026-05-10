@@ -14,7 +14,10 @@ interface HierarchyTask {
 /** Generic task map - can be Map or Record */
 type TaskMapLike<T> = Map<string, T> | Record<string, T | undefined>;
 
-function getTaskFromMap<T>(tasksObj: TaskMapLike<T>, id: string): T | undefined {
+function getTaskFromMap<T>(
+    tasksObj: TaskMapLike<T>,
+    id: string,
+): T | undefined {
     if (tasksObj instanceof Map) {
         return tasksObj.get(id);
     }
@@ -26,7 +29,9 @@ function getTaskFromMap<T>(tasksObj: TaskMapLike<T>, id: string): T | undefined 
  * Mutates tasks in place to add _children, _depth, and auto-detect summary type.
  * Generic to preserve input task type.
  */
-export function buildHierarchy<T extends HierarchyTask>(tasks: T[]): Map<string, T> {
+export function buildHierarchy<T extends HierarchyTask>(
+    tasks: T[],
+): Map<string, T> {
     const taskMap = new Map<string, T>();
 
     // Initialize all tasks
@@ -53,7 +58,10 @@ export function buildHierarchy<T extends HierarchyTask>(tasks: T[]): Map<string,
 
     // Compute depths via BFS from roots
     const roots = tasks.filter((t) => !t.parentId);
-    const queue: { task: T; depth: number }[] = roots.map((t) => ({ task: t, depth: 0 }));
+    const queue: { task: T; depth: number }[] = roots.map((t) => ({
+        task: t,
+        depth: 0,
+    }));
 
     while (queue.length > 0) {
         const item = queue.shift();
@@ -89,7 +97,7 @@ export function buildHierarchy<T extends HierarchyTask>(tasks: T[]): Map<string,
  */
 export function collectDescendants<T extends HierarchyTask>(
     taskId: string,
-    tasksObj: TaskMapLike<T>
+    tasksObj: TaskMapLike<T>,
 ): Set<string> {
     const descendants = new Set<string>();
     const queue = [taskId];
@@ -117,7 +125,7 @@ export function collectDescendants<T extends HierarchyTask>(
 export function isHiddenByCollapsedAncestor<T extends HierarchyTask>(
     taskId: string,
     tasksObj: TaskMapLike<T>,
-    collapsedSet: Set<string>
+    collapsedSet: Set<string>,
 ): boolean {
     const getTask = (id: string) => getTaskFromMap(tasksObj, id);
     let task = getTask(taskId);
@@ -137,7 +145,7 @@ export function isHiddenByCollapsedAncestor<T extends HierarchyTask>(
  */
 export function getAncestors<T extends HierarchyTask>(
     taskId: string,
-    tasksObj: TaskMapLike<T>
+    tasksObj: TaskMapLike<T>,
 ): string[] {
     const getTask = (id: string) => getTaskFromMap(tasksObj, id);
     const ancestors: string[] = [];

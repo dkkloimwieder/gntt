@@ -48,16 +48,20 @@ function findFixedOffsetLinks(taskId, relationships, visited = new Set()) {
 
     const linked = [];
 
-    relationships.forEach(rel => {
+    relationships.forEach((rel) => {
         if (!rel.fixedOffset) return;
 
         if (rel.from === taskId && !visited.has(rel.to)) {
             linked.push({ taskId: rel.to, relationship: rel });
-            linked.push(...findFixedOffsetLinks(rel.to, relationships, visited));
+            linked.push(
+                ...findFixedOffsetLinks(rel.to, relationships, visited),
+            );
         }
         if (rel.to === taskId && !visited.has(rel.from)) {
             linked.push({ taskId: rel.from, relationship: rel });
-            linked.push(...findFixedOffsetLinks(rel.from, relationships, visited));
+            linked.push(
+                ...findFixedOffsetLinks(rel.from, relationships, visited),
+            );
         }
     });
 
@@ -83,7 +87,14 @@ function calculateDistance(predTask, succTask, predNewX = null) {
  *
  * Tasks can be locked to prevent movement.
  */
-function resolveMovement(taskId, newX, newY, taskStore, relationships, depth = 0) {
+function resolveMovement(
+    taskId,
+    newX,
+    newY,
+    taskStore,
+    relationships,
+    depth = 0,
+) {
     // Prevent infinite recursion
     if (depth > 10) return null;
 
@@ -99,7 +110,7 @@ function resolveMovement(taskId, newX, newY, taskStore, relationships, depth = 0
     const fixedLinks = findFixedOffsetLinks(taskId, relationships);
     if (fixedLinks.length > 0) {
         // Check if any linked task is locked
-        const hasLockedLink = fixedLinks.some(link => {
+        const hasLockedLink = fixedLinks.some((link) => {
             const linkedTask = taskStore.getTask(link.taskId);
             return linkedTask?.constraints?.locked;
         });
@@ -114,7 +125,7 @@ function resolveMovement(taskId, newX, newY, taskStore, relationships, depth = 0
 
         const updates = [{ taskId, x: newX, y: newY }];
 
-        fixedLinks.forEach(link => {
+        fixedLinks.forEach((link) => {
             const linkedTask = taskStore.getTask(link.taskId);
             if (linkedTask) {
                 updates.push({
@@ -161,10 +172,13 @@ function resolveMovement(taskId, newX, newY, taskStore, relationships, depth = 0
                         otherTask._bar.y,
                         taskStore,
                         relationships,
-                        depth + 1
+                        depth + 1,
                     );
                     if (result?.type === 'single') {
-                        taskStore.updateBarPosition(otherTaskId, { x: result.x, y: result.y });
+                        taskStore.updateBarPosition(otherTaskId, {
+                            x: result.x,
+                            y: result.y,
+                        });
                     }
                 }
             }
@@ -183,10 +197,13 @@ function resolveMovement(taskId, newX, newY, taskStore, relationships, depth = 0
                         otherTask._bar.y,
                         taskStore,
                         relationships,
-                        depth + 1
+                        depth + 1,
                     );
                     if (result?.type === 'single') {
-                        taskStore.updateBarPosition(otherTaskId, { x: result.x, y: result.y });
+                        taskStore.updateBarPosition(otherTaskId, {
+                            x: result.x,
+                            y: result.y,
+                        });
                     }
                 }
             }
@@ -216,10 +233,13 @@ function resolveMovement(taskId, newX, newY, taskStore, relationships, depth = 0
                         predTask._bar.y,
                         taskStore,
                         relationships,
-                        depth + 1
+                        depth + 1,
                     );
                     if (result?.type === 'single') {
-                        taskStore.updateBarPosition(otherTaskId, { x: result.x, y: result.y });
+                        taskStore.updateBarPosition(otherTaskId, {
+                            x: result.x,
+                            y: result.y,
+                        });
                     }
                 }
             }
@@ -238,10 +258,13 @@ function resolveMovement(taskId, newX, newY, taskStore, relationships, depth = 0
                         predTask._bar.y,
                         taskStore,
                         relationships,
-                        depth + 1
+                        depth + 1,
                     );
                     if (result?.type === 'single') {
-                        taskStore.updateBarPosition(otherTaskId, { x: result.x, y: result.y });
+                        taskStore.updateBarPosition(otherTaskId, {
+                            x: result.x,
+                            y: result.y,
+                        });
                     }
                 }
             }
@@ -273,96 +296,330 @@ export function ConstraintDemo() {
     const scenarios = {
         push: {
             title: '1. Push (minDistance)',
-            description: 'Drag predecessor right - pushes successor when gap < 10px',
+            description:
+                'Drag predecessor right - pushes successor when gap < 10px',
             tasks: [
-                { id: 'push-pred', name: 'Pred', x: 50, y: 80, w: 80, h: 24, constraints: {} },
-                { id: 'push-succ', name: 'Succ', x: 180, y: 80, w: 80, h: 24, constraints: {} },
+                {
+                    id: 'push-pred',
+                    name: 'Pred',
+                    x: 50,
+                    y: 80,
+                    w: 80,
+                    h: 24,
+                    constraints: {},
+                },
+                {
+                    id: 'push-succ',
+                    name: 'Succ',
+                    x: 180,
+                    y: 80,
+                    w: 80,
+                    h: 24,
+                    constraints: {},
+                },
             ],
-            relationships: [{ from: 'push-pred', to: 'push-succ', minDistance: 10, color: COLORS.push }],
+            relationships: [
+                {
+                    from: 'push-pred',
+                    to: 'push-succ',
+                    minDistance: 10,
+                    color: COLORS.push,
+                },
+            ],
         },
 
         blocked: {
             title: '2. Blocked by Lock',
-            description: 'Predecessor stops when it would push a locked successor',
+            description:
+                'Predecessor stops when it would push a locked successor',
             tasks: [
-                { id: 'block-pred', name: 'Pred', x: 50, y: 140, w: 80, h: 24, constraints: {} },
-                { id: 'block-succ', name: 'Locked', x: 180, y: 140, w: 80, h: 24, constraints: { locked: true } },
+                {
+                    id: 'block-pred',
+                    name: 'Pred',
+                    x: 50,
+                    y: 140,
+                    w: 80,
+                    h: 24,
+                    constraints: {},
+                },
+                {
+                    id: 'block-succ',
+                    name: 'Locked',
+                    x: 180,
+                    y: 140,
+                    w: 80,
+                    h: 24,
+                    constraints: { locked: true },
+                },
             ],
-            relationships: [{ from: 'block-pred', to: 'block-succ', minDistance: 10, color: COLORS.locked }],
+            relationships: [
+                {
+                    from: 'block-pred',
+                    to: 'block-succ',
+                    minDistance: 10,
+                    color: COLORS.locked,
+                },
+            ],
         },
 
         pull: {
             title: '3. Pull/Tether (maxDistance)',
-            description: 'Drag predecessor left - pulls successor when gap > 100px',
+            description:
+                'Drag predecessor left - pulls successor when gap > 100px',
             tasks: [
-                { id: 'pull-pred', name: 'Pred', x: 50, y: 200, w: 80, h: 24, constraints: {} },
-                { id: 'pull-succ', name: 'Succ', x: 180, y: 200, w: 80, h: 24, constraints: {} },
+                {
+                    id: 'pull-pred',
+                    name: 'Pred',
+                    x: 50,
+                    y: 200,
+                    w: 80,
+                    h: 24,
+                    constraints: {},
+                },
+                {
+                    id: 'pull-succ',
+                    name: 'Succ',
+                    x: 180,
+                    y: 200,
+                    w: 80,
+                    h: 24,
+                    constraints: {},
+                },
             ],
-            relationships: [{ from: 'pull-pred', to: 'pull-succ', maxDistance: 100, color: COLORS.pull }],
+            relationships: [
+                {
+                    from: 'pull-pred',
+                    to: 'pull-succ',
+                    maxDistance: 100,
+                    color: COLORS.pull,
+                },
+            ],
         },
 
         bounded: {
             title: '4. Bounded (min + max)',
-            description: 'Gap constrained between 10-100px - push and pull both active',
+            description:
+                'Gap constrained between 10-100px - push and pull both active',
             tasks: [
-                { id: 'bound-pred', name: 'Pred', x: 50, y: 260, w: 80, h: 24, constraints: {} },
-                { id: 'bound-succ', name: 'Succ', x: 180, y: 260, w: 80, h: 24, constraints: {} },
+                {
+                    id: 'bound-pred',
+                    name: 'Pred',
+                    x: 50,
+                    y: 260,
+                    w: 80,
+                    h: 24,
+                    constraints: {},
+                },
+                {
+                    id: 'bound-succ',
+                    name: 'Succ',
+                    x: 180,
+                    y: 260,
+                    w: 80,
+                    h: 24,
+                    constraints: {},
+                },
             ],
-            relationships: [{ from: 'bound-pred', to: 'bound-succ', minDistance: 10, maxDistance: 100, color: '#f39c12' }],
+            relationships: [
+                {
+                    from: 'bound-pred',
+                    to: 'bound-succ',
+                    minDistance: 10,
+                    maxDistance: 100,
+                    color: '#f39c12',
+                },
+            ],
         },
 
         fixedPair: {
             title: '5. Fixed Offset Pair',
-            description: 'Drag either task - both move together (exact distance)',
+            description:
+                'Drag either task - both move together (exact distance)',
             tasks: [
-                { id: 'fixed-a', name: 'Task A', x: 50, y: 320, w: 70, h: 24, constraints: {} },
-                { id: 'fixed-b', name: 'Task B', x: 160, y: 320, w: 70, h: 24, constraints: {} },
+                {
+                    id: 'fixed-a',
+                    name: 'Task A',
+                    x: 50,
+                    y: 320,
+                    w: 70,
+                    h: 24,
+                    constraints: {},
+                },
+                {
+                    id: 'fixed-b',
+                    name: 'Task B',
+                    x: 160,
+                    y: 320,
+                    w: 70,
+                    h: 24,
+                    constraints: {},
+                },
             ],
-            relationships: [{ from: 'fixed-a', to: 'fixed-b', fixedOffset: true, color: COLORS.fixedOffset }],
+            relationships: [
+                {
+                    from: 'fixed-a',
+                    to: 'fixed-b',
+                    fixedOffset: true,
+                    color: COLORS.fixedOffset,
+                },
+            ],
         },
 
         fixedChain: {
             title: '6. Fixed Offset Chain',
             description: 'A→B→C chain - drag any, all move together',
             tasks: [
-                { id: 'chain-a', name: 'A', x: 50, y: 380, w: 50, h: 24, constraints: {} },
-                { id: 'chain-b', name: 'B', x: 130, y: 380, w: 50, h: 24, constraints: {} },
-                { id: 'chain-c', name: 'C', x: 210, y: 380, w: 50, h: 24, constraints: {} },
+                {
+                    id: 'chain-a',
+                    name: 'A',
+                    x: 50,
+                    y: 380,
+                    w: 50,
+                    h: 24,
+                    constraints: {},
+                },
+                {
+                    id: 'chain-b',
+                    name: 'B',
+                    x: 130,
+                    y: 380,
+                    w: 50,
+                    h: 24,
+                    constraints: {},
+                },
+                {
+                    id: 'chain-c',
+                    name: 'C',
+                    x: 210,
+                    y: 380,
+                    w: 50,
+                    h: 24,
+                    constraints: {},
+                },
             ],
             relationships: [
-                { from: 'chain-a', to: 'chain-b', fixedOffset: true, color: COLORS.fixedOffset },
-                { from: 'chain-b', to: 'chain-c', fixedOffset: true, color: COLORS.fixedOffset },
+                {
+                    from: 'chain-a',
+                    to: 'chain-b',
+                    fixedOffset: true,
+                    color: COLORS.fixedOffset,
+                },
+                {
+                    from: 'chain-b',
+                    to: 'chain-c',
+                    fixedOffset: true,
+                    color: COLORS.fixedOffset,
+                },
             ],
         },
 
         parallel: {
             title: '7. Parallel Tasks',
-            description: 'Overlapping tasks - successor starts during predecessor',
+            description:
+                'Overlapping tasks - successor starts during predecessor',
             tasks: [
-                { id: 'par-pred', name: 'Predecessor', x: 50, y: 420, w: 120, h: 24, constraints: {} },
-                { id: 'par-succ', name: 'Successor', x: 100, y: 470, w: 100, h: 24, constraints: {} },
+                {
+                    id: 'par-pred',
+                    name: 'Predecessor',
+                    x: 50,
+                    y: 420,
+                    w: 120,
+                    h: 24,
+                    constraints: {},
+                },
+                {
+                    id: 'par-succ',
+                    name: 'Successor',
+                    x: 100,
+                    y: 470,
+                    w: 100,
+                    h: 24,
+                    constraints: {},
+                },
             ],
-            relationships: [{ from: 'par-pred', to: 'par-succ', minDistance: -Infinity, color: '#e74c3c' }],
+            relationships: [
+                {
+                    from: 'par-pred',
+                    to: 'par-succ',
+                    minDistance: -Infinity,
+                    color: '#e74c3c',
+                },
+            ],
         },
 
         directions: {
             title: '8. Arrow Directions',
             description: 'Forward arrows: up, down, same level',
             tasks: [
-                { id: 'dir-pred-up', name: 'Pred', x: 350, y: 140, w: 70, h: 24, constraints: {} },
-                { id: 'dir-succ-up', name: 'Succ', x: 480, y: 80, w: 70, h: 24, constraints: {} },
-                { id: 'dir-pred-down', name: 'Pred', x: 350, y: 200, w: 70, h: 24, constraints: {} },
-                { id: 'dir-succ-down', name: 'Succ', x: 480, y: 260, w: 70, h: 24, constraints: {} },
-                { id: 'dir-pred-same', name: 'Pred', x: 350, y: 320, w: 70, h: 24, constraints: {} },
-                { id: 'dir-succ-same', name: 'Succ', x: 480, y: 320, w: 70, h: 24, constraints: {} },
+                {
+                    id: 'dir-pred-up',
+                    name: 'Pred',
+                    x: 350,
+                    y: 140,
+                    w: 70,
+                    h: 24,
+                    constraints: {},
+                },
+                {
+                    id: 'dir-succ-up',
+                    name: 'Succ',
+                    x: 480,
+                    y: 80,
+                    w: 70,
+                    h: 24,
+                    constraints: {},
+                },
+                {
+                    id: 'dir-pred-down',
+                    name: 'Pred',
+                    x: 350,
+                    y: 200,
+                    w: 70,
+                    h: 24,
+                    constraints: {},
+                },
+                {
+                    id: 'dir-succ-down',
+                    name: 'Succ',
+                    x: 480,
+                    y: 260,
+                    w: 70,
+                    h: 24,
+                    constraints: {},
+                },
+                {
+                    id: 'dir-pred-same',
+                    name: 'Pred',
+                    x: 350,
+                    y: 320,
+                    w: 70,
+                    h: 24,
+                    constraints: {},
+                },
+                {
+                    id: 'dir-succ-same',
+                    name: 'Succ',
+                    x: 480,
+                    y: 320,
+                    w: 70,
+                    h: 24,
+                    constraints: {},
+                },
             ],
             relationships: [
                 { from: 'dir-pred-up', to: 'dir-succ-up', color: '#9b59b6' },
-                { from: 'dir-pred-down', to: 'dir-succ-down', color: '#3498db' },
-                { from: 'dir-pred-same', to: 'dir-succ-same', color: '#2ecc71' },
+                {
+                    from: 'dir-pred-down',
+                    to: 'dir-succ-down',
+                    color: '#3498db',
+                },
+                {
+                    from: 'dir-pred-same',
+                    to: 'dir-succ-same',
+                    color: '#2ecc71',
+                },
             ],
         },
-
     };
 
     // Collect all tasks and relationships
@@ -445,13 +702,22 @@ export function ConstraintDemo() {
         const newX = svgP.x - offset.x;
         const newY = svgP.y - offset.y;
 
-        const result = resolveMovement(taskId, newX, newY, taskStore, allRelationships());
+        const result = resolveMovement(
+            taskId,
+            newX,
+            newY,
+            taskStore,
+            allRelationships(),
+        );
 
         if (result) {
             if (result.type === 'single') {
-                taskStore.updateBarPosition(taskId, { x: result.x, y: result.y });
+                taskStore.updateBarPosition(taskId, {
+                    x: result.x,
+                    y: result.y,
+                });
             } else if (result.type === 'batch') {
-                result.updates.forEach(u => {
+                result.updates.forEach((u) => {
                     taskStore.updateBarPosition(u.taskId, { x: u.x, y: u.y });
                 });
             }
@@ -467,30 +733,56 @@ export function ConstraintDemo() {
     // ═══════════════════════════════════════════════════════════════════════════
 
     return (
-        <div style={{ padding: '20px', 'font-family': 'system-ui, sans-serif', 'max-width': '800px', margin: '0 auto' }}>
+        <div
+            style={{
+                padding: '20px',
+                'font-family': 'system-ui, sans-serif',
+                'max-width': '800px',
+                margin: '0 auto',
+            }}
+        >
             <h1 style={{ 'margin-bottom': '10px' }}>Constraint Demo</h1>
             <p style={{ color: '#666', 'margin-bottom': '20px' }}>
-                Interactive demonstration of relationship constraints. <strong>Arrows are purely visual</strong> -
-                constraint logic (minDistance, maxDistance, fixedOffset) lives on <strong>relationships</strong>.
+                Interactive demonstration of relationship constraints.{' '}
+                <strong>Arrows are purely visual</strong> - constraint logic
+                (minDistance, maxDistance, fixedOffset) lives on{' '}
+                <strong>relationships</strong>.
             </p>
 
             {/* Controls */}
-            <div style={{
-                'margin-bottom': '20px',
-                padding: '15px',
-                'background-color': '#f8f9fa',
-                'border-radius': '8px',
-                display: 'flex',
-                gap: '20px',
-                'align-items': 'center',
-                'flex-wrap': 'wrap',
-            }}>
-                <label style={{ display: 'flex', 'align-items': 'center', gap: '8px' }}>
-                    <span style={{ 'font-size': '13px', 'font-weight': '500' }}>Scenario:</span>
+            <div
+                style={{
+                    'margin-bottom': '20px',
+                    padding: '15px',
+                    'background-color': '#f8f9fa',
+                    'border-radius': '8px',
+                    display: 'flex',
+                    gap: '20px',
+                    'align-items': 'center',
+                    'flex-wrap': 'wrap',
+                }}
+            >
+                <label
+                    style={{
+                        display: 'flex',
+                        'align-items': 'center',
+                        gap: '8px',
+                    }}
+                >
+                    <span style={{ 'font-size': '13px', 'font-weight': '500' }}>
+                        Scenario:
+                    </span>
                     <select
                         value={selectedScenario()}
-                        onChange={(e) => { setSelectedScenario(e.target.value); updateTasks(); }}
-                        style={{ padding: '6px 10px', 'border-radius': '4px', border: '1px solid #ddd' }}
+                        onChange={(e) => {
+                            setSelectedScenario(e.target.value);
+                            updateTasks();
+                        }}
+                        style={{
+                            padding: '6px 10px',
+                            'border-radius': '4px',
+                            border: '1px solid #ddd',
+                        }}
                     >
                         <option value="all">All Scenarios</option>
                         <For each={Object.entries(scenarios)}>
@@ -501,7 +793,13 @@ export function ConstraintDemo() {
                     </select>
                 </label>
 
-                <label style={{ display: 'flex', 'align-items': 'center', gap: '8px' }}>
+                <label
+                    style={{
+                        display: 'flex',
+                        'align-items': 'center',
+                        gap: '8px',
+                    }}
+                >
                     <input
                         type="checkbox"
                         checked={showDebug()}
@@ -516,7 +814,7 @@ export function ConstraintDemo() {
                         padding: '6px 12px',
                         'border-radius': '4px',
                         border: '1px solid #ddd',
-                        'background': '#fff',
+                        background: '#fff',
                         cursor: 'pointer',
                     }}
                 >
@@ -540,8 +838,18 @@ export function ConstraintDemo() {
             >
                 {/* Grid */}
                 <defs>
-                    <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-                        <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#f0f0f0" stroke-width="0.5" />
+                    <pattern
+                        id="grid"
+                        width="20"
+                        height="20"
+                        patternUnits="userSpaceOnUse"
+                    >
+                        <path
+                            d="M 20 0 L 0 0 0 20"
+                            fill="none"
+                            stroke="#f0f0f0"
+                            stroke-width="0.5"
+                        />
                     </pattern>
                 </defs>
                 <rect width="100%" height="100%" fill="url(#grid)" />
@@ -577,7 +885,9 @@ export function ConstraintDemo() {
                                 toId={rel.to}
                                 stroke={rel.color || '#666'}
                                 strokeWidth={rel.fixedOffset ? 4 : 2}
-                                strokeDasharray={rel.fixedOffset ? '8,4' : undefined}
+                                strokeDasharray={
+                                    rel.fixedOffset ? '8,4' : undefined
+                                }
                                 headSize={rel.fixedOffset ? 0 : 6}
                                 curveRadius={8}
                             />
@@ -590,8 +900,10 @@ export function ConstraintDemo() {
                     <For each={allTasks()}>
                         {(task) => {
                             const pos = () => taskStore.getBarPosition(task.id);
-                            const currentTask = () => taskStore.getTask(task.id);
-                            const isLocked = () => currentTask()?.constraints?.locked;
+                            const currentTask = () =>
+                                taskStore.getTask(task.id);
+                            const isLocked = () =>
+                                currentTask()?.constraints?.locked;
                             const isDragging = () => dragging() === task.id;
 
                             // Determine bar color (constraints are on relationships, not tasks)
@@ -611,16 +923,33 @@ export function ConstraintDemo() {
                                         fill={barColor()}
                                         rx="4"
                                         style={{
-                                            cursor: isLocked() ? 'not-allowed' : 'move',
-                                            stroke: isLocked() ? '#c0392b' : '#2c3e50',
-                                            'stroke-width': isLocked() ? '3' : '2',
-                                            'stroke-dasharray': isLocked() ? '4,4' : 'none',
+                                            cursor: isLocked()
+                                                ? 'not-allowed'
+                                                : 'move',
+                                            stroke: isLocked()
+                                                ? '#c0392b'
+                                                : '#2c3e50',
+                                            'stroke-width': isLocked()
+                                                ? '3'
+                                                : '2',
+                                            'stroke-dasharray': isLocked()
+                                                ? '4,4'
+                                                : 'none',
                                         }}
-                                        onMouseDown={(e) => handleMouseDown(task.id, e)}
+                                        onMouseDown={(e) =>
+                                            handleMouseDown(task.id, e)
+                                        }
                                     />
                                     <text
-                                        x={(pos()?.x || 0) + (pos()?.width || 0) / 2}
-                                        y={(pos()?.y || 0) + (pos()?.height || 0) / 2 + 4}
+                                        x={
+                                            (pos()?.x || 0) +
+                                            (pos()?.width || 0) / 2
+                                        }
+                                        y={
+                                            (pos()?.y || 0) +
+                                            (pos()?.height || 0) / 2 +
+                                            4
+                                        }
                                         text-anchor="middle"
                                         fill="white"
                                         font-size="11"
@@ -633,7 +962,11 @@ export function ConstraintDemo() {
                                     {/* Lock icon */}
                                     {isLocked() && (
                                         <text
-                                            x={(pos()?.x || 0) + (pos()?.width || 0) - 8}
+                                            x={
+                                                (pos()?.x || 0) +
+                                                (pos()?.width || 0) -
+                                                8
+                                            }
                                             y={(pos()?.y || 0) + 10}
                                             font-size="10"
                                             style={{ 'pointer-events': 'none' }}
@@ -651,7 +984,8 @@ export function ConstraintDemo() {
                                             fill="#aaa"
                                             style={{ 'pointer-events': 'none' }}
                                         >
-                                            ({Math.round(pos()?.x || 0)}, {Math.round(pos()?.y || 0)})
+                                            ({Math.round(pos()?.x || 0)},{' '}
+                                            {Math.round(pos()?.y || 0)})
                                         </text>
                                     )}
                                 </g>
@@ -662,39 +996,137 @@ export function ConstraintDemo() {
             </svg>
 
             {/* Legend */}
-            <div style={{
-                'margin-top': '20px',
-                padding: '15px',
-                'background-color': '#f8f9fa',
-                'border-radius': '8px',
-            }}>
-                <h3 style={{ margin: '0 0 12px 0', 'font-size': '14px' }}>Legend - Relationship Constraints</h3>
-                <div style={{ display: 'grid', 'grid-template-columns': 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', 'font-size': '12px' }}>
-                    <div style={{ display: 'flex', 'align-items': 'center', gap: '8px' }}>
-                        <span style={{ width: '30px', height: '2px', 'background': COLORS.push }}></span>
+            <div
+                style={{
+                    'margin-top': '20px',
+                    padding: '15px',
+                    'background-color': '#f8f9fa',
+                    'border-radius': '8px',
+                }}
+            >
+                <h3 style={{ margin: '0 0 12px 0', 'font-size': '14px' }}>
+                    Legend - Relationship Constraints
+                </h3>
+                <div
+                    style={{
+                        display: 'grid',
+                        'grid-template-columns':
+                            'repeat(auto-fit, minmax(180px, 1fr))',
+                        gap: '10px',
+                        'font-size': '12px',
+                    }}
+                >
+                    <div
+                        style={{
+                            display: 'flex',
+                            'align-items': 'center',
+                            gap: '8px',
+                        }}
+                    >
+                        <span
+                            style={{
+                                width: '30px',
+                                height: '2px',
+                                background: COLORS.push,
+                            }}
+                        ></span>
                         <span>minDistance (push)</span>
                     </div>
-                    <div style={{ display: 'flex', 'align-items': 'center', gap: '8px' }}>
-                        <span style={{ width: '30px', height: '2px', 'background': COLORS.pull }}></span>
+                    <div
+                        style={{
+                            display: 'flex',
+                            'align-items': 'center',
+                            gap: '8px',
+                        }}
+                    >
+                        <span
+                            style={{
+                                width: '30px',
+                                height: '2px',
+                                background: COLORS.pull,
+                            }}
+                        ></span>
                         <span>maxDistance (pull/tether)</span>
                     </div>
-                    <div style={{ display: 'flex', 'align-items': 'center', gap: '8px' }}>
-                        <span style={{ width: '30px', height: '2px', 'background': '#f39c12' }}></span>
+                    <div
+                        style={{
+                            display: 'flex',
+                            'align-items': 'center',
+                            gap: '8px',
+                        }}
+                    >
+                        <span
+                            style={{
+                                width: '30px',
+                                height: '2px',
+                                background: '#f39c12',
+                            }}
+                        ></span>
                         <span>min + max (bounded)</span>
                     </div>
-                    <div style={{ display: 'flex', 'align-items': 'center', gap: '8px' }}>
-                        <span style={{ width: '30px', height: '4px', 'background': COLORS.fixedOffset, 'border-radius': '2px' }}></span>
+                    <div
+                        style={{
+                            display: 'flex',
+                            'align-items': 'center',
+                            gap: '8px',
+                        }}
+                    >
+                        <span
+                            style={{
+                                width: '30px',
+                                height: '4px',
+                                background: COLORS.fixedOffset,
+                                'border-radius': '2px',
+                            }}
+                        ></span>
                         <span>fixedOffset (dashed)</span>
                     </div>
                 </div>
-                <h4 style={{ margin: '15px 0 8px 0', 'font-size': '13px' }}>Task Constraints</h4>
-                <div style={{ display: 'grid', 'grid-template-columns': 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', 'font-size': '12px' }}>
-                    <div style={{ display: 'flex', 'align-items': 'center', gap: '8px' }}>
-                        <span style={{ width: '20px', height: '12px', 'background': COLORS.free, 'border-radius': '2px' }}></span>
+                <h4 style={{ margin: '15px 0 8px 0', 'font-size': '13px' }}>
+                    Task Constraints
+                </h4>
+                <div
+                    style={{
+                        display: 'grid',
+                        'grid-template-columns':
+                            'repeat(auto-fit, minmax(180px, 1fr))',
+                        gap: '10px',
+                        'font-size': '12px',
+                    }}
+                >
+                    <div
+                        style={{
+                            display: 'flex',
+                            'align-items': 'center',
+                            gap: '8px',
+                        }}
+                    >
+                        <span
+                            style={{
+                                width: '20px',
+                                height: '12px',
+                                background: COLORS.free,
+                                'border-radius': '2px',
+                            }}
+                        ></span>
                         <span>Free (draggable)</span>
                     </div>
-                    <div style={{ display: 'flex', 'align-items': 'center', gap: '8px' }}>
-                        <span style={{ width: '20px', height: '12px', 'background': COLORS.locked, 'border-radius': '2px', border: '2px dashed #c0392b' }}></span>
+                    <div
+                        style={{
+                            display: 'flex',
+                            'align-items': 'center',
+                            gap: '8px',
+                        }}
+                    >
+                        <span
+                            style={{
+                                width: '20px',
+                                height: '12px',
+                                background: COLORS.locked,
+                                'border-radius': '2px',
+                                border: '2px dashed #c0392b',
+                            }}
+                        ></span>
                         <span>Locked (immovable)</span>
                     </div>
                 </div>
@@ -702,35 +1134,49 @@ export function ConstraintDemo() {
 
             {/* Scenario descriptions */}
             {selectedScenario() !== 'all' && scenarios[selectedScenario()] && (
-                <div style={{
-                    'margin-top': '15px',
-                    padding: '15px',
-                    'background-color': '#e7f5ff',
-                    'border-radius': '8px',
-                    'border-left': '4px solid #339af0',
-                }}>
+                <div
+                    style={{
+                        'margin-top': '15px',
+                        padding: '15px',
+                        'background-color': '#e7f5ff',
+                        'border-radius': '8px',
+                        'border-left': '4px solid #339af0',
+                    }}
+                >
                     <h3 style={{ margin: '0 0 8px 0', 'font-size': '14px' }}>
                         {scenarios[selectedScenario()].title}
                     </h3>
-                    <p style={{ margin: 0, 'font-size': '13px', color: '#495057' }}>
+                    <p
+                        style={{
+                            margin: 0,
+                            'font-size': '13px',
+                            color: '#495057',
+                        }}
+                    >
                         {scenarios[selectedScenario()].description}
                     </p>
                 </div>
             )}
 
             {/* Architecture note */}
-            <div style={{
-                'margin-top': '15px',
-                padding: '15px',
-                'background-color': '#fff3cd',
-                'border-radius': '8px',
-                'border-left': '4px solid #ffc107',
-            }}>
-                <h3 style={{ margin: '0 0 8px 0', 'font-size': '14px' }}>Architecture</h3>
+            <div
+                style={{
+                    'margin-top': '15px',
+                    padding: '15px',
+                    'background-color': '#fff3cd',
+                    'border-radius': '8px',
+                    'border-left': '4px solid #ffc107',
+                }}
+            >
+                <h3 style={{ margin: '0 0 8px 0', 'font-size': '14px' }}>
+                    Architecture
+                </h3>
                 <p style={{ margin: 0, 'font-size': '13px', color: '#856404' }}>
-                    <strong>Arrows</strong> are purely decorative - they render a path between two rectangles.
+                    <strong>Arrows</strong> are purely decorative - they render
+                    a path between two rectangles.
                     <br />
-                    <strong>Relationships</strong> own distance constraints (minDistance, maxDistance, fixedOffset).
+                    <strong>Relationships</strong> own distance constraints
+                    (minDistance, maxDistance, fixedOffset).
                     <br />
                     <strong>Tasks</strong> can be locked to prevent movement.
                 </p>

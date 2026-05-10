@@ -90,50 +90,80 @@ export interface GanttConfigStore {
  * Reactive store for Gantt configuration.
  * Holds all configuration needed for bar positioning and rendering.
  */
-export function createGanttConfigStore(options: GanttConfigOptions = {}): GanttConfigStore {
+export function createGanttConfigStore(
+    options: GanttConfigOptions = {},
+): GanttConfigStore {
     // Time configuration
-    const [ganttStart, setGanttStart] = createSignal<Date>(options.ganttStart || new Date());
-    const [ganttEnd, setGanttEnd] = createSignal<Date>(options.ganttEnd || new Date());
+    const [ganttStart, setGanttStart] = createSignal<Date>(
+        options.ganttStart || new Date(),
+    );
+    const [ganttEnd, setGanttEnd] = createSignal<Date>(
+        options.ganttEnd || new Date(),
+    );
     const [unit, setUnit] = createSignal<string>(options.unit || 'day');
     const [step, setStep] = createSignal<number>(options.step || 1);
 
     // Layout configuration - support both snake_case and camelCase
-    const [columnWidth, setColumnWidth] = createSignal<number>(options.columnWidth || options.column_width || 45);
-    const [barHeight, setBarHeight] = createSignal<number>(options.barHeight || options.bar_height || 30);
-    const [headerHeight, setHeaderHeight] = createSignal<number>(options.headerHeight || 75);
+    const [columnWidth, setColumnWidth] = createSignal<number>(
+        options.columnWidth || options.column_width || 45,
+    );
+    const [barHeight, setBarHeight] = createSignal<number>(
+        options.barHeight || options.bar_height || 30,
+    );
+    const [headerHeight, setHeaderHeight] = createSignal<number>(
+        options.headerHeight || 75,
+    );
     const [padding, setPadding] = createSignal<number>(options.padding || 18);
-    const [barCornerRadius, setBarCornerRadius] = createSignal<number>(options.barCornerRadius || options.bar_corner_radius || 3);
+    const [barCornerRadius, setBarCornerRadius] = createSignal<number>(
+        options.barCornerRadius || options.bar_corner_radius || 3,
+    );
 
     // Feature flags
-    const [readonly, setReadonly] = createSignal<boolean>(options.readonly || false);
-    const [readonlyDates, setReadonlyDates] = createSignal<boolean>(options.readonlyDates || false);
-    const [readonlyProgress, setReadonlyProgress] = createSignal<boolean>(options.readonlyProgress || false);
-    const [showExpectedProgress, setShowExpectedProgress] = createSignal<boolean>(options.showExpectedProgress || false);
-    const [autoMoveLabel, setAutoMoveLabel] = createSignal<boolean>(options.autoMoveLabel || false);
+    const [readonly, setReadonly] = createSignal<boolean>(
+        options.readonly || false,
+    );
+    const [readonlyDates, setReadonlyDates] = createSignal<boolean>(
+        options.readonlyDates || false,
+    );
+    const [readonlyProgress, setReadonlyProgress] = createSignal<boolean>(
+        options.readonlyProgress || false,
+    );
+    const [showExpectedProgress, setShowExpectedProgress] =
+        createSignal<boolean>(options.showExpectedProgress || false);
+    const [autoMoveLabel, setAutoMoveLabel] = createSignal<boolean>(
+        options.autoMoveLabel || false,
+    );
 
     // Ignored dates (weekends, holidays)
-    const [ignoredDates, setIgnoredDates] = createSignal<Date[]>(options.ignoredDates || []);
-    const [ignoredFunction, setIgnoredFunction] = createSignal<((date: Date) => boolean) | null>(options.ignoredFunction || null);
+    const [ignoredDates, setIgnoredDates] = createSignal<Date[]>(
+        options.ignoredDates || [],
+    );
+    const [ignoredFunction, setIgnoredFunction] = createSignal<
+        ((date: Date) => boolean) | null
+    >(options.ignoredFunction || null);
 
     // Computed ignored positions (pixel X values)
     const [ignoredPositions, setIgnoredPositions] = createSignal<number[]>([]);
 
     // Subtask configuration
     const [subtaskHeightRatio, setSubtaskHeightRatio] = createSignal<number>(
-        options.subtaskHeightRatio || 0.5
+        options.subtaskHeightRatio || 0.5,
     );
 
     // Render mode: 'simple' (flat tasks, static heights) or 'detailed' (hierarchy, variable heights)
     // Simple mode skips subtask/expansion logic for maximum performance
-    const [renderMode, setRenderMode] = createSignal<RenderMode>(options.renderMode || 'simple');
+    const [renderMode, setRenderMode] = createSignal<RenderMode>(
+        options.renderMode || 'simple',
+    );
 
     // Expanded tasks (for variable row heights) - only used in detailed mode
     const [expandedTasks, setExpandedTasks] = createSignal<Set<string>>(
-        new Set(options.expandedTasks || [])
+        new Set(options.expandedTasks || []),
     );
 
     // Expansion management methods
-    const isTaskExpanded = (taskId: string): boolean => expandedTasks().has(taskId);
+    const isTaskExpanded = (taskId: string): boolean =>
+        expandedTasks().has(taskId);
 
     const toggleTaskExpansion = (taskId: string): void => {
         setExpandedTasks((prev) => {
@@ -175,29 +205,43 @@ export function createGanttConfigStore(options: GanttConfigOptions = {}): GanttC
 
     // Update all options at once
     const updateOptions = (newOptions: Partial<GanttConfigOptions>): void => {
-        if (newOptions.ganttStart !== undefined) setGanttStart(newOptions.ganttStart);
+        if (newOptions.ganttStart !== undefined)
+            setGanttStart(newOptions.ganttStart);
         if (newOptions.ganttEnd !== undefined) setGanttEnd(newOptions.ganttEnd);
         if (newOptions.unit !== undefined) setUnit(newOptions.unit);
         if (newOptions.step !== undefined) setStep(newOptions.step);
-        if (newOptions.columnWidth !== undefined) setColumnWidth(newOptions.columnWidth);
-        if (newOptions.barHeight !== undefined) setBarHeight(newOptions.barHeight);
-        if (newOptions.headerHeight !== undefined) setHeaderHeight(newOptions.headerHeight);
+        if (newOptions.columnWidth !== undefined)
+            setColumnWidth(newOptions.columnWidth);
+        if (newOptions.barHeight !== undefined)
+            setBarHeight(newOptions.barHeight);
+        if (newOptions.headerHeight !== undefined)
+            setHeaderHeight(newOptions.headerHeight);
         if (newOptions.padding !== undefined) setPadding(newOptions.padding);
-        if (newOptions.barCornerRadius !== undefined) setBarCornerRadius(newOptions.barCornerRadius);
+        if (newOptions.barCornerRadius !== undefined)
+            setBarCornerRadius(newOptions.barCornerRadius);
         if (newOptions.readonly !== undefined) setReadonly(newOptions.readonly);
-        if (newOptions.readonlyDates !== undefined) setReadonlyDates(newOptions.readonlyDates);
-        if (newOptions.readonlyProgress !== undefined) setReadonlyProgress(newOptions.readonlyProgress);
-        if (newOptions.showExpectedProgress !== undefined) setShowExpectedProgress(newOptions.showExpectedProgress);
-        if (newOptions.autoMoveLabel !== undefined) setAutoMoveLabel(newOptions.autoMoveLabel);
-        if (newOptions.ignoredDates !== undefined) setIgnoredDates(newOptions.ignoredDates);
+        if (newOptions.readonlyDates !== undefined)
+            setReadonlyDates(newOptions.readonlyDates);
+        if (newOptions.readonlyProgress !== undefined)
+            setReadonlyProgress(newOptions.readonlyProgress);
+        if (newOptions.showExpectedProgress !== undefined)
+            setShowExpectedProgress(newOptions.showExpectedProgress);
+        if (newOptions.autoMoveLabel !== undefined)
+            setAutoMoveLabel(newOptions.autoMoveLabel);
+        if (newOptions.ignoredDates !== undefined)
+            setIgnoredDates(newOptions.ignoredDates);
         if (newOptions.ignoredFunction !== undefined) {
             const fn = newOptions.ignoredFunction;
             setIgnoredFunction(() => fn);
         }
-        if (newOptions.ignoredPositions !== undefined) setIgnoredPositions(newOptions.ignoredPositions);
-        if (newOptions.subtaskHeightRatio !== undefined) setSubtaskHeightRatio(newOptions.subtaskHeightRatio);
-        if (newOptions.renderMode !== undefined) setRenderMode(newOptions.renderMode);
-        if (newOptions.expandedTasks !== undefined) setExpandedTasks(new Set(newOptions.expandedTasks));
+        if (newOptions.ignoredPositions !== undefined)
+            setIgnoredPositions(newOptions.ignoredPositions);
+        if (newOptions.subtaskHeightRatio !== undefined)
+            setSubtaskHeightRatio(newOptions.subtaskHeightRatio);
+        if (newOptions.renderMode !== undefined)
+            setRenderMode(newOptions.renderMode);
+        if (newOptions.expandedTasks !== undefined)
+            setExpandedTasks(new Set(newOptions.expandedTasks));
     };
 
     // Get current configuration snapshot
