@@ -12,6 +12,11 @@ import type { GanttConfigStore } from '../stores/ganttConfigStore';
 import type { ProcessedTask, BarPosition, LockState } from '../types';
 import { DEFAULT_COLUMN_WIDTH, DEFAULT_BAR_HEIGHT } from '../constants';
 
+// Bar-local layout constants (px)
+const LABEL_OUTSIDE_GAP = 5; // gap between bar's right edge and outside-positioned label
+const PROGRESS_HANDLE_SIZE = 10; // diameter of the circular progress handle
+const PROGRESS_HANDLE_HALF = PROGRESS_HANDLE_SIZE / 2;
+
 interface TaskPosition {
     y: number;
     height?: number;
@@ -697,7 +702,7 @@ export function Bar(props: BarProps): JSX.Element {
                     left:
                         labelInfo().position === 'inside'
                             ? '50%'
-                            : `${width() + 5}px`,
+                            : `${width() + LABEL_OUTSIDE_GAP}px`,
                     transform:
                         labelInfo().position === 'inside'
                             ? 'translate(-50%, -50%)'
@@ -774,11 +779,11 @@ export function Bar(props: BarProps): JSX.Element {
                 onMouseDown={handleProgressMouseDown}
                 style={{
                     position: 'absolute',
-                    left: `${progressWidth() - 5}px`,
+                    left: `${progressWidth() - PROGRESS_HANDLE_HALF}px`,
                     top: '50%',
                     transform: 'translateY(-50%)',
-                    width: '10px',
-                    height: '10px',
+                    width: `${PROGRESS_HANDLE_SIZE}px`,
+                    height: `${PROGRESS_HANDLE_SIZE}px`,
                     'border-radius': '50%',
                     'background-color': 'var(--g-progress-handle-color, #fff)',
                     border: `2px solid ${progressColor()}`,
