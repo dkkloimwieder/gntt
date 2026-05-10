@@ -1,4 +1,4 @@
-import { createMemo, createEffect, Accessor, JSX } from 'solid-js';
+import { createMemo, Accessor, JSX } from 'solid-js';
 import {
     computeProgressWidth,
     computeExpectedProgress,
@@ -539,18 +539,6 @@ export function Bar(props: BarProps): JSX.Element {
 
     // Drag state class
     const dragClass = (): string => (isDragging() ? `dragging ${dragState()}` : '');
-
-    // DEBUG: Track what's causing color flicker
-    const computedBgColor = (): string => isLocked() ? '#7f8c8d' : isDragging() ? '#2c3e50' : barColor();
-    const computedOpacity = (): number => (isLocked() || isDragging()) ? 1 : hasSubtasks() ? 0 : 0.1;
-    createEffect(() => {
-        const id = t().id;
-        const bg = computedBgColor();
-        const op = computedOpacity();
-        if (id === 'task-0') { // Only log first task
-            console.log('[Bar task-0]', { bg, op, locked: isLocked(), dragging: isDragging(), hasSubtasks: hasSubtasks() });
-        }
-    });
 
     // ═══════════════════════════════════════════════════════════════════════════
     // RENDER

@@ -30,9 +30,9 @@
     ],
     "exports": {
         ".": {
-            "require": "./dist/ganttss.umd.js",
+            "style": "./dist/ganttss.css",
             "import": "./dist/ganttss.es.js",
-            "style": "./dist/ganttss.css"
+            "require": "./dist/ganttss.umd.js"
         }
     },
     "keywords": [
