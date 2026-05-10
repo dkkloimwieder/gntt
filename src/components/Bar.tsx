@@ -10,6 +10,7 @@ import { useGanttEvents } from '../contexts/GanttEvents';
 import type { TaskStore } from '../stores/taskStore';
 import type { GanttConfigStore } from '../stores/ganttConfigStore';
 import type { ProcessedTask, BarPosition, LockState } from '../types';
+import { DEFAULT_COLUMN_WIDTH, DEFAULT_BAR_HEIGHT } from '../constants';
 
 interface TaskPosition {
     y: number;
@@ -112,7 +113,7 @@ export function Bar(props: BarProps): JSX.Element {
                 x: props.x ?? 0,
                 y: props.y ?? 0,
                 width: props.width ?? 100,
-                height: props.height ?? 30,
+                height: props.height ?? DEFAULT_BAR_HEIGHT,
             }
         );
     };
@@ -143,7 +144,10 @@ export function Bar(props: BarProps): JSX.Element {
             false,
     );
     const columnWidth = createMemo(
-        () => props.ganttConfig?.columnWidth?.() ?? props.columnWidth ?? 45,
+        () =>
+            props.ganttConfig?.columnWidth?.() ??
+            props.columnWidth ??
+            DEFAULT_COLUMN_WIDTH,
     );
     const ignoredPositions = createMemo(
         () =>
@@ -203,7 +207,7 @@ export function Bar(props: BarProps): JSX.Element {
         return pos?.y ?? position()?.y ?? 0;
     };
     const width = (): number => position()?.width ?? 100;
-    const height = (): number => position()?.height ?? 30;
+    const height = (): number => position()?.height ?? DEFAULT_BAR_HEIGHT;
 
     // Minimum bar width (one column)
     const minWidth = (): number => columnWidth();

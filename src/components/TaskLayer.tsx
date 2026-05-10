@@ -2,6 +2,7 @@ import { For, Index, createMemo, untrack, Accessor, JSX } from 'solid-js';
 import { Bar } from './Bar';
 import { SummaryBar } from './SummaryBar';
 import { ExpandedTaskContainer } from './ExpandedTaskContainer';
+import { DEFAULT_COLUMN_WIDTH, DEFAULT_BAR_HEIGHT } from '../constants';
 import {
     resolveConstraints,
     buildRelationshipIndex,
@@ -93,7 +94,8 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
         if (!props.taskStore) return { x: newX, y: newY };
 
         // Get columnWidth for lag conversion (lag is in days, needs pixels)
-        const columnWidth = props.ganttConfig?.columnWidth?.() ?? 45;
+        const columnWidth =
+            props.ganttConfig?.columnWidth?.() ?? DEFAULT_COLUMN_WIDTH;
 
         // Get current bar for width
         const taskBar = props.taskStore.getBarPosition?.(taskId);
@@ -156,7 +158,8 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
     const handleResizeEnd = (taskId: string): void => {
         // Apply constraints after resize - push dependents if needed
         if (props.taskStore) {
-            const columnWidth = props.ganttConfig?.columnWidth?.() ?? 45;
+            const columnWidth =
+                props.ganttConfig?.columnWidth?.() ?? DEFAULT_COLUMN_WIDTH;
             const taskBar = props.taskStore.getBarPosition?.(taskId);
             if (taskBar) {
                 const context = {
@@ -237,7 +240,8 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
             props.taskStore?.getTask?.bind(props.taskStore) ??
             (() => undefined);
         // Get columnWidth for lag conversion (lag is in days, needs pixels)
-        const columnWidth = props.ganttConfig?.columnWidth?.() ?? 45;
+        const columnWidth =
+            props.ganttConfig?.columnWidth?.() ?? DEFAULT_COLUMN_WIDTH;
         return clampBatchDeltaX(
             batchOriginals,
             proposedDeltaX,
@@ -494,7 +498,10 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
             return {
                 ...rowLayout,
                 y: rowLayout.contentY ?? rowLayout.y ?? 0,
-                height: rowLayout.contentHeight ?? rowLayout.height ?? 30,
+                height:
+                    rowLayout.contentHeight ??
+                    rowLayout.height ??
+                    DEFAULT_BAR_HEIGHT,
                 isExpanded: false,
             };
         }

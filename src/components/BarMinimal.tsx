@@ -1,5 +1,6 @@
 import { createMemo, JSX, Accessor } from 'solid-js';
 import type { ProcessedTask } from '../types';
+import { DEFAULT_BAR_HEIGHT } from '../constants';
 
 interface BarMinimalProps {
     task: ProcessedTask | Accessor<ProcessedTask>;
@@ -48,7 +49,7 @@ export function BarMinimal(props: BarMinimalProps): JSX.Element {
             x: task?._bar?.x ?? 0,
             y: task?._bar?.y ?? 0,
             width,
-            height: task?._bar?.height ?? 30,
+            height: task?._bar?.height ?? DEFAULT_BAR_HEIGHT,
         };
     });
 

@@ -1,0 +1,5 @@
+export const DEFAULT_COLUMN_WIDTH = 45;
+export const DEFAULT_BAR_HEIGHT = 30;
+export const DEFAULT_PADDING = 18;
+export const DEFAULT_UPPER_HEADER_HEIGHT = 45;
+export const DEFAULT_LOWER_HEADER_HEIGHT = 30;

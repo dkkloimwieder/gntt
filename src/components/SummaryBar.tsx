@@ -4,6 +4,7 @@ import { snapToGrid, computeLabelPosition } from '../utils/barCalculations';
 import type { TaskStore } from '../stores/taskStore';
 import type { GanttConfigStore } from '../stores/ganttConfigStore';
 import type { BarPosition, ProcessedTask } from '../types';
+import { DEFAULT_COLUMN_WIDTH, DEFAULT_BAR_HEIGHT } from '../constants';
 
 interface TaskPosition {
     y: number;
@@ -69,11 +70,11 @@ export function SummaryBar(props: SummaryBarProps): JSX.Element {
         return pos?.y ?? position()?.y ?? 0;
     };
     const width = (): number => position()?.width ?? 100;
-    const height = (): number => position()?.height ?? 30;
+    const height = (): number => position()?.height ?? DEFAULT_BAR_HEIGHT;
 
     // Configuration
     const columnWidth = createMemo(
-        () => props.ganttConfig?.columnWidth?.() ?? 45,
+        () => props.ganttConfig?.columnWidth?.() ?? DEFAULT_COLUMN_WIDTH,
     );
     const readonly = createMemo(() => props.ganttConfig?.readonly?.() ?? false);
     const cornerRadius = createMemo(

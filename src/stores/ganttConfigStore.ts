@@ -1,4 +1,9 @@
 import { createSignal, Accessor, Setter } from 'solid-js';
+import {
+    DEFAULT_COLUMN_WIDTH,
+    DEFAULT_BAR_HEIGHT,
+    DEFAULT_PADDING,
+} from '../constants';
 
 type RenderMode = 'simple' | 'detailed';
 
@@ -105,15 +110,17 @@ export function createGanttConfigStore(
 
     // Layout configuration - support both snake_case and camelCase
     const [columnWidth, setColumnWidth] = createSignal<number>(
-        options.columnWidth || options.column_width || 45,
+        options.columnWidth || options.column_width || DEFAULT_COLUMN_WIDTH,
     );
     const [barHeight, setBarHeight] = createSignal<number>(
-        options.barHeight || options.bar_height || 30,
+        options.barHeight || options.bar_height || DEFAULT_BAR_HEIGHT,
     );
     const [headerHeight, setHeaderHeight] = createSignal<number>(
         options.headerHeight || 75,
     );
-    const [padding, setPadding] = createSignal<number>(options.padding || 18);
+    const [padding, setPadding] = createSignal<number>(
+        options.padding || DEFAULT_PADDING,
+    );
     const [barCornerRadius, setBarCornerRadius] = createSignal<number>(
         options.barCornerRadius || options.bar_corner_radius || 3,
     );

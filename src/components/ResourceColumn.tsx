@@ -2,6 +2,7 @@ import { For, Show, createMemo, JSX } from 'solid-js';
 import type { ResourceStore } from '../stores/resourceStore';
 import type { GanttConfigStore } from '../stores/ganttConfigStore';
 import type { RowLayout } from '../utils/rowLayoutCalculator';
+import { DEFAULT_BAR_HEIGHT, DEFAULT_PADDING } from '../constants';
 
 interface DisplayResource {
     id: string;
@@ -41,8 +42,9 @@ export function ResourceColumn(props: ResourceColumnProps): JSX.Element {
     const endRow = () => props.endRow ?? displayResources().length;
 
     // Configuration from ganttConfig
-    const barHeight = () => props.ganttConfig?.barHeight?.() ?? 30;
-    const padding = () => props.ganttConfig?.padding?.() ?? 18;
+    const barHeight = () =>
+        props.ganttConfig?.barHeight?.() ?? DEFAULT_BAR_HEIGHT;
+    const padding = () => props.ganttConfig?.padding?.() ?? DEFAULT_PADDING;
     const columnWidth = () => props.width ?? 60;
 
     // Row height (bar + padding) - base height for fixed mode

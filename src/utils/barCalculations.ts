@@ -1,6 +1,7 @@
 import date_utils from './date_utils';
 import type { TimeScale } from './date_utils';
 import type { BarPosition } from '../types';
+import { DEFAULT_COLUMN_WIDTH } from '../constants';
 
 /**
  * Pure functions for bar geometry calculations.
@@ -111,7 +112,7 @@ export function computeProgressWidth(
     barWidth: number,
     progress: number,
     ignoredPositions: number[] = [],
-    columnWidth = 45,
+    columnWidth = DEFAULT_COLUMN_WIDTH,
 ): number {
     const barEnd = barX + barWidth;
 

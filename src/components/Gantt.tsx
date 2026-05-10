@@ -8,6 +8,10 @@ import {
     Accessor,
     JSX,
 } from 'solid-js';
+import {
+    DEFAULT_UPPER_HEADER_HEIGHT,
+    DEFAULT_LOWER_HEADER_HEIGHT,
+} from '../constants';
 import { createTaskStore } from '../stores/taskStore';
 import { createGanttConfigStore } from '../stores/ganttConfigStore';
 import { createGanttDateStore } from '../stores/ganttDateStore';
@@ -592,9 +596,9 @@ export function Gantt(props: GanttProps): JSX.Element {
 
     // Header heights from options
     const upperHeaderHeight = (): number =>
-        props.options?.upper_header_height || 45;
+        props.options?.upper_header_height || DEFAULT_UPPER_HEADER_HEIGHT;
     const lowerHeaderHeight = (): number =>
-        props.options?.lower_header_height || 30;
+        props.options?.lower_header_height || DEFAULT_LOWER_HEADER_HEIGHT;
 
     // Resource column width from options
     const resourceColumnWidth = (): number =>

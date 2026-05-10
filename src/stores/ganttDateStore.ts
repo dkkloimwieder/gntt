@@ -3,6 +3,7 @@ import date_utils from '../utils/date_utils';
 import type { TimeScale } from '../utils/date_utils';
 import { DEFAULT_VIEW_MODES } from '../utils/defaults';
 import type { ViewMode, DateInfo } from '../types';
+import { DEFAULT_COLUMN_WIDTH } from '../constants';
 
 interface TaskLike {
     _start?: Date;
@@ -126,7 +127,10 @@ export function createGanttDateStore(
         options.columnWidth || options.column_width || null,
     );
     const columnWidth = createMemo(
-        () => columnWidthOverride() || viewMode().column_width || 45,
+        () =>
+            columnWidthOverride() ||
+            viewMode().column_width ||
+            DEFAULT_COLUMN_WIDTH,
     );
 
     // Grid width in pixels

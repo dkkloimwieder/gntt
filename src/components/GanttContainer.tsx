@@ -1,5 +1,10 @@
 import { createSignal, onMount, onCleanup, JSX, Accessor } from 'solid-js';
 import type { GanttConfigStore } from '../stores/ganttConfigStore';
+import {
+    DEFAULT_COLUMN_WIDTH,
+    DEFAULT_BAR_HEIGHT,
+    DEFAULT_PADDING,
+} from '../constants';
 
 // Throttle interval for scroll signal updates
 const SCROLL_THROTTLE_MS = 100;
@@ -203,10 +208,10 @@ export function GanttContainer(props: GanttContainerProps): JSX.Element {
         if (!config) return {};
 
         return {
-            '--gv-column-width': `${config.columnWidth?.() || 45}px`,
-            '--gv-bar-height': `${config.barHeight?.() || 30}px`,
+            '--gv-column-width': `${config.columnWidth?.() || DEFAULT_COLUMN_WIDTH}px`,
+            '--gv-bar-height': `${config.barHeight?.() || DEFAULT_BAR_HEIGHT}px`,
             '--gv-header-height': `${config.headerHeight?.() || 60}px`,
-            '--gv-padding': `${config.padding?.() || 18}px`,
+            '--gv-padding': `${config.padding?.() || DEFAULT_PADDING}px`,
             '--gv-bar-corner-radius': `${config.barCornerRadius?.() || 3}px`,
         };
     };

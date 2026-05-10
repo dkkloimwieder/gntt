@@ -1,5 +1,6 @@
 import { Show, JSX } from 'solid-js';
 import type { ProcessedTask, BarPosition } from '../types';
+import { DEFAULT_BAR_HEIGHT } from '../constants';
 
 interface SubtaskConfig {
     barHeight?: number;
@@ -36,7 +37,7 @@ export function SubtaskBar(props: SubtaskBarProps): JSX.Element {
 
     // Config
     const config = (): SubtaskConfig => props.config || {};
-    const barHeight = (): number => config().barHeight ?? 30;
+    const barHeight = (): number => config().barHeight ?? DEFAULT_BAR_HEIGHT;
     const subtaskHeightRatio = (): number => config().subtaskHeightRatio ?? 0.5;
     const cornerRadius = (): number => (config().cornerRadius ?? 3) * 0.7; // Smaller radius
 

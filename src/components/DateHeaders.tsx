@@ -1,5 +1,10 @@
 import { createMemo, For, Show, JSX } from 'solid-js';
 import type { DateInfo } from '../types';
+import {
+    DEFAULT_COLUMN_WIDTH,
+    DEFAULT_UPPER_HEADER_HEIGHT,
+    DEFAULT_LOWER_HEADER_HEIGHT,
+} from '../constants';
 
 interface UpperTextEntry {
     text: string;
@@ -33,10 +38,12 @@ interface DateHeadersProps {
  */
 export function DateHeaders(props: DateHeadersProps): JSX.Element {
     // Configuration - use ?? to allow 0 values
-    const upperHeaderHeight = () => props.upperHeaderHeight ?? 45;
-    const lowerHeaderHeight = () => props.lowerHeaderHeight ?? 30;
+    const upperHeaderHeight = () =>
+        props.upperHeaderHeight ?? DEFAULT_UPPER_HEADER_HEIGHT;
+    const lowerHeaderHeight = () =>
+        props.lowerHeaderHeight ?? DEFAULT_LOWER_HEADER_HEIGHT;
     const totalHeaderHeight = () => upperHeaderHeight() + lowerHeaderHeight();
-    const columnWidth = () => props.columnWidth || 45;
+    const columnWidth = () => props.columnWidth || DEFAULT_COLUMN_WIDTH;
     const gridWidth = () => props.gridWidth || 1000;
 
     // Date infos from ganttDateStore

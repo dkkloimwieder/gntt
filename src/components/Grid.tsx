@@ -2,6 +2,11 @@ import { createMemo, For, Show, JSX } from 'solid-js';
 import type { DateInfo } from '../types';
 import type { ResourceStore } from '../stores/resourceStore';
 import type { RowLayout } from '../utils/rowLayoutCalculator';
+import {
+    DEFAULT_COLUMN_WIDTH,
+    DEFAULT_BAR_HEIGHT,
+    DEFAULT_PADDING,
+} from '../constants';
 
 interface GridRow {
     index: number;
@@ -43,7 +48,7 @@ export function Grid(props: GridProps): JSX.Element {
     const gridHeight = () => props.height || 300;
 
     // Column configuration (for vertical lines)
-    const columnWidth = () => props.columnWidth || 45;
+    const columnWidth = () => props.columnWidth || DEFAULT_COLUMN_WIDTH;
     const dateInfos = () => props.dateInfos || [];
 
     // Line display mode: 'both', 'vertical', 'horizontal', 'none'
@@ -59,8 +64,8 @@ export function Grid(props: GridProps): JSX.Element {
 
     // Row configuration (base height for fixed-height mode)
     const baseRowHeight = () => {
-        const barHeight = props.barHeight || 30;
-        const padding = props.padding || 18;
+        const barHeight = props.barHeight || DEFAULT_BAR_HEIGHT;
+        const padding = props.padding || DEFAULT_PADDING;
         return barHeight + padding;
     };
 

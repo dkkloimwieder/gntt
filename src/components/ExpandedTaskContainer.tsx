@@ -4,6 +4,7 @@ import type { TaskStore } from '../stores/taskStore';
 import type { GanttConfigStore } from '../stores/ganttConfigStore';
 import type { ProcessedTask } from '../types';
 import type { RowLayout } from '../utils/rowLayoutCalculator';
+import { DEFAULT_BAR_HEIGHT, DEFAULT_PADDING } from '../constants';
 
 interface ExpandedTaskContainerProps {
     taskId: string;
@@ -52,8 +53,10 @@ export function ExpandedTaskContainer(
         'sequential';
 
     // Config from ganttConfig
-    const barHeight = (): number => props.ganttConfig?.barHeight?.() ?? 30;
-    const padding = (): number => props.ganttConfig?.padding?.() ?? 18;
+    const barHeight = (): number =>
+        props.ganttConfig?.barHeight?.() ?? DEFAULT_BAR_HEIGHT;
+    const padding = (): number =>
+        props.ganttConfig?.padding?.() ?? DEFAULT_PADDING;
     const subtaskHeightRatio = (): number =>
         props.ganttConfig?.subtaskHeightRatio?.() ?? 0.5;
     const cornerRadius = (): number =>
