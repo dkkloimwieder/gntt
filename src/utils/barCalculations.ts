@@ -1,5 +1,5 @@
-import date_utils from './date_utils';
-import type { TimeScale } from './date_utils';
+import dateUtils from './dateUtils';
+import type { TimeScale } from './dateUtils';
 import type { BarPosition } from '../types';
 import { DEFAULT_COLUMN_WIDTH } from '../constants';
 
@@ -18,7 +18,7 @@ export function computeX(
     step: number,
     columnWidth: number,
 ): number {
-    const diff = date_utils.diff(taskStart, ganttStart, unit) / step;
+    const diff = dateUtils.diff(taskStart, ganttStart, unit) / step;
     // Use exact position, no rounding - rounding causes adjacent tasks to overlap
     return diff * columnWidth;
 }
@@ -50,7 +50,7 @@ export function computeWidth(
     step: number,
     columnWidth: number,
 ): number {
-    const diff = date_utils.diff(taskEnd, taskStart, unit) / step;
+    const diff = dateUtils.diff(taskEnd, taskStart, unit) / step;
     // Use exact width, no rounding - rounding causes adjacent tasks to overlap
     return diff * columnWidth;
 }
@@ -101,7 +101,7 @@ export function daysToUnits(
     step: number,
 ): number {
     const durationStr = days + 'd';
-    return date_utils.convert_scales(durationStr, unit) / step;
+    return dateUtils.convert_scales(durationStr, unit) / step;
 }
 
 /**
@@ -166,9 +166,9 @@ export function computeExpectedProgress(
     unit: TimeScale | string,
     step: number,
 ): number {
-    const today = date_utils.today();
-    const totalDuration = date_utils.diff(taskEnd, taskStart, 'hour') / step;
-    const elapsed = date_utils.diff(today, taskStart, 'hour') / step;
+    const today = dateUtils.today();
+    const totalDuration = dateUtils.diff(taskEnd, taskStart, 'hour') / step;
+    const elapsed = dateUtils.diff(today, taskStart, 'hour') / step;
 
     // Clamp to 0-100%
     const progress = Math.min(elapsed, totalDuration);

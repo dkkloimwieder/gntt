@@ -73,7 +73,7 @@ function padStart(
     }
 }
 
-const date_utils = {
+const dateUtils = {
     parse_duration(duration: string): DurationResult | undefined {
         DURATION_REGEX.lastIndex = 0;
         const matches = DURATION_REGEX.exec(duration);
@@ -409,5 +409,5 @@ const date_utils = {
     },
 };
 
-export default date_utils;
+export default dateUtils;
 export type { TimeScale, DurationResult };

@@ -138,7 +138,7 @@ export function getResourceLabel(index: number): string {
 }
 
 /**
- * Format a Date object as 'YYYY-MM-DD HH:MM' (space separator for date_utils.parse)
+ * Format a Date object as 'YYYY-MM-DD HH:MM' (space separator for dateUtils.parse)
  */
 export function formatDateTime(date: Date): string {
     const yyyy = date.getFullYear();

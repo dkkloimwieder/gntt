@@ -1,4 +1,4 @@
-import date_utils from './date_utils';
+import dateUtils from './dateUtils';
 import { computeX, computeY, computeWidth } from './barCalculations';
 import { detectCycles } from './constraintEngine';
 import type {
@@ -90,18 +90,18 @@ export function processTask(
     const id = task.id || generateTaskId(task, index);
 
     // Parse start date
-    const _start = date_utils.parse(task.start);
+    const _start = dateUtils.parse(task.start);
 
     // Parse or calculate end date
     let _end: Date;
     if (task.end) {
-        _end = date_utils.parse(task.end);
+        _end = dateUtils.parse(task.end);
     } else if (task.duration) {
         // Calculate end from duration
-        const durationResult = date_utils.parse_duration(task.duration);
+        const durationResult = dateUtils.parse_duration(task.duration);
         if (durationResult) {
             const { duration, scale } = durationResult;
-            _end = date_utils.add(_start, duration, scale);
+            _end = dateUtils.add(_start, duration, scale);
         } else {
             _end = new Date(_start);
         }
@@ -111,7 +111,7 @@ export function processTask(
     }
 
     // Validate date range (max 10 years)
-    const yearDiff = date_utils.diff(_end, _start, 'year');
+    const yearDiff = dateUtils.diff(_end, _start, 'year');
     if (yearDiff > 10) {
         console.error(`Task "${task.name}" has duration > 10 years`);
         return null;

@@ -16,7 +16,7 @@ import topologyBreadthData from '../data/generated/topology-breadth.json';
 import topologyDepthData from '../data/generated/topology-depth.json';
 import topologyBalancedData from '../data/generated/topology-balanced.json';
 import topologyDebugData from '../data/generated/topology-debug.json';
-import date_utils from '../utils/date_utils.js';
+import dateUtils from '../utils/dateUtils';
 import { useGanttEvents, GanttEventsProvider } from '../contexts/GanttEvents';
 import { useDrag } from '../hooks/useDrag.js';
 import { Grid } from '../components/Grid';
@@ -77,8 +77,8 @@ const sourceData = (() => {
 // Parse tasks and compute TIME-based positions (hours from start)
 const parsedTasks = sourceData.tasks.map((task) => ({
     ...task,
-    _start: date_utils.parse(task.start),
-    _end: date_utils.parse(task.end),
+    _start: dateUtils.parse(task.start),
+    _end: dateUtils.parse(task.end),
 }));
 const ganttStart = new Date(
     Math.min(...parsedTasks.map((t) => t._start.getTime())),
@@ -138,7 +138,7 @@ const initialTasks = (() => {
         // Apply minStart constraint to initial position
         let effectiveStartHours = startHours;
         if (task.constraints?.minStart) {
-            const minStartTime = date_utils
+            const minStartTime = dateUtils
                 .parse(task.constraints.minStart)
                 .getTime();
             const minStartHours =

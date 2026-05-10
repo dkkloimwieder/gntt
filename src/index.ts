@@ -25,7 +25,7 @@ export { buildHierarchy, collectDescendants } from './utils/hierarchyProcessor';
 export { generateSubtaskDemo } from './utils/subtaskGenerator';
 
 // Date utilities
-export * from './utils/date_utils';
+export * from './utils/dateUtils';
 
 // Types
 export type {

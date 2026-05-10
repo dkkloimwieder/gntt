@@ -1,6 +1,6 @@
 import { createSignal, createMemo, Accessor, Setter } from 'solid-js';
-import date_utils from '../utils/date_utils';
-import type { TimeScale } from '../utils/date_utils';
+import dateUtils from '../utils/dateUtils';
+import type { TimeScale } from '../utils/dateUtils';
 import { DEFAULT_VIEW_MODES } from '../utils/defaults';
 import type { ViewMode, DateInfo } from '../types';
 import { DEFAULT_COLUMN_WIDTH } from '../constants';
@@ -106,7 +106,7 @@ export function createGanttDateStore(
     // Get parsed step from view mode (e.g., "1d" -> {duration: 1, scale: "day"})
     const parsedStep = createMemo(() => {
         const mode = viewMode();
-        return date_utils.parse_duration(mode.step);
+        return dateUtils.parse_duration(mode.step);
     });
 
     // Unit and step accessors
@@ -140,16 +140,16 @@ export function createGanttDateStore(
     const setupDates = (tasks: TaskLike[], infinitePadding = false): void => {
         if (!tasks || tasks.length === 0) {
             // Default to today +/- padding
-            const today = date_utils.today();
+            const today = dateUtils.today();
             const mode = viewMode();
-            const parsed = date_utils.parse_duration(mode.padding || '7d');
+            const parsed = dateUtils.parse_duration(mode.padding || '7d');
             const duration = parsed?.duration || 7;
             const scale = parsed?.scale || 'day';
 
-            const start = date_utils.add(today, -duration, scale);
-            const end = date_utils.add(today, duration, scale);
+            const start = dateUtils.add(today, -duration, scale);
+            const end = dateUtils.add(today, duration, scale);
 
-            setGanttStart(date_utils.start_of(start, unit()));
+            setGanttStart(dateUtils.start_of(start, unit()));
             setGanttEnd(end);
             generateDates();
             return;
@@ -160,8 +160,8 @@ export function createGanttDateStore(
         let maxDate: Date | null = null;
 
         for (const task of tasks) {
-            const taskStart = task._start || date_utils.parse(task.start || '');
-            const taskEnd = task._end || date_utils.parse(task.end || '');
+            const taskStart = task._start || dateUtils.parse(task.start || '');
+            const taskEnd = task._end || dateUtils.parse(task.end || '');
 
             if (!minDate || taskStart < minDate) minDate = taskStart;
             if (!maxDate || taskEnd > maxDate) maxDate = taskEnd;
@@ -169,22 +169,22 @@ export function createGanttDateStore(
 
         // Apply padding from view mode
         const mode = viewMode();
-        const parsed = date_utils.parse_duration(mode.padding || '7d');
+        const parsed = dateUtils.parse_duration(mode.padding || '7d');
         const padDuration = parsed?.duration || 7;
         const padScale = parsed?.scale || 'day';
 
-        let start = date_utils.add(minDate!, -padDuration, padScale);
-        let end = date_utils.add(maxDate!, padDuration, padScale);
+        let start = dateUtils.add(minDate!, -padDuration, padScale);
+        let end = dateUtils.add(maxDate!, padDuration, padScale);
 
         // For infinite padding, extend more
         if (infinitePadding) {
             const extendUnits = 30;
-            start = date_utils.add(start, -extendUnits, unit());
-            end = date_utils.add(end, extendUnits, unit());
+            start = dateUtils.add(start, -extendUnits, unit());
+            end = dateUtils.add(end, extendUnits, unit());
         }
 
         // Align to unit start (don't reset hours/minutes for sub-day views)
-        start = date_utils.start_of(start, unit());
+        start = dateUtils.start_of(start, unit());
         const u = unit();
         if (u !== 'hour' && u !== 'minute') {
             start.setHours(0, 0, 0, 0);
@@ -209,7 +209,7 @@ export function createGanttDateStore(
 
         while (current < end) {
             newDates.push(new Date(current));
-            current = date_utils.add(current, stepVal, unitVal);
+            current = dateUtils.add(current, stepVal, unitVal);
         }
 
         setDates(newDates);
@@ -223,14 +223,14 @@ export function createGanttDateStore(
         const unitVal = unit();
 
         if (direction === 'left') {
-            const newStart = date_utils.add(
+            const newStart = dateUtils.add(
                 ganttStart(),
                 -units * stepVal,
                 unitVal,
             );
             setGanttStart(newStart);
         } else {
-            const newEnd = date_utils.add(ganttEnd(), units * stepVal, unitVal);
+            const newEnd = dateUtils.add(ganttEnd(), units * stepVal, unitVal);
             setGanttEnd(newEnd);
         }
 
@@ -273,7 +273,7 @@ export function createGanttDateStore(
         if (typeof mode.lowerText === 'function') {
             lowerText = mode.lowerText(date, lastDate, lang);
         } else if (typeof mode.lowerText === 'string') {
-            lowerText = date_utils.format(date, mode.lowerText, lang);
+            lowerText = dateUtils.format(date, mode.lowerText, lang);
         }
 
         // Get upper text (month, year, etc.) - only when it changes
@@ -281,7 +281,7 @@ export function createGanttDateStore(
         if (typeof mode.upperText === 'function') {
             upperText = mode.upperText(date, lastDate, lang);
         } else if (typeof mode.upperText === 'string') {
-            upperText = date_utils.format(date, mode.upperText, lang);
+            upperText = dateUtils.format(date, mode.upperText, lang);
         }
 
         // Check if this should be a thick line
@@ -326,7 +326,7 @@ export function createGanttDateStore(
         const unitVal = unit();
         const colWidth = columnWidth();
 
-        const diff = date_utils.diff(date, start, unitVal);
+        const diff = dateUtils.diff(date, start, unitVal);
         return (diff / stepVal) * colWidth;
     };
 
@@ -340,7 +340,7 @@ export function createGanttDateStore(
         const colWidth = columnWidth();
 
         const units = (x / colWidth) * stepVal;
-        return date_utils.add(start, units, unitVal);
+        return dateUtils.add(start, units, unitVal);
     };
 
     return {

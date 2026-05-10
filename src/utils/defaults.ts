@@ -1,4 +1,4 @@
-import date_utils from './date_utils';
+import dateUtils from './dateUtils';
 import type { ViewMode } from '../types';
 
 function getDecade(d: Date): string {
@@ -7,10 +7,10 @@ function getDecade(d: Date): string {
 }
 
 function formatWeek(d: Date, ld: Date | null, lang: string): string {
-    const endOfWeek = date_utils.add(d, 6, 'day');
+    const endOfWeek = dateUtils.add(d, 6, 'day');
     const endFormat = endOfWeek.getMonth() !== d.getMonth() ? 'D MMM' : 'D';
     const beginFormat = !ld || d.getMonth() !== ld.getMonth() ? 'D MMM' : 'D';
-    return `${date_utils.format(d, beginFormat, lang)} - ${date_utils.format(endOfWeek, endFormat, lang)}`;
+    return `${dateUtils.format(d, beginFormat, lang)} - ${dateUtils.format(endOfWeek, endFormat, lang)}`;
 }
 
 const DEFAULT_VIEW_MODES: ViewMode[] = [
@@ -23,7 +23,7 @@ const DEFAULT_VIEW_MODES: ViewMode[] = [
         lowerText: 'mm',
         upperText: (d: Date, ld: Date | null, lang: string) =>
             !ld || d.getHours() !== ld.getHours()
-                ? date_utils.format(d, 'D MMM HH:00', lang)
+                ? dateUtils.format(d, 'D MMM HH:00', lang)
                 : '',
         upperTextFrequency: 60,
     },
@@ -36,7 +36,7 @@ const DEFAULT_VIEW_MODES: ViewMode[] = [
         lowerText: 'mm',
         upperText: (d: Date, ld: Date | null, lang: string) =>
             !ld || d.getHours() !== ld.getHours()
-                ? date_utils.format(d, 'D MMM HH:00', lang)
+                ? dateUtils.format(d, 'D MMM HH:00', lang)
                 : '',
         upperTextFrequency: 4,
     },
@@ -48,7 +48,7 @@ const DEFAULT_VIEW_MODES: ViewMode[] = [
         lowerText: 'HH',
         upperText: (d: Date, ld: Date | null, lang: string) =>
             !ld || d.getDate() !== ld.getDate()
-                ? date_utils.format(d, 'D MMMM', lang)
+                ? dateUtils.format(d, 'D MMMM', lang)
                 : '',
         upperTextFrequency: 24,
     },
@@ -60,7 +60,7 @@ const DEFAULT_VIEW_MODES: ViewMode[] = [
         lowerText: 'HH',
         upperText: (d: Date, ld: Date | null, lang: string) =>
             !ld || d.getDate() !== ld.getDate()
-                ? date_utils.format(d, 'D MMM', lang)
+                ? dateUtils.format(d, 'D MMM', lang)
                 : '',
         upperTextFrequency: 4,
     },
@@ -73,8 +73,8 @@ const DEFAULT_VIEW_MODES: ViewMode[] = [
         upperText: (d: Date, ld: Date | null, lang: string) =>
             !ld || d.getDate() !== ld.getDate()
                 ? d.getMonth() !== ld?.getMonth()
-                    ? date_utils.format(d, 'D MMM', lang)
-                    : date_utils.format(d, 'D', lang)
+                    ? dateUtils.format(d, 'D MMM', lang)
+                    : dateUtils.format(d, 'D', lang)
                 : '',
         upperTextFrequency: 2,
     },
@@ -85,11 +85,11 @@ const DEFAULT_VIEW_MODES: ViewMode[] = [
         step: '1d',
         lowerText: (d: Date, ld: Date | null, lang: string) =>
             !ld || d.getDate() !== ld.getDate()
-                ? date_utils.format(d, 'D', lang)
+                ? dateUtils.format(d, 'D', lang)
                 : '',
         upperText: (d: Date, ld: Date | null, lang: string) =>
             !ld || d.getMonth() !== ld.getMonth()
-                ? date_utils.format(d, 'MMMM', lang)
+                ? dateUtils.format(d, 'MMMM', lang)
                 : '',
         thickLine: (d: Date) => d.getDay() === 1,
     },
@@ -102,7 +102,7 @@ const DEFAULT_VIEW_MODES: ViewMode[] = [
         lowerText: formatWeek,
         upperText: (d: Date, ld: Date | null, lang: string) =>
             !ld || d.getMonth() !== ld.getMonth()
-                ? date_utils.format(d, 'MMMM', lang)
+                ? dateUtils.format(d, 'MMMM', lang)
                 : '',
         thickLine: (d: Date) => d.getDate() >= 1 && d.getDate() <= 7,
         upperTextFrequency: 4,
@@ -116,7 +116,7 @@ const DEFAULT_VIEW_MODES: ViewMode[] = [
         lowerText: 'MMMM',
         upperText: (d: Date, ld: Date | null, lang: string) =>
             !ld || d.getFullYear() !== ld.getFullYear()
-                ? date_utils.format(d, 'YYYY', lang)
+                ? dateUtils.format(d, 'YYYY', lang)
                 : '',
         thickLine: (d: Date) => d.getMonth() % 3 === 0,
         snapAt: '7d',

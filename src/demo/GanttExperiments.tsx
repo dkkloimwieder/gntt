@@ -16,7 +16,7 @@ import { GanttContainer } from '../components/GanttContainer';
 import { Grid } from '../components/Grid';
 import { DateHeaders } from '../components/DateHeaders';
 import { ResourceColumn } from '../components/ResourceColumn';
-import date_utils from '../utils/date_utils.js';
+import dateUtils from '../utils/dateUtils';
 
 /**
  * GanttExperiments - Performance testing harness with date-based positioning
@@ -91,7 +91,7 @@ for (let d = 0; d < TOTAL_DAYS; d++) {
         width: DAY_WIDTH,
         upperText:
             d === 0
-                ? date_utils.format(dayDate, 'MMM YYYY')
+                ? dateUtils.format(dayDate, 'MMM YYYY')
                 : dayDate.getUTCDay() === 1
                   ? `W${Math.ceil((d + 1) / 7)}`
                   : '',

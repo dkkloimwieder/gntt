@@ -8,7 +8,7 @@ import { GanttContainer } from '../components/GanttContainer';
 import { Grid } from '../components/Grid';
 import { DateHeaders } from '../components/DateHeaders';
 import { ResourceColumn } from '../components/ResourceColumn';
-import date_utils from '../utils/date_utils.js';
+import dateUtils from '../utils/dateUtils';
 import { computeX, computeWidth } from '../utils/barCalculations.js';
 // import { ArrowLayerBatched } from '../components/ArrowLayerBatched'; // Removed - causes 21% perf regression
 
@@ -93,8 +93,8 @@ const COLUMN_WIDTH = 30; // 30px per hour
 // Parse all dates and find ganttStart (earliest date)
 const parsedTasks = calendarData.tasks.map((task) => ({
     ...task,
-    _start: date_utils.parse(task.start),
-    _end: date_utils.parse(task.end),
+    _start: dateUtils.parse(task.start),
+    _end: dateUtils.parse(task.end),
 }));
 const ganttStart = new Date(
     Math.min(...parsedTasks.map((t) => t._start.getTime())),
