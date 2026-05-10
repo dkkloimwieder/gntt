@@ -3,14 +3,14 @@ import {
     computeProgressWidth,
     computeExpectedProgress,
     computeLabelPosition,
-    snapToGrid,
 } from '../utils/barCalculations';
-import { useDrag, clamp } from '../hooks/useDrag';
+import { useBarDrag } from '../hooks/useBarDrag';
+import { useBarConfig } from '../hooks/useBarConfig';
 import { useGanttEvents } from '../contexts/GanttEvents';
 import type { TaskStore } from '../stores/taskStore';
 import type { GanttConfigStore } from '../stores/ganttConfigStore';
 import type { ProcessedTask, BarPosition, LockState } from '../types';
-import { DEFAULT_COLUMN_WIDTH, DEFAULT_BAR_HEIGHT } from '../constants';
+import { DEFAULT_BAR_HEIGHT } from '../constants';
 
 // Bar-local layout constants (px)
 const LABEL_OUTSIDE_GAP = 5; // gap between bar's right edge and outside-positioned label
@@ -120,43 +120,16 @@ export function Bar(props: BarProps): JSX.Element {
         );
     };
 
-    // Configuration - OPTIMIZED: memoize config accessors to avoid repeated optional chaining
-    const barCornerRadius = createMemo(
-        () => props.ganttConfig?.barCornerRadius?.() ?? props.cornerRadius ?? 3,
-    );
-    const readonly = createMemo(
-        () => props.ganttConfig?.readonly?.() ?? props.readonly ?? false,
-    );
-    const readonlyDates = createMemo(
-        () =>
-            props.ganttConfig?.readonlyDates?.() ??
-            props.readonlyDates ??
-            false,
-    );
-    const readonlyProgress = createMemo(
-        () =>
-            props.ganttConfig?.readonlyProgress?.() ??
-            props.readonlyProgress ??
-            false,
-    );
-    const showExpectedProgress = createMemo(
-        () =>
-            props.ganttConfig?.showExpectedProgress?.() ??
-            props.showExpectedProgress ??
-            false,
-    );
-    const columnWidth = createMemo(
-        () =>
-            props.ganttConfig?.columnWidth?.() ??
-            props.columnWidth ??
-            DEFAULT_COLUMN_WIDTH,
-    );
-    const ignoredPositions = createMemo(
-        () =>
-            props.ganttConfig?.ignoredPositions?.() ??
-            props.ignoredPositions ??
-            [],
-    );
+    // Memoized config accessors — store value → prop fallback → default.
+    const {
+        barCornerRadius,
+        readonly,
+        readonlyDates,
+        readonlyProgress,
+        showExpectedProgress,
+        columnWidth,
+        ignoredPositions,
+    } = useBarConfig(props);
 
     // OPTIMIZATION: Single memo batching all task property reads
     // This reduces reactive overhead from 34 separate task() accesses to 1 memo evaluation
@@ -214,271 +187,42 @@ export function Bar(props: BarProps): JSX.Element {
     // Minimum bar width (one column)
     const minWidth = (): number => columnWidth();
 
-    // OPTIMIZATION: Track if a drag occurred in non-reactive variable (avoids 60fps signal updates)
-    let didDragFlag = false;
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // DRAG SETUP
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    const { dragState, isDragging, startDrag } = useDrag({
-        onDragStart: (data, state) => {
-            // Reset drag flag at start
-            didDragFlag = false;
-            // Store original values
-            data['originalX'] = x();
-            data['originalY'] = y();
-            data['originalWidth'] = width();
-            data['originalProgress'] = t().progress;
-
-            // Signal that a drag is in progress (defers expensive recalculations)
-            props.taskStore?.setDraggingTaskId?.(t().id);
-
-            // For bar dragging: collect dependent tasks AND descendants ONCE at drag start
-            // This enables batch updates during drag for better performance
-            if (state === 'dragging_bar') {
-                // Collect tasks that should move together
-                const tasksToMove = new Set<string>();
-
-                // Add dependency chain (tasks that depend on this one)
-                if (props.onCollectDependents) {
-                    const dependentIds = props.onCollectDependents(t().id);
-                    for (const id of dependentIds) {
-                        tasksToMove.add(id);
-                    }
-                }
-
-                // Add descendants (child tasks for summary bars)
-                if (props.onCollectDescendants) {
-                    const descendantIds = props.onCollectDescendants(t().id);
-                    for (const id of descendantIds) {
-                        tasksToMove.add(id);
-                    }
-                }
-
-                // Store original positions for all tasks in the batch
-                const dependentOriginals = new Map<string, BatchOriginal>();
-                for (const id of tasksToMove) {
-                    const pos = props.taskStore?.getBarPosition(id);
-                    if (pos) {
-                        dependentOriginals.set(id, { originalX: pos.x });
-                    }
-                }
-                data['dependentOriginals'] = dependentOriginals;
-            }
-        },
-
-        onDragMove: (move, data, state) => {
-            if (!props.taskStore || !t().id) {
-                return;
-            }
-
-            // Mark that a drag occurred (used to distinguish click from drag)
-            didDragFlag = true;
-
-            const colWidth = columnWidth();
-            const ignored = ignoredPositions();
-
-            if (state === 'dragging_bar') {
-                // Bar movement - snap to grid
-                const originalX = data['originalX'] as number;
-                let newX = snapToGrid(
-                    originalX + move.deltaX,
-                    colWidth,
-                    ignored,
-                );
-
-                // Calculate delta from original position
-                let deltaX = newX - originalX;
-
-                // Use batch move if we have dependent tasks (for performance)
-                const dependentOriginals = data['dependentOriginals'] as
-                    | Map<string, BatchOriginal>
-                    | undefined;
-                if (
-                    dependentOriginals &&
-                    dependentOriginals.size > 0 &&
-                    props.taskStore.batchMovePositions
-                ) {
-                    // Clamp deltaX to prevent constraint violations when dragging backward
-                    if (props.onClampBatchDelta && deltaX < 0) {
-                        deltaX = props.onClampBatchDelta(
-                            dependentOriginals,
-                            deltaX,
-                        );
-                    }
-
-                    // Batch move all dependent tasks by the same delta
-                    // This is much faster than individual constraint resolution
-                    props.taskStore.batchMovePositions(
-                        dependentOriginals,
-                        deltaX,
-                    );
-                } else {
-                    // Fallback: apply constraints and update single task
-                    if (props.onConstrainPosition) {
-                        const constrained = props.onConstrainPosition(
-                            t().id,
-                            newX,
-                            y(),
-                        );
-                        if (constrained === null) return; // Movement blocked
-                        newX = constrained.x ?? newX;
-                    }
-                    props.taskStore.updateBarPosition(t().id, { x: newX });
-                }
-            } else if (state === 'dragging_left') {
-                // Left handle - resize from start
-                const originalX = data['originalX'] as number;
-                const originalWidth = data['originalWidth'] as number;
-                const rawDelta = move.deltaX;
-                const snappedDelta = Math.round(rawDelta / colWidth) * colWidth;
-
-                let newX = originalX + snappedDelta;
-                let newWidth = originalWidth - snappedDelta;
-
-                // Enforce minimum width
-                if (newWidth < minWidth()) {
-                    newWidth = minWidth();
-                    newX = originalX + originalWidth - minWidth();
-                }
-
-                // Skip ignored positions
-                newX = snapToGrid(newX, colWidth, ignored);
-
-                // Apply constraints if provided - prevent moving start before predecessor's end
-                if (props.onConstrainPosition) {
-                    const constrained = props.onConstrainPosition(
-                        t().id,
-                        newX,
-                        y(),
-                    );
-                    if (constrained === null) return; // Movement blocked
-                    // If constraint moved us right, adjust width accordingly
-                    if (constrained.x !== undefined && constrained.x > newX) {
-                        newWidth = newWidth - (constrained.x - newX);
-                        newX = constrained.x;
-                    }
-                }
-
-                props.taskStore.updateBarPosition(t().id, {
-                    x: newX,
-                    width: newWidth,
-                });
-            } else if (state === 'dragging_right') {
-                // Right handle - resize from end
-                const originalWidth = data['originalWidth'] as number;
-                const rawDelta = move.deltaX;
-                const snappedDelta = Math.round(rawDelta / colWidth) * colWidth;
-
-                let newWidth = originalWidth + snappedDelta;
-
-                // Enforce minimum width
-                newWidth = Math.max(minWidth(), newWidth);
-
-                props.taskStore.updateBarPosition(t().id, {
-                    width: newWidth,
-                });
-            } else if (state === 'dragging_progress') {
-                // Progress handle - update progress percentage
-                const barX = x();
-                const barWidth = width();
-                const ignoredPos = ignoredPositions();
-                const colW = columnWidth();
-                const startSvgX = data['startSvgX'] as number;
-
-                // Calculate new progress X position
-                let newProgressX = clamp(
-                    startSvgX + move.deltaX,
-                    barX,
-                    barX + barWidth,
-                );
-
-                // Calculate progress percentage (accounting for ignored dates)
-                const totalIgnoredInBar = ignoredPos.reduce((acc, pos) => {
-                    return acc + (pos >= barX && pos < barX + barWidth ? 1 : 0);
-                }, 0);
-                const effectiveWidth = barWidth - totalIgnoredInBar * colW;
-
-                const progressOffset = newProgressX - barX;
-                const ignoredInProgress = ignoredPos.reduce((acc, pos) => {
-                    return acc + (pos >= barX && pos < newProgressX ? 1 : 0);
-                }, 0);
-                const effectiveProgress =
-                    progressOffset - ignoredInProgress * colW;
-
-                const newProgress =
-                    effectiveWidth > 0
-                        ? clamp(
-                              Math.round(
-                                  (effectiveProgress / effectiveWidth) * 100,
-                              ),
-                              0,
-                              100,
-                          )
-                        : 0;
-
-                // Update task progress
-                if (props.taskStore) {
-                    const currentTask = props.taskStore.getTask(t().id);
-                    if (currentTask) {
-                        props.taskStore.updateTask(t().id, {
-                            ...currentTask,
-                            progress: newProgress,
-                        });
-                    }
-                }
-            }
-        },
-
-        onDragEnd: (_move, _data, state) => {
-            // Clear drag state (allows deferred recalculations to resume)
-            props.taskStore?.setDraggingTaskId?.(null);
-
-            // Notify about changes - read directly from store to avoid reactive timing issues
-            // Use props callbacks if provided, otherwise use context
-            const onDateChange = props.onDateChange ?? events.onDateChange;
-            const onResizeEnd = props.onResizeEnd ?? events.onResizeEnd;
-            const onProgressChange =
-                props.onProgressChange ?? events.onProgressChange;
-
-            if (
-                state === 'dragging_bar' ||
-                state === 'dragging_left' ||
-                state === 'dragging_right'
-            ) {
-                const pos = props.taskStore?.getBarPosition(t().id);
-                onDateChange?.(t().id, {
-                    x: pos?.x ?? x(),
-                    width: pos?.width ?? width(),
-                });
-
-                // Trigger constraint resolution after resize (width changed)
-                if (state === 'dragging_left' || state === 'dragging_right') {
-                    onResizeEnd?.(t().id);
-                }
-            } else if (state === 'dragging_progress') {
-                onProgressChange?.(t().id, t().progress);
-            }
-        },
-    });
+    // Drag/resize/progress interaction state — see hooks/useBarDrag.
+    const { dragState, isDragging, startDrag, didDrag, resetDidDrag } =
+        useBarDrag({
+            taskStore: props.taskStore,
+            handlers: {
+                onCollectDependents: props.onCollectDependents,
+                onCollectDescendants: props.onCollectDescendants,
+                onClampBatchDelta: props.onClampBatchDelta,
+                onConstrainPosition: props.onConstrainPosition,
+                // Props callbacks take precedence; context provides fallback.
+                onDateChange: props.onDateChange ?? events.onDateChange,
+                onResizeEnd: props.onResizeEnd ?? events.onResizeEnd,
+                onProgressChange:
+                    props.onProgressChange ?? events.onProgressChange,
+            },
+            taskInfo: () => ({ id: t().id, progress: t().progress }),
+            x,
+            y,
+            width,
+            columnWidth,
+            ignoredPositions,
+            minWidth,
+        });
 
     // ═══════════════════════════════════════════════════════════════════════════
     // EVENT HANDLERS
     // ═══════════════════════════════════════════════════════════════════════════
 
     const handleBarMouseDown = (e: MouseEvent): void => {
-        if (readonly() || readonlyDates() || isLocked()) {
-            return;
-        }
+        if (readonly() || readonlyDates() || isLocked()) return;
 
-        // Check if clicking on a handle
+        // Skip if clicking on a handle (its own onMouseDown handles drag)
         const target = e.target as HTMLElement;
-        if (target.classList && target.classList.contains('handle')) {
-            return;
-        }
+        if (target.classList && target.classList.contains('handle')) return;
 
-        didDragFlag = false; // Reset drag flag on mousedown
+        resetDidDrag();
         startDrag(e, 'dragging_bar', { taskId: t().id });
     };
 
@@ -500,7 +244,7 @@ export function Bar(props: BarProps): JSX.Element {
     // Click handler for task data modal (only fires if no drag occurred)
     const handleClick = (e: MouseEvent): void => {
         const onTaskClick = props.onTaskClick ?? events.onTaskClick;
-        if (!didDragFlag && onTaskClick) {
+        if (!didDrag() && onTaskClick) {
             e.stopPropagation();
             onTaskClick(t().id, e);
         }
