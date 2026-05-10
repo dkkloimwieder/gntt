@@ -8,7 +8,7 @@ import { GanttContainer } from '../components/GanttContainer';
 import { Grid } from '../components/Grid';
 import { DateHeaders } from '../components/DateHeaders';
 import { ResourceColumn } from '../components/ResourceColumn';
-import dateUtils from '../utils/dateUtils';
+import * as dateUtils from '../utils/dateUtils';
 import { computeX, computeWidth } from '../utils/barCalculations.js';
 // import { ArrowLayerBatched } from '../components/ArrowLayerBatched'; // Removed - causes 21% perf regression
 

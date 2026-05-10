@@ -396,5 +396,3 @@ export function generateSubtaskDemo(
         expandedTasks,
     };
 }
-
-export default { generateSubtaskDemo };

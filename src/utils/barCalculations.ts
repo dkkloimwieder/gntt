@@ -1,4 +1,4 @@
-import dateUtils from './dateUtils';
+import * as dateUtils from './dateUtils';
 import type { TimeScale } from './dateUtils';
 import type { BarPosition } from '../types';
 import { DEFAULT_COLUMN_WIDTH } from '../constants';

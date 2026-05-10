@@ -526,13 +526,3 @@ export function calculateSimpleRowLayouts(
 
     return layouts;
 }
-
-export default {
-    calculateRowLayouts,
-    calculateSimpleRowLayouts,
-    calculateExpandedRowHeight,
-    findRowAtY,
-    rowLayoutsToSortedArray,
-    getVisibleRowRange,
-    computeSubtaskY,
-};

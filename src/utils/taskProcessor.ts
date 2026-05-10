@@ -1,4 +1,4 @@
-import dateUtils from './dateUtils';
+import * as dateUtils from './dateUtils';
 import { computeX, computeY, computeWidth } from './barCalculations';
 import { detectCycles } from './constraintEngine';
 import type {
@@ -344,11 +344,3 @@ export function buildDependencyMap(
 
     return map;
 }
-
-export default {
-    processTask,
-    processTasks,
-    findDateBounds,
-    buildDependencyMap,
-    parseDependencies,
-};

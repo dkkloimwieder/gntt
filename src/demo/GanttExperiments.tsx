@@ -16,7 +16,7 @@ import { GanttContainer } from '../components/GanttContainer';
 import { Grid } from '../components/Grid';
 import { DateHeaders } from '../components/DateHeaders';
 import { ResourceColumn } from '../components/ResourceColumn';
-import dateUtils from '../utils/dateUtils';
+import * as dateUtils from '../utils/dateUtils';
 
 /**
  * GanttExperiments - Performance testing harness with date-based positioning

@@ -1,5 +1,5 @@
 import { createSignal, createMemo, Accessor, Setter } from 'solid-js';
-import dateUtils from '../utils/dateUtils';
+import * as dateUtils from '../utils/dateUtils';
 import type { TimeScale } from '../utils/dateUtils';
 import { DEFAULT_VIEW_MODES } from '../utils/defaults';
 import type { ViewMode, DateInfo } from '../types';

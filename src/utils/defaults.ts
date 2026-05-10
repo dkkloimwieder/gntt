@@ -1,4 +1,4 @@
-import dateUtils from './dateUtils';
+import * as dateUtils from './dateUtils';
 import type { ViewMode } from '../types';
 
 function getDecade(d: Date): string {

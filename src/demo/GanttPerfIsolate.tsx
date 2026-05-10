@@ -16,7 +16,7 @@ import topologyBreadthData from '../data/generated/topology-breadth.json';
 import topologyDepthData from '../data/generated/topology-depth.json';
 import topologyBalancedData from '../data/generated/topology-balanced.json';
 import topologyDebugData from '../data/generated/topology-debug.json';
-import dateUtils from '../utils/dateUtils';
+import * as dateUtils from '../utils/dateUtils';
 import { useGanttEvents, GanttEventsProvider } from '../contexts/GanttEvents';
 import { useDrag } from '../hooks/useDrag.js';
 import { Grid } from '../components/Grid';
