@@ -383,7 +383,7 @@ function TestBarManyMemos(props) {
     // Computed memos (like real Bar)
     const progressWidth = createMemo(() => (SLOT_WIDTH * progress()) / 100);
     const barColor = createMemo(() => task()?.color ?? '#b8c2cc');
-    const progressColor = createMemo(() => task()?.color_progress ?? '#a3a3ff');
+    const progressColor = createMemo(() => task()?.colorProgress ?? '#a3a3ff');
     const hasSubtasks = createMemo(() => task()?._children?.length > 0);
     const isInvalid = createMemo(() => task()?.invalid ?? false);
     const customClass = createMemo(() => task()?.custom_class ?? '');
@@ -1516,7 +1516,7 @@ function TestBarCombined(props) {
     const columnWidth = createMemo(() => 45);
     const progressWidth = createMemo(() => (SLOT_WIDTH * progress()) / 100);
     const barColor = createMemo(() => task()?.color ?? '#b8c2cc');
-    const progressColor = createMemo(() => task()?.color_progress ?? '#a3a3ff');
+    const progressColor = createMemo(() => task()?.colorProgress ?? '#a3a3ff');
     const hasSubtasks = createMemo(() => task()?._children?.length > 0);
     const showHandles = createMemo(() => !readonly());
     const showDateHandles = createMemo(() => showHandles() && !readonlyDates());

@@ -133,7 +133,7 @@ export function GanttResourceGroupsDemo() {
         upperHeaderHeight: 45,
         lowerHeaderHeight: 30,
         lines: 'both',
-        scroll_to: 'start',
+        scrollTo: 'start',
     });
 
     // Event handlers (no-op for demo)

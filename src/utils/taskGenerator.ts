@@ -7,7 +7,7 @@ import type { DependencyType } from '../types';
 
 interface ColorVariants {
     color: string;
-    color_progress: string;
+    colorProgress: string;
     color_bg: string;
     color_fill: string;
 }
@@ -19,7 +19,7 @@ interface GeneratedTask {
     end: string;
     progress: number;
     color: string;
-    color_progress: string;
+    colorProgress: string;
     color_bg: string;
     color_fill: string;
     dependencies?: { id: string; type: DependencyType; lag?: number }[];
@@ -85,7 +85,7 @@ function hexToRgba(hex: string, alpha: number): string {
 function computeColorVariants(hex: string): ColorVariants {
     return {
         color: hex,
-        color_progress: hex + 'cc',
+        colorProgress: hex + 'cc',
         color_bg: hexToRgba(hex, 0.15), // Background fill
         color_fill: hexToRgba(hex, 0.3), // Progress fill
     };

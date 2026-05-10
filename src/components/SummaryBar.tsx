@@ -85,7 +85,7 @@ export function SummaryBar(props: SummaryBarProps): JSX.Element {
     const barColor = (): string =>
         task()?.color ?? 'var(--g-bar-color, #b8c2cc)';
     const progressColor = (): string =>
-        task()?.color_progress ?? 'var(--g-bar-progress-color, #a3a3ff)';
+        task()?.colorProgress ?? 'var(--g-bar-progress-color, #a3a3ff)';
     const progress = (): number => task()?.progress ?? 0;
 
     // Progress bar width

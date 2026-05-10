@@ -50,7 +50,7 @@ export function SubtaskBar(props: SubtaskBarProps): JSX.Element {
         config().parentColor ??
         'var(--g-bar-color, #b8c2cc)';
     const progressColor = (): string =>
-        (task()?.color_progress as string) ?? barColor();
+        (task()?.colorProgress as string) ?? barColor();
 
     // Progress
     const progress = (): number => task()?.progress ?? 0;

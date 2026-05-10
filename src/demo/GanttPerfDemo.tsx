@@ -309,7 +309,7 @@ export function GanttPerfDemo() {
         lowerHeaderHeight: 25,
         headerHeight: 60,
         lines: 'both',
-        scroll_to: 'start',
+        scrollTo: 'start',
     }));
 
     // Load tasks and measure render time

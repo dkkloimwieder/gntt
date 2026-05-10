@@ -155,7 +155,7 @@ function TestBar(props) {
         const width = bar?.width ?? SLOT_WIDTH;
         return {
             color: task?.color ?? '#3b82f6',
-            colorProgress: task?.color_progress ?? '#a3a3ff',
+            colorProgress: task?.colorProgress ?? '#a3a3ff',
             locked: task?.locked ?? false,
             name: task?.name ?? '',
             id: task?.id ?? '',

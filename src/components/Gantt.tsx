@@ -51,11 +51,11 @@ interface ArrowConfigOptions {
 
 interface GanttOptions {
     viewMode?: string;
-    scroll_to?: 'start' | 'today' | string;
+    scrollTo?: 'start' | 'today' | string;
     upperHeaderHeight?: number;
     lowerHeaderHeight?: number;
     resourceColumnWidth?: number;
-    arrow_color?: string;
+    arrowColor?: string;
     arrow_curve?: number;
     arrow_head_shape?: string;
     arrow_head_size?: number;
@@ -302,13 +302,13 @@ export function Gantt(props: GanttProps): JSX.Element {
         scroll.handleContainerReady(api);
 
         // Handle 'today' scroll immediately (doesn't depend on tasks)
-        if (props.options?.scroll_to === 'today') {
+        if (props.options?.scrollTo === 'today') {
             const todayX = dateStore.dateToX(new Date());
             api.scrollTo(todayX - api.getContainerWidth() / 4, false);
         }
     };
 
-    // Effect: scroll to first task once tasks are ready (scroll_to: 'start')
+    // Effect: scroll to first task once tasks are ready (scrollTo: 'start')
     let initialScrollDone = false;
     createEffect(() => {
         const tasks = taskStore.tasks;
@@ -317,7 +317,7 @@ export function Gantt(props: GanttProps): JSX.Element {
         if (
             !initialScrollDone &&
             api &&
-            props.options?.scroll_to === 'start' &&
+            props.options?.scrollTo === 'start' &&
             tasks &&
             taskIds.length > 0
         ) {

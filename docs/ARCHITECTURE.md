@@ -275,7 +275,7 @@ cellTop = headerHeight + padding/2 + index * (barHeight + padding)
     _start: Date,           // For expected progress
     _end: Date,             // For expected progress
     color: '#3498db',       // Bar background
-    color_progress: '#2980b9', // Progress bar color
+    colorProgress: '#2980b9', // Progress bar color
     _index: 0,              // Row position
     dependencies: [         // Parsed dependency array
         { id: 'task-0', type: 'FS', lag: 0 }

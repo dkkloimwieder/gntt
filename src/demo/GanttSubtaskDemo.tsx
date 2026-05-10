@@ -257,7 +257,7 @@ export function GanttSubtaskDemo() {
         upperHeaderHeight: 45,
         lowerHeaderHeight: 30,
         lines: 'both',
-        scroll_to: 'start',
+        scrollTo: 'start',
     });
 
     // Event handlers

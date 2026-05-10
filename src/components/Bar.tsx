@@ -154,7 +154,7 @@ export function Bar(props: BarProps): JSX.Element {
             id: task.id ?? '',
             name: task.name ?? '',
             color: task.color ?? '#b8c2cc',
-            colorProgress: task.color_progress ?? '#a3a3ff',
+            colorProgress: task.colorProgress ?? '#a3a3ff',
             progress: task.progress ?? 0,
             locked: task.constraints?.locked ?? false,
             invalid:

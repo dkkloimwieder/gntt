@@ -52,7 +52,7 @@ export function BarDemo() {
             _start: daysFromNow(-10), // Started 10 days ago
             _end: daysFromNow(-1), // Ended yesterday
             color: '#3498db',
-            color_progress: '#2980b9',
+            colorProgress: '#2980b9',
             _index: 0,
         },
         // Start-to-start: Documentation starts when Design starts (parallel with predecessor)
@@ -63,7 +63,7 @@ export function BarDemo() {
             _start: daysFromNow(-10), // Started 10 days ago
             _end: daysFromNow(2), // Ends in 2 days (expected ~83%)
             color: '#9b59b6',
-            color_progress: '#8e44ad',
+            colorProgress: '#8e44ad',
             _index: 1,
         },
         // Finish-to-start parallel: both start after Design ends
@@ -74,7 +74,7 @@ export function BarDemo() {
             _start: daysFromNow(-5), // Started 5 days ago
             _end: daysFromNow(3), // Ends in 3 days (expected ~63%)
             color: '#27ae60',
-            color_progress: '#1e8449',
+            colorProgress: '#1e8449',
             _index: 2,
         },
         {
@@ -84,7 +84,7 @@ export function BarDemo() {
             _start: daysFromNow(-5), // Started 5 days ago
             _end: daysFromNow(2), // Ends in 2 days (expected ~71%)
             color: '#16a085',
-            color_progress: '#1abc9c',
+            colorProgress: '#1abc9c',
             _index: 3,
         },
         // Depends on both parallel tasks
@@ -95,7 +95,7 @@ export function BarDemo() {
             _start: daysFromNow(-1), // Started yesterday
             _end: daysFromNow(5), // Ends in 5 days (expected ~17%)
             color: '#e67e22',
-            color_progress: '#d35400',
+            colorProgress: '#d35400',
             _index: 4,
         },
         {
@@ -116,7 +116,7 @@ export function BarDemo() {
             _start: daysFromNow(-3),
             _end: daysFromNow(3), // 6 day task (expected 50%)
             color: '#e74c3c',
-            color_progress: '#c0392b',
+            colorProgress: '#c0392b',
             _index: 6,
         },
         {
@@ -126,7 +126,7 @@ export function BarDemo() {
             _start: daysFromNow(-3),
             _end: daysFromNow(3), // 6 day task (expected 50%)
             color: '#e74c3c',
-            color_progress: '#c0392b',
+            colorProgress: '#c0392b',
             _index: 7,
         },
     ];

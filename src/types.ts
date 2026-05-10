@@ -122,7 +122,7 @@ export interface GanttTaskInput {
     /** Bar color (hex) */
     color?: string;
     /** Progress bar color (hex with alpha) */
-    color_progress?: string;
+    colorProgress?: string;
     /** Background fill color (rgba) */
     color_bg?: string;
     /** Progress fill color (rgba) */
@@ -166,7 +166,7 @@ export interface GanttTask {
     /** Bar color (hex) */
     color?: string;
     /** Progress bar color (hex with alpha) */
-    color_progress?: string;
+    colorProgress?: string;
     /** Background fill color (rgba) */
     color_bg?: string;
     /** Progress fill color (rgba) */

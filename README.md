@@ -22,13 +22,38 @@ function App() {
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `view_mode` | Timeline view (`Day`, `Week`, `Month`, `Year`) | `Day` |
-| `bar_height` | Height of task bars (px) | `30` |
-| `column_width` | Width of timeline columns (px) | `45` |
+| `viewMode` | Timeline view (`Day`, `Week`, `Month`, `Year`) | `Day` |
+| `barHeight` | Height of task bars (px) | `30` |
+| `columnWidth` | Width of timeline columns (px) | `45` |
 | `padding` | Padding around task bars (px) | `18` |
 | `readonly` | Disable all editing | `false` |
-| `readonly_dates` | Disable date editing | `false` |
-| `readonly_progress` | Disable progress editing | `false` |
+| `readonlyDates` | Disable date editing | `false` |
+| `readonlyProgress` | Disable progress editing | `false` |
+| `scrollTo` | Initial scroll target (`'start'`, `'today'`, or ISO date) | — |
+| `arrowColor` | Dependency arrow color | `'#a3a3ff'` |
+
+Per-task fields (on the data shape passed to `tasks`): `id`, `name`,
+`start`, `end`, `progress`, `dependencies`, `color`, `colorProgress`,
+`resource`.
+
+## Breaking changes
+
+All public option, prop, and task-data field names use **camelCase**.
+Previous snake_case forms were removed in two passes:
+
+| Renamed from | To | Issue |
+|---|---|---|
+| `view_mode` | `viewMode` | gantt-i8b |
+| `bar_height` | `barHeight` | gantt-i8b |
+| `column_width` | `columnWidth` | gantt-i8b |
+| `readonly_dates` | `readonlyDates` | gantt-i8b |
+| `readonly_progress` | `readonlyProgress` | gantt-i8b |
+| `scroll_to` | `scrollTo` | gantt-cwe |
+| `arrow_color` | `arrowColor` | gantt-cwe |
+| `color_progress` | `colorProgress` (on tasks) | gantt-cwe |
+
+If you're upgrading from a pre-camelCase release, update consumer
+code accordingly. There is no compatibility shim.
 
 ## Development
 

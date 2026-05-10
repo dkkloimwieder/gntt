@@ -30,7 +30,7 @@ const PRESETS = {
         taskConfig: {
             name: 'Task',
             color: '#b8c2cc',
-            color_progress: '#a3a3ff',
+            colorProgress: '#a3a3ff',
             progress: 50,
             cornerRadius: 3,
             locked: false,
@@ -72,7 +72,7 @@ const PRESETS = {
         taskConfig: {
             name: 'Colorful Task',
             color: '#e74c3c',
-            color_progress: '#c0392b',
+            colorProgress: '#c0392b',
             progress: 75,
             cornerRadius: 6,
             locked: false,
@@ -114,7 +114,7 @@ const PRESETS = {
         taskConfig: {
             name: 'Minimal',
             color: '#95a5a6',
-            color_progress: '#7f8c8d',
+            colorProgress: '#7f8c8d',
             progress: 30,
             cornerRadius: 0,
             locked: false,
@@ -156,7 +156,7 @@ const PRESETS = {
         taskConfig: {
             name: 'Constrained',
             color: '#3498db',
-            color_progress: '#2980b9',
+            colorProgress: '#2980b9',
             progress: 60,
             cornerRadius: 3,
             locked: false,
@@ -198,7 +198,7 @@ const PRESETS = {
         taskConfig: {
             name: 'Locked Task',
             color: '#7f8c8d',
-            color_progress: '#95a5a6',
+            colorProgress: '#95a5a6',
             progress: 50,
             cornerRadius: 3,
             locked: true,
@@ -240,7 +240,7 @@ const PRESETS = {
         taskConfig: {
             name: 'Linked Task',
             color: '#9b59b6',
-            color_progress: '#8e44ad',
+            colorProgress: '#8e44ad',
             progress: 40,
             cornerRadius: 3,
             locked: false,
@@ -283,7 +283,7 @@ const PRESETS = {
         taskConfig: {
             name: 'Parallel Start',
             color: '#2ecc71',
-            color_progress: '#27ae60',
+            colorProgress: '#27ae60',
             progress: 50,
             cornerRadius: 3,
             locked: false,
@@ -325,7 +325,7 @@ const PRESETS = {
         taskConfig: {
             name: 'Sync End',
             color: '#e74c3c',
-            color_progress: '#c0392b',
+            colorProgress: '#c0392b',
             progress: 50,
             cornerRadius: 3,
             locked: false,
@@ -555,21 +555,21 @@ export default function ShowcaseDemo() {
     const [taskBConfig, setTaskBConfig] = createStore({
         name: 'Task B',
         color: '#27ae60',
-        color_progress: '#2ecc71',
+        colorProgress: '#2ecc71',
         progress: 50,
         locked: false,
     });
     const [taskCConfig, setTaskCConfig] = createStore({
         name: 'Task C',
         color: '#3498db',
-        color_progress: '#2980b9',
+        colorProgress: '#2980b9',
         progress: 50,
         locked: false,
     });
     const [taskDConfig, setTaskDConfig] = createStore({
         name: 'Task D',
         color: '#9b59b6',
-        color_progress: '#8e44ad',
+        colorProgress: '#8e44ad',
         progress: 50,
         locked: false,
     });
@@ -617,7 +617,7 @@ export default function ShowcaseDemo() {
                 name: 'Task A',
                 progress: taskConfig.progress,
                 color: taskConfig.color,
-                color_progress: taskConfig.color_progress,
+                colorProgress: taskConfig.colorProgress,
                 constraints: { locked: taskConfig.locked },
                 invalid: taskConfig.invalid,
                 _index: 0,
@@ -628,7 +628,7 @@ export default function ShowcaseDemo() {
                 name: taskBConfig.name,
                 progress: taskBConfig.progress,
                 color: taskBConfig.color,
-                color_progress: taskBConfig.color_progress,
+                colorProgress: taskBConfig.colorProgress,
                 constraints: { locked: taskBConfig.locked },
                 _index: 1,
                 _bar: { x: 200, y: 120, width: 120, height: 30 },
@@ -638,7 +638,7 @@ export default function ShowcaseDemo() {
                 name: taskCConfig.name,
                 progress: taskCConfig.progress,
                 color: taskCConfig.color,
-                color_progress: taskCConfig.color_progress,
+                colorProgress: taskCConfig.colorProgress,
                 constraints: { locked: taskCConfig.locked },
                 _index: 2,
                 _bar: { x: 320, y: 170, width: 120, height: 30 },
@@ -648,7 +648,7 @@ export default function ShowcaseDemo() {
                 name: taskDConfig.name,
                 progress: taskDConfig.progress,
                 color: taskDConfig.color,
-                color_progress: taskDConfig.color_progress,
+                colorProgress: taskDConfig.colorProgress,
                 constraints: { locked: taskDConfig.locked },
                 _index: 3,
                 _bar: { x: 440, y: 220, width: 120, height: 30 },
@@ -670,7 +670,7 @@ export default function ShowcaseDemo() {
                 name: taskConfig.name,
                 progress: taskConfig.progress,
                 color: taskConfig.color,
-                color_progress: taskConfig.color_progress,
+                colorProgress: taskConfig.colorProgress,
                 constraints: { locked: taskConfig.locked },
                 invalid: taskConfig.invalid,
             });
@@ -686,7 +686,7 @@ export default function ShowcaseDemo() {
                 name: taskBConfig.name,
                 progress: taskBConfig.progress,
                 color: taskBConfig.color,
-                color_progress: taskBConfig.color_progress,
+                colorProgress: taskBConfig.colorProgress,
                 constraints: { locked: taskBConfig.locked },
             });
         }
@@ -783,21 +783,21 @@ export default function ShowcaseDemo() {
             setTaskBConfig({
                 name: 'Task B',
                 color: '#27ae60',
-                color_progress: '#2ecc71',
+                colorProgress: '#2ecc71',
                 progress: 50,
                 locked: false,
             });
             setTaskCConfig({
                 name: 'Task C',
                 color: '#3498db',
-                color_progress: '#2980b9',
+                colorProgress: '#2980b9',
                 progress: 50,
                 locked: false,
             });
             setTaskDConfig({
                 name: 'Task D',
                 color: '#9b59b6',
-                color_progress: '#8e44ad',
+                colorProgress: '#8e44ad',
                 progress: 50,
                 locked: false,
             });
@@ -833,7 +833,7 @@ export default function ShowcaseDemo() {
                 name: preset.taskConfig.name,
                 progress: preset.taskConfig.progress,
                 color: preset.taskConfig.color,
-                color_progress: preset.taskConfig.color_progress,
+                colorProgress: preset.taskConfig.colorProgress,
                 constraints: { locked: preset.taskConfig.locked },
                 invalid: preset.taskConfig.invalid,
             });
@@ -847,7 +847,7 @@ export default function ShowcaseDemo() {
                 name: 'Task B',
                 progress: 50,
                 color: '#27ae60',
-                color_progress: '#2ecc71',
+                colorProgress: '#2ecc71',
                 constraints: { locked: false },
             });
         }
@@ -858,7 +858,7 @@ export default function ShowcaseDemo() {
                 name: 'Task C',
                 progress: 50,
                 color: '#3498db',
-                color_progress: '#2980b9',
+                colorProgress: '#2980b9',
                 constraints: { locked: false },
             });
         }
@@ -869,7 +869,7 @@ export default function ShowcaseDemo() {
                 name: 'Task D',
                 progress: 50,
                 color: '#9b59b6',
-                color_progress: '#8e44ad',
+                colorProgress: '#8e44ad',
                 constraints: { locked: false },
             });
         }
@@ -1110,10 +1110,10 @@ export default function ShowcaseDemo() {
                             <span style={styles.label}>Progress Color:</span>
                             <input
                                 type="color"
-                                value={taskConfig.color_progress}
+                                value={taskConfig.colorProgress}
                                 onInput={(e) => {
                                     setTaskConfig(
-                                        'color_progress',
+                                        'colorProgress',
                                         e.target.value,
                                     );
                                     updateTaskA();
@@ -1123,7 +1123,7 @@ export default function ShowcaseDemo() {
                             <span
                                 style={{ color: '#888', 'font-size': '11px' }}
                             >
-                                {taskConfig.color_progress}
+                                {taskConfig.colorProgress}
                             </span>
                         </div>
 
@@ -1898,7 +1898,7 @@ export default function ShowcaseDemo() {
                             name: taskConfig.name,
                             progress: taskConfig.progress,
                             color: taskConfig.color,
-                            color_progress: taskConfig.color_progress,
+                            colorProgress: taskConfig.colorProgress,
                             constraints: { locked: taskConfig.locked },
                             invalid: taskConfig.invalid,
                         }}
@@ -1927,7 +1927,7 @@ export default function ShowcaseDemo() {
                             name: taskBConfig.name,
                             progress: taskBConfig.progress,
                             color: taskBConfig.color,
-                            color_progress: taskBConfig.color_progress,
+                            colorProgress: taskBConfig.colorProgress,
                             constraints: { locked: taskBConfig.locked },
                         }}
                         taskStore={taskStore}
@@ -1954,7 +1954,7 @@ export default function ShowcaseDemo() {
                             name: taskCConfig.name,
                             progress: taskCConfig.progress,
                             color: taskCConfig.color,
-                            color_progress: taskCConfig.color_progress,
+                            colorProgress: taskCConfig.colorProgress,
                             constraints: { locked: taskCConfig.locked },
                         }}
                         taskStore={taskStore}
@@ -1981,7 +1981,7 @@ export default function ShowcaseDemo() {
                             name: taskDConfig.name,
                             progress: taskDConfig.progress,
                             color: taskDConfig.color,
-                            color_progress: taskDConfig.color_progress,
+                            colorProgress: taskDConfig.colorProgress,
                             constraints: { locked: taskDConfig.locked },
                         }}
                         taskStore={taskStore}

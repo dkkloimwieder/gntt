@@ -31,7 +31,7 @@ import {
     cloneDate,
     calculateTaskTimes,
     GROUP_COLORS,
-} from '../utils/taskGenerator.js';
+} from '../utils/taskGenerator.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -67,7 +67,7 @@ function hexToRgba(hex, alpha) {
 function computeColorVariants(hex) {
     return {
         color: hex,
-        color_progress: hex + 'cc',
+        colorProgress: hex + 'cc',
         color_bg: hexToRgba(hex, 0.15),
         color_fill: hexToRgba(hex, 0.3),
     };

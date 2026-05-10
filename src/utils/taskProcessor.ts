@@ -157,7 +157,7 @@ export function processTask(
         parentId: task.parentId,
         type: task.type,
         color: task.color,
-        color_progress: task.color_progress,
+        colorProgress: task.colorProgress,
         color_bg: task.color_bg,
         color_fill: task.color_fill,
         subtaskLayout: task.subtaskLayout,

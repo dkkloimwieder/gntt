@@ -16,7 +16,7 @@ export function GanttDemo() {
             progress: 100,
             resource: 'Planning',
             color: '#3b82f6',
-            color_progress: '#1d4ed8',
+            colorProgress: '#1d4ed8',
         },
         {
             id: 'task-2',
@@ -27,7 +27,7 @@ export function GanttDemo() {
             dependencies: 'task-1',
             resource: 'Design',
             color: '#8b5cf6',
-            color_progress: '#6d28d9',
+            colorProgress: '#6d28d9',
         },
         {
             id: 'task-3',
@@ -38,7 +38,7 @@ export function GanttDemo() {
             dependencies: 'task-2',
             resource: 'Development',
             color: '#10b981',
-            color_progress: '#059669',
+            colorProgress: '#059669',
         },
         {
             id: 'task-4',
@@ -49,7 +49,7 @@ export function GanttDemo() {
             dependencies: 'task-3',
             resource: 'QA',
             color: '#f59e0b',
-            color_progress: '#d97706',
+            colorProgress: '#d97706',
         },
         {
             id: 'task-5',
@@ -60,7 +60,7 @@ export function GanttDemo() {
             dependencies: 'task-2',
             resource: 'Docs',
             color: '#ec4899',
-            color_progress: '#db2777',
+            colorProgress: '#db2777',
         },
         {
             id: 'task-6',
@@ -71,7 +71,7 @@ export function GanttDemo() {
             dependencies: 'task-4,task-5',
             resource: 'DevOps',
             color: '#ef4444',
-            color_progress: '#dc2626',
+            colorProgress: '#dc2626',
         },
     ]);
 
@@ -84,7 +84,7 @@ export function GanttDemo() {
         upperHeaderHeight: 45,
         lowerHeaderHeight: 30,
         lines: 'both',
-        scroll_to: 'start',
+        scrollTo: 'start',
     });
 
     // Event handlers
