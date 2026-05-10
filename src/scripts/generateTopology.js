@@ -538,7 +538,6 @@ function generateBalanced(cfg, random) {
         const toTaskIdx = randomBetween(random, 0, toRow.length - 1);
         const toTask = toRow[toTaskIdx];
         const toStart = parseDateTime(toTask.start);
-        const toEnd = parseDateTime(toTask.end);
 
         // Pick from an earlier row (within maxRowDistance)
         const maxDist = cfg.maxRowDistance || 2;
@@ -636,7 +635,7 @@ function computeStats(tasks) {
         }
     }
 
-    for (const [id, depth] of depths) {
+    for (const [, depth] of depths) {
         maxDepth = Math.max(maxDepth, depth);
     }
 
@@ -645,7 +644,7 @@ function computeStats(tasks) {
     let avgBreadth = 0;
     let breadthCount = 0;
 
-    for (const [id, succs] of successors) {
+    for (const [, succs] of successors) {
         if (succs.length > 0) {
             maxBreadth = Math.max(maxBreadth, succs.length);
             avgBreadth += succs.length;

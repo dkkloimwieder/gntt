@@ -41,6 +41,16 @@ export default [
     },
     prettierRecommended,
     {
+        // Demos and entries are exploratory dev code — out of audit scope.
+        // Relaxed rules so the library lint stays a clean signal.
+        files: ["src/demo/**", "src/entries/**"],
+        rules: {
+            "@typescript-eslint/no-unused-vars": "off",
+            "@typescript-eslint/ban-ts-comment": "off",
+            "no-unused-vars": "off",
+        },
+    },
+    {
         ignores: ["dist/**", "dist-demo/**", "node_modules/**"],
     },
 ];

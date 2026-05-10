@@ -107,9 +107,6 @@ export function Bar(props: BarProps): JSX.Element {
         return typeof t === 'function' ? t() : t;
     };
 
-    // Get task ID from the task object
-    const taskId = (): string => getTask()?.id ?? '';
-
     // Get position directly from task's _bar - keeps reactivity for drag updates
     const getPosition = (): BarPosition => {
         const task = getTask();

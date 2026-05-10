@@ -90,7 +90,6 @@ export function calculateRowLayouts(
     }
 
     for (const row of displayRows) {
-        let rowHeight = baseRowHeight;
         const expandedTasksInRow: TaskLike[] = [];
 
         const resourceTasks = tasksByResource.get(row.id) || [];
@@ -105,24 +104,6 @@ export function calculateRowLayouts(
             ) {
                 expandedTasksInRow.push(task);
             }
-        }
-
-        if (expandedTasksInRow.length > 0) {
-            let totalExpandedHeight = 0;
-            for (const task of expandedTasksInRow) {
-                totalExpandedHeight += calculateExpandedRowHeight(
-                    task,
-                    config,
-                    taskMap,
-                );
-            }
-            const nonExpandedCount = resourceTasks.filter(
-                (t) =>
-                    !t.parentId &&
-                    t.type !== 'project' &&
-                    !expandedTasks?.has(t.id),
-            ).length;
-            rowHeight = totalExpandedHeight + nonExpandedCount * baseRowHeight;
         }
 
         const taskPositions = new Map<string, TaskPosition>();

@@ -66,14 +66,6 @@ interface DisplayResource {
  * Maps tasks to Bar components and handles constraint resolution.
  */
 export function TaskLayer(props: TaskLayerProps): JSX.Element {
-    // Get tasks from store or props
-    const tasks = (): ProcessedTask[] => {
-        if (props.taskStore) {
-            return props.taskStore.getAllTasks?.() || [];
-        }
-        return props.tasks || [];
-    };
-
     // Relationships for constraint resolution
     const relationships = (): Relationship[] => props.relationships || [];
 
@@ -259,13 +251,6 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
         if (!props.taskStore) return new Set();
         // tasks is now a store object, not a Map
         return collectDescendants(taskId, props.taskStore.tasks);
-    };
-
-    /**
-     * Handle collapse toggle for summary bars.
-     */
-    const handleToggleCollapse = (taskId: string): void => {
-        props.taskStore?.toggleTaskCollapse?.(taskId);
     };
 
     // Get display resources from resourceStore (respects collapse state)

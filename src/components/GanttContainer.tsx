@@ -89,8 +89,8 @@ export function GanttContainer(props: GanttContainerProps): JSX.Element {
     const [containerWidth, setContainerWidth] = createSignal(0);
     const [viewportHeight, setViewportHeight] = createSignal(0);
 
-    // Debug timing signals for performance monitoring
-    const [scrollTiming, setScrollTiming] = createSignal<ScrollTiming>({
+    // Debug timing signals for performance monitoring (setter wired in when needed)
+    const [scrollTiming] = createSignal<ScrollTiming>({
         domSync: 0,
         signalUpdate: 0,
         total: 0,

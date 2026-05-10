@@ -1,9 +1,4 @@
-import type {
-    BarPosition,
-    Relationship,
-    ProcessedTask,
-    DependencyType,
-} from '../types';
+import type { BarPosition, Relationship, DependencyType } from '../types';
 
 interface TaskFormattable {
     id: string;

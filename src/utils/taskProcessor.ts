@@ -2,12 +2,9 @@ import * as dateUtils from './dateUtils';
 import { computeX, computeY, computeWidth } from './barCalculations';
 import { detectCycles } from './constraintEngine';
 import type {
-    DependencyType,
     Dependency,
     NormalizedDependency,
     Relationship,
-    BarPosition,
-    TaskConstraints,
     NormalizedConstraints,
     GanttTask,
     ProcessedTask,

@@ -16,7 +16,7 @@ import { createTaskStore } from '../stores/taskStore';
 import { createGanttConfigStore } from '../stores/ganttConfigStore';
 import { createGanttDateStore } from '../stores/ganttDateStore';
 import { createResourceStore } from '../stores/resourceStore';
-import { processTasks, findDateBounds } from '../utils/taskProcessor';
+import { processTasks } from '../utils/taskProcessor';
 import { extractResourcesFromTasks } from '../utils/resourceProcessor';
 import { createVirtualViewport } from '../utils/createVirtualViewport';
 import {
@@ -141,7 +141,7 @@ export function Gantt(props: GanttProps): JSX.Element {
     const [viewportHeight, setViewportHeight] = createSignal(0);
 
     // Fast scroll detection - hide arrows during rapid scrolling for performance
-    const [isScrolling, setIsScrolling] = createSignal(false);
+    const [, setIsScrolling] = createSignal(false);
     let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
 
     // Relationships state
@@ -199,14 +199,6 @@ export function Gantt(props: GanttProps): JSX.Element {
             dateStore.setupDates([]);
             return;
         }
-
-        // First, setup dates from task bounds
-        const { minDate, maxDate } = findDateBounds(
-            rawTasks.map((t) => ({
-                _start: new Date(t.start),
-                _end: new Date(t.end || t.start),
-            })),
-        );
 
         // Setup date store with task bounds
         dateStore.setupDates(rawTasks);
@@ -603,15 +595,6 @@ export function Gantt(props: GanttProps): JSX.Element {
     // Resource column width from options
     const resourceColumnWidth = (): number =>
         props.options?.resourceColumnWidth || 120;
-
-    // Arrow configuration from options
-    const arrowConfig = createMemo(() => ({
-        stroke: props.options?.arrow_color || '#666',
-        curveRadius: props.options?.arrow_curve || 5,
-        headShape: props.options?.arrow_head_shape || 'chevron',
-        headSize: props.options?.arrow_head_size || 5,
-        ...props.arrowConfig,
-    }));
 
     return (
         <GanttEventsProvider
