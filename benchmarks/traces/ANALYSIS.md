@@ -115,13 +115,33 @@ const visibleTasks = createMemo(() => {
 
 ### Benchmarking Protocol
 
+Single profile:
+
 ```bash
-# Profile with iterations
+# Build + serve (port 5174 — note URL must omit `.html`)
+pnpm build:demo
+npx serve dist-demo -l 5174 &
+
+# Run a single profile against perf-isolate
 node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs \
   'http://localhost:5174/examples/perf-isolate?bar=nochildren&test=horizontal' \
   --iterations 3 --warmup 1 --duration 3000 \
-  --output perf-traces/runs/my-test.json
+  --output benchmarks/traces/runs/my-test.json
 ```
+
+Matrix benchmarks (npm aliases):
+
+| Script | Purpose | Cost |
+|---|---|---|
+| `pnpm bench:browser` | 4 reactive variants × 2 dirs × 5 iter | ~3 min |
+| `pnpm bench:browser:virt` | combined vs xySplit, 5 iter | ~80 s |
+| `pnpm bench:browser:matrix` | 2 bars × 3 virts × 2 dirs × 3 iter | ~4 min |
+| `pnpm bench` | Constraint engine, default linear-200 | ~2 s |
+| `pnpm bench:all` | Constraint engine, all 13 datasets | ~30 s |
+
+Each matrix script writes per-combo JSON to `benchmarks/traces/runs/`
+and prints `Script Duration` / `Layout Duration` / `FPS` summaries.
+All require `serve` running on port 5174 first.
 
 | Parameter | Recommended | Notes |
 |-----------|-------------|-------|
@@ -187,12 +207,38 @@ new baseline. Traces in `runs/baseline-2026-05-10-*.json`. See
 [HISTORY.md](./HISTORY.md#2026-05-10-post-audit-baseline-refresh) for
 methodology and attribution.
 
-### Reactive Pattern Comparison (10K tasks)
+### Reactive Pattern Comparison (10K tasks, Dec 2025)
 
 | Pattern | Script | Effect Time | Notes |
 |---------|--------|-------------|-------|
 | baseline (memo) | 1133.8ms | 91ms | **Winner** |
 | noMemos | 1196.8ms | 237ms | 2.6x more effects |
+
+### Reactive Pattern + Virt Comparison (Post-Audit, 2026-05-10)
+
+Measured against `experiments` harness (heavier than perf-isolate),
+virt=combined unless noted, 5 iter + 1 warmup:
+
+| Variant | H script | V script | H+V total | Winner? |
+|---------|---------:|---------:|----------:|---|
+| baseline (single memo)  | 1434 ms | 2002 ms | 3437 ms | |
+| noMemos (direct access) | 1654 ms | 2189 ms | 3843 ms | |
+| splitMemo (static+dyn)  | 1521 ms | 2272 ms | 3793 ms | |
+| **minimal (no handlers)** | 1498 ms | 1855 ms | **3353 ms** | **+2.5%** |
+
+**Note:** Minimal now leads baseline by ~2.5% combined, mostly from
+V-scroll. The Dec 2025 baseline-wins finding may need re-examining —
+absence of event handlers in the `minimal` variant is a real ergonomic
+tradeoff, not a free win.
+
+Virt mode (variant=baseline):
+
+| Virt | H script | V script | H+V total |
+|------|---------:|---------:|----------:|
+| combined | 1338 ms | 1847 ms | **3185 ms** |
+| xySplit  | 1303 ms | 1944 ms | 3247 ms (+1.9%) |
+
+`combined` still wins overall by ~2%, consistent with Dec 2025.
 
 ---
 

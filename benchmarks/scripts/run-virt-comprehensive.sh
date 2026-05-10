@@ -1,47 +1,48 @@
 #!/bin/bash
-# Benchmark: xySplit vs combined virtualization (baseline bar variant only)
-# 2 virt modes × 2 directions × 5 runs = 20 total
+# Virt-mode benchmark: combined vs xySplit (baseline bar variant only)
+# 2 virt modes × 2 directions × 5 iterations + 1 warmup × 3000 ms
+#
+# Prerequisites: dist-demo built (`pnpm build:demo`) and served:
+#   npx serve dist-demo -l 5174 &
+#
+# Output: benchmarks/traces/runs/xysplit-<virt>-<dir>.json
+set -euo pipefail
 
-mkdir -p perf-traces/runs/logs
-
-BROWSER_URL="http://127.0.0.1:9222"
-BASE_URL="http://localhost:5173/examples/experiments.html"
-DURATION=5000
+PERF="${HOME}/.claude/skills/chrome-devtools-cli/scripts/perf.mjs"
+BASE_URL="http://localhost:5174/examples/experiments"
+OUT_DIR="benchmarks/traces/runs"
+ITER=5
+WARMUP=1
+DURATION=3000
 VARIANT="baseline"
 
+mkdir -p "${OUT_DIR}"
+
 echo "=============================================="
-echo "XYSPLIT vs COMBINED BENCHMARK - $(date)"
-echo "2 virt modes × 2 directions × 5 runs = 20 total"
-echo "Duration: 5s per run, 1s delay before capture"
+echo "VIRT MODE COMPARISON - $(date)"
+echo "2 virt modes × 2 directions × ${ITER} runs"
 echo "=============================================="
-echo ""
 
 for virt in combined xySplit; do
-  for test in horizontal vertical; do
-    t="${test:0:1}"
-    for i in 1 2 3 4 5; do
-      name="xysplit-${virt}-${t}-${i}"
-      url="${BASE_URL}?variant=${VARIANT}&virt=${virt}&test=${test}"
+    for test in horizontal vertical; do
+        t="${test:0:1}"
+        name="xysplit-${virt}-${t}"
+        url="${BASE_URL}?variant=${VARIANT}&virt=${virt}&test=${test}"
 
-      echo "=== ${name} ==="
+        echo ""
+        echo "=== ${name} ==="
+        echo "URL: ${url}"
 
-      node .claude/skills/chrome-devtools-cli/scripts/devtools.mjs \
-        --browserUrl="${BROWSER_URL}" \
-        navigate "${url}" > /dev/null 2>&1
-
-      sleep 1
-
-      node .claude/skills/chrome-devtools-cli/scripts/profile.mjs capture \
-        --browserUrl="${BROWSER_URL}" \
-        --duration="${DURATION}" \
-        --output="perf-traces/runs/${name}.json" \
-        2>&1 | tee "perf-traces/runs/logs/${name}.log" | grep -E "(Script Duration)" | head -1
-
-      echo ""
+        node "${PERF}" "${url}" \
+            --iterations "${ITER}" \
+            --warmup "${WARMUP}" \
+            --duration "${DURATION}" \
+            --output "${OUT_DIR}/${name}.json" \
+            2>&1 | grep -E "Script Duration|Layout Duration|FPS:" | head -3
     done
-  done
 done
 
+echo ""
 echo "=============================================="
-echo "BENCHMARK COMPLETE"
+echo "Results: ${OUT_DIR}/xysplit-*.json"
 echo "=============================================="

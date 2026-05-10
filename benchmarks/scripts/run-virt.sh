@@ -1,49 +1,50 @@
 #!/bin/bash
-# Benchmark: ALL combinations of bar variants × virt modes
-# 2 bar variants × 3 virt modes × 2 directions × 3 runs = 36 total
+# Full matrix: 2 bar variants × 3 virt modes × 2 directions
+# Each combination: 3 iterations + 1 warmup × 3000 ms
+#
+# Prerequisites: dist-demo built (`pnpm build:demo`) and served:
+#   npx serve dist-demo -l 5174 &
+#
+# Output: benchmarks/traces/runs/bench-<variant>-<virt>-<dir>.json
+set -euo pipefail
 
-mkdir -p perf-traces/runs/logs
+PERF="${HOME}/.claude/skills/chrome-devtools-cli/scripts/perf.mjs"
+BASE_URL="http://localhost:5174/examples/experiments"
+OUT_DIR="benchmarks/traces/runs"
+ITER=3
+WARMUP=1
+DURATION=3000
 
-BROWSER_URL="http://127.0.0.1:9222"
-BASE_URL="http://localhost:5173/examples/experiments.html"
-DURATION=5000
+mkdir -p "${OUT_DIR}"
 
 echo "=============================================="
 echo "FULL MATRIX BENCHMARK - $(date)"
 echo "2 bars (baseline,noMemos) × 3 virts (combined,smartCache,splitEquals)"
-echo "× 2 directions × 3 runs = 36 total"
-echo "Duration: 5s per run, 1s delay before capture"
+echo "× 2 directions × ${ITER} runs"
 echo "=============================================="
-echo ""
 
 for variant in baseline noMemos; do
-  for virt in combined smartCache splitEquals; do
-    for test in horizontal vertical; do
-      t="${test:0:1}"
-      for i in 1 2 3; do
-        name="bench-${variant}-${virt}-${t}-${i}"
-        url="${BASE_URL}?variant=${variant}&virt=${virt}&test=${test}"
+    for virt in combined smartCache splitEquals; do
+        for test in horizontal vertical; do
+            t="${test:0:1}"
+            name="bench-${variant}-${virt}-${t}"
+            url="${BASE_URL}?variant=${variant}&virt=${virt}&test=${test}"
 
-        echo "=== ${name} ==="
+            echo ""
+            echo "=== ${name} ==="
+            echo "URL: ${url}"
 
-        node .claude/skills/chrome-devtools-cli/scripts/devtools.mjs \
-          --browserUrl="${BROWSER_URL}" \
-          navigate "${url}" > /dev/null 2>&1
-
-        sleep 1
-
-        node .claude/skills/chrome-devtools-cli/scripts/profile.mjs capture \
-          --browserUrl="${BROWSER_URL}" \
-          --duration="${DURATION}" \
-          --output="perf-traces/runs/${name}.json" \
-          2>&1 | tee "perf-traces/runs/logs/${name}.log" | grep -E "(Script Duration)" | head -1
-
-        echo ""
-      done
+            node "${PERF}" "${url}" \
+                --iterations "${ITER}" \
+                --warmup "${WARMUP}" \
+                --duration "${DURATION}" \
+                --output "${OUT_DIR}/${name}.json" \
+                2>&1 | grep -E "Script Duration|Layout Duration|FPS:" | head -3
+        done
     done
-  done
 done
 
+echo ""
 echo "=============================================="
-echo "BENCHMARK COMPLETE"
+echo "Results: ${OUT_DIR}/bench-*.json"
 echo "=============================================="
