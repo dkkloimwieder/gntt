@@ -29,30 +29,30 @@ The SolidJS implementation lives in `src/` and provides reactive, fine-grained u
 
 | Component | Status | Location |
 |-----------|--------|----------|
-| Arrow | Complete | `src/components/Arrow.jsx` |
-| Bar | Complete | `src/components/Bar.jsx` |
-| Popup | Complete | `src/components/TaskDataPopup.jsx` |
-| Modal | Complete | `src/components/TaskDataModal.jsx` |
-| Task Store | Complete | `src/stores/taskStore.js` |
-| Config Store | Complete | `src/stores/ganttConfigStore.js` |
-| Date Store | Complete | `src/stores/ganttDateStore.js` |
-| Resource Store | Complete | `src/stores/resourceStore.js` |
-| Constraint System | Complete | `src/utils/constraintEngine.js` |
-| Main Gantt Orchestrator | Complete | `src/components/Gantt.jsx` |
-| Grid & Headers | Complete | `src/components/Grid.jsx`, `DateHeaders.jsx` |
-| Resource Column | Complete | `src/components/ResourceColumn.jsx` |
-| Task Layer | Complete | `src/components/TaskLayer.jsx` |
-| Arrow Layer | Complete | `src/components/ArrowLayer.jsx` |
-| ExpandedTaskContainer | Complete | `src/components/ExpandedTaskContainer.jsx` |
-| SubtaskBar | Complete | `src/components/SubtaskBar.jsx` |
+| Arrow | Complete | `src/components/Arrow.tsx` |
+| Bar | Complete | `src/components/Bar.tsx` |
+| Popup | Complete | `src/components/TaskDataPopup.tsx` |
+| Modal | Complete | `src/components/TaskDataModal.tsx` |
+| Task Store | Complete | `src/stores/taskStore.ts` |
+| Config Store | Complete | `src/stores/ganttConfigStore.ts` |
+| Date Store | Complete | `src/stores/ganttDateStore.ts` |
+| Resource Store | Complete | `src/stores/resourceStore.ts` |
+| Constraint System | Complete | `src/utils/constraintEngine.ts` |
+| Main Gantt Orchestrator | Complete | `src/components/Gantt.tsx` |
+| Grid & Headers | Complete | `src/components/Grid.tsx`, `DateHeaders.tsx` |
+| Resource Column | Complete | `src/components/ResourceColumn.tsx` |
+| Task Layer | Complete | `src/components/TaskLayer.tsx` |
+| Arrow Layer | Complete | `src/components/ArrowLayer.tsx` |
+| ExpandedTaskContainer | Complete | `src/components/ExpandedTaskContainer.tsx` |
+| SubtaskBar | Complete | `src/components/SubtaskBar.tsx` |
 
 > **See also**: [SUBTASKS.md](./SUBTASKS.md) for comprehensive subtask documentation.
 
 ---
 
-## Public API (`src/index.js`)
+## Public API (`src/index.ts`)
 
-The library exports the following from `src/index.js`:
+The library exports the following from `src/index.ts`:
 
 ### Main Component
 - `Gantt` - Main Gantt chart component
@@ -78,7 +78,7 @@ The library exports the following from `src/index.js`:
 ### Generator Functions
 - `generateSubtaskDemo(config)` - Generate test data with parent/child tasks
 
-### Date Utilities (re-exported from `date_utils.js`)
+### Date Utilities (re-exported from `date_utils.ts`)
 - `parse(date)` - Parse date string to Date object
 - `format(date, formatString)` - Format Date to string
 - `diff(date1, date2, scale)` - Calculate difference between dates
@@ -93,52 +93,52 @@ The library exports the following from `src/index.js`:
 ```
 src/
 ├── components/
-│   ├── Arrow.jsx           # Dependency arrow rendering
-│   ├── ArrowLayer.jsx      # Container for all arrows
-│   ├── Bar.jsx             # Task bar with drag/resize/progress
-│   ├── DateHeaders.jsx     # Month/day headers
-│   ├── Gantt.jsx           # Main orchestrator component
-│   ├── GanttContainer.jsx  # Scroll container with sticky headers
-│   ├── GanttDemo.jsx       # Full Gantt demo page
-│   ├── GanttPerfDemo.jsx   # Performance testing demo
-│   ├── GanttResourceGroupsDemo.jsx  # Resource groups demo
-│   ├── Grid.jsx            # Background grid with rows and ticks
-│   ├── Arrow.jsx           # Single dependency arrow
-│   ├── ArrowLayerBatched.jsx # Batched arrow rendering
-│   ├── SummaryBar.jsx      # Parent/summary task bars
-│   ├── ResourceColumn.jsx  # Sticky left column (swimlanes)
-│   ├── ShowcaseDemo.jsx    # Interactive props showcase
-│   ├── TaskDataModal.jsx   # Debug/detail modal on click
-│   ├── TaskDataPopup.jsx   # Hover tooltip popup
-│   ├── TaskLayer.jsx       # Container for all bars
-│   ├── ExpandedTaskContainer.jsx  # Expanded parent with subtasks
-│   └── SubtaskBar.jsx      # Individual subtask bars (50% height)
+│   ├── Arrow.tsx           # Dependency arrow rendering
+│   ├── ArrowLayer.tsx      # Container for all arrows
+│   ├── Bar.tsx             # Task bar with drag/resize/progress
+│   ├── DateHeaders.tsx     # Month/day headers
+│   ├── Gantt.tsx           # Main orchestrator component
+│   ├── GanttContainer.tsx  # Scroll container with sticky headers
+│   ├── GanttDemo.tsx       # Full Gantt demo page
+│   ├── GanttPerfDemo.tsx   # Performance testing demo
+│   ├── GanttResourceGroupsDemo.tsx  # Resource groups demo
+│   ├── Grid.tsx            # Background grid with rows and ticks
+│   ├── Arrow.tsx           # Single dependency arrow
+│   ├── ArrowLayerBatched.tsx # Batched arrow rendering
+│   ├── SummaryBar.tsx      # Parent/summary task bars
+│   ├── ResourceColumn.tsx  # Sticky left column (swimlanes)
+│   ├── ShowcaseDemo.tsx    # Interactive props showcase
+│   ├── TaskDataModal.tsx   # Debug/detail modal on click
+│   ├── TaskDataPopup.tsx   # Hover tooltip popup
+│   ├── TaskLayer.tsx       # Container for all bars
+│   ├── ExpandedTaskContainer.tsx  # Expanded parent with subtasks
+│   └── SubtaskBar.tsx      # Individual subtask bars (50% height)
 ├── stores/
-│   ├── taskStore.js        # Reactive task state management
-│   ├── ganttConfigStore.js # Configuration state management
-│   ├── ganttDateStore.js   # Date/timeline calculations
-│   └── resourceStore.js    # Resource groups and collapse state
+│   ├── taskStore.ts        # Reactive task state management
+│   ├── ganttConfigStore.ts # Configuration state management
+│   ├── ganttDateStore.ts   # Date/timeline calculations
+│   └── resourceStore.ts    # Resource groups and collapse state
 ├── utils/
-│   ├── barCalculations.js  # Pure functions for bar geometry
-│   ├── constraintEngine.js # Unified constraint resolution (iterative relaxation)
-│   ├── absoluteConstraints.js # Lock type helpers, absolute time constraints
-│   ├── createVirtualViewport.js # Simple 2D viewport virtualization
-│   ├── resourceProcessor.js # Resource normalization and group display
-│   ├── taskProcessor.js    # Task parsing and position computation
-│   ├── taskGenerator.js    # Test data generation
-│   ├── subtaskGenerator.js # Subtask demo data generation
-│   └── rowLayoutCalculator.js # Variable row heights for subtasks
+│   ├── barCalculations.ts  # Pure functions for bar geometry
+│   ├── constraintEngine.ts # Unified constraint resolution (iterative relaxation)
+│   ├── absoluteConstraints.ts # Lock type helpers, absolute time constraints
+│   ├── createVirtualViewport.ts # Simple 2D viewport virtualization
+│   ├── resourceProcessor.ts # Resource normalization and group display
+│   ├── taskProcessor.ts    # Task parsing and position computation
+│   ├── taskGenerator.ts    # Test data generation
+│   ├── subtaskGenerator.ts # Subtask demo data generation
+│   └── rowLayoutCalculator.ts # Variable row heights for subtasks
 ├── hooks/
-│   └── useDrag.js          # RAF-based drag state machine
+│   └── useDrag.ts          # RAF-based drag state machine
 ├── entries/                # Vite entry points for demos
-│   ├── gantt.jsx
-│   ├── resource-groups.jsx
-│   ├── perf.jsx
-│   ├── subtask.jsx         # Subtask demo (100 tasks with subtasks)
-│   ├── arrow.jsx
-│   ├── bar.jsx
-│   ├── constraint.jsx
-│   └── showcase.jsx
+│   ├── gantt.tsx
+│   ├── resource-groups.tsx
+│   ├── perf.tsx
+│   ├── subtask.tsx         # Subtask demo (100 tasks with subtasks)
+│   ├── arrow.tsx
+│   ├── bar.tsx
+│   ├── constraint.tsx
+│   └── showcase.tsx
 ├── scripts/
 │   └── generateCalendar.js # CLI for generating test data
 ├── data/
@@ -151,7 +151,7 @@ src/
 
 ## Core Components
 
-### Arrow Component (`Arrow.jsx`)
+### Arrow Component (`Arrow.tsx`)
 
 **Purpose**: Renders SVG path arrows between task bars to visualize dependencies.
 
@@ -184,7 +184,7 @@ src/
 | `strokeOpacity` | `number` | `1` | Line opacity (0-1) |
 | `strokeDasharray` | `string` | `''` | Dash pattern (e.g., '8,4') |
 
-**Path Calculation Logic** (`Arrow.jsx:calculateSmartOffset`):
+**Path Calculation Logic** (`Arrow.tsx:calculateSmartOffset`):
 
 Exit point positioning depends on dependency type:
 - **FS/FF**: Exit near the END (right) of predecessor → offset 0.9
@@ -212,7 +212,7 @@ function calculateSmartOffset(from, to, anchor, curveRadius, dependencyType = 'F
 
 ---
 
-### ResourceColumn Component (`ResourceColumn.jsx`)
+### ResourceColumn Component (`ResourceColumn.tsx`)
 
 **Purpose**: Renders a sticky left column showing unique resource labels for swimlane layout.
 
@@ -231,7 +231,7 @@ function calculateSmartOffset(from, to, anchor, curveRadius, dependencyType = 'F
 
 **Cell Positioning Formula**:
 ```javascript
-// Must match SVG row positioning in Grid.jsx and barCalculations.computeY
+// Must match SVG row positioning in Grid.tsx and barCalculations.computeY
 cellTop = headerHeight + padding/2 + index * (barHeight + padding)
 ```
 
@@ -243,7 +243,7 @@ cellTop = headerHeight + padding/2 + index * (barHeight + padding)
 
 ---
 
-### Bar Component (`Bar.jsx`)
+### Bar Component (`Bar.tsx`)
 
 **Purpose**: Renders interactive task bars with drag, resize, and progress editing.
 
@@ -316,7 +316,7 @@ dependencies: [
 | `FF` | Finish-to-Finish | Successor finishes after predecessor finishes |
 | `SF` | Start-to-Finish | Successor finishes after predecessor starts |
 
-**Drag States** (`Bar.jsx:60-174`):
+**Drag States** (`Bar.tsx:60-174`):
 - `idle` - No drag in progress
 - `dragging_bar` - Moving entire bar horizontally
 - `dragging_left` - Resizing from left edge
@@ -325,7 +325,7 @@ dependencies: [
 
 ---
 
-### TaskDataPopup Component (`TaskDataPopup.jsx`)
+### TaskDataPopup Component (`TaskDataPopup.tsx`)
 
 **Purpose**: Displays task detail tooltips on hover.
 
@@ -341,7 +341,7 @@ dependencies: [
 
 ## Stores
 
-### Task Store (`taskStore.js`)
+### Task Store (`taskStore.ts`)
 
 **Purpose**: Reactive state management for task data and positions.
 
@@ -391,7 +391,7 @@ Without affecting the other 400+ tasks in the chart.
 
 ---
 
-### Gantt Config Store (`ganttConfigStore.js`)
+### Gantt Config Store (`ganttConfigStore.ts`)
 
 **Purpose**: Reactive configuration for layout and features.
 
@@ -433,7 +433,7 @@ const snapshot = config.getConfig();
 
 ---
 
-### Resource Store (`resourceStore.js`)
+### Resource Store (`resourceStore.ts`)
 
 **Purpose**: Reactive state management for resource groups with collapse/expand functionality.
 
@@ -495,7 +495,7 @@ const resources = ['Alice', 'Bob', 'Carol'];
 
 ## Utility Functions
 
-### Bar Calculations (`barCalculations.js`)
+### Bar Calculations (`barCalculations.ts`)
 
 Pure functions for computing bar geometry.
 
@@ -513,7 +513,7 @@ Pure functions for computing bar geometry.
 
 ---
 
-### Viewport Virtualization (`createVirtualViewport.js`)
+### Viewport Virtualization (`createVirtualViewport.ts`)
 
 Simple 2D viewport virtualization following the solid-primitives/virtual pattern.
 
@@ -521,7 +521,7 @@ Simple 2D viewport virtualization following the solid-primitives/virtual pattern
 
 **API**:
 ```javascript
-import { createVirtualViewport } from '../utils/createVirtualViewport.js';
+import { createVirtualViewport } from '../utils/createVirtualViewport.ts';
 
 const viewport = createVirtualViewport({
     scrollX: scrollLeft,           // Horizontal scroll position signal
@@ -543,13 +543,13 @@ viewport.xRange()     // { start: 0, end: 1800 } - for TaskLayer, ArrowLayer X f
 ```
 
 **Usage**:
-- Single viewport calculation shared by ALL components in Gantt.jsx
+- Single viewport calculation shared by ALL components in Gantt.tsx
 - No throttling, no hysteresis - pure reactive updates
 - Components filter their own content based on viewport ranges
 
 ---
 
-### Constraint Engine (`constraintEngine.js`)
+### Constraint Engine (`constraintEngine.ts`)
 
 Unified constraint resolution engine with iterative relaxation algorithm for cascade updates.
 
@@ -592,7 +592,7 @@ Unified constraint resolution engine with iterative relaxation algorithm for cas
 
 **API**:
 ```javascript
-import { resolveConstraints, calculateCascadeUpdates } from './constraintEngine.js';
+import { resolveConstraints, calculateCascadeUpdates } from './constraintEngine.ts';
 
 const context = {
     getBarPosition: (id) => ({ x, y, width, height }),
@@ -658,7 +658,7 @@ Iterative relaxation re-evaluates each task against ALL predecessors on every it
 
 ---
 
-### Date Utilities (`date_utils.js`)
+### Date Utilities (`date_utils.ts`)
 
 Date manipulation functions.
 
@@ -679,7 +679,7 @@ Date manipulation functions.
 
 ## Hooks
 
-### useDrag (`useDrag.js`)
+### useDrag (`useDrag.ts`)
 
 **Purpose**: RAF-based drag state machine for 60fps performance.
 
@@ -925,7 +925,7 @@ This iterative approach guarantees correct resolution for DAGs with multi-path c
 
 ### Expected Progress Calculation
 
-**Formula** (`barCalculations.js:141-149`):
+**Formula** (`barCalculations.ts:141-149`):
 ```javascript
 function computeExpectedProgress(taskStart, taskEnd, unit, step) {
     const today = date_utils.today();
@@ -946,7 +946,7 @@ function computeExpectedProgress(taskStart, taskEnd, unit, step) {
 
 ### Arrow Smart Anchoring
 
-**Start Anchor Selection** (`Arrow.jsx:autoSelectStartAnchor`):
+**Start Anchor Selection** (`Arrow.tsx:autoSelectStartAnchor`):
 
 ```
 For SS/SF dependencies (start-based):
@@ -958,7 +958,7 @@ For FS/FF dependencies (finish-based):
     Else → Exit from TOP/BOTTOM
 ```
 
-**End Anchor Selection** (`Arrow.jsx:autoSelectEndAnchor`):
+**End Anchor Selection** (`Arrow.tsx:autoSelectEndAnchor`):
 
 Entry point is determined by what the dependency constrains:
 
@@ -1084,14 +1084,14 @@ User drags task → updateBarPosition() → setTasks(new Map())
 | ~10 FPS during drag | 60 FPS during drag |
 
 **Files Modified**:
-- `src/stores/taskStore.js` - Store conversion, path-based updates
-- `src/components/Bar.jsx` - Direct store path access, removed 3 unnecessary memos
-- `src/components/Arrow.jsx` - Direct store path access
-- `src/components/TaskLayer.jsx` - Store object iteration (kept 3 essential memos)
-- `src/components/ArrowLayer.jsx` - Store object iteration
-- `src/components/SummaryBar.jsx` - Removed 2 unnecessary memos
-- `src/components/ExpandedTaskContainer.jsx` - Removed 2 unnecessary memos
-- `src/components/SubtaskBar.jsx` - Removed 1 unnecessary memo
+- `src/stores/taskStore.ts` - Store conversion, path-based updates
+- `src/components/Bar.tsx` - Direct store path access, removed 3 unnecessary memos
+- `src/components/Arrow.tsx` - Direct store path access
+- `src/components/TaskLayer.tsx` - Store object iteration (kept 3 essential memos)
+- `src/components/ArrowLayer.tsx` - Store object iteration
+- `src/components/SummaryBar.tsx` - Removed 2 unnecessary memos
+- `src/components/ExpandedTaskContainer.tsx` - Removed 2 unnecessary memos
+- `src/components/SubtaskBar.tsx` - Removed 1 unnecessary memo
 
 **Memo Strategy**:
 - **Remove**: Memos for simple calculations in render paths (causes reactive subscriptions)
@@ -1099,17 +1099,17 @@ User drags task → updateBarPosition() → setTasks(new Map())
 
 **Virtualization Architecture**:
 ```
-src/utils/createVirtualViewport.js
+src/utils/createVirtualViewport.ts
 └── Single utility providing:
     ├── colRange()  → DateHeaders (which columns to render)
     ├── rowRange()  → Grid, TaskLayer, ArrowLayer (which rows)
     └── xRange()    → TaskLayer, ArrowLayer (X pixel filtering)
 
-Gantt.jsx
+Gantt.tsx
 └── viewport = createVirtualViewport({...})
     └── Shared by ALL components (single calculation)
 
-TaskLayer.jsx / ArrowLayer.jsx
+TaskLayer.tsx / ArrowLayer.tsx
 └── <For each={visibleItems()}> - Keyed by item identity
     └── New items get new components, removed items are destroyed
 ```
@@ -1133,16 +1133,16 @@ With 10K tasks: 10,000 bars → ~11 rendered, 9,179 arrows → ~11 rendered
 
 | Need to... | Look in... |
 |------------|------------|
-| Modify arrow appearance | `Arrow.jsx` DEFAULTS object |
-| Change anchor logic | `Arrow.jsx` autoSelectStartAnchor, autoSelectEndAnchor |
-| Add bar interaction | `Bar.jsx` useDrag callbacks |
-| Change grid snapping | `barCalculations.js` snapToGrid |
-| Modify constraint rules | `constraintEngine.js` resolveConstraints, calculateCascadeUpdates |
-| Add new config option | `ganttConfigStore.js` |
-| Change date calculations | `ganttDateStore.js` |
-| Modify task processing | `taskProcessor.js` processTasks |
-| Add/modify resource groups | `resourceStore.js`, `resourceProcessor.js` |
-| Update Gantt demo tasks | `GanttDemo.jsx` tasks signal |
-| Update showcase presets | `ShowcaseDemo.jsx` PRESETS object |
-| Modify grid rendering | `Grid.jsx` |
-| Change header rendering | `DateHeaders.jsx` |
+| Modify arrow appearance | `Arrow.tsx` DEFAULTS object |
+| Change anchor logic | `Arrow.tsx` autoSelectStartAnchor, autoSelectEndAnchor |
+| Add bar interaction | `Bar.tsx` useDrag callbacks |
+| Change grid snapping | `barCalculations.ts` snapToGrid |
+| Modify constraint rules | `constraintEngine.ts` resolveConstraints, calculateCascadeUpdates |
+| Add new config option | `ganttConfigStore.ts` |
+| Change date calculations | `ganttDateStore.ts` |
+| Modify task processing | `taskProcessor.ts` processTasks |
+| Add/modify resource groups | `resourceStore.ts`, `resourceProcessor.ts` |
+| Update Gantt demo tasks | `GanttDemo.tsx` tasks signal |
+| Update showcase presets | `ShowcaseDemo.tsx` PRESETS object |
+| Modify grid rendering | `Grid.tsx` |
+| Change header rendering | `DateHeaders.tsx` |

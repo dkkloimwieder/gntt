@@ -26,33 +26,33 @@ pnpm build:demo && npx serve dist-demo -l 5174
 
 | Demo | Component | Description |
 |------|-----------|-------------|
-| [gantt.html](../examples/gantt.html) | GanttDemo.jsx | Main interactive demo with full features |
-| [subtask.html](../examples/subtask.html) | GanttProjectDemo.jsx | Parent/child task hierarchy (100 tasks) |
-| [resource-groups.html](../examples/resource-groups.html) | GanttResourceGroupsDemo.jsx | Collapsible team resource groups |
-| [constraint.html](../examples/constraint.html) | ConstraintDemo.jsx | FS/SS/FF/SF dependency constraints |
-| [showcase.html](../examples/showcase.html) | ShowcaseDemo.jsx | Props and configuration showcase |
+| [gantt.html](../examples/gantt.html) | GanttDemo.tsx | Main interactive demo with full features |
+| [subtask.html](../examples/subtask.html) | GanttProjectDemo.tsx | Parent/child task hierarchy (100 tasks) |
+| [resource-groups.html](../examples/resource-groups.html) | GanttResourceGroupsDemo.tsx | Collapsible team resource groups |
+| [constraint.html](../examples/constraint.html) | ConstraintDemo.tsx | FS/SS/FF/SF dependency constraints |
+| [showcase.html](../examples/showcase.html) | ShowcaseDemo.tsx | Props and configuration showcase |
 
 ### Component Demos
 
 | Demo | Component | Description |
 |------|-----------|-------------|
-| [bar.html](../examples/bar.html) | BarDemo.jsx | Task bar with drag handles, progress, resize |
-| [arrow.html](../examples/arrow.html) | ArrowDemo.jsx | Dependency arrow rendering |
+| [bar.html](../examples/bar.html) | BarDemo.tsx | Task bar with drag handles, progress, resize |
+| [arrow.html](../examples/arrow.html) | ArrowDemo.tsx | Dependency arrow rendering |
 
 ### Performance Testing
 
 | Demo | Component | Created | Status |
 |------|-----------|---------|--------|
-| [perf-isolate.html](../examples/perf-isolate.html) | GanttPerfIsolate.jsx | Dec 22, 2025 | **Best-in-class** |
-| [experiments.html](../examples/experiments.html) | GanttExperiments.jsx | Dec 21, 2025 | Active |
-| [perf.html](../examples/perf.html) | GanttPerfDemo.jsx | Dec 10, 2025 | Foundational |
-| [profiler.html](../examples/profiler.html) | GanttProfiler.jsx | ~Dec 17, 2025 | Supporting |
+| [perf-isolate.html](../examples/perf-isolate.html) | GanttPerfIsolate.tsx | Dec 22, 2025 | **Best-in-class** |
+| [experiments.html](../examples/experiments.html) | GanttExperiments.tsx | Dec 21, 2025 | Active |
+| [perf.html](../examples/perf.html) | GanttPerfDemo.tsx | Dec 10, 2025 | Foundational |
+| [profiler.html](../examples/profiler.html) | GanttProfiler.tsx | ~Dec 17, 2025 | Supporting |
 
 ### Historical/Test
 
 | Demo | Component | Created | Status |
 |------|-----------|---------|--------|
-| [minimal-test.html](../examples/minimal-test.html) | GanttMinimalTest.jsx | Dec 20, 2025 | Historical |
+| [minimal-test.html](../examples/minimal-test.html) | GanttMinimalTest.tsx | Dec 20, 2025 | Historical |
 | [index-test.html](../examples/index-test.html) | IndexTest | - | Test harness |
 
 ---
@@ -61,7 +61,7 @@ pnpm build:demo && npx serve dist-demo -l 5174
 
 ### perf-isolate.html - Best-in-class
 
-**Created:** Dec 22, 2025 | **Component:** GanttPerfIsolate.jsx
+**Created:** Dec 22, 2025 | **Component:** GanttPerfIsolate.tsx
 
 Progressive feature isolation to find overhead sources. Start minimal, add features until performance degrades.
 
@@ -111,7 +111,7 @@ See [perf-traces/ANALYSIS.md](../perf-traces/ANALYSIS.md) for benchmark data.
 
 ### experiments.html
 
-**Created:** Dec 21, 2025 | **Component:** GanttExperiments.jsx
+**Created:** Dec 21, 2025 | **Component:** GanttExperiments.tsx
 
 Reactive pattern and virtualization strategy comparison with interactive UI.
 
@@ -146,7 +146,7 @@ See [perf-traces/ANALYSIS.md](../perf-traces/ANALYSIS.md) and [docs/EXPERIMENTS.
 
 ### perf.html
 
-**Created:** Dec 10, 2025 | **Component:** GanttPerfDemo.jsx
+**Created:** Dec 10, 2025 | **Component:** GanttPerfDemo.tsx
 
 Full-featured stress test with all UI layers and real dependencies.
 
@@ -169,7 +169,7 @@ Full-featured stress test with all UI layers and real dependencies.
 
 ### profiler.html
 
-**Created:** ~Dec 17, 2025 | **Component:** GanttProfiler.jsx
+**Created:** ~Dec 17, 2025 | **Component:** GanttProfiler.tsx
 
 Function-level call instrumentation and profiling.
 
@@ -225,7 +225,7 @@ See [perf-traces/ANALYSIS.md](../perf-traces/ANALYSIS.md) for details.
 | Issue | Status |
 |-------|--------|
 | ArrowLayerBatched | Disabled (21% regression), needs batching fix |
-| Debug effects in Bar.jsx | Creates subscriptions, should be removed |
+| Debug effects in Bar.tsx | Creates subscriptions, should be removed |
 
 ---
 

@@ -5,9 +5,9 @@
 > This documents an earlier experimental harness using **slot-based grids**. For current best practices with **timeline-based positioning**, see:
 > - [perf-traces/ANALYSIS.md](../perf-traces/ANALYSIS.md) - Current benchmarks and recommendations
 > - [docs/EXPERIMENTS.md](./EXPERIMENTS.md) - GanttExperiments reactive pattern testing
-> - `GanttPerfIsolate.jsx` - Progressive feature testing harness
+> - `GanttPerfIsolate.tsx` - Progressive feature testing harness
 >
-> The component `GanttMinimalTest.jsx` still exists for reference but active development uses the newer harnesses.
+> The component `GanttMinimalTest.tsx` still exists for reference but active development uses the newer harnesses.
 
 ---
 
@@ -171,7 +171,7 @@ const t = createMemo(() => {
 |---------|-------------|------------|
 | noMemos | Direct store access everywhere | Store proxy overhead negligible |
 | singleMemo | One memo batching all props | Current TestBar pattern |
-| splitMemo | Static + dynamic separation | Bar.jsx pattern |
+| splitMemo | Static + dynamic separation | Bar.tsx pattern |
 | directTask | Task passed as prop, not lookup | Reduces store access |
 | customEquality | Memo with custom equals | Avoids cascade on object creation |
 
@@ -206,7 +206,7 @@ for (const id of Object.keys(tasks)) { ... }
 const taskKeys = untrack(() => Object.keys(tasks));
 ```
 
-**Locations in TaskLayer.jsx:**
+**Locations in TaskLayer.tsx:**
 - Line 196: `untrack()` for tasksByResource grouping
 - Line 247: `untrack()` for X-range filtering
 - Line 287: `untrack()` for splitTaskIds
@@ -234,7 +234,7 @@ const taskKeys = untrack(() => Object.keys(tasks));
 ### 4.3 Known Bottlenecks
 
 1. **Arrow Layer (disabled)**: 21% performance regression from SVG path updates
-2. **Debug effect in Bar.jsx**: Creates subscriptions on every bar (lines 480-487)
+2. **Debug effect in Bar.tsx**: Creates subscriptions on every bar (lines 480-487)
 3. **Single visibleTasks memo**: Recalculates on ANY scroll direction
 
 ---
@@ -258,10 +258,10 @@ const taskKeys = untrack(() => Object.keys(tasks));
 
 ### 5.2 Missing Components
 
-- `constraintEngine.js` integration
-- `ArrowLayerBatched.jsx` (with performance fixes)
-- `TaskDataPopup.jsx` (hover popup)
-- `TaskDataModal.jsx` (click modal)
+- `constraintEngine.ts` integration
+- `ArrowLayerBatched.tsx` (with performance fixes)
+- `TaskDataPopup.tsx` (hover popup)
+- `TaskDataModal.tsx` (click modal)
 - Real resource store integration
 
 ### 5.3 Migration Priorities
@@ -276,9 +276,9 @@ const taskKeys = untrack(() => Object.keys(tasks));
 
 ## 6. Implementation Details
 
-### 6.1 TestBar vs Bar.jsx
+### 6.1 TestBar vs Bar.tsx
 
-| Aspect | TestBar | Bar.jsx |
+| Aspect | TestBar | Bar.tsx |
 |--------|---------|---------|
 | Memos | 1 (combined) | 12+ (split) |
 | Position source | Slot index | Store _bar |
@@ -397,7 +397,7 @@ const visibleTaskIds = createMemo(() => {
 
 ### 7.3 Debug Effect Removal
 
-**Bar.jsx lines 480-487:**
+**Bar.tsx lines 480-487:**
 ```javascript
 createEffect(() => {
     const id = t().id;
@@ -437,15 +437,15 @@ This creates reactive subscriptions on EVERY Bar even though it only logs for ta
 ### Phase 3: Production Integration
 
 1. Replace perf demo core with optimized minimal-test
-2. Migrate to main Gantt.jsx
+2. Migrate to main Gantt.tsx
 
 ---
 
 ## References
 
-- **Main component:** `src/components/GanttMinimalTest.jsx`
-- **Experiment harness:** `src/entries/indexTest.jsx`
-- **Full-featured bar:** `src/components/Bar.jsx`
-- **Task rendering patterns:** `src/components/TaskLayer.jsx`
-- **Fine-grained store:** `src/stores/taskStore.js`
-- **Drag handling:** `src/hooks/useDrag.js`
+- **Main component:** `src/components/GanttMinimalTest.tsx`
+- **Experiment harness:** `src/entries/indexTest.tsx`
+- **Full-featured bar:** `src/components/Bar.tsx`
+- **Task rendering patterns:** `src/components/TaskLayer.tsx`
+- **Fine-grained store:** `src/stores/taskStore.ts`
+- **Drag handling:** `src/hooks/useDrag.ts`

@@ -27,7 +27,7 @@ This document covers performance analysis and optimizations for the SolidJS Gant
 
 **Solution**: Use direct property assignment for non-smooth scrolling.
 
-**File**: `src/components/GanttContainer.jsx`
+**File**: `src/components/GanttContainer.tsx`
 
 ```jsx
 const scrollTo = (x, smooth = true) => {
@@ -50,7 +50,7 @@ const scrollTo = (x, smooth = true) => {
 
 **Solution**: Use SVG `<pattern>` element for repeating vertical lines.
 
-**File**: `src/components/Grid.jsx`
+**File**: `src/components/Grid.tsx`
 
 ```jsx
 <defs>
@@ -71,11 +71,11 @@ const scrollTo = (x, smooth = true) => {
 
 ### 3. Removed GridTicks Component (Historical)
 
-> **Note**: GridTicks was a separate component that no longer exists. This section documents a past optimization - the functionality is now integrated into `Grid.jsx`.
+> **Note**: GridTicks was a separate component that no longer exists. This section documents a past optimization - the functionality is now integrated into `Grid.tsx`.
 
-**File**: `src/components/Gantt.jsx`
+**File**: `src/components/Gantt.tsx`
 
-GridTicks component removed entirely. Vertical lines now rendered via Grid.jsx pattern. Horizontal row lines use stroke on row rects.
+GridTicks component removed entirely. Vertical lines now rendered via Grid.tsx pattern. Horizontal row lines use stroke on row rects.
 
 ### 4. Intl.DateTimeFormat Caching
 
@@ -83,7 +83,7 @@ GridTicks component removed entirely. Vertical lines now rendered via Grid.jsx p
 
 **Solution**: Cache formatters at module level by locale.
 
-**File**: `src/utils/date_utils.js`
+**File**: `src/utils/date_utils.ts`
 
 ```javascript
 // Cache Intl.DateTimeFormat instances
@@ -109,12 +109,12 @@ function getFormatters(lang) {
 **Solution**: Only render visible columns + buffer based on scroll position.
 
 **Files**:
-- `src/components/GanttContainer.jsx` - Added viewport height signal
-- `src/components/Gantt.jsx` - Added viewport range calculations
-- `src/components/DateHeaders.jsx` - Filter entries by visible range
+- `src/components/GanttContainer.tsx` - Added viewport height signal
+- `src/components/Gantt.tsx` - Added viewport range calculations
+- `src/components/DateHeaders.tsx` - Filter entries by visible range
 
 ```jsx
-// Gantt.jsx - Viewport range calculation
+// Gantt.tsx - Viewport range calculation
 const viewportCols = createMemo(() => {
     const colWidth = dateStore.columnWidth();
     const sl = scrollLeft();
@@ -126,7 +126,7 @@ const viewportCols = createMemo(() => {
     return { startCol, endCol };
 });
 
-// DateHeaders.jsx - Virtualized rendering
+// DateHeaders.tsx - Virtualized rendering
 const lowerTextEntries = createMemo(() => {
     const infos = dateInfos();
     const start = Math.max(0, startCol());
@@ -141,7 +141,7 @@ const lowerTextEntries = createMemo(() => {
 
 **Change**: Restructured TaskLayer to group tasks by resource/row for future row virtualization.
 
-**File**: `src/components/TaskLayer.jsx`
+**File**: `src/components/TaskLayer.tsx`
 
 ```jsx
 const tasksByResource = createMemo(() => {
@@ -172,7 +172,7 @@ const tasksByResource = createMemo(() => {
 
 **Finding**: Scroll-based arrow filtering actually **hurts** performance due to reactive cascades and array reconciliation.
 
-**File**: `src/components/ArrowLayer.jsx`
+**File**: `src/components/ArrowLayer.tsx`
 
 **Approach**: Render all arrows statically. Let the browser handle SVG clipping.
 
@@ -210,16 +210,16 @@ const dependencies = () => {
 
 **Problem**: With 10K tasks, all bars and arrows rendered regardless of scroll position (~5,500ms).
 
-**Solution**: Created a single `createVirtualViewport.js` utility following the solid-primitives/virtual pattern. All components share one viewport calculation.
+**Solution**: Created a single `createVirtualViewport.ts` utility following the solid-primitives/virtual pattern. All components share one viewport calculation.
 
 **Files**:
-- `src/utils/createVirtualViewport.js` - **NEW** - Simple 2D viewport virtualization utility
-- `src/components/Gantt.jsx` - Uses single viewport for all components
-- `src/components/TaskLayer.jsx` - Filters tasks by row range and X range
-- `src/components/ArrowLayer.jsx` - **No filtering** (see Section 7 - filtering hurts performance)
+- `src/utils/createVirtualViewport.ts` - **NEW** - Simple 2D viewport virtualization utility
+- `src/components/Gantt.tsx` - Uses single viewport for all components
+- `src/components/TaskLayer.tsx` - Filters tasks by row range and X range
+- `src/components/ArrowLayer.tsx` - **No filtering** (see Section 7 - filtering hurts performance)
 
 ```jsx
-// src/utils/createVirtualViewport.js - Simple pattern: offset / itemSize → visible range
+// src/utils/createVirtualViewport.ts - Simple pattern: offset / itemSize → visible range
 export function createVirtualViewport(config) {
     const { scrollX, scrollY, viewportWidth, viewportHeight, columnWidth, rowHeight, totalRows,
             overscanCols = 5, overscanRows = 3, overscanX = 600 } = config;
@@ -242,7 +242,7 @@ export function createVirtualViewport(config) {
     return { colRange, rowRange, xRange };
 }
 
-// Gantt.jsx - Single viewport shared by all components
+// Gantt.tsx - Single viewport shared by all components
 const viewport = createVirtualViewport({
     scrollX: scrollLeft, scrollY: scrollTop, viewportWidth, viewportHeight,
     columnWidth: () => dateStore.columnWidth(), rowHeight, totalRows: () => resourceCount(),
@@ -263,7 +263,7 @@ const viewport = createVirtualViewport({
 **Approach**: TaskLayer and ArrowLayer use SolidJS `<For>` to render virtualized items, following the solid-primitives/virtual pattern.
 
 ```jsx
-// TaskLayer.jsx - Keyed by item identity
+// TaskLayer.tsx - Keyed by item identity
 <For each={visibleTasks()}>
     {(task) => <Bar task={task} taskId={task.id} ... />}
 </For>
@@ -277,7 +277,7 @@ const viewport = createVirtualViewport({
 
 This ensures smooth visual transitions during scroll - each task bar always displays its own colors and data.
 
-**File**: `src/components/TaskLayer.jsx`
+**File**: `src/components/TaskLayer.tsx`
 
 **Test Results**:
 | Test | FPS | Worst Frame | Avg Frame |
@@ -332,7 +332,7 @@ Each dependency arrow creates 3 elements:
 
 **Solution**: `ArrowLayerBatched` with spatial row indexing.
 
-**File**: `src/components/ArrowLayerBatched.jsx`
+**File**: `src/components/ArrowLayerBatched.tsx`
 
 **Architecture**:
 1. **Spatial Index** (built once when tasks load):
@@ -397,9 +397,9 @@ const batchedPaths = createMemo(() => {
 **Problem**: During drag, reactive cascades caused all arrows to re-render on every frame.
 
 **Files**:
-- `src/components/ArrowLayer.jsx`
-- `src/components/TaskLayer.jsx`
-- `src/components/Gantt.jsx`
+- `src/components/ArrowLayer.tsx`
+- `src/components/TaskLayer.tsx`
+- `src/components/Gantt.tsx`
 
 **Fixes**:
 1. **ArrowLayer positionMap**: Use `untrack()` around position reads to prevent cascade
@@ -407,7 +407,7 @@ const batchedPaths = createMemo(() => {
 3. **Gantt Y-sync effect**: Wrap position updates in `untrack()` to avoid feedback loop
 
 ```jsx
-// ArrowLayer.jsx - Prevent cascade on position changes
+// ArrowLayer.tsx - Prevent cascade on position changes
 const positionMap = createMemo(() => {
     untrack(() => {
         for (const taskId in tasks) {
@@ -417,7 +417,7 @@ const positionMap = createMemo(() => {
     return positions;
 });
 
-// TaskLayer.jsx - Untrack during X filtering
+// TaskLayer.tsx - Untrack during X filtering
 const bar = untrack(() => task._bar);
 if (bar && (bar.x + bar.width < sx - 200 || bar.x > ex + 200)) continue;
 ```
@@ -433,18 +433,18 @@ if (bar && (bar.x + bar.width < sx - 200 || bar.x > ex + 200)) continue;
 - **`detailed`**: Full hierarchy, variable row heights, subtask support
 
 **Files**:
-- `src/stores/ganttConfigStore.js` - `renderMode` signal
-- `src/utils/rowLayoutCalculator.js` - `calculateSimpleRowLayouts()` function
-- `src/components/Gantt.jsx` - Conditional layout calculation
-- `src/components/TaskLayer.jsx` - Skip subtask logic in simple mode
+- `src/stores/ganttConfigStore.ts` - `renderMode` signal
+- `src/utils/rowLayoutCalculator.ts` - `calculateSimpleRowLayouts()` function
+- `src/components/Gantt.tsx` - Conditional layout calculation
+- `src/components/TaskLayer.tsx` - Skip subtask logic in simple mode
 
 **Architecture**:
 
 ```javascript
-// ganttConfigStore.js - New renderMode signal
+// ganttConfigStore.ts - New renderMode signal
 const [renderMode, setRenderMode] = createSignal(options.renderMode || 'simple');
 
-// rowLayoutCalculator.js - Fast path for simple mode
+// rowLayoutCalculator.ts - Fast path for simple mode
 export function calculateSimpleRowLayouts(displayRows, config) {
     const { barHeight = 30, padding = 18 } = config;
     const rowHeight = barHeight + padding;
@@ -462,7 +462,7 @@ export function calculateSimpleRowLayouts(displayRows, config) {
     return layouts;
 }
 
-// Gantt.jsx - Conditional layout
+// Gantt.tsx - Conditional layout
 const rowLayouts = createMemo(() => {
     const mode = ganttConfig.renderMode();
     if (mode === 'simple') {
@@ -471,7 +471,7 @@ const rowLayouts = createMemo(() => {
     return calculateRowLayouts(displayRows, config, expandedTasks, taskMap);
 });
 
-// TaskLayer.jsx - Skip subtasks in simple mode
+// TaskLayer.tsx - Skip subtasks in simple mode
 if (simpleMode) {
     if (task.parentId) continue; // Skip subtasks
     regularIds.push(taskId);
@@ -505,7 +505,7 @@ if (simpleMode) {
 Enable moving tasks between resources.
 
 **Changes Required**:
-1. Track Y-axis in drag handler (`Bar.jsx`)
+1. Track Y-axis in drag handler (`Bar.tsx`)
 2. Compute target row from Y position
 3. Add `onResourceChange` callback
 4. Update task store with new resource
@@ -551,13 +551,13 @@ pnpm dev
 
 | File | Change |
 |------|--------|
-| `src/utils/createVirtualViewport.js` | **NEW** - Simple 2D viewport virtualization utility |
-| `src/components/Grid.jsx` | SVG pattern for vertical lines |
-| `src/components/GanttContainer.jsx` | Direct scrollLeft assignment, viewport signals |
-| `src/components/Gantt.jsx` | Uses createVirtualViewport, untrack() in Y-sync effect |
-| `src/components/DateHeaders.jsx` | Column virtualization |
-| `src/components/TaskLayer.jsx` | Row/X filtering, untrack() for _bar access |
-| `src/components/ArrowLayer.jsx` | Row filtering, untrack() in positionMap, cached positions during drag |
-| `src/components/ArrowLayerBatched.jsx` | **ENHANCED** - Spatial row indexing for O(visible_rows) lookup |
-| `src/demo/GanttPerfDemo.jsx` | Default to 'batched' arrow renderer |
-| `src/utils/date_utils.js` | Cached Intl.DateTimeFormat instances |
+| `src/utils/createVirtualViewport.ts` | **NEW** - Simple 2D viewport virtualization utility |
+| `src/components/Grid.tsx` | SVG pattern for vertical lines |
+| `src/components/GanttContainer.tsx` | Direct scrollLeft assignment, viewport signals |
+| `src/components/Gantt.tsx` | Uses createVirtualViewport, untrack() in Y-sync effect |
+| `src/components/DateHeaders.tsx` | Column virtualization |
+| `src/components/TaskLayer.tsx` | Row/X filtering, untrack() for _bar access |
+| `src/components/ArrowLayer.tsx` | Row filtering, untrack() in positionMap, cached positions during drag |
+| `src/components/ArrowLayerBatched.tsx` | **ENHANCED** - Spatial row indexing for O(visible_rows) lookup |
+| `src/demo/GanttPerfDemo.tsx` | Default to 'batched' arrow renderer |
+| `src/utils/date_utils.ts` | Cached Intl.DateTimeFormat instances |

@@ -193,7 +193,7 @@ Dependencies use a **min/max offset model** to control gap flexibility:
 
 ## Additional Constraints (Untested)
 
-The following constraint fields exist in code (`absoluteConstraints.js`) but have no test coverage:
+The following constraint fields exist in code (`absoluteConstraints.ts`) but have no test coverage:
 
 | Field | Type | Effect |
 |-------|------|--------|
@@ -272,12 +272,12 @@ The following constraint fields exist in code (`absoluteConstraints.js`) but hav
 
 ## Implementation Details
 
-### Constraint Engine (constraintEngine.js)
+### Constraint Engine (constraintEngine.ts)
 
 The unified constraint engine provides a single entry point for all constraint resolution:
 
 ```javascript
-import { resolveConstraints, calculateCascadeUpdates } from '../utils/constraintEngine.js';
+import { resolveConstraints, calculateCascadeUpdates } from '../utils/constraintEngine.ts';
 
 // Build context object
 const context = {
@@ -435,11 +435,11 @@ function calculateCascadeUpdates(taskId, newX, context) {
 
 | File | Purpose |
 |------|---------|
-| `src/utils/constraintEngine.js` | Unified constraint resolution engine |
-| `src/utils/absoluteConstraints.js` | Lock type helpers, absolute time constraints |
-| `src/demo/GanttPerfIsolate.jsx` | Main component using constraint engine |
+| `src/utils/constraintEngine.ts` | Unified constraint resolution engine |
+| `src/utils/absoluteConstraints.ts` | Lock type helpers, absolute time constraints |
+| `src/demo/GanttPerfIsolate.tsx` | Main component using constraint engine |
 | `src/data/constraint-test.json` | Test data with labeled scenarios |
-| `src/components/ArrowLayerBatched.jsx` | Arrow rendering with style grouping |
+| `src/components/ArrowLayerBatched.tsx` | Arrow rendering with style grouping |
 
 ---
 

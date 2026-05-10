@@ -166,7 +166,7 @@ ganttConfig.collapseAllTasks();
 For testing and demos, use the `generateSubtaskDemo()` utility:
 
 ```javascript
-import { generateSubtaskDemo } from './utils/subtaskGenerator.js';
+import { generateSubtaskDemo } from './utils/subtaskGenerator.ts';
 
 const { tasks, resources, expandedTasks } = generateSubtaskDemo({
   totalTasks: 100,
@@ -215,7 +215,7 @@ pnpm dev
 
 Renders the parent container with dashed border and positions subtasks inside.
 
-- **File**: `src/components/ExpandedTaskContainer.jsx`
+- **File**: `src/components/ExpandedTaskContainer.tsx`
 - **Props**: `taskId`, `taskStore`, `ganttConfig`, `rowLayout`
 - **Computes**: Container height based on layout and subtask count
 
@@ -223,7 +223,7 @@ Renders the parent container with dashed border and positions subtasks inside.
 
 Renders individual subtask bars at 50% height.
 
-- **File**: `src/components/SubtaskBar.jsx`
+- **File**: `src/components/SubtaskBar.tsx`
 - **Props**: `task`, `index`, `y`, `layout`, `config`
 - **Features**: Compact labels, outline styling, progress indicator
 
@@ -231,7 +231,7 @@ Renders individual subtask bars at 50% height.
 
 Computes variable row heights and task positions.
 
-- **File**: `src/utils/rowLayoutCalculator.js`
+- **File**: `src/utils/rowLayoutCalculator.ts`
 - **Key functions**:
   - `calculateRowLayouts()` - Main layout computation
   - `calculateExpandedRowHeight()` - Height for expanded task

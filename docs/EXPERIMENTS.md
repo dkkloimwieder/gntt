@@ -59,7 +59,7 @@ pnpm dev
 
 ### TestBar Variant
 
-1. Add component to `src/components/GanttExperiments.jsx`:
+1. Add component to `src/components/GanttExperiments.tsx`:
 ```javascript
 function TestBarNewPattern(props) {
     // ... your pattern implementation
@@ -95,8 +95,8 @@ function useVisibleTasksNewPattern(tasks, allTaskIds, rowOffset, colOffset, visi
 
 | File | Purpose |
 |------|---------|
-| `src/components/GanttExperiments.jsx` | Main component |
-| `src/entries/experiments.jsx` | Entry point |
+| `src/components/GanttExperiments.tsx` | Main component |
+| `src/entries/experiments.tsx` | Entry point |
 | `examples/experiments.html` | Demo page |
 | `perf-traces/ANALYSIS.md` | Benchmark results |
 | `perf-traces/HISTORY.md` | Investigation logs |
