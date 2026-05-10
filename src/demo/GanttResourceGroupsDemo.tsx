@@ -126,12 +126,12 @@ export function GanttResourceGroupsDemo() {
 
     // Options
     const [options] = createSignal({
-        view_mode: 'Day',
-        bar_height: 30,
+        viewMode: 'Day',
+        barHeight: 30,
         padding: 18,
-        column_width: 45,
-        upper_header_height: 45,
-        lower_header_height: 30,
+        columnWidth: 45,
+        upperHeaderHeight: 45,
+        lowerHeaderHeight: 30,
         lines: 'both',
         scroll_to: 'start',
     });

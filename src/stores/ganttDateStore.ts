@@ -16,11 +16,9 @@ interface GanttDateStoreOptions {
     ganttStart?: Date;
     ganttEnd?: Date;
     viewMode?: string;
-    view_mode?: string;
     viewModes?: ViewMode[];
     language?: string;
     columnWidth?: number;
-    column_width?: number;
 }
 
 export interface GanttDateStore {
@@ -83,8 +81,7 @@ export function createGanttDateStore(
         DEFAULT_VIEW_MODES.find((m) => m.name === 'Day') ||
         DEFAULT_VIEW_MODES[3]!;
 
-    // Support both viewMode and view_mode options
-    const initialViewModeName = options.viewMode || options.view_mode;
+    const initialViewModeName = options.viewMode;
     const initialViewMode = initialViewModeName
         ? DEFAULT_VIEW_MODES.find((m) => m.name === initialViewModeName) ||
           defaultViewMode
@@ -124,12 +121,12 @@ export function createGanttDateStore(
 
     // Column width - use options override if provided, else view mode default
     const [columnWidthOverride] = createSignal<number | null>(
-        options.columnWidth || options.column_width || null,
+        options.columnWidth ?? null,
     );
     const columnWidth = createMemo(
         () =>
             columnWidthOverride() ||
-            viewMode().column_width ||
+            viewMode().columnWidth ||
             DEFAULT_COLUMN_WIDTH,
     );
 
@@ -273,22 +270,22 @@ export function createGanttDateStore(
 
         // Get lower text (day number, hour, etc.)
         let lowerText = '';
-        if (typeof mode.lower_text === 'function') {
-            lowerText = mode.lower_text(date, lastDate, lang);
-        } else if (typeof mode.lower_text === 'string') {
-            lowerText = date_utils.format(date, mode.lower_text, lang);
+        if (typeof mode.lowerText === 'function') {
+            lowerText = mode.lowerText(date, lastDate, lang);
+        } else if (typeof mode.lowerText === 'string') {
+            lowerText = date_utils.format(date, mode.lowerText, lang);
         }
 
         // Get upper text (month, year, etc.) - only when it changes
         let upperText = '';
-        if (typeof mode.upper_text === 'function') {
-            upperText = mode.upper_text(date, lastDate, lang);
-        } else if (typeof mode.upper_text === 'string') {
-            upperText = date_utils.format(date, mode.upper_text, lang);
+        if (typeof mode.upperText === 'function') {
+            upperText = mode.upperText(date, lastDate, lang);
+        } else if (typeof mode.upperText === 'string') {
+            upperText = date_utils.format(date, mode.upperText, lang);
         }
 
         // Check if this should be a thick line
-        const isThickLine = mode.thick_line ? mode.thick_line(date) : false;
+        const isThickLine = mode.thickLine ? mode.thickLine(date) : false;
 
         return {
             date,

@@ -300,13 +300,13 @@ export function GanttPerfDemo() {
 
     // Gantt options
     const options = createMemo(() => ({
-        view_mode: viewMode(),
+        viewMode: viewMode(),
         renderMode: renderMode(), // simple or detailed
-        bar_height: 20,
+        barHeight: 20,
         padding: 8,
-        column_width: viewMode() === 'Hour' ? 25 : 30,
-        upper_header_height: 35,
-        lower_header_height: 25,
+        columnWidth: viewMode() === 'Hour' ? 25 : 30,
+        upperHeaderHeight: 35,
+        lowerHeaderHeight: 25,
         headerHeight: 60,
         lines: 'both',
         scroll_to: 'start',

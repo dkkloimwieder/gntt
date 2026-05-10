@@ -68,20 +68,20 @@ interface ArrowConfigOptions {
 }
 
 interface GanttOptions {
-    view_mode?: string;
+    viewMode?: string;
     scroll_to?: 'start' | 'today' | string;
-    upper_header_height?: number;
-    lower_header_height?: number;
-    resource_column_width?: number;
+    upperHeaderHeight?: number;
+    lowerHeaderHeight?: number;
+    resourceColumnWidth?: number;
     arrow_color?: string;
     arrow_curve?: number;
     arrow_head_shape?: string;
     arrow_head_size?: number;
     lines?: 'horizontal' | 'vertical' | 'both' | 'none';
     readonly?: boolean;
-    bar_height?: number;
+    barHeight?: number;
     padding?: number;
-    column_width?: number;
+    columnWidth?: number;
     [key: string]: unknown;
 }
 
@@ -301,7 +301,7 @@ export function Gantt(props: GanttProps): JSX.Element {
 
     // Watch for options changes and sync to config store
     // This ensures store stays in sync when parent passes new options
-    // Note: dateStore handles view_mode changes via the separate effect below
+    // Note: dateStore handles viewMode changes via the separate effect below
     createEffect(() => {
         const opts = props.options;
         if (opts) {
@@ -311,10 +311,10 @@ export function Gantt(props: GanttProps): JSX.Element {
 
     // Watch for view mode changes - use signal to track previous value
     const [prevViewMode, setPrevViewMode] = createSignal(
-        props.options?.view_mode,
+        props.options?.viewMode,
     );
     createEffect(() => {
-        const viewMode = props.options?.view_mode;
+        const viewMode = props.options?.viewMode;
         const prev = prevViewMode();
         if (viewMode && viewMode !== prev) {
             setPrevViewMode(viewMode);
@@ -596,13 +596,13 @@ export function Gantt(props: GanttProps): JSX.Element {
 
     // Header heights from options
     const upperHeaderHeight = (): number =>
-        props.options?.upper_header_height || DEFAULT_UPPER_HEADER_HEIGHT;
+        props.options?.upperHeaderHeight || DEFAULT_UPPER_HEADER_HEIGHT;
     const lowerHeaderHeight = (): number =>
-        props.options?.lower_header_height || DEFAULT_LOWER_HEADER_HEIGHT;
+        props.options?.lowerHeaderHeight || DEFAULT_LOWER_HEADER_HEIGHT;
 
     // Resource column width from options
     const resourceColumnWidth = (): number =>
-        props.options?.resource_column_width || 120;
+        props.options?.resourceColumnWidth || 120;
 
     // Arrow configuration from options
     const arrowConfig = createMemo(() => ({

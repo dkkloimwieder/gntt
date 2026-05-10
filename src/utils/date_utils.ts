@@ -161,7 +161,7 @@ const date_utils = {
 
     format(
         date: Date,
-        date_format = 'YYYY-MM-DD HH:mm:ss.SSS',
+        dateFormat = 'YYYY-MM-DD HH:mm:ss.SSS',
         lang = 'en',
     ): string {
         const formatters = getFormatters(lang);
@@ -187,7 +187,7 @@ const date_utils = {
             MMM: formatters.short.format(date),
         };
 
-        let str = date_format;
+        let str = dateFormat;
         const formatted_values: string[] = [];
 
         FORMAT_KEYS_SORTED.forEach((key) => {

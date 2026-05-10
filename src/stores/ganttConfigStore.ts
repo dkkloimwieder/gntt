@@ -13,13 +13,10 @@ interface GanttConfigOptions {
     unit?: string;
     step?: number;
     columnWidth?: number;
-    column_width?: number;
     barHeight?: number;
-    bar_height?: number;
     headerHeight?: number;
     padding?: number;
     barCornerRadius?: number;
-    bar_corner_radius?: number;
     readonly?: boolean;
     readonlyDates?: boolean;
     readonlyProgress?: boolean;
@@ -108,21 +105,21 @@ export function createGanttConfigStore(
     const [unit, setUnit] = createSignal<string>(options.unit || 'day');
     const [step, setStep] = createSignal<number>(options.step || 1);
 
-    // Layout configuration - support both snake_case and camelCase
+    // Layout configuration
     const [columnWidth, setColumnWidth] = createSignal<number>(
-        options.columnWidth || options.column_width || DEFAULT_COLUMN_WIDTH,
+        options.columnWidth ?? DEFAULT_COLUMN_WIDTH,
     );
     const [barHeight, setBarHeight] = createSignal<number>(
-        options.barHeight || options.bar_height || DEFAULT_BAR_HEIGHT,
+        options.barHeight ?? DEFAULT_BAR_HEIGHT,
     );
     const [headerHeight, setHeaderHeight] = createSignal<number>(
-        options.headerHeight || 75,
+        options.headerHeight ?? 75,
     );
     const [padding, setPadding] = createSignal<number>(
-        options.padding || DEFAULT_PADDING,
+        options.padding ?? DEFAULT_PADDING,
     );
     const [barCornerRadius, setBarCornerRadius] = createSignal<number>(
-        options.barCornerRadius || options.bar_corner_radius || 3,
+        options.barCornerRadius ?? 3,
     );
 
     // Feature flags

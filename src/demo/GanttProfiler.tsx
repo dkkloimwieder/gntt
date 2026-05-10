@@ -179,10 +179,10 @@ export function GanttProfiler() {
     });
 
     const options = createMemo(() => ({
-        view_mode: viewMode(),
-        bar_height: 20,
+        viewMode: viewMode(),
+        barHeight: 20,
         padding: 8,
-        column_width: viewMode() === 'Hour' ? 25 : 30,
+        columnWidth: viewMode() === 'Hour' ? 25 : 30,
     }));
 
     return (

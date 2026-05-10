@@ -273,23 +273,23 @@ export interface ViewMode {
     /** Step size (e.g., '1d', '1h', '15min') */
     step: string;
     /** Column width in pixels */
-    column_width?: number;
+    columnWidth?: number;
     /** Date format string */
-    date_format?: string;
+    dateFormat?: string;
     /** Lower header text - string or function */
-    lower_text:
+    lowerText:
         | string
         | ((date: Date, lastDate: Date | null, language: string) => string);
     /** Upper header text - string or function */
-    upper_text?:
+    upperText?:
         | string
         | ((date: Date, lastDate: Date | null, language: string) => string);
     /** How often upper text changes (thin lines per thick) */
-    upper_text_frequency?: number;
+    upperTextFrequency?: number;
     /** Function to determine thick separator lines */
-    thick_line?: (date: Date) => boolean;
+    thickLine?: (date: Date) => boolean;
     /** Snap increment (e.g., '7d') */
-    snap_at?: string;
+    snapAt?: string;
 }
 
 /**

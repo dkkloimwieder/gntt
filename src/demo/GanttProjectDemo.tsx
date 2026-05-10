@@ -29,8 +29,8 @@ export function GanttProjectDemo() {
 
     // Options - all parent tasks expanded by default
     const [options] = createSignal({
-        view_mode: 'Day',
-        bar_height: 30,
+        viewMode: 'Day',
+        barHeight: 30,
         padding: 18,
         resourceColumnWidth: 150,
         subtaskHeightRatio: 0.5,
