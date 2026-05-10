@@ -4,6 +4,34 @@ This document archives detailed investigation logs and historical benchmark data
 
 ---
 
+## 2026-05-10: Post-Audit Baseline Refresh
+
+After the code-quality audit (`docs/AUDIT.md` — dep upgrade chain, 5
+component decompositions, lint/test infra, public-API canonicalization),
+the canonical perf-isolate workload was rerun against the freshly built
+`dist-demo`. URL and methodology unchanged from the December baselines.
+
+| URL | Script | Layout | FPS | Long Tasks |
+|---|---|---|---|---|
+| `?bar=nochildren&test=horizontal` (Dec 2025) | 1145 ms | 438 ms | — | — |
+| `?bar=nochildren&test=horizontal` (post-audit) | **607 ms** | **176 ms** | 118 | 0 |
+| `?bar=nochildren&grid=1&headers=1&resources=1&arrows=1&test=horizontal` (post-audit) | 944 ms | 412 ms | 115 | 0 |
+
+3 iterations + 1 warmup, 3000 ms each, served from `dist-demo` on port 5174.
+
+**Deltas vs Dec 2025:** −47 % script, −60 % layout on the bar-only
+workload. The improvement is most likely attributable to the dep
+upgrades (Vite 7 → 8, Rollup, esbuild) rather than the component
+decompositions, but the refactors at minimum preserve the gains. The
+Arrow.tsx 892 → 285 decomposition (the most aggressive) shows no
+regression on the full-stack workload that exercises the arrow path.
+
+Baseline traces saved to:
+- `runs/baseline-2026-05-10-nochildren-h.json`
+- `runs/baseline-2026-05-10-full-h.json`
+
+---
+
 ## 2025-12-23: Header Optimization Investigation
 
 ### Hypothesis

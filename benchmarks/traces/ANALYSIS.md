@@ -164,13 +164,28 @@ http://localhost:5174/examples/perf-isolate?bar=nochildren&test=horizontal
 | Arrows | +5% | -5% | 2D virtualized, ~2.5% total |
 | Full | +31.1% | -30.8% | All features |
 
-### Bar Variant Comparison (10K tasks)
+### Bar Variant Comparison (10K tasks, Dec 2025)
 
 | Variant | Script | vs Baseline |
 |---------|--------|-------------|
 | nochildren | 759.8ms | **Winner** |
 | combined | 830.9ms | +9.4% |
 | experiments | ~850ms | +12% |
+
+### Post-Audit Baseline (2026-05-10)
+
+After the dep upgrade chain + 5 component decompositions, the canonical
+perf-isolate workload measures:
+
+| Workload | Script | Layout | FPS | Long Tasks |
+|---|---|---|---|---|
+| `nochildren&test=horizontal` | 607 ms | 176 ms | 118 | 0 |
+| `nochildren&grid=1&headers=1&resources=1&arrows=1&test=horizontal` | 944 ms | 412 ms | 115 | 0 |
+
+−47 % script, −60 % layout vs Dec 2025 on bar-only. Treat these as the
+new baseline. Traces in `runs/baseline-2026-05-10-*.json`. See
+[HISTORY.md](./HISTORY.md#2026-05-10-post-audit-baseline-refresh) for
+methodology and attribution.
 
 ### Reactive Pattern Comparison (10K tasks)
 
