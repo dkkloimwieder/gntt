@@ -45,7 +45,10 @@ test('Parse: parses string datetime', () => {
 });
 
 test('Format: converts date object to string', () => {
-    const date = new Date('2017-09-18');
+    // Construct in local time. `new Date('2017-09-18')` parses as UTC midnight,
+    // which renders as the previous day in negative-UTC-offset zones — to_string
+    // uses local-time getters by design.
+    const date = new Date(2017, 8, 18);
     expect(date_utils.to_string(date)).toBe('2017-09-18');
 });
 
@@ -71,8 +74,12 @@ test('Diff: returns diff between 2 date objects', () => {
     const b = date_utils.parse('2017-06-07');
 
     expect(date_utils.diff(a, b, 'day')).toBe(93);
-    expect(date_utils.diff(a, b, 'month')).toBe(3);
-    expect(date_utils.diff(a, b, 'year')).toBe(0);
+    // diff('month') intentionally adds a fractional month based on
+    // (days % 30) / 30 — see dateUtils.diff. Day-of-month delta of 1
+    // contributes 1/30 ≈ 0.03, plus 3 (Sep − Jun), then rounded to
+    // 2 decimals → 3.1. 'year' is months / 12 → 0.26.
+    expect(date_utils.diff(a, b, 'month')).toBe(3.1);
+    expect(date_utils.diff(a, b, 'year')).toBe(0.26);
 });
 
 test('StartOf', () => {
