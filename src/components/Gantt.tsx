@@ -34,6 +34,7 @@ import { TaskLayerMinimal } from './TaskLayerMinimal';
 import { TaskDataPopup } from './TaskDataPopup';
 import { TaskDataModal } from './TaskDataModal';
 import { GanttEventsProvider } from '../contexts/GanttEvents';
+import { useGanttStores } from '../contexts/GanttStores';
 import type {
     GanttTask,
     Relationship,
@@ -95,12 +96,16 @@ declare global {
  * Gantt - Main orchestrator component for the Gantt chart.
  */
 export function Gantt(props: GanttProps): JSX.Element {
-    // Stores
-    const taskStore = createTaskStore();
-    const ganttConfig = createGanttConfigStore(props.options || {});
-    const dateStore = createGanttDateStore(props.options || {});
-    const resourceStore = createResourceStore(props.resources || []);
-    const stores = { taskStore, ganttConfig, dateStore, resourceStore };
+    // Stores: prefer those from a surrounding <GanttProvider>; otherwise
+    // create our own so the bare <Gantt tasks={...} /> form keeps working.
+    const provided = useGanttStores();
+    const stores = provided ?? {
+        taskStore: createTaskStore(),
+        ganttConfig: createGanttConfigStore(props.options || {}),
+        dateStore: createGanttDateStore(props.options || {}),
+        resourceStore: createResourceStore(props.resources || []),
+    };
+    const { taskStore, ganttConfig, dateStore, resourceStore } = stores;
 
     // Expose for profiling (development only)
     if (typeof window !== 'undefined') {

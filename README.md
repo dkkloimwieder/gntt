@@ -45,6 +45,40 @@ Per-task fields (on the data shape passed to `tasks`): `id`, `name`,
 | `onResizeEnd` | `(taskId) => void` | Resize gesture finishes |
 | `onTaskClick` | `(taskId, event: MouseEvent) => void` | Bar is clicked |
 
+## Advanced usage — `<GanttProvider>`
+
+The bare `<Gantt tasks={...} />` form is enough for most apps; the chart
+creates its internal stores on its own. Wrap with `<GanttProvider>` only
+when sibling components need to read or mutate the same state — e.g.
+a custom toolbar, a side panel, or a test harness.
+
+```jsx
+import { GanttProvider, Gantt, useGanttStores } from 'ganttss';
+
+function Toolbar() {
+    const stores = useGanttStores();
+    return (
+        <button onClick={() => stores.dateStore.changeViewMode('Week')}>
+            Week view
+        </button>
+    );
+}
+
+function App() {
+    return (
+        <GanttProvider options={{ viewMode: 'Day' }} resources={resources}>
+            <Toolbar />
+            <Gantt tasks={tasks} />
+        </GanttProvider>
+    );
+}
+```
+
+`useGanttStores()` returns `undefined` outside a provider, so callers can
+fall back gracefully. The lower-level `createTaskStore`,
+`createGanttConfigStore`, `createGanttDateStore`, and `createResourceStore`
+remain exported for full manual wiring.
+
 ## Breaking changes
 
 All public option, prop, and task-data field names use **camelCase**.

@@ -8,13 +8,27 @@
 export { Gantt } from './components/Gantt';
 
 // Stores
-export { createTaskStore } from './stores/taskStore';
-export { createGanttConfigStore } from './stores/ganttConfigStore';
-export { createGanttDateStore } from './stores/ganttDateStore';
-export { createResourceStore } from './stores/resourceStore';
+export { createTaskStore, type TaskStore } from './stores/taskStore';
+export {
+    createGanttConfigStore,
+    type GanttConfigStore,
+} from './stores/ganttConfigStore';
+export {
+    createGanttDateStore,
+    type GanttDateStore,
+} from './stores/ganttDateStore';
+export {
+    createResourceStore,
+    type ResourceStore,
+} from './stores/resourceStore';
 
 // Contexts
 export { GanttEventsProvider, useGanttEvents } from './contexts/GanttEvents';
+export {
+    GanttProvider,
+    useGanttStores,
+    type GanttStores,
+} from './contexts/GanttStores';
 
 // Utilities
 export {
