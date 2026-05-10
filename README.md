@@ -34,7 +34,14 @@ function App() {
 
 Per-task fields (on the data shape passed to `tasks`): `id`, `name`,
 `start`, `end`, `progress`, `dependencies`, `color`, `colorProgress`,
-`resource`.
+`resource`, `baselineStart`, `baselineEnd`.
+
+Adding `baselineStart` + `baselineEnd` to a task renders a thin dashed
+ghost bar above the actual bar — useful for tracking schedule variance
+between the original plan and the current state. Both fields must be
+present together; a half-specified baseline is silently ignored. Style
+the ghost via the `--g-baseline-color` and `--g-baseline-border` CSS
+variables.
 
 ## Callbacks
 

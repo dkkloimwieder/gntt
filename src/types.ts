@@ -131,6 +131,10 @@ export interface GanttTaskInput {
     subtaskLayout?: 'sequential' | 'parallel' | 'mixed';
     /** Sort order within resource */
     order?: number;
+    /** Originally-planned start (renders as a ghost baseline bar) */
+    baselineStart?: string | Date;
+    /** Originally-planned end (paired with baselineStart) */
+    baselineEnd?: string | Date;
 }
 
 /**
@@ -176,6 +180,10 @@ export interface GanttTask {
     subtaskLayout?: 'sequential' | 'parallel' | 'mixed';
     /** Sort order within resource */
     order?: number;
+    /** Originally-planned start (renders as a ghost baseline bar) */
+    baselineStart?: string | Date;
+    /** Originally-planned end (paired with baselineStart) */
+    baselineEnd?: string | Date;
 }
 
 /**
@@ -204,6 +212,12 @@ export interface ProcessedTask extends Omit<
     subtaskLayout?: 'sequential' | 'parallel' | 'mixed';
     /** Computed bar position */
     _bar: BarPosition;
+    /** Parsed baseline start (only present when baselineStart was provided) */
+    _baselineStart?: Date;
+    /** Parsed baseline end (only present when baselineEnd was provided) */
+    _baselineEnd?: Date;
+    /** Computed baseline bar position (only present when both baseline dates are provided) */
+    _baselineBar?: { x: number; width: number };
     /** Normalized dependencies (always array with defaults applied) */
     dependencies: NormalizedDependency[];
     /** Normalized constraints (always has locked field) */

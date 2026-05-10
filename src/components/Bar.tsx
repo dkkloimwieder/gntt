@@ -81,6 +81,7 @@ interface TaskData {
     hasChildren: boolean;
     start: Date | string | null;
     end: Date | string | null;
+    baseline: { x: number; width: number } | null;
 }
 
 /**
@@ -149,6 +150,7 @@ export function Bar(props: BarProps): JSX.Element {
                 hasChildren: false,
                 start: null,
                 end: null,
+                baseline: null,
             };
         return {
             id: task.id ?? '',
@@ -166,6 +168,7 @@ export function Bar(props: BarProps): JSX.Element {
             hasChildren: (task._children?.length ?? 0) > 0,
             start: task._start ?? null,
             end: task._end ?? null,
+            baseline: task._baselineBar ?? null,
         };
     });
 
@@ -434,6 +437,30 @@ export function Bar(props: BarProps): JSX.Element {
                 visibility: visible() ? 'visible' : 'hidden',
             }}
         >
+            {/* Baseline ghost bar (planned dates) — rendered above the
+             * main bar when baselineStart/End are present on the task.
+             * Positioned in wrapper-relative coords: the wrapper sits at
+             * the actual bar's x, so the baseline's left = baseline.x − x.
+             */}
+            <div
+                class="bar-baseline"
+                aria-hidden="true"
+                style={{
+                    position: 'absolute',
+                    left: `${(t().baseline?.x ?? 0) - x()}px`,
+                    top: '-7px',
+                    width: `${t().baseline?.width ?? 0}px`,
+                    height: '4px',
+                    'border-radius': '2px',
+                    'background-color':
+                        'var(--g-baseline-color, rgba(100, 116, 139, 0.35))',
+                    border: '1px dashed var(--g-baseline-border, rgba(100, 116, 139, 0.6))',
+                    'box-sizing': 'border-box',
+                    'pointer-events': 'none',
+                    display: t().baseline ? 'block' : 'none',
+                }}
+            />
+
             {/* Main bar - outline style with subtle fill */}
             <div
                 class="bar"

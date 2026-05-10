@@ -17,6 +17,8 @@ export function GanttDemo() {
             resource: 'Planning',
             color: '#3b82f6',
             colorProgress: '#1d4ed8',
+            baselineStart: '2024-01-01',
+            baselineEnd: '2024-01-04',
         },
         {
             id: 'task-2',
@@ -28,6 +30,8 @@ export function GanttDemo() {
             resource: 'Design',
             color: '#8b5cf6',
             colorProgress: '#6d28d9',
+            baselineStart: '2024-01-05',
+            baselineEnd: '2024-01-10',
         },
         {
             id: 'task-3',
@@ -39,6 +43,8 @@ export function GanttDemo() {
             resource: 'Development',
             color: '#10b981',
             colorProgress: '#059669',
+            baselineStart: '2024-01-11',
+            baselineEnd: '2024-01-22',
         },
         {
             id: 'task-4',

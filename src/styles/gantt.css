@@ -329,8 +329,10 @@
 
     & .bar-wrapper {
             cursor: pointer;
-            /* CSS containment for paint performance during scroll */
-            contain: layout style paint;
+            /* CSS containment for scroll performance. Paint containment
+             * is dropped so baseline ghost bars (which can extend beyond
+             * the actual bar's x/width) render without clipping. */
+            contain: layout style;
 
         & .bar {
             outline: 1px solid var(--g-row-border-color);

@@ -137,6 +137,19 @@ export function processTask(
     };
 
     // Build the processed task (without position fields - added later)
+    // Parse baseline dates if provided. Both must be present and parseable;
+    // a half-specified baseline is silently ignored.
+    let _baselineStart: Date | undefined;
+    let _baselineEnd: Date | undefined;
+    if (task.baselineStart && task.baselineEnd) {
+        const bs = dateUtils.parse(task.baselineStart);
+        const be = dateUtils.parse(task.baselineEnd);
+        if (bs && be && !isNaN(bs.getTime()) && !isNaN(be.getTime())) {
+            _baselineStart = bs < be ? bs : be;
+            _baselineEnd = bs < be ? be : bs;
+        }
+    }
+
     return {
         // Required fields
         id,
@@ -162,6 +175,10 @@ export function processTask(
         color_fill: task.color_fill,
         subtaskLayout: task.subtaskLayout,
         order: task.order,
+        baselineStart: task.baselineStart,
+        baselineEnd: task.baselineEnd,
+        _baselineStart,
+        _baselineEnd,
     };
 }
 
@@ -247,6 +264,27 @@ export function processTasks(
             config.columnWidth,
         );
 
+        // Compute baseline bar position (if baseline dates were provided).
+        let _baselineBar: { x: number; width: number } | undefined;
+        if (task._baselineStart && task._baselineEnd) {
+            _baselineBar = {
+                x: computeX(
+                    task._baselineStart,
+                    config.ganttStart,
+                    config.unit,
+                    config.step,
+                    config.columnWidth,
+                ),
+                width: computeWidth(
+                    task._baselineStart,
+                    task._baselineEnd,
+                    config.unit,
+                    config.step,
+                    config.columnWidth,
+                ),
+            };
+        }
+
         // Build complete ProcessedTask with position
         const completeTask: ProcessedTask = {
             ...task,
@@ -256,6 +294,7 @@ export function processTasks(
                 width,
                 height: config.barHeight,
             },
+            _baselineBar,
             _resourceIndex: effectiveRowIndex,
             _isHidden: isHidden,
         };
