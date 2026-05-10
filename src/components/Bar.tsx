@@ -268,6 +268,63 @@ export function Bar(props: BarProps): JSX.Element {
         startDrag(e, 'dragging_progress', { taskId: t().id });
     };
 
+    // Keyboard interaction: arrow keys move; Shift+arrow resizes;
+    // Enter/Space opens the modal. Mirrors the constraint+update path
+    // that drag uses so screen-reader / keyboard users stay in sync.
+    const handleKeyDown = (e: KeyboardEvent): void => {
+        if (readonly() || isLocked()) return;
+        const taskId = t().id;
+
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            const onTaskClick = props.onTaskClick ?? events.onTaskClick;
+            onTaskClick?.(taskId, e as unknown as MouseEvent);
+            return;
+        }
+
+        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+        if (readonlyDates()) return;
+        e.preventDefault();
+
+        const colW = columnWidth();
+        const dir = e.key === 'ArrowLeft' ? -1 : 1;
+        const delta = dir * colW;
+        const onDateChange = props.onDateChange ?? events.onDateChange;
+        const onResizeEnd = props.onResizeEnd ?? events.onResizeEnd;
+
+        if (e.shiftKey) {
+            // Resize from the right edge.
+            const newWidth = Math.max(minWidth(), width() + delta);
+            props.taskStore?.updateBarPosition(taskId, { width: newWidth });
+            onDateChange?.(taskId, { x: x(), width: newWidth });
+            onResizeEnd?.(taskId);
+        } else {
+            // Move; honour the same constraint check drag uses.
+            let newX = x() + delta;
+            if (props.onConstrainPosition) {
+                const c = props.onConstrainPosition(taskId, newX, y());
+                if (c === null) return;
+                newX = c.x ?? newX;
+            }
+            props.taskStore?.updateBarPosition(taskId, { x: newX });
+            onDateChange?.(taskId, { x: newX, width: width() });
+        }
+    };
+
+    // Build aria-label from current task data; updates reactively because
+    // it's read inside the JSX expression below.
+    const fmtDate = (d: Date | string | null): string => {
+        if (!d) return 'unknown';
+        const date = d instanceof Date ? d : new Date(d);
+        return Number.isNaN(date.getTime())
+            ? 'unknown'
+            : date.toLocaleDateString();
+    };
+    const ariaLabel = (): string => {
+        const lockSuffix = isLocked() ? ', locked' : '';
+        return `${t().name || 'Task'}, ${fmtDate(t().start)} to ${fmtDate(t().end)}, ${t().progress}% complete${lockSuffix}`;
+    };
+
     // ═══════════════════════════════════════════════════════════════════════════
     // COMPUTED VALUES - OPTIMIZED: memoized to avoid recalculation on every render
     // ═══════════════════════════════════════════════════════════════════════════
@@ -354,10 +411,16 @@ export function Bar(props: BarProps): JSX.Element {
         <div
             class={`bar-wrapper ${customClass()} ${isInvalid() ? 'invalid' : ''} ${isLocked() ? 'locked' : ''} ${dragClass()}`}
             data-id={t().id}
+            role="button"
+            aria-roledescription="task bar"
+            aria-label={ariaLabel()}
+            aria-disabled={readonly() || isLocked() ? 'true' : 'false'}
+            tabIndex={readonly() ? -1 : 0}
             onMouseDown={handleBarMouseDown}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
             onClick={handleClick}
+            onKeyDown={handleKeyDown}
             style={{
                 position: 'absolute',
                 transform: barTransform(),

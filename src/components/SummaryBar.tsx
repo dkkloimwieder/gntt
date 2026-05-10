@@ -165,6 +165,20 @@ export function SummaryBar(props: SummaryBarProps): JSX.Element {
         startDrag(e, 'dragging_bar');
     };
 
+    // Aria label: parent bar identity + date range + rolled-up progress.
+    const fmtDate = (d: Date | string | undefined): string => {
+        if (!d) return 'unknown';
+        const date = d instanceof Date ? d : new Date(d);
+        return Number.isNaN(date.getTime())
+            ? 'unknown'
+            : date.toLocaleDateString();
+    };
+    const ariaLabel = (): string => {
+        const tk = task();
+        const name = tk?.name ?? 'Summary';
+        return `${name}, ${fmtDate(tk?._start)} to ${fmtDate(tk?._end)}, ${progress()}% complete`;
+    };
+
     // GPU-accelerated transform for positioning
     const barTransform = (): string => `translate(${x()}px, ${y()}px)`;
 
@@ -173,6 +187,10 @@ export function SummaryBar(props: SummaryBarProps): JSX.Element {
             class={`summary-bar-wrapper bar-wrapper ${dragStateClass()}`}
             data-id={taskId()}
             data-type="summary"
+            role="group"
+            aria-roledescription="summary task"
+            aria-label={ariaLabel()}
+            tabIndex={readonly() ? -1 : 0}
             onMouseDown={handleBarMouseDown}
             style={{
                 position: 'absolute',

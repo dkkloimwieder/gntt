@@ -45,6 +45,28 @@ Per-task fields (on the data shape passed to `tasks`): `id`, `name`,
 | `onResizeEnd` | `(taskId) => void` | Resize gesture finishes |
 | `onTaskClick` | `(taskId, event: MouseEvent) => void` | Bar is clicked |
 
+## Keyboard & accessibility
+
+Each task bar is a focusable button (`role="button"`, `tabindex=0`) with
+an `aria-label` describing the task identity, date range, and progress.
+The chart container exposes `role="region"` with
+`aria-roledescription="gantt chart"` so screen readers announce it as a
+single landmark.
+
+Keyboard shortcuts on a focused bar:
+
+| Key | Action |
+|-----|--------|
+| `Tab` / `Shift+Tab` | Move focus between bars |
+| `←` / `→` | Move bar by one column (one unit of the current view mode) |
+| `Shift+←` / `Shift+→` | Resize bar from the right edge by one column |
+| `Enter` / `Space` | Open the task modal |
+
+Movement honours the same dependency constraints as drag, so keyboard
+edits cannot violate FS/SS/FF/SF relationships. `readonly`,
+`readonlyDates`, and the per-task `locked` flag suppress keyboard edits
+in the same places they suppress drag.
+
 ## Advanced usage — `<GanttProvider>`
 
 The bare `<Gantt tasks={...} />` form is enough for most apps; the chart

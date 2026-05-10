@@ -225,6 +225,9 @@ export function GanttContainer(props: GanttContainerProps): JSX.Element {
     return (
         <div
             class="gantt-container"
+            role="region"
+            aria-label="Gantt chart"
+            aria-roledescription="gantt chart"
             style={{
                 ...cssVars(),
                 display: 'grid',
