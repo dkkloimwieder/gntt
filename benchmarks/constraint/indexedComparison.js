@@ -4,7 +4,7 @@
  */
 
 import { generateDenseGraph, buildContext } from './generateBenchData.js';
-import { resolveConstraints } from '../utils/constraintEngine.js';
+import { resolveConstraints } from '../../src/utils/constraintEngine.ts';
 
 const TASKS = 500;
 const ITERATIONS = 100;

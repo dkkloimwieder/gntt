@@ -13,13 +13,13 @@ import {
     getMaxXFromLockedSuccessors,
     getDepOffsets,
     EPSILON_PX,
-} from '../utils/constraintEngine.js';
+} from '../../src/utils/constraintEngine.ts';
 import {
     isMovementLocked,
     getMinXFromAbsolute,
     getMaxXFromAbsolute,
     getMaxEndFromAbsolute,
-} from '../utils/absoluteConstraints.js';
+} from '../../src/utils/absoluteConstraints.ts';
 
 const TASKS = 500;
 const RELS = 10000;

@@ -38,7 +38,7 @@ import {
     getMinXFromPredecessors,
     getMaxEndFromDownstream,
     getDepOffsets,
-} from '../utils/constraintEngine.js';
+} from '../../src/utils/constraintEngine.ts';
 
 import { writeFileSync } from 'fs';
 

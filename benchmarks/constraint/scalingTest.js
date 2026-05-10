@@ -19,7 +19,7 @@ import {
     calculateCascadeUpdates,
     getMinXFromPredecessors,
     getMaxEndFromDownstream,
-} from '../utils/constraintEngine.js';
+} from '../../src/utils/constraintEngine.ts';
 
 const TASKS = 500;
 const DEP_COUNTS = [1000, 5000, 10000];

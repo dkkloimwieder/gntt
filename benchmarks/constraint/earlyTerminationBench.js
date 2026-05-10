@@ -4,7 +4,7 @@
  */
 
 import { generateLinearChain, generateFanOut, generateDenseGraph, buildContext } from './generateBenchData.js';
-import { resolveConstraints } from '../utils/constraintEngine.js';
+import { resolveConstraints } from '../../src/utils/constraintEngine.ts';
 
 const ITERATIONS = 100;
 const WARMUP = 10;

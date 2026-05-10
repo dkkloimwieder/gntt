@@ -4,6 +4,29 @@ This document archives detailed investigation logs and historical benchmark data
 
 ---
 
+## 2026-05-10: Constraint Engine Bench Repaired (gantt-fsv)
+
+`pnpm bench` and `pnpm bench:all` were broken since the December
+`src/utils/*.js → .ts` rename — the bench files at
+`benchmarks/constraint/` import via `../utils/<name>.js` paths that
+no longer resolve. Fixed by updating 9 imports to
+`../../src/utils/<name>.ts` and switching the `bench*` scripts to use
+`tsx` (added as devDep) so Node can resolve TS.
+
+First post-fix run measured `resolveConstraints` at 50–200% slower than
+the Dec 2025 baseline across most datasets. Variance check (2 runs)
+showed 5–12% run-to-run noise on larger datasets — gap is real, not
+noise. Absolute timings remain sub-2ms for 1000-task graphs (not
+user-perceptible). Filed `gantt-nzg` to investigate root cause
+(suspected: tsx/esbuild type-stripping emits different JS, or Node 24
+V8 regression).
+
+Bench files of interest:
+- `benchmarks/constraint/baseline-results.json` — Dec 28 2025 baseline
+- `benchmarks/constraint/results-2026-05-10.json` — post-audit results
+
+---
+
 ## 2026-05-10: Post-Audit Baseline Refresh
 
 After the code-quality audit (`docs/AUDIT.md` — dep upgrade chain, 5
