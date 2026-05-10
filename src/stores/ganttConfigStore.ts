@@ -1,4 +1,5 @@
-import { createSignal, Accessor, Setter } from 'solid-js';
+import { Accessor, Setter } from 'solid-js';
+import { createStore, produce } from 'solid-js/store';
 import {
     DEFAULT_COLUMN_WIDTH,
     DEFAULT_BAR_HEIGHT,
@@ -28,6 +29,29 @@ interface GanttConfigOptions {
     subtaskHeightRatio?: number;
     renderMode?: RenderMode;
     expandedTasks?: string[];
+}
+
+interface GanttConfigState {
+    ganttStart: Date;
+    ganttEnd: Date;
+    unit: string;
+    step: number;
+    columnWidth: number;
+    barHeight: number;
+    headerHeight: number;
+    padding: number;
+    barCornerRadius: number;
+    readonly: boolean;
+    readonlyDates: boolean;
+    readonlyProgress: boolean;
+    showExpectedProgress: boolean;
+    autoMoveLabel: boolean;
+    ignoredDates: Date[];
+    ignoredFunction: ((date: Date) => boolean) | null;
+    ignoredPositions: number[];
+    subtaskHeightRatio: number;
+    renderMode: RenderMode;
+    expandedTasks: Set<string>;
 }
 
 export interface GanttConfigStore {
@@ -91,231 +115,215 @@ export interface GanttConfigStore {
 /**
  * Reactive store for Gantt configuration.
  * Holds all configuration needed for bar positioning and rendering.
+ *
+ * Backed by a single createStore for path-level reactivity (only the
+ * specific field's readers re-run on change), atomic batch updates, and
+ * to keep the store-pattern consistent with taskStore.
  */
 export function createGanttConfigStore(
     options: GanttConfigOptions = {},
 ): GanttConfigStore {
-    // Time configuration
-    const [ganttStart, setGanttStart] = createSignal<Date>(
-        options.ganttStart || new Date(),
-    );
-    const [ganttEnd, setGanttEnd] = createSignal<Date>(
-        options.ganttEnd || new Date(),
-    );
-    const [unit, setUnit] = createSignal<string>(options.unit || 'day');
-    const [step, setStep] = createSignal<number>(options.step || 1);
+    const [state, setState] = createStore<GanttConfigState>({
+        ganttStart: options.ganttStart || new Date(),
+        ganttEnd: options.ganttEnd || new Date(),
+        unit: options.unit || 'day',
+        step: options.step || 1,
+        columnWidth: options.columnWidth ?? DEFAULT_COLUMN_WIDTH,
+        barHeight: options.barHeight ?? DEFAULT_BAR_HEIGHT,
+        headerHeight: options.headerHeight ?? 75,
+        padding: options.padding ?? DEFAULT_PADDING,
+        barCornerRadius: options.barCornerRadius ?? 3,
+        readonly: options.readonly || false,
+        readonlyDates: options.readonlyDates || false,
+        readonlyProgress: options.readonlyProgress || false,
+        showExpectedProgress: options.showExpectedProgress || false,
+        autoMoveLabel: options.autoMoveLabel || false,
+        ignoredDates: options.ignoredDates || [],
+        ignoredFunction: options.ignoredFunction || null,
+        ignoredPositions: [],
+        subtaskHeightRatio: options.subtaskHeightRatio || 0.5,
+        renderMode: options.renderMode || 'simple',
+        expandedTasks: new Set(options.expandedTasks || []),
+    });
 
-    // Layout configuration
-    const [columnWidth, setColumnWidth] = createSignal<number>(
-        options.columnWidth ?? DEFAULT_COLUMN_WIDTH,
-    );
-    const [barHeight, setBarHeight] = createSignal<number>(
-        options.barHeight ?? DEFAULT_BAR_HEIGHT,
-    );
-    const [headerHeight, setHeaderHeight] = createSignal<number>(
-        options.headerHeight ?? 75,
-    );
-    const [padding, setPadding] = createSignal<number>(
-        options.padding ?? DEFAULT_PADDING,
-    );
-    const [barCornerRadius, setBarCornerRadius] = createSignal<number>(
-        options.barCornerRadius ?? 3,
-    );
-
-    // Feature flags
-    const [readonly, setReadonly] = createSignal<boolean>(
-        options.readonly || false,
-    );
-    const [readonlyDates, setReadonlyDates] = createSignal<boolean>(
-        options.readonlyDates || false,
-    );
-    const [readonlyProgress, setReadonlyProgress] = createSignal<boolean>(
-        options.readonlyProgress || false,
-    );
-    const [showExpectedProgress, setShowExpectedProgress] =
-        createSignal<boolean>(options.showExpectedProgress || false);
-    const [autoMoveLabel, setAutoMoveLabel] = createSignal<boolean>(
-        options.autoMoveLabel || false,
-    );
-
-    // Ignored dates (weekends, holidays)
-    const [ignoredDates, setIgnoredDates] = createSignal<Date[]>(
-        options.ignoredDates || [],
-    );
-    const [ignoredFunction, setIgnoredFunction] = createSignal<
-        ((date: Date) => boolean) | null
-    >(options.ignoredFunction || null);
-
-    // Computed ignored positions (pixel X values)
-    const [ignoredPositions, setIgnoredPositions] = createSignal<number[]>([]);
-
-    // Subtask configuration
-    const [subtaskHeightRatio, setSubtaskHeightRatio] = createSignal<number>(
-        options.subtaskHeightRatio || 0.5,
-    );
-
-    // Render mode: 'simple' (flat tasks, static heights) or 'detailed' (hierarchy, variable heights)
-    // Simple mode skips subtask/expansion logic for maximum performance
-    const [renderMode, setRenderMode] = createSignal<RenderMode>(
-        options.renderMode || 'simple',
-    );
-
-    // Expanded tasks (for variable row heights) - only used in detailed mode
-    const [expandedTasks, setExpandedTasks] = createSignal<Set<string>>(
-        new Set(options.expandedTasks || []),
-    );
+    // Builds a Setter<T>-compatible function that targets a single store path.
+    // Accepts either a value or an updater function — same contract as createSignal's setter.
+    function makeSetter<K extends keyof GanttConfigState>(
+        key: K,
+    ): Setter<GanttConfigState[K]> {
+        return ((value: unknown) => {
+            const next =
+                typeof value === 'function'
+                    ? (
+                          value as (
+                              prev: GanttConfigState[K],
+                          ) => GanttConfigState[K]
+                      )(state[key])
+                    : (value as GanttConfigState[K]);
+            setState(key, next as never);
+            return state[key];
+        }) as Setter<GanttConfigState[K]>;
+    }
 
     // Expansion management methods
     const isTaskExpanded = (taskId: string): boolean =>
-        expandedTasks().has(taskId);
+        state.expandedTasks.has(taskId);
 
     const toggleTaskExpansion = (taskId: string): void => {
-        setExpandedTasks((prev) => {
-            const next = new Set(prev);
-            if (next.has(taskId)) {
-                next.delete(taskId);
-            } else {
-                next.add(taskId);
-            }
-            return next;
-        });
+        setState(
+            'expandedTasks',
+            produce((set: Set<string>) => {
+                if (set.has(taskId)) {
+                    set.delete(taskId);
+                } else {
+                    set.add(taskId);
+                }
+            }),
+        );
     };
 
     const expandTask = (taskId: string): void => {
-        setExpandedTasks((prev) => {
-            if (prev.has(taskId)) return prev;
-            const next = new Set(prev);
-            next.add(taskId);
-            return next;
-        });
+        if (state.expandedTasks.has(taskId)) return;
+        setState(
+            'expandedTasks',
+            produce((set: Set<string>) => {
+                set.add(taskId);
+            }),
+        );
     };
 
     const collapseTask = (taskId: string): void => {
-        setExpandedTasks((prev) => {
-            if (!prev.has(taskId)) return prev;
-            const next = new Set(prev);
-            next.delete(taskId);
-            return next;
-        });
+        if (!state.expandedTasks.has(taskId)) return;
+        setState(
+            'expandedTasks',
+            produce((set: Set<string>) => {
+                set.delete(taskId);
+            }),
+        );
     };
 
     const expandAllTasks = (taskIds: string[]): void => {
-        setExpandedTasks(new Set(taskIds));
+        setState('expandedTasks', new Set(taskIds));
     };
 
     const collapseAllTasks = (): void => {
-        setExpandedTasks(new Set<string>());
+        setState('expandedTasks', new Set<string>());
     };
 
-    // Update all options at once
+    // Update many options atomically (single reactivity flush)
     const updateOptions = (newOptions: Partial<GanttConfigOptions>): void => {
-        if (newOptions.ganttStart !== undefined)
-            setGanttStart(newOptions.ganttStart);
-        if (newOptions.ganttEnd !== undefined) setGanttEnd(newOptions.ganttEnd);
-        if (newOptions.unit !== undefined) setUnit(newOptions.unit);
-        if (newOptions.step !== undefined) setStep(newOptions.step);
-        if (newOptions.columnWidth !== undefined)
-            setColumnWidth(newOptions.columnWidth);
-        if (newOptions.barHeight !== undefined)
-            setBarHeight(newOptions.barHeight);
-        if (newOptions.headerHeight !== undefined)
-            setHeaderHeight(newOptions.headerHeight);
-        if (newOptions.padding !== undefined) setPadding(newOptions.padding);
-        if (newOptions.barCornerRadius !== undefined)
-            setBarCornerRadius(newOptions.barCornerRadius);
-        if (newOptions.readonly !== undefined) setReadonly(newOptions.readonly);
-        if (newOptions.readonlyDates !== undefined)
-            setReadonlyDates(newOptions.readonlyDates);
-        if (newOptions.readonlyProgress !== undefined)
-            setReadonlyProgress(newOptions.readonlyProgress);
-        if (newOptions.showExpectedProgress !== undefined)
-            setShowExpectedProgress(newOptions.showExpectedProgress);
-        if (newOptions.autoMoveLabel !== undefined)
-            setAutoMoveLabel(newOptions.autoMoveLabel);
-        if (newOptions.ignoredDates !== undefined)
-            setIgnoredDates(newOptions.ignoredDates);
-        if (newOptions.ignoredFunction !== undefined) {
-            const fn = newOptions.ignoredFunction;
-            setIgnoredFunction(() => fn);
-        }
-        if (newOptions.ignoredPositions !== undefined)
-            setIgnoredPositions(newOptions.ignoredPositions);
-        if (newOptions.subtaskHeightRatio !== undefined)
-            setSubtaskHeightRatio(newOptions.subtaskHeightRatio);
-        if (newOptions.renderMode !== undefined)
-            setRenderMode(newOptions.renderMode);
-        if (newOptions.expandedTasks !== undefined)
-            setExpandedTasks(new Set(newOptions.expandedTasks));
+        setState(
+            produce((s: GanttConfigState) => {
+                if (newOptions.ganttStart !== undefined)
+                    s.ganttStart = newOptions.ganttStart;
+                if (newOptions.ganttEnd !== undefined)
+                    s.ganttEnd = newOptions.ganttEnd;
+                if (newOptions.unit !== undefined) s.unit = newOptions.unit;
+                if (newOptions.step !== undefined) s.step = newOptions.step;
+                if (newOptions.columnWidth !== undefined)
+                    s.columnWidth = newOptions.columnWidth;
+                if (newOptions.barHeight !== undefined)
+                    s.barHeight = newOptions.barHeight;
+                if (newOptions.headerHeight !== undefined)
+                    s.headerHeight = newOptions.headerHeight;
+                if (newOptions.padding !== undefined)
+                    s.padding = newOptions.padding;
+                if (newOptions.barCornerRadius !== undefined)
+                    s.barCornerRadius = newOptions.barCornerRadius;
+                if (newOptions.readonly !== undefined)
+                    s.readonly = newOptions.readonly;
+                if (newOptions.readonlyDates !== undefined)
+                    s.readonlyDates = newOptions.readonlyDates;
+                if (newOptions.readonlyProgress !== undefined)
+                    s.readonlyProgress = newOptions.readonlyProgress;
+                if (newOptions.showExpectedProgress !== undefined)
+                    s.showExpectedProgress = newOptions.showExpectedProgress;
+                if (newOptions.autoMoveLabel !== undefined)
+                    s.autoMoveLabel = newOptions.autoMoveLabel;
+                if (newOptions.ignoredDates !== undefined)
+                    s.ignoredDates = newOptions.ignoredDates;
+                if (newOptions.ignoredFunction !== undefined)
+                    s.ignoredFunction = newOptions.ignoredFunction;
+                if (newOptions.ignoredPositions !== undefined)
+                    s.ignoredPositions = newOptions.ignoredPositions;
+                if (newOptions.subtaskHeightRatio !== undefined)
+                    s.subtaskHeightRatio = newOptions.subtaskHeightRatio;
+                if (newOptions.renderMode !== undefined)
+                    s.renderMode = newOptions.renderMode;
+                if (newOptions.expandedTasks !== undefined)
+                    s.expandedTasks = new Set(newOptions.expandedTasks);
+            }),
+        );
     };
 
     // Get current configuration snapshot
     const getConfig = (): GanttConfigOptions => ({
-        ganttStart: ganttStart(),
-        ganttEnd: ganttEnd(),
-        unit: unit(),
-        step: step(),
-        columnWidth: columnWidth(),
-        barHeight: barHeight(),
-        headerHeight: headerHeight(),
-        padding: padding(),
-        barCornerRadius: barCornerRadius(),
-        readonly: readonly(),
-        readonlyDates: readonlyDates(),
-        readonlyProgress: readonlyProgress(),
-        showExpectedProgress: showExpectedProgress(),
-        autoMoveLabel: autoMoveLabel(),
-        ignoredDates: ignoredDates(),
-        ignoredFunction: ignoredFunction(),
-        ignoredPositions: ignoredPositions(),
-        subtaskHeightRatio: subtaskHeightRatio(),
-        renderMode: renderMode(),
-        expandedTasks: Array.from(expandedTasks()),
+        ganttStart: state.ganttStart,
+        ganttEnd: state.ganttEnd,
+        unit: state.unit,
+        step: state.step,
+        columnWidth: state.columnWidth,
+        barHeight: state.barHeight,
+        headerHeight: state.headerHeight,
+        padding: state.padding,
+        barCornerRadius: state.barCornerRadius,
+        readonly: state.readonly,
+        readonlyDates: state.readonlyDates,
+        readonlyProgress: state.readonlyProgress,
+        showExpectedProgress: state.showExpectedProgress,
+        autoMoveLabel: state.autoMoveLabel,
+        ignoredDates: state.ignoredDates,
+        ignoredFunction: state.ignoredFunction,
+        ignoredPositions: state.ignoredPositions,
+        subtaskHeightRatio: state.subtaskHeightRatio,
+        renderMode: state.renderMode,
+        expandedTasks: Array.from(state.expandedTasks),
     });
 
     return {
-        // Getters (signals)
-        ganttStart,
-        ganttEnd,
-        unit,
-        step,
-        columnWidth,
-        barHeight,
-        headerHeight,
-        padding,
-        barCornerRadius,
-        readonly,
-        readonlyDates,
-        readonlyProgress,
-        showExpectedProgress,
-        autoMoveLabel,
-        ignoredDates,
-        ignoredFunction,
-        ignoredPositions,
-        subtaskHeightRatio,
-        renderMode,
-        expandedTasks,
+        // Getters — path-tracked accessors over the single store
+        ganttStart: () => state.ganttStart,
+        ganttEnd: () => state.ganttEnd,
+        unit: () => state.unit,
+        step: () => state.step,
+        columnWidth: () => state.columnWidth,
+        barHeight: () => state.barHeight,
+        headerHeight: () => state.headerHeight,
+        padding: () => state.padding,
+        barCornerRadius: () => state.barCornerRadius,
+        readonly: () => state.readonly,
+        readonlyDates: () => state.readonlyDates,
+        readonlyProgress: () => state.readonlyProgress,
+        showExpectedProgress: () => state.showExpectedProgress,
+        autoMoveLabel: () => state.autoMoveLabel,
+        ignoredDates: () => state.ignoredDates,
+        ignoredFunction: () => state.ignoredFunction,
+        ignoredPositions: () => state.ignoredPositions,
+        subtaskHeightRatio: () => state.subtaskHeightRatio,
+        renderMode: () => state.renderMode,
+        expandedTasks: () => state.expandedTasks,
 
         // Setters
-        setGanttStart,
-        setGanttEnd,
-        setUnit,
-        setStep,
-        setColumnWidth,
-        setBarHeight,
-        setHeaderHeight,
-        setPadding,
-        setBarCornerRadius,
-        setReadonly,
-        setReadonlyDates,
-        setReadonlyProgress,
-        setShowExpectedProgress,
-        setAutoMoveLabel,
-        setIgnoredDates,
-        setIgnoredFunction,
-        setIgnoredPositions,
-        setSubtaskHeightRatio,
-        setRenderMode,
-        setExpandedTasks,
+        setGanttStart: makeSetter('ganttStart'),
+        setGanttEnd: makeSetter('ganttEnd'),
+        setUnit: makeSetter('unit'),
+        setStep: makeSetter('step'),
+        setColumnWidth: makeSetter('columnWidth'),
+        setBarHeight: makeSetter('barHeight'),
+        setHeaderHeight: makeSetter('headerHeight'),
+        setPadding: makeSetter('padding'),
+        setBarCornerRadius: makeSetter('barCornerRadius'),
+        setReadonly: makeSetter('readonly'),
+        setReadonlyDates: makeSetter('readonlyDates'),
+        setReadonlyProgress: makeSetter('readonlyProgress'),
+        setShowExpectedProgress: makeSetter('showExpectedProgress'),
+        setAutoMoveLabel: makeSetter('autoMoveLabel'),
+        setIgnoredDates: makeSetter('ignoredDates'),
+        setIgnoredFunction: makeSetter('ignoredFunction'),
+        setIgnoredPositions: makeSetter('ignoredPositions'),
+        setSubtaskHeightRatio: makeSetter('subtaskHeightRatio'),
+        setRenderMode: makeSetter('renderMode'),
+        setExpandedTasks: makeSetter('expandedTasks'),
 
         // Task expansion methods
         isTaskExpanded,
