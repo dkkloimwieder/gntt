@@ -14,12 +14,26 @@ no longer resolve. Fixed by updating 9 imports to
 `tsx` (added as devDep) so Node can resolve TS.
 
 First post-fix run measured `resolveConstraints` at 50–200% slower than
-the Dec 2025 baseline across most datasets. Variance check (2 runs)
-showed 5–12% run-to-run noise on larger datasets — gap is real, not
-noise. Absolute timings remain sub-2ms for 1000-task graphs (not
-user-perceptible). Filed `gantt-nzg` to investigate root cause
-(suspected: tsx/esbuild type-stripping emits different JS, or Node 24
-V8 regression).
+the Dec 2025 baseline across most datasets. Root cause traced
+(`gantt-nzg`): **environmental, not from the audit refactors**.
+
+Triangulation procedure, all on the same Node 24.12.0 host:
+1. Current TS source via tsx → +50–200% vs Dec baseline
+2. `tsc`-compiled JS via raw Node → +30–280% (worse than tsx)
+3. **Pre-rename `.js` source (verbatim Dec 2025 code) via raw Node
+   → +120–330%** (same regression magnitude)
+
+Step 3 is conclusive — the same source code that produced the Dec
+baseline now runs slower on this machine. Neither the `.js→.ts`
+rename, the audit refactors, nor `tsx`/esbuild are responsible.
+Most likely cause: V8 perf change between the (unknown) Node
+version used in December and Node 24.12.0. Less likely: system
+load differences.
+
+Absolute timings remain sub-2ms for 1000-task graphs (not
+user-perceptible). The new baseline `results-2026-05-10.json` should
+be considered the comparable for any future constraint engine work
+on this Node version.
 
 Bench files of interest:
 - `benchmarks/constraint/baseline-results.json` — Dec 28 2025 baseline
