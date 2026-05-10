@@ -77,10 +77,7 @@ interface GanttProps {
     overscanCols?: number;
     overscanRows?: number;
     overscanX?: number;
-    onDateChange?: (
-        taskId: string,
-        position: { x: number; width: number },
-    ) => void;
+    onDateChange?: (taskId: string, range: { start: Date; end: Date }) => void;
     onProgressChange?: (taskId: string, progress: number) => void;
     onResizeEnd?: (taskId: string) => void;
     onTaskClick?: (taskId: string, event: MouseEvent) => void;
@@ -280,10 +277,9 @@ export function Gantt(props: GanttProps): JSX.Element {
         position: Partial<BarPosition>,
     ): void => {
         if (position.x !== undefined && position.width !== undefined) {
-            props.onDateChange?.(taskId, {
-                x: position.x,
-                width: position.width,
-            });
+            const start = dateStore.xToDate(position.x);
+            const end = dateStore.xToDate(position.x + position.width);
+            props.onDateChange?.(taskId, { start, end });
         }
     };
 

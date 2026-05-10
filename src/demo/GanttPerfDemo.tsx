@@ -667,8 +667,8 @@ export function GanttPerfDemo() {
                     overscanCols={overscanCols()}
                     arrowRenderer={arrowRenderer()}
                     taskLayerMode={taskLayerMode()}
-                    onDateChange={(id, pos) =>
-                        console.log('Date changed:', id, pos)
+                    onDateChange={(id, range) =>
+                        console.log('Date changed:', id, range)
                     }
                     onProgressChange={(id, prog) =>
                         console.log('Progress changed:', id, prog)

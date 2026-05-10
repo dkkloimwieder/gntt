@@ -36,6 +36,15 @@ Per-task fields (on the data shape passed to `tasks`): `id`, `name`,
 `start`, `end`, `progress`, `dependencies`, `color`, `colorProgress`,
 `resource`.
 
+## Callbacks
+
+| Prop | Signature | Fires when |
+|------|-----------|------------|
+| `onDateChange` | `(taskId, { start: Date, end: Date }) => void` | Task is dragged or resized |
+| `onProgressChange` | `(taskId, progress: number) => void` | Progress handle is dragged |
+| `onResizeEnd` | `(taskId) => void` | Resize gesture finishes |
+| `onTaskClick` | `(taskId, event: MouseEvent) => void` | Bar is clicked |
+
 ## Breaking changes
 
 All public option, prop, and task-data field names use **camelCase**.
@@ -51,6 +60,11 @@ Previous snake_case forms were removed in two passes:
 | `scroll_to` | `scrollTo` | gantt-cwe |
 | `arrow_color` | `arrowColor` | gantt-cwe |
 | `color_progress` | `colorProgress` (on tasks) | gantt-cwe |
+
+The `onDateChange` callback signature also changed: it now emits
+`{ start: Date, end: Date }` instead of `{ x: number, width: number }`
+in pixels. Consumers no longer need to convert pixel coordinates back
+to dates using internal helpers.
 
 If you're upgrading from a pre-camelCase release, update consumer
 code accordingly. There is no compatibility shim.

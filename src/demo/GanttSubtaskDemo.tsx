@@ -261,8 +261,8 @@ export function GanttSubtaskDemo() {
     });
 
     // Event handlers
-    const handleDateChange = (taskId, position) => {
-        console.log('Date changed:', taskId, position);
+    const handleDateChange = (taskId, range) => {
+        console.log('Date changed:', taskId, range);
     };
 
     const handleProgressChange = (taskId, progress) => {
