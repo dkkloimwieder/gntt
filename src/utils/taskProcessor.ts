@@ -1,6 +1,7 @@
 import * as dateUtils from './dateUtils';
 import { computeX, computeY, computeWidth } from './barCalculations';
 import { detectCycles } from './constraintEngine';
+import { diagnosticWarn, diagnosticError } from './diagnostics';
 import type {
     Dependency,
     NormalizedDependency,
@@ -53,7 +54,7 @@ function parseDependencies(
 
     // Type check: must be array
     if (!Array.isArray(dependencies)) {
-        console.warn(
+        diagnosticWarn(
             'parseDependencies: dependencies must be an array, got:',
             typeof dependencies,
             dependencies,
@@ -110,7 +111,7 @@ export function processTask(
     // Validate date range (max 10 years)
     const yearDiff = dateUtils.diff(_end, _start, 'year');
     if (yearDiff > 10) {
-        console.error(`Task "${task.name}" has duration > 10 years`);
+        diagnosticError(`Task "${task.name}" has duration > 10 years`);
         return null;
     }
 
@@ -118,7 +119,7 @@ export function processTask(
     let startDate = _start;
     let endDate = _end;
     if (_end < _start) {
-        console.warn(`Task "${task.name}" has end before start, swapping`);
+        diagnosticWarn(`Task "${task.name}" has end before start, swapping`);
         [startDate, endDate] = [_end, _start];
     }
 
@@ -279,7 +280,7 @@ export function processTasks(
     // Check for cycles in dependency graph
     const cycleResult = detectCycles(relationships);
     if (cycleResult.hasCycle) {
-        console.warn(
+        diagnosticWarn(
             `Circular dependency detected: ${cycleResult.cycle.join(' → ')}`,
             '\nThis may cause unexpected behavior during task dragging.',
         );

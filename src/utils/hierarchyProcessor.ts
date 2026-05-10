@@ -1,6 +1,7 @@
 /**
  * Hierarchy processor utilities for parent-child task relationships.
  */
+import { diagnosticWarn } from './diagnostics';
 
 /** Minimal interface for hierarchy processing */
 interface HierarchyTask {
@@ -80,7 +81,7 @@ export function buildHierarchy<T extends HierarchyTask>(
     // Detect circular references (tasks with parentId but no depth assigned)
     for (const task of tasks) {
         if (task.parentId && task._depth === 0 && !roots.includes(task)) {
-            console.warn(
+            diagnosticWarn(
                 `Circular or orphaned parent reference detected for task ${task.id}`,
             );
             // Treat as root

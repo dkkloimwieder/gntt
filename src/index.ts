@@ -27,6 +27,13 @@ export { generateSubtaskDemo } from './utils/subtaskGenerator';
 // Date utilities
 export * from './utils/dateUtils';
 
+// Diagnostics — opt in to route validation messages
+export {
+    setDiagnosticHandler,
+    type DiagnosticHandler,
+    type DiagnosticLevel,
+} from './utils/diagnostics';
+
 // Types
 export type {
     DependencyType,
