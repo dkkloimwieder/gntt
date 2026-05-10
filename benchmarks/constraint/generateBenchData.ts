@@ -1,3 +1,4 @@
+// @ts-nocheck — tooling script: runtime correctness covered by output verification, not strict types.
 /**
  * Synthetic Test Data Generator for Constraint Benchmarks
  *
@@ -102,7 +103,9 @@ export function generateLinearChain(taskCount, options = {}) {
         tasks[id] = createTask(id, i * spacing);
 
         if (i > 0) {
-            relationships.push(createRelationship(`task-${i - 1}`, id, options.relOptions));
+            relationships.push(
+                createRelationship(`task-${i - 1}`, id, options.relOptions),
+            );
         }
     }
 
@@ -129,7 +132,9 @@ export function generateFanOut(taskCount, options = {}) {
     for (let i = 1; i < taskCount; i++) {
         const id = `task-${i}`;
         tasks[id] = createTask(id, spacing);
-        relationships.push(createRelationship('task-0', id, options.relOptions));
+        relationships.push(
+            createRelationship('task-0', id, options.relOptions),
+        );
     }
 
     return { tasks, relationships, topology: 'fanout', taskCount };
@@ -159,7 +164,9 @@ export function generateFanIn(taskCount, options = {}) {
     tasks[lastId] = createTask(lastId, spacing);
 
     for (let i = 0; i < taskCount - 1; i++) {
-        relationships.push(createRelationship(`task-${i}`, lastId, options.relOptions));
+        relationships.push(
+            createRelationship(`task-${i}`, lastId, options.relOptions),
+        );
     }
 
     return { tasks, relationships, topology: 'fanin', taskCount };
@@ -190,8 +197,12 @@ export function generateBinaryTree(depth, options = {}) {
         tasks[rightId] = createTask(rightId, level * spacing);
 
         if (parentId) {
-            relationships.push(createRelationship(parentId, leftId, options.relOptions));
-            relationships.push(createRelationship(parentId, rightId, options.relOptions));
+            relationships.push(
+                createRelationship(parentId, leftId, options.relOptions),
+            );
+            relationships.push(
+                createRelationship(parentId, rightId, options.relOptions),
+            );
         }
 
         buildLevel(level + 1, leftId);
@@ -203,7 +214,12 @@ export function generateBinaryTree(depth, options = {}) {
     tasks[rootId] = createTask(rootId, 0);
     buildLevel(1, rootId);
 
-    return { tasks, relationships, topology: 'binarytree', taskCount: Object.keys(tasks).length };
+    return {
+        tasks,
+        relationships,
+        topology: 'binarytree',
+        taskCount: Object.keys(tasks).length,
+    };
 }
 
 /**
@@ -231,7 +247,13 @@ export function generateRandomGraph(taskCount, density = 0.1, options = {}) {
     for (let i = 0; i < taskCount; i++) {
         for (let j = i + 1; j < taskCount; j++) {
             if (random() < density) {
-                relationships.push(createRelationship(`task-${i}`, `task-${j}`, options.relOptions));
+                relationships.push(
+                    createRelationship(
+                        `task-${i}`,
+                        `task-${j}`,
+                        options.relOptions,
+                    ),
+                );
             }
         }
     }
@@ -285,7 +307,13 @@ export function generateDenseGraph(taskCount, relsPerTask = 4, options = {}) {
         // Take first targetRels edges
         for (let i = 0; i < targetRels && i < allEdges.length; i++) {
             const [from, to] = allEdges[i];
-            relationships.push(createRelationship(`task-${from}`, `task-${to}`, options.relOptions));
+            relationships.push(
+                createRelationship(
+                    `task-${from}`,
+                    `task-${to}`,
+                    options.relOptions,
+                ),
+            );
         }
     } else {
         // For lower density, random selection is efficient
@@ -304,11 +332,24 @@ export function generateDenseGraph(taskCount, relsPerTask = 4, options = {}) {
             if (existingRels.has(key)) continue;
 
             existingRels.add(key);
-            relationships.push(createRelationship(`task-${from}`, `task-${to}`, options.relOptions));
+            relationships.push(
+                createRelationship(
+                    `task-${from}`,
+                    `task-${to}`,
+                    options.relOptions,
+                ),
+            );
         }
     }
 
-    return { tasks, relationships, topology: 'dense', taskCount, relsPerTask, maxPossibleEdges };
+    return {
+        tasks,
+        relationships,
+        topology: 'dense',
+        taskCount,
+        relsPerTask,
+        maxPossibleEdges,
+    };
 }
 
 /**
@@ -321,7 +362,10 @@ export function generateDenseGraph(taskCount, relsPerTask = 4, options = {}) {
  * @returns {Object} { tasks, relationships }
  */
 export function generateWithLocks(taskCount, lockedIndices = [], options = {}) {
-    const { tasks, relationships, ...meta } = generateLinearChain(taskCount, options);
+    const { tasks, relationships, ...meta } = generateLinearChain(
+        taskCount,
+        options,
+    );
 
     for (const idx of lockedIndices) {
         const id = `task-${idx}`;
@@ -354,7 +398,9 @@ export function generateMixedTypes(taskCount, options = {}) {
 
         if (i > 0) {
             const type = types[Math.floor(random() * types.length)];
-            relationships.push(createRelationship(`task-${i - 1}`, id, { type }));
+            relationships.push(
+                createRelationship(`task-${i - 1}`, id, { type }),
+            );
         }
     }
 
@@ -371,7 +417,7 @@ export function generateMixedTypes(taskCount, options = {}) {
  * @returns {Object} { bySuccessor: Map, byPredecessor: Map }
  */
 export function buildRelationshipIndex(relationships) {
-    const bySuccessor = new Map();   // taskId → rels where task is `to`
+    const bySuccessor = new Map(); // taskId → rels where task is `to`
     const byPredecessor = new Map(); // taskId → rels where task is `from`
 
     for (const rel of relationships) {

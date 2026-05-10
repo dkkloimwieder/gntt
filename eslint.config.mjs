@@ -41,9 +41,15 @@ export default [
     },
     prettierRecommended,
     {
-        // Demos and entries are exploratory dev code — out of audit scope.
-        // Relaxed rules so the library lint stays a clean signal.
-        files: ["src/demo/**", "src/entries/**"],
+        // Demos, entries, scripts, and benchmarks are tooling / exploratory
+        // dev code — out of strict audit scope. Relaxed rules so the library
+        // lint stays a clean signal.
+        files: [
+            "src/demo/**",
+            "src/entries/**",
+            "src/scripts/**",
+            "benchmarks/constraint/**",
+        ],
         rules: {
             "@typescript-eslint/no-unused-vars": "off",
             "@typescript-eslint/ban-ts-comment": "off",

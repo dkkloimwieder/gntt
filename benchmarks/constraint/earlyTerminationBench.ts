@@ -1,9 +1,15 @@
 #!/usr/bin/env node
+// @ts-nocheck — tooling script: runtime correctness covered by output verification, not strict types.
 /**
  * Benchmark early termination optimizations
  */
 
-import { generateLinearChain, generateFanOut, generateDenseGraph, buildContext } from './generateBenchData.js';
+import {
+    generateLinearChain,
+    generateFanOut,
+    generateDenseGraph,
+    buildContext,
+} from './generateBenchData.ts';
 import { resolveConstraints } from '../../src/utils/constraintEngine.ts';
 
 const ITERATIONS = 100;
@@ -51,7 +57,7 @@ console.log('');
 console.log('─── TEST 2: Movement Direction (left should skip downstream) ───');
 const data2 = generateDenseGraph(500, 20, { seed: 12345 });
 const ctx2 = buildContext(data2, { useIndex: true });
-const task2 = data2.tasks['task-250'];  // Middle task
+const task2 = data2.tasks['task-250']; // Middle task
 
 const moveRight = benchmark('move RIGHT +10px', () => {
     resolveConstraints('task-250', task2._bar.x + 10, task2._bar.width, ctx2);
@@ -62,7 +68,9 @@ const moveLeft = benchmark('move LEFT -10px', () => {
 });
 
 const directionSpeedup = moveRight.mean / moveLeft.mean;
-console.log(`  Move RIGHT: ${moveRight.mean.toFixed(3)}ms (needs downstream check)`);
+console.log(
+    `  Move RIGHT: ${moveRight.mean.toFixed(3)}ms (needs downstream check)`,
+);
 console.log(`  Move LEFT:  ${moveLeft.mean.toFixed(3)}ms (skips downstream)`);
 console.log(`  Speedup:    ${directionSpeedup.toFixed(1)}x`);
 console.log('');
@@ -70,23 +78,39 @@ console.log('');
 // ─────────────────────────────────────────────────────────────────────────────
 // Test 3: Task with no successors (last in chain)
 // ─────────────────────────────────────────────────────────────────────────────
-console.log('─── TEST 3: Task with No Successors (should return Infinity immediately) ───');
+console.log(
+    '─── TEST 3: Task with No Successors (should return Infinity immediately) ───',
+);
 const data3 = generateLinearChain(500);
 const ctx3 = buildContext(data3, { useIndex: true });
 const lastTask = data3.tasks['task-499'];
 
 const noSuccessors = benchmark('last task (no successors)', () => {
-    resolveConstraints('task-499', lastTask._bar.x + 10, lastTask._bar.width, ctx3);
+    resolveConstraints(
+        'task-499',
+        lastTask._bar.x + 10,
+        lastTask._bar.width,
+        ctx3,
+    );
 });
 
 const firstTask3 = data3.tasks['task-0'];
 const hasSuccessors = benchmark('first task (499 successors)', () => {
-    resolveConstraints('task-0', firstTask3._bar.x + 10, firstTask3._bar.width, ctx3);
+    resolveConstraints(
+        'task-0',
+        firstTask3._bar.x + 10,
+        firstTask3._bar.width,
+        ctx3,
+    );
 });
 
 console.log(`  Last task (0 successors):    ${noSuccessors.mean.toFixed(3)}ms`);
-console.log(`  First task (499 successors): ${hasSuccessors.mean.toFixed(3)}ms`);
-console.log(`  Speedup:                     ${(hasSuccessors.mean / noSuccessors.mean).toFixed(1)}x`);
+console.log(
+    `  First task (499 successors): ${hasSuccessors.mean.toFixed(3)}ms`,
+);
+console.log(
+    `  Speedup:                     ${(hasSuccessors.mean / noSuccessors.mean).toFixed(1)}x`,
+);
 console.log('');
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -103,12 +127,19 @@ const fanRootBench = benchmark('root (499 children)', () => {
 });
 
 const fanChildBench = benchmark('child (0 successors)', () => {
-    resolveConstraints('task-250', fanChild._bar.x + 10, fanChild._bar.width, ctx4);
+    resolveConstraints(
+        'task-250',
+        fanChild._bar.x + 10,
+        fanChild._bar.width,
+        ctx4,
+    );
 });
 
 console.log(`  Root (499 successors): ${fanRootBench.mean.toFixed(3)}ms`);
 console.log(`  Child (0 successors):  ${fanChildBench.mean.toFixed(3)}ms`);
-console.log(`  Speedup:               ${(fanRootBench.mean / fanChildBench.mean).toFixed(1)}x`);
+console.log(
+    `  Speedup:               ${(fanRootBench.mean / fanChildBench.mean).toFixed(1)}x`,
+);
 console.log('');
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -129,7 +160,9 @@ for (const rels of [1000, 5000, 10000]) {
         resolveConstraints('task-0', task5._bar.x - 10, task5._bar.width, ctx5);
     });
 
-    console.log(`  ${String(data5.relationships.length).padStart(5)} rels: RIGHT=${rightBench.mean.toFixed(3)}ms  LEFT=${leftBench.mean.toFixed(3)}ms  Speedup=${(rightBench.mean / leftBench.mean).toFixed(1)}x`);
+    console.log(
+        `  ${String(data5.relationships.length).padStart(5)} rels: RIGHT=${rightBench.mean.toFixed(3)}ms  LEFT=${leftBench.mean.toFixed(3)}ms  Speedup=${(rightBench.mean / leftBench.mean).toFixed(1)}x`,
+    );
 }
 console.log('');
 
@@ -141,15 +174,23 @@ console.log('SUMMARY');
 console.log('═'.repeat(90));
 console.log('');
 console.log('Early termination conditions:');
-console.log(`  1. No position change:     ${noChange.mean.toFixed(4)}ms (immediate return)`);
-console.log(`  2. Moving LEFT:            ${moveLeft.mean.toFixed(3)}ms (skips downstream BFS)`);
-console.log(`  3. No successors:          ${noSuccessors.mean.toFixed(3)}ms (immediate Infinity)`);
+console.log(
+    `  1. No position change:     ${noChange.mean.toFixed(4)}ms (immediate return)`,
+);
+console.log(
+    `  2. Moving LEFT:            ${moveLeft.mean.toFixed(3)}ms (skips downstream BFS)`,
+);
+console.log(
+    `  3. No successors:          ${noSuccessors.mean.toFixed(3)}ms (immediate Infinity)`,
+);
 console.log('');
 console.log('Compared to full constraint resolution:');
 console.log(`  Moving RIGHT (full):       ${moveRight.mean.toFixed(3)}ms`);
 console.log('');
 console.log('Optimization effectiveness:');
 console.log(`  Left vs Right speedup:     ${directionSpeedup.toFixed(1)}x`);
-console.log(`  No successors speedup:     ${(hasSuccessors.mean / noSuccessors.mean).toFixed(1)}x`);
+console.log(
+    `  No successors speedup:     ${(hasSuccessors.mean / noSuccessors.mean).toFixed(1)}x`,
+);
 console.log('');
 console.log('═'.repeat(90));

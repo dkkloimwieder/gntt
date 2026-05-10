@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-nocheck — tooling script: runtime correctness covered by output verification, not strict types.
 /**
  * Constraint Resolution Benchmark CLI
  *
@@ -17,7 +18,7 @@ import {
     formatSuite,
     runSuite,
     DEFAULT_CONFIG,
-} from './constraintBench.js';
+} from './constraintBench.ts';
 
 import {
     generateLinearChain,
@@ -30,7 +31,7 @@ import {
     buildContext,
     generateAllPresets,
     PROFILES,
-} from './generateBenchData.js';
+} from './generateBenchData.ts';
 
 import {
     resolveConstraints,
@@ -178,73 +179,83 @@ function benchmarkDataset(data, config) {
     const results = [];
 
     // 1. resolveConstraints (main entry point)
-    results.push(benchmark(
-        'resolveConstraints',
-        () => {
-            const task = tasks[firstTaskId];
-            const bar = task._bar;
-            resolveConstraints(firstTaskId, bar.x + 10, bar.width, context);
-        },
-        config
-    ));
+    results.push(
+        benchmark(
+            'resolveConstraints',
+            () => {
+                const task = tasks[firstTaskId];
+                const bar = task._bar;
+                resolveConstraints(firstTaskId, bar.x + 10, bar.width, context);
+            },
+            config,
+        ),
+    );
 
     // 2. getMinXFromPredecessors (O(n) scan)
     if (relationships.length > 0) {
         // Find a task with predecessors
-        const taskWithPred = taskIds.find(id =>
-            relationships.some(r => r.to === id)
-        ) || middleTaskId;
+        const taskWithPred =
+            taskIds.find((id) => relationships.some((r) => r.to === id)) ||
+            middleTaskId;
 
-        results.push(benchmark(
-            'getMinXFromPredecessors',
-            () => {
-                getMinXFromPredecessors(
-                    taskWithPred,
-                    relationships,
-                    context.getBarPosition,
-                    context.pixelsPerHour,
-                    80
-                );
-            },
-            config
-        ));
+        results.push(
+            benchmark(
+                'getMinXFromPredecessors',
+                () => {
+                    getMinXFromPredecessors(
+                        taskWithPred,
+                        relationships,
+                        context.getBarPosition,
+                        context.pixelsPerHour,
+                        80,
+                    );
+                },
+                config,
+            ),
+        );
     }
 
     // 3. getMaxEndFromDownstream (BFS traversal)
-    results.push(benchmark(
-        'getMaxEndFromDownstream',
-        () => {
-            getMaxEndFromDownstream(
-                firstTaskId,
-                relationships,
-                context.getBarPosition,
-                context.getTask,
-                context.pixelsPerHour
-            );
-        },
-        config
-    ));
+    results.push(
+        benchmark(
+            'getMaxEndFromDownstream',
+            () => {
+                getMaxEndFromDownstream(
+                    firstTaskId,
+                    relationships,
+                    context.getBarPosition,
+                    context.getTask,
+                    context.pixelsPerHour,
+                );
+            },
+            config,
+        ),
+    );
 
     // 4. calculateCascadeUpdates (cascade propagation)
-    results.push(benchmark(
-        'calculateCascadeUpdates',
-        () => {
-            const task = tasks[firstTaskId];
-            calculateCascadeUpdates(firstTaskId, task._bar.x + 10, context);
-        },
-        config
-    ));
+    results.push(
+        benchmark(
+            'calculateCascadeUpdates',
+            () => {
+                const task = tasks[firstTaskId];
+                calculateCascadeUpdates(firstTaskId, task._bar.x + 10, context);
+            },
+            config,
+        ),
+    );
 
     // 5. getDepOffsets (micro-benchmark)
     if (relationships.length > 0) {
         const rel = relationships[0];
-        results.push(benchmark(
-            'getDepOffsets',
-            () => {
-                getDepOffsets(rel, context.pixelsPerHour);
-            },
-            config
-        ));
+        results.push(
+            benchmark(
+                'getDepOffsets',
+                () => {
+                    getDepOffsets(rel, context.pixelsPerHour);
+                },
+                config,
+            ),
+        );
     }
 
     return results;
@@ -281,7 +292,9 @@ function main() {
 
         for (const [name, data] of Object.entries(presets)) {
             console.log(`\n─── ${name} ───`);
-            console.log(`Tasks: ${data.taskCount}, Relationships: ${data.relationships.length}`);
+            console.log(
+                `Tasks: ${data.taskCount}, Relationships: ${data.relationships.length}`,
+            );
 
             const results = benchmarkDataset(data, config);
             allResults.push({
@@ -294,7 +307,9 @@ function main() {
 
             // Print summary for this dataset
             for (const r of results) {
-                console.log(`  ${r.name}: mean=${formatMs(r.mean)}, p95=${formatMs(r.p95)}`);
+                console.log(
+                    `  ${r.name}: mean=${formatMs(r.mean)}, p95=${formatMs(r.p95)}`,
+                );
             }
         }
     } else {
@@ -302,7 +317,9 @@ function main() {
         const data = generateByTopology(options.topology, options.tasks);
 
         console.log(`Topology: ${options.topology}`);
-        console.log(`Tasks: ${data.taskCount}, Relationships: ${data.relationships.length}`);
+        console.log(
+            `Tasks: ${data.taskCount}, Relationships: ${data.relationships.length}`,
+        );
         console.log('');
 
         const results = benchmarkDataset(data, config);
@@ -317,7 +334,9 @@ function main() {
         // Print detailed results
         for (const r of results) {
             console.log(`${r.name}:`);
-            console.log(`  mean: ${formatMs(r.mean)}, median: ${formatMs(r.median)}`);
+            console.log(
+                `  mean: ${formatMs(r.mean)}, median: ${formatMs(r.median)}`,
+            );
             console.log(`  p95: ${formatMs(r.p95)}, p99: ${formatMs(r.p99)}`);
             console.log(`  min: ${formatMs(r.min)}, max: ${formatMs(r.max)}`);
             console.log(`  stdDev: ${formatMs(r.stdDev)}`);

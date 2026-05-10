@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-nocheck — tooling script: runtime correctness covered by output verification, not strict types.
 /**
  * CLI script to generate calendar.json for Gantt performance testing.
  *

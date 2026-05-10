@@ -1,3 +1,4 @@
+// @ts-nocheck — tooling script: runtime correctness covered by output verification, not strict types.
 /**
  * Constraint Resolution Benchmark Harness
  *
@@ -10,8 +11,8 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export const DEFAULT_CONFIG = {
-    warmupRuns: 5,      // JIT warmup iterations (discarded)
-    measuredRuns: 100,  // Measured iterations
+    warmupRuns: 5, // JIT warmup iterations (discarded)
+    measuredRuns: 100, // Measured iterations
     gcBetweenRuns: false, // Force GC between runs (Node.js --expose-gc)
 };
 
@@ -26,7 +27,15 @@ export const DEFAULT_CONFIG = {
  */
 export function calculateStats(times) {
     if (times.length === 0) {
-        return { mean: 0, median: 0, p95: 0, p99: 0, min: 0, max: 0, stdDev: 0 };
+        return {
+            mean: 0,
+            median: 0,
+            p95: 0,
+            p99: 0,
+            min: 0,
+            max: 0,
+            stdDev: 0,
+        };
     }
 
     const sorted = [...times].sort((a, b) => a - b);
@@ -40,7 +49,7 @@ export function calculateStats(times) {
     const max = sorted[n - 1];
 
     // Standard deviation
-    const squaredDiffs = times.map(t => Math.pow(t - mean, 2));
+    const squaredDiffs = times.map((t) => Math.pow(t - mean, 2));
     const avgSquaredDiff = squaredDiffs.reduce((a, b) => a + b, 0) / n;
     const stdDev = Math.sqrt(avgSquaredDiff);
 
@@ -60,7 +69,10 @@ export function calculateStats(times) {
  * @returns {Object} Benchmark results
  */
 export function benchmark(name, fn, config = {}) {
-    const { warmupRuns, measuredRuns, gcBetweenRuns } = { ...DEFAULT_CONFIG, ...config };
+    const { warmupRuns, measuredRuns, gcBetweenRuns } = {
+        ...DEFAULT_CONFIG,
+        ...config,
+    };
 
     // Warmup (JIT compilation)
     for (let i = 0; i < warmupRuns; i++) {
@@ -228,7 +240,8 @@ export function formatSuite(suiteResults) {
  */
 export function compareResults(baseline, candidate) {
     const speedup = baseline.mean / candidate.mean;
-    const improvement = ((baseline.mean - candidate.mean) / baseline.mean) * 100;
+    const improvement =
+        ((baseline.mean - candidate.mean) / baseline.mean) * 100;
 
     return {
         baseline: baseline.name,

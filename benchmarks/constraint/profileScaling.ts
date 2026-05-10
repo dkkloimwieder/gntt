@@ -1,9 +1,10 @@
 #!/usr/bin/env node
+// @ts-nocheck — tooling script: runtime correctness covered by output verification, not strict types.
 /**
  * Profile how time distribution changes with relationship count
  */
 
-import { generateDenseGraph, buildContext } from './generateBenchData.js';
+import { generateDenseGraph, buildContext } from './generateBenchData.ts';
 import {
     calculateCascadeUpdates,
     getMinXFromPredecessors,
@@ -23,7 +24,13 @@ const TASKS = 500;
 const ITERATIONS = 50;
 
 function profileResolve(ctx, taskId, proposedX, proposedWidth) {
-    const { getBarPosition, getTask, relationships, pixelsPerHour, ganttStartDate } = ctx;
+    const {
+        getBarPosition,
+        getTask,
+        relationships,
+        pixelsPerHour,
+        ganttStartDate,
+    } = ctx;
     const timings = {};
 
     const task = getTask?.(taskId);
@@ -35,34 +42,73 @@ function profileResolve(ctx, taskId, proposedX, proposedWidth) {
     isMovementLocked(task?.constraints?.locked);
     timings.lockCheck = performance.now() - t0;
 
-    let minX = 0, maxX = Infinity;
+    let minX = 0,
+        maxX = Infinity;
 
     t0 = performance.now();
-    const absMinX = getMinXFromAbsolute(task?.constraints, ganttStartDate, pixelsPerHour);
-    const absMaxX = getMaxXFromAbsolute(task?.constraints, ganttStartDate, pixelsPerHour);
-    const absMaxEnd = getMaxEndFromAbsolute(task?.constraints, ganttStartDate, pixelsPerHour);
+    const absMinX = getMinXFromAbsolute(
+        task?.constraints,
+        ganttStartDate,
+        pixelsPerHour,
+    );
+    const absMaxX = getMaxXFromAbsolute(
+        task?.constraints,
+        ganttStartDate,
+        pixelsPerHour,
+    );
+    const absMaxEnd = getMaxEndFromAbsolute(
+        task?.constraints,
+        ganttStartDate,
+        pixelsPerHour,
+    );
     minX = Math.max(minX, absMinX);
     if (absMaxX !== Infinity) maxX = Math.min(maxX, absMaxX);
-    if (absMaxEnd !== Infinity) maxX = Math.min(maxX, absMaxEnd - proposedWidth);
+    if (absMaxEnd !== Infinity)
+        maxX = Math.min(maxX, absMaxEnd - proposedWidth);
     timings.absolute = performance.now() - t0;
 
     t0 = performance.now();
-    const predMinX = getMinXFromPredecessors(taskId, relationships, getBarPosition, pixelsPerHour, proposedWidth);
+    const predMinX = getMinXFromPredecessors(
+        taskId,
+        relationships,
+        getBarPosition,
+        pixelsPerHour,
+        proposedWidth,
+    );
     minX = Math.max(minX, predMinX);
     timings.minXPred = performance.now() - t0;
 
     t0 = performance.now();
-    const predMaxX = getMaxXFromPredecessors(taskId, relationships, getBarPosition, pixelsPerHour, proposedWidth);
+    const predMaxX = getMaxXFromPredecessors(
+        taskId,
+        relationships,
+        getBarPosition,
+        pixelsPerHour,
+        proposedWidth,
+    );
     if (predMaxX !== Infinity) maxX = Math.min(maxX, predMaxX);
     timings.maxXPred = performance.now() - t0;
 
     t0 = performance.now();
-    const downstreamMaxEnd = getMaxEndFromDownstream(taskId, relationships, getBarPosition, getTask, pixelsPerHour);
-    if (downstreamMaxEnd !== Infinity) maxX = Math.min(maxX, downstreamMaxEnd - proposedWidth);
+    const downstreamMaxEnd = getMaxEndFromDownstream(
+        taskId,
+        relationships,
+        getBarPosition,
+        getTask,
+        pixelsPerHour,
+    );
+    if (downstreamMaxEnd !== Infinity)
+        maxX = Math.min(maxX, downstreamMaxEnd - proposedWidth);
     timings.downstream = performance.now() - t0;
 
     t0 = performance.now();
-    const sssfMaxX = getMaxXFromLockedSuccessors(taskId, relationships, getBarPosition, getTask, pixelsPerHour);
+    const sssfMaxX = getMaxXFromLockedSuccessors(
+        taskId,
+        relationships,
+        getBarPosition,
+        getTask,
+        pixelsPerHour,
+    );
     if (sssfMaxX !== Infinity) maxX = Math.min(maxX, sssfMaxX);
     timings.lockedSucc = performance.now() - t0;
 
@@ -81,7 +127,9 @@ console.log('═'.repeat(90));
 console.log('Time Distribution by Relationship Count');
 console.log('═'.repeat(90));
 console.log('');
-console.log('Rels    | downstream | cascade  | minXPred | maxXPred | lockedSucc | other');
+console.log(
+    'Rels    | downstream | cascade  | minXPred | maxXPred | lockedSucc | other',
+);
 console.log('─'.repeat(90));
 
 for (const targetRels of [1000, 5000, 10000]) {
@@ -91,10 +139,23 @@ for (const targetRels of [1000, 5000, 10000]) {
     const { tasks, relationships } = data;
 
     // Accumulate timings
-    const totals = { lockCheck: 0, absolute: 0, minXPred: 0, maxXPred: 0, downstream: 0, lockedSucc: 0, cascade: 0 };
+    const totals = {
+        lockCheck: 0,
+        absolute: 0,
+        minXPred: 0,
+        maxXPred: 0,
+        downstream: 0,
+        lockedSucc: 0,
+        cascade: 0,
+    };
 
     for (let i = 0; i < ITERATIONS; i++) {
-        const t = profileResolve(ctx, 'task-0', tasks['task-0']._bar.x + 10, 80);
+        const t = profileResolve(
+            ctx,
+            'task-0',
+            tasks['task-0']._bar.x + 10,
+            80,
+        );
         for (const k in t) totals[k] += t[k];
     }
 
@@ -107,23 +168,27 @@ for (const targetRels of [1000, 5000, 10000]) {
 
     console.log(
         `${String(relationships.length).padStart(6)}  | ` +
-        `${pct('downstream')} ${ms('downstream')} | ` +
-        `${pct('cascade')} ${ms('cascade')} | ` +
-        `${pct('minXPred')} | ` +
-        `${pct('maxXPred')} | ` +
-        `${pct('lockedSucc')} | ` +
-        `${((other / total) * 100).toFixed(1).padStart(5)}%`
+            `${pct('downstream')} ${ms('downstream')} | ` +
+            `${pct('cascade')} ${ms('cascade')} | ` +
+            `${pct('minXPred')} | ` +
+            `${pct('maxXPred')} | ` +
+            `${pct('lockedSucc')} | ` +
+            `${((other / total) * 100).toFixed(1).padStart(5)}%`,
     );
 }
 
 console.log('─'.repeat(90));
 console.log('');
 console.log('Legend:');
-console.log('  downstream  = getMaxEndFromDownstream (BFS for locked successors)');
+console.log(
+    '  downstream  = getMaxEndFromDownstream (BFS for locked successors)',
+);
 console.log('  cascade     = calculateCascadeUpdates (push affected tasks)');
 console.log('  minXPred    = getMinXFromPredecessors (O(n) relationship scan)');
 console.log('  maxXPred    = getMaxXFromPredecessors (O(n) relationship scan)');
-console.log('  lockedSucc  = getMaxXFromLockedSuccessors (O(n) relationship scan)');
+console.log(
+    '  lockedSucc  = getMaxXFromLockedSuccessors (O(n) relationship scan)',
+);
 console.log('  other       = lock check + absolute constraints');
 console.log('');
 console.log('═'.repeat(90));

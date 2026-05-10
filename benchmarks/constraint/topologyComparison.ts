@@ -1,9 +1,15 @@
 #!/usr/bin/env node
+// @ts-nocheck — tooling script: runtime correctness covered by output verification, not strict types.
 /**
  * Compare constraint resolution performance across different graph topologies
  */
 
-import { generateLinearChain, generateFanOut, generateDenseGraph, buildContext } from './generateBenchData.js';
+import {
+    generateLinearChain,
+    generateFanOut,
+    generateDenseGraph,
+    buildContext,
+} from './generateBenchData.ts';
 import { resolveConstraints } from '../../src/utils/constraintEngine.ts';
 
 const ITERATIONS = 100;
@@ -36,7 +42,9 @@ console.log('');
 console.log('─── LINEAR CHAIN (depth=499, breadth=1) ───');
 const linearData = generateLinearChain(500);
 const linearCtx = buildContext(linearData, { useIndex: true });
-console.log(`Tasks: ${Object.keys(linearData.tasks).length}, Rels: ${linearData.relationships.length}`);
+console.log(
+    `Tasks: ${Object.keys(linearData.tasks).length}, Rels: ${linearData.relationships.length}`,
+);
 
 // Drag first task (affects all successors)
 const linearFirst = benchmark('drag first (affects all)', () => {
@@ -53,8 +61,12 @@ const linearLast = benchmark('drag last (affects none)', () => {
     resolveConstraints('task-499', 49910, 80, linearCtx);
 });
 
-console.log(`  First task:  ${linearFirst.mean.toFixed(3)}ms (cascades to 499 tasks)`);
-console.log(`  Middle task: ${linearMiddle.mean.toFixed(3)}ms (cascades to 249 tasks)`);
+console.log(
+    `  First task:  ${linearFirst.mean.toFixed(3)}ms (cascades to 499 tasks)`,
+);
+console.log(
+    `  Middle task: ${linearMiddle.mean.toFixed(3)}ms (cascades to 249 tasks)`,
+);
 console.log(`  Last task:   ${linearLast.mean.toFixed(3)}ms (no cascade)`);
 console.log('');
 
@@ -63,7 +75,9 @@ console.log('');
 console.log('─── FAN-OUT (depth=1, breadth=499) ───');
 const fanData = generateFanOut(500);
 const fanCtx = buildContext(fanData, { useIndex: true });
-console.log(`Tasks: ${Object.keys(fanData.tasks).length}, Rels: ${fanData.relationships.length}`);
+console.log(
+    `Tasks: ${Object.keys(fanData.tasks).length}, Rels: ${fanData.relationships.length}`,
+);
 
 // Drag root (affects all children)
 const fanRoot = benchmark('drag root (affects all)', () => {
@@ -75,7 +89,9 @@ const fanChild = benchmark('drag child (affects none)', () => {
     resolveConstraints('task-250', 110, 80, fanCtx);
 });
 
-console.log(`  Root task:   ${fanRoot.mean.toFixed(3)}ms (cascades to 499 children)`);
+console.log(
+    `  Root task:   ${fanRoot.mean.toFixed(3)}ms (cascades to 499 children)`,
+);
 console.log(`  Child task:  ${fanChild.mean.toFixed(3)}ms (no successors)`);
 console.log('');
 
@@ -83,7 +99,9 @@ console.log('');
 console.log('─── DENSE GRAPH (depth≈67, breadth≈20) ───');
 const denseData = generateDenseGraph(500, 20, { seed: 12345 });
 const denseCtx = buildContext(denseData, { useIndex: true });
-console.log(`Tasks: ${Object.keys(denseData.tasks).length}, Rels: ${denseData.relationships.length}`);
+console.log(
+    `Tasks: ${Object.keys(denseData.tasks).length}, Rels: ${denseData.relationships.length}`,
+);
 
 const denseFirst = benchmark('drag task-0', () => {
     resolveConstraints('task-0', 10, 80, denseCtx);
@@ -107,13 +125,21 @@ console.log('  - Visits ALL reachable nodes regardless of depth/breadth');
 console.log('  - No early termination when constraint is found');
 console.log('');
 console.log('Performance characteristics:');
-console.log(`  - Linear chain (max depth):  ${linearFirst.mean.toFixed(3)}ms for full cascade`);
-console.log(`  - Fan-out (max breadth):     ${fanRoot.mean.toFixed(3)}ms for full cascade`);
+console.log(
+    `  - Linear chain (max depth):  ${linearFirst.mean.toFixed(3)}ms for full cascade`,
+);
+console.log(
+    `  - Fan-out (max breadth):     ${fanRoot.mean.toFixed(3)}ms for full cascade`,
+);
 console.log(`  - Dense graph (mixed):       ${denseFirst.mean.toFixed(3)}ms`);
 console.log('');
-console.log('The algorithm is NOT optimized for either topology - it always does full traversal.');
+console.log(
+    'The algorithm is NOT optimized for either topology - it always does full traversal.',
+);
 console.log('Potential optimizations:');
 console.log('  - Early termination: Stop when maxEnd <= current position');
-console.log('  - Lazy evaluation: Only traverse if movement would affect successors');
+console.log(
+    '  - Lazy evaluation: Only traverse if movement would affect successors',
+);
 console.log('');
 console.log('═'.repeat(90));

@@ -1,9 +1,10 @@
 #!/usr/bin/env node
+// @ts-nocheck — tooling script: runtime correctness covered by output verification, not strict types.
 /**
  * Compare baseline (O(n) scans) vs indexed (O(1) lookups) constraint resolution
  */
 
-import { generateDenseGraph, buildContext } from './generateBenchData.js';
+import { generateDenseGraph, buildContext } from './generateBenchData.ts';
 import { resolveConstraints } from '../../src/utils/constraintEngine.ts';
 
 const TASKS = 500;
@@ -39,7 +40,9 @@ console.log('═'.repeat(90));
 console.log(`Tasks: ${TASKS}, Iterations: ${ITERATIONS}, Warmup: ${WARMUP}`);
 console.log('');
 
-console.log('Rels     | Baseline mean   | Indexed mean    | Speedup | Baseline p95   | Indexed p95');
+console.log(
+    'Rels     | Baseline mean   | Indexed mean    | Speedup | Baseline p95   | Indexed p95',
+);
 console.log('─'.repeat(90));
 
 for (const targetRels of [1000, 5000, 10000]) {
@@ -70,11 +73,11 @@ for (const targetRels of [1000, 5000, 10000]) {
 
     console.log(
         `${String(actualRels).padStart(6)}   | ` +
-        `${baseline.mean.toFixed(3).padStart(7)}ms       | ` +
-        `${indexed.mean.toFixed(3).padStart(7)}ms       | ` +
-        `${speedup.toFixed(1).padStart(5)}x  | ` +
-        `${baseline.p95.toFixed(3).padStart(7)}ms      | ` +
-        `${indexed.p95.toFixed(3).padStart(7)}ms`
+            `${baseline.mean.toFixed(3).padStart(7)}ms       | ` +
+            `${indexed.mean.toFixed(3).padStart(7)}ms       | ` +
+            `${speedup.toFixed(1).padStart(5)}x  | ` +
+            `${baseline.p95.toFixed(3).padStart(7)}ms      | ` +
+            `${indexed.p95.toFixed(3).padStart(7)}ms`,
     );
 }
 

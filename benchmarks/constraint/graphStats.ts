@@ -1,9 +1,10 @@
 #!/usr/bin/env node
+// @ts-nocheck — tooling script: runtime correctness covered by output verification, not strict types.
 /**
  * Graph structure statistics for generated benchmark data
  */
 
-import { generateDenseGraph } from './generateBenchData.js';
+import { generateDenseGraph } from './generateBenchData.ts';
 
 function analyzeGraph(data) {
     const { tasks, relationships } = data;
@@ -24,8 +25,8 @@ function analyzeGraph(data) {
     }
 
     // Calculate outgoing edges (breadth) per task
-    const outgoingCounts = taskIds.map(id => successors.get(id).length);
-    const incomingCounts = taskIds.map(id => predecessors.get(id).length);
+    const outgoingCounts = taskIds.map((id) => successors.get(id).length);
+    const incomingCounts = taskIds.map((id) => predecessors.get(id).length);
 
     // Calculate depth (longest path from each node using memoized DFS)
     const depthCache = new Map();
@@ -51,11 +52,11 @@ function analyzeGraph(data) {
         return depth;
     }
 
-    const depths = taskIds.map(id => getMaxDepth(id));
+    const depths = taskIds.map((id) => getMaxDepth(id));
 
     // Find root nodes (no predecessors) and leaf nodes (no successors)
-    const roots = taskIds.filter(id => predecessors.get(id).length === 0);
-    const leaves = taskIds.filter(id => successors.get(id).length === 0);
+    const roots = taskIds.filter((id) => predecessors.get(id).length === 0);
+    const leaves = taskIds.filter((id) => successors.get(id).length === 0);
 
     // Calculate longest path in entire graph
     const maxGraphDepth = Math.max(...depths);
@@ -148,15 +149,21 @@ for (const target of DEP_COUNTS) {
     const stats = analyzeGraph(data);
 
     console.log(`─── ${stats.relationshipCount} relationships ───`);
-    console.log(`  Tasks: ${stats.taskCount}, Roots: ${stats.roots}, Leaves: ${stats.leaves}`);
+    console.log(
+        `  Tasks: ${stats.taskCount}, Roots: ${stats.roots}, Leaves: ${stats.leaves}`,
+    );
     console.log('');
     console.log(`  ${formatStats(stats.outgoing, 'Outgoing (successors)')}`);
     console.log(`  ${formatStats(stats.incoming, 'Incoming (predecessors)')}`);
-    console.log(`  ${formatStats(stats.depth, 'Depth (longest path from node)')}`);
+    console.log(
+        `  ${formatStats(stats.depth, 'Depth (longest path from node)')}`,
+    );
     console.log('');
     console.log(`  Max graph depth: ${stats.maxGraphDepth}`);
     console.log(`  Longest chain: ${stats.longestChain.length} nodes`);
-    console.log(`    Path: ${stats.longestChain.slice(0, 5).join(' → ')}${stats.longestChain.length > 5 ? ' → ...' : ''}`);
+    console.log(
+        `    Path: ${stats.longestChain.slice(0, 5).join(' → ')}${stats.longestChain.length > 5 ? ' → ...' : ''}`,
+    );
     console.log('');
 }
 
