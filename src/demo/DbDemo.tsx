@@ -302,21 +302,33 @@ export function DbDemo() {
     };
 
     return (
-        <div>
-            <h2 style={{ margin: '0 0 12px 0' }}>DB-backed Events — CRUD</h2>
-            <p
-                style={{
-                    margin: '0 0 12px 0',
-                    color: '#6b7280',
-                    'font-size': '14px',
-                    'max-width': '820px',
-                }}
-            >
-                Click a bar → edit panel pops out on the right. Drag a bar →
-                PATCH fires (auto-saved). Add events / manage resources / manage
-                blocked-time via the toolbar buttons. Every mutation re-fetches
-                the bundle so the chart stays in sync with the DB.
-            </p>
+        <div
+            style={{
+                height: '100%',
+                display: 'flex',
+                'flex-direction': 'column',
+                padding: '16px',
+                gap: '8px',
+                'min-height': '0',
+            }}
+        >
+            <div style={{ 'flex-shrink': 0 }}>
+                <h2 style={{ margin: '0 0 6px 0', 'font-size': '18px' }}>
+                    DB-backed Events — CRUD
+                </h2>
+                <p
+                    style={{
+                        margin: 0,
+                        color: '#6b7280',
+                        'font-size': '13px',
+                        'max-width': '820px',
+                    }}
+                >
+                    Click a bar → edit panel pops out on the right. Drag a bar →
+                    PATCH fires (auto-saved). Add events / manage resources /
+                    manage blocked-time via the toolbar buttons.
+                </p>
+            </div>
 
             {/* Toolbar */}
             <div
@@ -324,8 +336,8 @@ export function DbDemo() {
                     display: 'flex',
                     gap: '8px',
                     'align-items': 'center',
-                    'margin-bottom': '12px',
                     'flex-wrap': 'wrap',
+                    'flex-shrink': 0,
                 }}
             >
                 <button style={primaryBtn} onClick={() => setModal('add')}>
@@ -364,18 +376,19 @@ export function DbDemo() {
                 </span>
             </div>
 
-            {/* Chart + sticky edit panel */}
+            {/* Chart + sticky edit panel — flex:1 to fill remaining viewport */}
             <div
                 style={{
                     display: 'grid',
                     'grid-template-columns': selectedTask()
                         ? 'minmax(0, 1fr) 420px'
                         : '1fr',
-                    gap: '16px',
-                    'align-items': 'flex-start',
+                    gap: '12px',
+                    flex: '1',
+                    'min-height': '0',
                 }}
             >
-                <div style={{ 'min-width': '0' }}>
+                <div style={{ 'min-width': '0', 'min-height': '0' }}>
                     <Show
                         when={bundle()}
                         fallback={
@@ -421,15 +434,14 @@ export function DbDemo() {
                 <Show when={selectedTask()}>
                     <div
                         style={{
-                            position: 'sticky',
-                            top: '12px',
                             'background-color': '#fff',
                             border: '1px solid #e5e7eb',
                             'border-radius': '8px',
                             padding: '16px',
                             'box-shadow': '0 6px 16px -8px rgba(15,23,42,0.1)',
-                            'max-height': '85vh',
+                            height: '100%',
                             'overflow-y': 'auto',
+                            'min-height': '0',
                         }}
                     >
                         <div
