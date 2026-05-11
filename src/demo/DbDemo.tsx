@@ -305,144 +305,162 @@ export function DbDemo() {
         <div
             style={{
                 height: '100%',
-                display: 'flex',
-                'flex-direction': 'column',
-                padding: '16px',
-                gap: '8px',
+                display: 'grid',
+                'grid-template-columns': 'minmax(0, 1fr) 420px',
+                gap: '12px',
+                padding: '12px',
                 'min-height': '0',
             }}
         >
-            <div style={{ 'flex-shrink': 0 }}>
-                <h2 style={{ margin: '0 0 6px 0', 'font-size': '18px' }}>
-                    DB-backed Events — CRUD
-                </h2>
-                <p
-                    style={{
-                        margin: 0,
-                        color: '#6b7280',
-                        'font-size': '13px',
-                        'max-width': '820px',
-                    }}
+            {/* CHART — left column, fills remaining space */}
+            <div style={{ 'min-width': '0', 'min-height': '0' }}>
+                <Show
+                    when={bundle()}
+                    fallback={
+                        <div
+                            style={{
+                                padding: '40px',
+                                'text-align': 'center',
+                                color: '#6b7280',
+                            }}
+                        >
+                            {error() ? (
+                                <>
+                                    <strong>Backend not reachable.</strong>{' '}
+                                    Start it with <code>pnpm dev:server</code>{' '}
+                                    (or run everything via{' '}
+                                    <code>pnpm dev:all</code>), then click
+                                    Reload in the side panel.
+                                </>
+                            ) : (
+                                'Loading…'
+                            )}
+                        </div>
+                    }
                 >
-                    Click a bar → edit panel pops out on the right. Drag a bar →
-                    PATCH fires (auto-saved). Add events / manage resources /
-                    manage blocked-time via the toolbar buttons.
-                </p>
+                    <Gantt
+                        tasks={bundle()!.tasks}
+                        options={{ viewMode: 'Day', scrollTo: 'start' }}
+                        onDateChange={onDateChange}
+                        onProgressChange={onProgressChange}
+                        onTaskClick={(id) => setSelectedId(id)}
+                        onReady={() => {
+                            // Snapshot bar positions once the chart is
+                            // mounted; refetches re-snapshot via
+                            // queueMicrotask in `refetch`.
+                            setTimeout(snapshotChartX, 0);
+                        }}
+                        disableTaskClickModal
+                        disableHoverPopup
+                    />
+                </Show>
             </div>
 
-            {/* Toolbar */}
+            {/* RIGHT PANEL — always open. All actions live here.
+                Top:   action buttons + status chip
+                Below: edit form when a task is selected, otherwise a
+                       short "click a bar" placeholder. */}
             <div
                 style={{
+                    'background-color': '#fff',
+                    border: '1px solid #e5e7eb',
+                    'border-radius': '8px',
+                    'box-shadow': '0 6px 16px -8px rgba(15,23,42,0.1)',
                     display: 'flex',
-                    gap: '8px',
-                    'align-items': 'center',
-                    'flex-wrap': 'wrap',
-                    'flex-shrink': 0,
-                }}
-            >
-                <button style={primaryBtn} onClick={() => setModal('add')}>
-                    + Add event
-                </button>
-                <button
-                    style={secondaryBtn}
-                    onClick={() => setModal('resources')}
-                >
-                    Manage resources
-                </button>
-                <button
-                    style={secondaryBtn}
-                    onClick={() => setModal('blocked')}
-                >
-                    Manage blocked time
-                </button>
-                <button
-                    style={secondaryBtn}
-                    onClick={() => refetch('Reloaded')}
-                >
-                    ⟳ Reload
-                </button>
-                <span
-                    style={{
-                        'font-family': 'monospace',
-                        'font-size': '12px',
-                        color: error() ? '#b91c1c' : '#4338ca',
-                        'background-color': error() ? '#fee2e2' : '#eef2ff',
-                        padding: '4px 8px',
-                        'border-radius': '4px',
-                        'margin-left': '8px',
-                    }}
-                >
-                    {status()}
-                </span>
-            </div>
-
-            {/* Chart + sticky edit panel — flex:1 to fill remaining viewport */}
-            <div
-                style={{
-                    display: 'grid',
-                    'grid-template-columns': selectedTask()
-                        ? 'minmax(0, 1fr) 420px'
-                        : '1fr',
-                    gap: '12px',
-                    flex: '1',
+                    'flex-direction': 'column',
                     'min-height': '0',
                 }}
             >
-                <div style={{ 'min-width': '0', 'min-height': '0' }}>
+                {/* Header: title + actions */}
+                <div
+                    style={{
+                        padding: '12px 16px',
+                        'border-bottom': '1px solid #e5e7eb',
+                        'flex-shrink': 0,
+                    }}
+                >
+                    <h2
+                        style={{
+                            margin: '0 0 10px 0',
+                            'font-size': '15px',
+                            color: '#111827',
+                        }}
+                    >
+                        DB Events
+                    </h2>
+                    <div
+                        style={{
+                            display: 'grid',
+                            'grid-template-columns': '1fr 1fr',
+                            gap: '6px',
+                            'margin-bottom': '8px',
+                        }}
+                    >
+                        <button
+                            style={primaryBtn}
+                            onClick={() => setModal('add')}
+                        >
+                            + Add event
+                        </button>
+                        <button
+                            style={secondaryBtn}
+                            onClick={() => refetch('Reloaded')}
+                        >
+                            ⟳ Reload
+                        </button>
+                        <button
+                            style={secondaryBtn}
+                            onClick={() => setModal('resources')}
+                        >
+                            Resources
+                        </button>
+                        <button
+                            style={secondaryBtn}
+                            onClick={() => setModal('blocked')}
+                        >
+                            Blocked time
+                        </button>
+                    </div>
+                    <div
+                        style={{
+                            'font-family': 'monospace',
+                            'font-size': '11px',
+                            color: error() ? '#b91c1c' : '#4338ca',
+                            'background-color': error() ? '#fee2e2' : '#eef2ff',
+                            padding: '4px 8px',
+                            'border-radius': '4px',
+                            'word-break': 'break-word',
+                        }}
+                    >
+                        {status()}
+                    </div>
+                </div>
+
+                {/* Body: edit form OR placeholder */}
+                <div
+                    style={{
+                        flex: '1',
+                        'overflow-y': 'auto',
+                        padding: '16px',
+                        'min-height': '0',
+                    }}
+                >
                     <Show
-                        when={bundle()}
+                        when={selectedTask()}
                         fallback={
                             <div
                                 style={{
-                                    padding: '40px',
+                                    color: '#9ca3af',
+                                    'font-size': '13px',
                                     'text-align': 'center',
-                                    color: '#6b7280',
+                                    padding: '24px 8px',
                                 }}
                             >
-                                {error() ? (
-                                    <>
-                                        <strong>Backend not reachable.</strong>{' '}
-                                        Start it with{' '}
-                                        <code>pnpm dev:server</code> (or run
-                                        everything via <code>pnpm dev:all</code>
-                                        ), then click Reload.
-                                    </>
-                                ) : (
-                                    'Loading…'
-                                )}
+                                Click a bar in the chart to edit it.
+                                <br />
+                                Drag a bar to reschedule (auto-saved).
                             </div>
                         }
-                    >
-                        <Gantt
-                            tasks={bundle()!.tasks}
-                            options={{ viewMode: 'Day', scrollTo: 'start' }}
-                            onDateChange={onDateChange}
-                            onProgressChange={onProgressChange}
-                            onTaskClick={(id) => setSelectedId(id)}
-                            onReady={() => {
-                                // Snapshot bar positions once the chart
-                                // is mounted; refetches re-snapshot via
-                                // queueMicrotask in `refetch`.
-                                setTimeout(snapshotChartX, 0);
-                            }}
-                            disableTaskClickModal
-                            disableHoverPopup
-                        />
-                    </Show>
-                </div>
-
-                <Show when={selectedTask()}>
-                    <div
-                        style={{
-                            'background-color': '#fff',
-                            border: '1px solid #e5e7eb',
-                            'border-radius': '8px',
-                            padding: '16px',
-                            'box-shadow': '0 6px 16px -8px rgba(15,23,42,0.1)',
-                            height: '100%',
-                            'overflow-y': 'auto',
-                            'min-height': '0',
-                        }}
                     >
                         <div
                             style={{
@@ -452,7 +470,13 @@ export function DbDemo() {
                                 'margin-bottom': '12px',
                             }}
                         >
-                            <h3 style={{ margin: 0, 'font-size': '15px' }}>
+                            <h3
+                                style={{
+                                    margin: 0,
+                                    'font-size': '14px',
+                                    color: '#1f2937',
+                                }}
+                            >
                                 Edit event
                             </h3>
                             <button
@@ -467,13 +491,13 @@ export function DbDemo() {
                         <TaskForm
                             mode="edit"
                             initial={selectedTask()!}
-                            resources={bundle()!.resources}
-                            allTasks={bundle()!.tasks}
+                            resources={bundle()?.resources ?? []}
+                            allTasks={bundle()?.tasks ?? []}
                             onSubmit={(v) => submitTask('edit', v)}
                             onDelete={deleteSelected}
                         />
-                    </div>
-                </Show>
+                    </Show>
+                </div>
             </div>
 
             {/* Modals */}
