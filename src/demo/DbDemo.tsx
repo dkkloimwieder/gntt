@@ -50,6 +50,7 @@ export function DbDemo() {
      */
     const dbState = new Map<string, { start: string; end: string }>();
     const lastX = new Map<string, number>();
+    const lastWidth = new Map<string, number>();
     // Bumped on every successful drag-PATCH so the edit panel re-derives
     // its initial form values from dbState (which has the freshest dates).
     // We deliberately don't setBundle on drag — that would re-process the
@@ -64,7 +65,7 @@ export function DbDemo() {
         return new Date(y, mo - 1, da, h, mi);
     };
 
-    /** Snapshot the chart's _bar.x for every known task. */
+    /** Snapshot the chart's _bar.x and _bar.width for every known task. */
     const snapshotChartX = () => {
         const ts = (
             window as unknown as {
@@ -78,9 +79,11 @@ export function DbDemo() {
         ).__ganttTaskStore;
         if (!ts) return;
         lastX.clear();
+        lastWidth.clear();
         for (const id of Object.keys(ts.tasks)) {
-            const x = ts.tasks[id]?._bar?.x;
-            if (typeof x === 'number') lastX.set(id, x);
+            const bar = ts.tasks[id]?._bar;
+            if (typeof bar?.x === 'number') lastX.set(id, bar.x);
+            if (typeof bar?.width === 'number') lastWidth.set(id, bar.width);
         }
     };
 
@@ -183,24 +186,36 @@ export function DbDemo() {
         const unitMs = UNIT_MS[dateStore.unit()] ?? 86_400_000;
         const msPerPx = (unitMs * dateStore.step()) / dateStore.columnWidth();
 
+        // Track BOTH x and width so we catch resizes (not just moves):
+        //   move:         Δx ≠ 0, Δwidth = 0   → start += Δx, end += Δx
+        //   resize-end:   Δx = 0, Δwidth ≠ 0   → start unchanged, end += Δwidth
+        //   resize-start: Δx ≠ 0, Δwidth = -Δx → start += Δx, end unchanged
+        // General form: startΔ = Δx, endΔ = Δx + Δwidth.
         const patches: Array<{ id: string; start: string; end: string }> = [];
         for (const id of Object.keys(taskStore.tasks)) {
-            const x = taskStore.tasks[id]?._bar?.x;
+            const bar = taskStore.tasks[id]?._bar;
             const prevX = lastX.get(id);
+            const prevW = lastWidth.get(id);
             const prevDates = dbState.get(id);
             if (
-                typeof x !== 'number' ||
+                typeof bar?.x !== 'number' ||
+                typeof bar?.width !== 'number' ||
                 typeof prevX !== 'number' ||
+                typeof prevW !== 'number' ||
                 !prevDates
             )
                 continue;
-            const deltaPx = x - prevX;
-            if (Math.abs(deltaPx) < 0.5) continue; // no real movement
-            const deltaMs = Math.round(deltaPx * msPerPx);
+            const dxPx = bar.x - prevX;
+            const dwPx = bar.width - prevW;
+            if (Math.abs(dxPx) < 0.5 && Math.abs(dwPx) < 0.5) continue;
+            const startDeltaMs = Math.round(dxPx * msPerPx);
+            const endDeltaMs = Math.round((dxPx + dwPx) * msPerPx);
             const newStart = new Date(
-                parseDb(prevDates.start).getTime() + deltaMs,
+                parseDb(prevDates.start).getTime() + startDeltaMs,
             );
-            const newEnd = new Date(parseDb(prevDates.end).getTime() + deltaMs);
+            const newEnd = new Date(
+                parseDb(prevDates.end).getTime() + endDeltaMs,
+            );
             patches.push({
                 id,
                 start: fmtDate(newStart),
@@ -221,8 +236,10 @@ export function DbDemo() {
             );
             for (const p of patches) {
                 dbState.set(p.id, { start: p.start, end: p.end });
-                const x = taskStore.tasks[p.id]?._bar?.x;
-                if (typeof x === 'number') lastX.set(p.id, x);
+                const bar = taskStore.tasks[p.id]?._bar;
+                if (typeof bar?.x === 'number') lastX.set(p.id, bar.x);
+                if (typeof bar?.width === 'number')
+                    lastWidth.set(p.id, bar.width);
             }
             setDragVersion((v) => v + 1);
             const extra = patches.length - 1;
