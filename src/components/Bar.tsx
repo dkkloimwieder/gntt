@@ -45,6 +45,8 @@ interface BarProps {
     isCritical?: boolean;
     /** Search-dim state: bar fades when a search query is active and this task does not match. */
     isDimmed?: boolean;
+    /** Selection state: bar gets an outline when included in the multi-selection. */
+    isSelected?: boolean;
     readonly?: boolean;
     readonlyDates?: boolean;
     readonlyProgress?: boolean;
@@ -409,12 +411,13 @@ export function Bar(props: BarProps): JSX.Element {
 
     return (
         <div
-            class={`bar-wrapper ${customClass()} ${isInvalid() ? 'invalid' : ''} ${isLocked() ? 'locked' : ''} ${props.isCritical ? 'critical' : ''} ${props.isDimmed ? 'search-dimmed' : ''} ${dragClass()}`}
+            class={`bar-wrapper ${customClass()} ${isInvalid() ? 'invalid' : ''} ${isLocked() ? 'locked' : ''} ${props.isCritical ? 'critical' : ''} ${props.isDimmed ? 'search-dimmed' : ''} ${props.isSelected ? 'selected' : ''} ${dragClass()}`}
             data-id={t().id}
             role="button"
             aria-roledescription="task bar"
             aria-label={ariaLabel()}
             aria-disabled={readonly() || isLocked() ? 'true' : 'false'}
+            aria-selected={props.isSelected ? 'true' : undefined}
             tabIndex={readonly() ? -1 : 0}
             onMouseDown={handleBarMouseDown}
             onMouseEnter={handleMouseEnter}
@@ -429,6 +432,13 @@ export function Bar(props: BarProps): JSX.Element {
                 // Search-dim: fade non-matches; matches stay full opacity.
                 opacity: props.isDimmed ? 0.18 : 1,
                 filter: props.isDimmed ? 'grayscale(0.4)' : 'none',
+                // Selection ring: outline + small offset so it sits outside
+                // the bar's solid color without affecting layout.
+                outline: props.isSelected
+                    ? '2px solid var(--g-selection-color, #6366f1)'
+                    : undefined,
+                'outline-offset': props.isSelected ? '2px' : undefined,
+                'border-radius': props.isSelected ? '4px' : undefined,
                 cursor: isLocked()
                     ? 'not-allowed'
                     : readonly()

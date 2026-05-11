@@ -15,6 +15,7 @@ import { createTaskStore } from '../stores/taskStore';
 import { createGanttConfigStore } from '../stores/ganttConfigStore';
 import { createGanttDateStore } from '../stores/ganttDateStore';
 import { createResourceStore } from '../stores/resourceStore';
+import { createSelectionStore } from '../stores/selectionStore';
 import { createVirtualViewport } from '../utils/createVirtualViewport';
 import {
     calculateRowLayouts,
@@ -91,6 +92,8 @@ interface GanttProps {
     onProgressChange?: (taskId: string, progress: number) => void;
     onResizeEnd?: (taskId: string) => void;
     onTaskClick?: (taskId: string, event: MouseEvent) => void;
+    /** Fires whenever the multi-selection set changes. Receives a snapshot Set. */
+    onSelectionChange?: (selectedIds: Set<string>) => void;
 }
 
 declare global {
@@ -115,6 +118,17 @@ export function Gantt(props: GanttProps): JSX.Element {
         resourceStore: createResourceStore(props.resources || []),
     };
     const { taskStore, ganttConfig, dateStore, resourceStore } = stores;
+
+    // Selection store is component-local — provider doesn't need to share
+    // it across siblings. Multi-select state lives here.
+    const selectionStore = createSelectionStore();
+
+    // Notify the parent on every selection change.
+    createEffect(() => {
+        const ids = selectionStore.selectedIds();
+        const cb = props.onSelectionChange;
+        if (cb) untrack(() => cb(new Set(ids)));
+    });
 
     // Expose for profiling (development only)
     if (typeof window !== 'undefined') {
@@ -464,6 +478,7 @@ export function Gantt(props: GanttProps): JSX.Element {
                             ganttConfig={ganttConfig}
                             relationships={relationships()}
                             resourceStore={resourceStore}
+                            selectionStore={selectionStore}
                             criticalSet={criticalSet()}
                             searchActive={searchActive()}
                             searchMatches={searchMatches()}

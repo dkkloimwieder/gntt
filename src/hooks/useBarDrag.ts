@@ -107,7 +107,16 @@ export function useBarDrag(deps: UseBarDragDeps) {
             const t = deps.taskInfo();
             if (!deps.taskStore || !t.id) return;
 
-            didDragFlag = true;
+            // Only count this as a drag (suppressing the subsequent click)
+            // if the pointer moved past a small threshold. Without this,
+            // playwright's force-click + any sub-pixel jitter trips the
+            // drag flag and modifier clicks (shift/ctrl) lose their click
+            // event.
+            if (Math.abs(move.deltaX) > 3 || Math.abs(move.deltaY) > 3) {
+                didDragFlag = true;
+            } else {
+                return;
+            }
 
             const colWidth = deps.columnWidth();
             const ignored = deps.ignoredPositions();

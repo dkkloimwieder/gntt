@@ -15,6 +15,7 @@ import { useTaskVirtualization } from '../hooks/useTaskVirtualization';
 import type { TaskStore } from '../stores/taskStore';
 import type { GanttConfigStore } from '../stores/ganttConfigStore';
 import type { ResourceStore } from '../stores/resourceStore';
+import type { SelectionStore } from '../stores/selectionStore';
 import type { ProcessedTask, Relationship } from '../types';
 import type { RowLayout } from '../utils/rowLayoutCalculator';
 
@@ -31,6 +32,7 @@ interface TaskLayerProps {
     taskStore?: TaskStore;
     ganttConfig?: GanttConfigStore;
     resourceStore?: ResourceStore;
+    selectionStore?: SelectionStore;
     tasks?: ProcessedTask[];
     relationships?: Relationship[];
     rowLayouts?: Map<string, RowLayout>;
@@ -100,7 +102,44 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
 
     const handleCollectDependents = (taskId: string): Set<string> => {
         if (!props.taskStore) return new Set();
+        const sel = props.selectionStore;
+        // Multi-select: when the dragged task is part of the selection,
+        // include every selected task's transitive dependents so the
+        // batch drag preserves relative offsets across the whole set.
+        if (sel && sel.isSelected(taskId) && sel.selectionCount() > 1) {
+            const union = new Set<string>();
+            for (const id of sel.selectedIds()) {
+                for (const depId of collectDependents(
+                    id,
+                    relationships(),
+                    props.taskStore,
+                )) {
+                    union.add(depId);
+                }
+            }
+            return union;
+        }
         return collectDependents(taskId, relationships(), props.taskStore);
+    };
+
+    // Click intent: shift extends the selection, ctrl/meta toggles, plain
+    // click replaces it with just this task. Bar passes the raw event so
+    // we can read modifiers without re-binding handlers.
+    const handleTaskClickWithSelection = (
+        taskId: string,
+        event: MouseEvent,
+    ): void => {
+        const sel = props.selectionStore;
+        if (sel) {
+            if (event.shiftKey) {
+                sel.add(taskId);
+            } else if (event.ctrlKey || event.metaKey) {
+                sel.toggle(taskId);
+            } else {
+                sel.replace([taskId]);
+            }
+        }
+        props.onTaskClick?.(taskId, event);
     };
 
     const handleClampBatchDelta = (
@@ -133,7 +172,7 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
     ): void => props.onHover?.(taskId, clientX, clientY);
     const handleHoverEnd = (): void => props.onHoverEnd?.();
     const handleTaskClick = (taskId: string, event: MouseEvent): void =>
-        props.onTaskClick?.(taskId, event);
+        handleTaskClickWithSelection(taskId, event);
 
     const handleCollectDescendants = (taskId: string): Set<string> => {
         if (!props.taskStore) return new Set();
@@ -213,6 +252,12 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
                                     !!props.searchActive &&
                                     !!task() &&
                                     !props.searchMatches?.has(task()!.id)
+                                }
+                                isSelected={
+                                    !!task() &&
+                                    !!props.selectionStore?.isSelected(
+                                        task()!.id,
+                                    )
                                 }
                                 onConstrainPosition={handleConstrainPosition}
                                 onCollectDependents={handleCollectDependents}
