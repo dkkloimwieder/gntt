@@ -68,6 +68,12 @@ interface GanttOptions {
     columnWidth?: number;
     /** Highlight tasks on the project's critical path (zero-slack chain). */
     criticalPath?: boolean;
+    /** Hide non-matching rows from the layout entirely. Predicate runs against the raw task. */
+    filter?: (task: GanttTask) => boolean;
+    /** Highlight tasks whose name (or searchField output) contains this string; dim the rest. */
+    search?: string;
+    /** Field/getter used by `search`. Defaults to task.name. */
+    searchField?: ((task: GanttTask) => string) | keyof GanttTask;
     [key: string]: unknown;
 }
 
@@ -133,25 +139,50 @@ export function Gantt(props: GanttProps): JSX.Element {
     // Hover popup + click modal state
     const modals = useGanttModals(taskStore, relationships);
 
+    // Capture once: did the parent supply an explicit resources prop?
+    // This decides whether re-runs (e.g. after a filter change) should
+    // re-extract resources from the current task list or leave the
+    // store as the parent populated it.
+    const hasExplicitResources = (props.resources?.length ?? 0) > 0;
+
     // Run the setup pipeline; commit results into local signals.
     const runSetup = (rawTasks: GanttTask[]): void => {
-        const result = initializeTasks(rawTasks, stores);
+        const result = initializeTasks(
+            rawTasks,
+            stores,
+            true,
+            hasExplicitResources,
+        );
         setRelationships(result.relationships);
         setLegacyResources(result.legacyResources);
     };
 
-    // Initial mount + reactive reinit on tasks / collapse changes
-    onMount(() => runSetup(props.tasks));
+    // Filter applied at the entry point — derived task list compresses
+    // rows when the predicate excludes tasks. Relationships still reference
+    // taskIds; ones that point at filtered-out tasks are skipped naturally
+    // by processTasks (predecessor lookup fails).
+    const effectiveTasks = createMemo((): GanttTask[] => {
+        const filter = props.options?.filter;
+        const tasks = props.tasks ?? [];
+        return typeof filter === 'function' ? tasks.filter(filter) : tasks;
+    });
+
+    // Initial mount + reactive reinit on tasks / filter / collapse changes
+    onMount(() => runSetup(effectiveTasks()));
 
     createEffect(() => {
         // Track all dependencies that require task reinitialization
-        const tasks = props.tasks;
+        const tasks = effectiveTasks();
         const _collapsed = resourceStore.collapsedGroups();
         const _collapsedTasks = taskStore.collapsedTasks();
 
         if (tasks && tasks.length > 0) {
             // untrack so initializeTasks doesn't create reactive deps
             untrack(() => runSetup(tasks));
+        } else {
+            // Filter wiped out everything — clear the store so the empty
+            // state renders correctly instead of showing stale rows.
+            untrack(() => runSetup([]));
         }
     });
 
@@ -171,8 +202,9 @@ export function Gantt(props: GanttProps): JSX.Element {
         if (viewMode && viewMode !== prev) {
             setPrevViewMode(viewMode);
             dateStore.changeViewMode(viewMode);
-            if (props.tasks && props.tasks.length > 0) {
-                untrack(() => runSetup(props.tasks));
+            const tasks = effectiveTasks();
+            if (tasks && tasks.length > 0) {
+                untrack(() => runSetup(tasks));
             }
         }
     });
@@ -260,6 +292,30 @@ export function Gantt(props: GanttProps): JSX.Element {
         if (!tasks || rels.length === 0) return new Set();
         const pph = dateStore.columnWidth();
         return computeCriticalPath(tasks, rels, pph).critical;
+    });
+
+    // Search overlay: matches set is empty when search is off; otherwise
+    // contains every task id whose search field includes the query
+    // (case-insensitive). Bar dims when searchActive && id ∉ matches.
+    const searchActive = createMemo(
+        () => !!props.options?.search && props.options.search.length > 0,
+    );
+    const searchMatches = createMemo((): Set<string> => {
+        if (!searchActive()) return new Set();
+        const query = (props.options?.search ?? '').toLowerCase();
+        const field = props.options?.searchField ?? 'name';
+        const getValue =
+            typeof field === 'function'
+                ? field
+                : (t: GanttTask): string => String(t[field] ?? '');
+        const matches = new Set<string>();
+        for (const task of effectiveTasks()) {
+            if (!task.id) continue;
+            if (getValue(task).toLowerCase().includes(query)) {
+                matches.add(task.id);
+            }
+        }
+        return matches;
     });
 
     const totalContentHeight = createMemo(() => {
@@ -409,6 +465,8 @@ export function Gantt(props: GanttProps): JSX.Element {
                             relationships={relationships()}
                             resourceStore={resourceStore}
                             criticalSet={criticalSet()}
+                            searchActive={searchActive()}
+                            searchMatches={searchMatches()}
                             onDateChange={handleDateChange}
                             onProgressChange={handleProgressChange}
                             onResizeEnd={handleResizeEnd}

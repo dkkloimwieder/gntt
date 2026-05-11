@@ -43,6 +43,8 @@ interface BarProps {
     cornerRadius?: number;
     /** Marks the bar as on the project's critical path. */
     isCritical?: boolean;
+    /** Search-dim state: bar fades when a search query is active and this task does not match. */
+    isDimmed?: boolean;
     readonly?: boolean;
     readonlyDates?: boolean;
     readonlyProgress?: boolean;
@@ -407,7 +409,7 @@ export function Bar(props: BarProps): JSX.Element {
 
     return (
         <div
-            class={`bar-wrapper ${customClass()} ${isInvalid() ? 'invalid' : ''} ${isLocked() ? 'locked' : ''} ${props.isCritical ? 'critical' : ''} ${dragClass()}`}
+            class={`bar-wrapper ${customClass()} ${isInvalid() ? 'invalid' : ''} ${isLocked() ? 'locked' : ''} ${props.isCritical ? 'critical' : ''} ${props.isDimmed ? 'search-dimmed' : ''} ${dragClass()}`}
             data-id={t().id}
             role="button"
             aria-roledescription="task bar"
@@ -424,6 +426,9 @@ export function Bar(props: BarProps): JSX.Element {
                 transform: barTransform(),
                 width: `${width()}px`,
                 height: `${height()}px`,
+                // Search-dim: fade non-matches; matches stay full opacity.
+                opacity: props.isDimmed ? 0.18 : 1,
+                filter: props.isDimmed ? 'grayscale(0.4)' : 'none',
                 cursor: isLocked()
                     ? 'not-allowed'
                     : readonly()

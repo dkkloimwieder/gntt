@@ -36,6 +36,10 @@ interface TaskLayerProps {
     rowLayouts?: Map<string, RowLayout>;
     /** Task IDs on the critical path (renders bars with a critical class). */
     criticalSet?: Set<string>;
+    /** Whether a search query is currently applied. */
+    searchActive?: boolean;
+    /** Task IDs that match the active search query. Bars NOT in this set get dimmed. */
+    searchMatches?: Set<string>;
     startRow?: number;
     endRow?: number;
     startX?: number;
@@ -204,6 +208,11 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
                                 isCritical={
                                     !!task() &&
                                     !!props.criticalSet?.has(task()!.id)
+                                }
+                                isDimmed={
+                                    !!props.searchActive &&
+                                    !!task() &&
+                                    !props.searchMatches?.has(task()!.id)
                                 }
                                 onConstrainPosition={handleConstrainPosition}
                                 onCollectDependents={handleCollectDependents}

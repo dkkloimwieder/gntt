@@ -39,17 +39,26 @@ export interface GanttSetupResult {
  * pre-date the resourceStore).
  *
  * Empty input clears the stores; non-empty input runs the full pipeline.
+ *
+ * @param hasExplicitResources - true when the parent passed an explicit
+ *   `resources` prop (so we leave the resource store alone). When false,
+ *   resources are re-extracted from `rawTasks` on every call so filter/
+ *   add/remove changes the resource set (and the row layout) accordingly.
  */
 export function initializeTasks(
     rawTasks: GanttTask[],
     stores: GanttSetupStores,
     useResourceStore = true,
+    hasExplicitResources?: boolean,
 ): GanttSetupResult {
     const { taskStore, ganttConfig, dateStore, resourceStore } = stores;
 
     if (!rawTasks || rawTasks.length === 0) {
         taskStore.clear();
         dateStore.setupDates([]);
+        if (!hasExplicitResources) {
+            resourceStore.updateResources([]);
+        }
         return { relationships: [], legacyResources: [] };
     }
 
@@ -75,14 +84,19 @@ export function initializeTasks(
     };
 
     // Resource index map: prefer the resourceStore (respects collapse
-    // state) when explicit resources were passed; otherwise extract
-    // from tasks for backward compatibility.
+    // state) when explicit resources were passed; otherwise re-extract
+    // from the current task list. The flag must come from the caller —
+    // checking `resourceStore.resources().length > 0` is unreliable
+    // because we ourselves populate it during the first run.
     let resourceIndexMap: Map<string, number> | null = null;
-    const hasExplicitResources = resourceStore.resources().length > 0;
+    // Backward-compat fallback: if caller didn't pass the flag, infer
+    // from current store state (matches pre-flag behavior).
+    const explicit =
+        hasExplicitResources ?? resourceStore.resources().length > 0;
 
-    if (hasExplicitResources && useResourceStore) {
+    if (explicit && useResourceStore) {
         resourceIndexMap = resourceStore.resourceIndexMap();
-    } else if (!hasExplicitResources) {
+    } else if (!explicit) {
         const extracted = extractResourcesFromTasks(rawTasks);
         resourceStore.updateResources(extracted);
         resourceIndexMap = resourceStore.resourceIndexMap();
