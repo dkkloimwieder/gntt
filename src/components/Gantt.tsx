@@ -21,6 +21,7 @@ import {
     calculateSimpleRowLayouts,
     rowLayoutsToSortedArray,
 } from '../utils/rowLayoutCalculator';
+import { computeCriticalPath } from '../utils/criticalPath';
 import { initializeTasks } from '../utils/ganttSetup';
 import { useGanttModals } from '../hooks/useGanttModals';
 import { useGanttScroll, type ContainerAPILike } from '../hooks/useGanttScroll';
@@ -65,6 +66,8 @@ interface GanttOptions {
     barHeight?: number;
     padding?: number;
     columnWidth?: number;
+    /** Highlight tasks on the project's critical path (zero-slack chain). */
+    criticalPath?: boolean;
     [key: string]: unknown;
 }
 
@@ -247,6 +250,18 @@ export function Gantt(props: GanttProps): JSX.Element {
         });
     });
 
+    // Critical-path overlay: empty set when feature is off so downstream
+    // components can read it unconditionally. Uses columnWidth as the
+    // pixels-per-time-unit factor (same convention as taskLayerConstraints).
+    const criticalSet = createMemo((): Set<string> => {
+        if (!props.options?.criticalPath) return new Set();
+        const tasks = taskStore.tasks;
+        const rels = relationships();
+        if (!tasks || rels.length === 0) return new Set();
+        const pph = dateStore.columnWidth();
+        return computeCriticalPath(tasks, rels, pph).critical;
+    });
+
     const totalContentHeight = createMemo(() => {
         const layouts = rowLayouts();
         const total = layouts.get('__total__');
@@ -393,6 +408,7 @@ export function Gantt(props: GanttProps): JSX.Element {
                             ganttConfig={ganttConfig}
                             relationships={relationships()}
                             resourceStore={resourceStore}
+                            criticalSet={criticalSet()}
                             onDateChange={handleDateChange}
                             onProgressChange={handleProgressChange}
                             onResizeEnd={handleResizeEnd}

@@ -34,6 +34,8 @@ interface TaskLayerProps {
     tasks?: ProcessedTask[];
     relationships?: Relationship[];
     rowLayouts?: Map<string, RowLayout>;
+    /** Task IDs on the critical path (renders bars with a critical class). */
+    criticalSet?: Set<string>;
     startRow?: number;
     endRow?: number;
     startX?: number;
@@ -199,6 +201,10 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
                                 task={task as Accessor<ProcessedTask>}
                                 taskStore={props.taskStore}
                                 ganttConfig={props.ganttConfig}
+                                isCritical={
+                                    !!task() &&
+                                    !!props.criticalSet?.has(task()!.id)
+                                }
                                 onConstrainPosition={handleConstrainPosition}
                                 onCollectDependents={handleCollectDependents}
                                 onCollectDescendants={handleCollectDescendants}

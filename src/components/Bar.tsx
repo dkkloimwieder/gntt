@@ -41,6 +41,8 @@ interface BarProps {
     width?: number;
     height?: number;
     cornerRadius?: number;
+    /** Marks the bar as on the project's critical path. */
+    isCritical?: boolean;
     readonly?: boolean;
     readonlyDates?: boolean;
     readonlyProgress?: boolean;
@@ -405,7 +407,7 @@ export function Bar(props: BarProps): JSX.Element {
 
     return (
         <div
-            class={`bar-wrapper ${customClass()} ${isInvalid() ? 'invalid' : ''} ${isLocked() ? 'locked' : ''} ${dragClass()}`}
+            class={`bar-wrapper ${customClass()} ${isInvalid() ? 'invalid' : ''} ${isLocked() ? 'locked' : ''} ${props.isCritical ? 'critical' : ''} ${dragClass()}`}
             data-id={t().id}
             role="button"
             aria-roledescription="task bar"
@@ -468,14 +470,24 @@ export function Bar(props: BarProps): JSX.Element {
                         ? '#7f8c8d'
                         : isDragging()
                           ? '#2c3e50'
-                          : barColor(),
+                          : props.isCritical
+                            ? 'var(--g-critical-color, #dc2626)'
+                            : barColor(),
                     opacity:
                         isLocked() || isDragging()
                             ? 1
                             : hasSubtasks()
                               ? 0
-                              : 0.1,
-                    border: `${isLocked() ? '2px' : '1.5px'} solid ${isLocked() ? '#c0392b' : barColor()}`,
+                              : props.isCritical
+                                ? 0.4
+                                : 0.1,
+                    border: `${isLocked() ? '2px' : '1.5px'} solid ${
+                        isLocked()
+                            ? '#c0392b'
+                            : props.isCritical
+                              ? 'var(--g-critical-border-color, #991b1b)'
+                              : barColor()
+                    }`,
                     'border-style': isLocked() ? 'dashed' : 'solid',
                     'box-sizing': 'border-box',
                     transition: isDragging()
@@ -512,8 +524,10 @@ export function Bar(props: BarProps): JSX.Element {
                     width: `${progressWidth()}px`,
                     height: '100%',
                     'border-radius': `${barCornerRadius()}px`,
-                    'background-color': progressColor(),
-                    opacity: 0.3,
+                    'background-color': props.isCritical
+                        ? 'var(--g-critical-progress-color, #991b1b)'
+                        : progressColor(),
+                    opacity: props.isCritical ? 0.7 : 0.3,
                 }}
             />
 

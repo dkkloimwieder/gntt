@@ -358,5 +358,23 @@
             outline-offset: 2px;
             border-radius: 3px;
         }
+
+        /* Critical-path highlight: tasks on the zero-slack chain.
+         * Bars are HTML divs with inline background-color set per-task,
+         * so we override with !important. Customize via --g-critical-*
+         * CSS variables. */
+        &.critical .bar {
+            background-color: var(--g-critical-color, #dc2626) !important;
+            border-color: var(--g-critical-border-color, #991b1b) !important;
+            opacity: 0.4 !important;
+        }
+
+        &.critical .bar-progress {
+            background-color: var(
+                --g-critical-progress-color,
+                #991b1b
+            ) !important;
+            opacity: 0.85 !important;
+        }
     }
 }
