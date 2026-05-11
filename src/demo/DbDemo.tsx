@@ -50,6 +50,11 @@ export function DbDemo() {
      */
     const dbState = new Map<string, { start: string; end: string }>();
     const lastX = new Map<string, number>();
+    // Bumped on every successful drag-PATCH so the edit panel re-derives
+    // its initial form values from dbState (which has the freshest dates).
+    // We deliberately don't setBundle on drag — that would re-process the
+    // whole tasks array — but the panel needs SOMETHING to invalidate.
+    const [dragVersion, setDragVersion] = createSignal(0);
 
     /** Parse the API's "YYYY-MM-DD HH:MM" into a local Date. */
     const parseDb = (s: string): Date => {
@@ -105,7 +110,15 @@ export function DbDemo() {
     const selectedTask = createMemo<TaskApi | null>(() => {
         const id = selectedId();
         if (!id) return null;
-        return bundle()?.tasks.find((t) => t.id === id) ?? null;
+        // Touch dragVersion so this memo re-runs after each drag-PATCH.
+        void dragVersion();
+        const base = bundle()?.tasks.find((t) => t.id === id);
+        if (!base) return null;
+        const fresh = dbState.get(id);
+        // dbState has the latest start/end (drag-PATCH updates it in
+        // place); bundle has everything else (name, deps, constraints,
+        // color, …).
+        return fresh ? { ...base, start: fresh.start, end: fresh.end } : base;
     });
 
     const fmtDate = (d: Date): string =>
@@ -211,6 +224,7 @@ export function DbDemo() {
                 const x = taskStore.tasks[p.id]?._bar?.x;
                 if (typeof x === 'number') lastX.set(p.id, x);
             }
+            setDragVersion((v) => v + 1);
             const extra = patches.length - 1;
             setStatus(
                 `PATCH ${parentId} (drag${

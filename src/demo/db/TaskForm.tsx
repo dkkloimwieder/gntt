@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { For, Show, createSignal } from 'solid-js';
+import { For, Show, createEffect, createSignal, on } from 'solid-js';
 import { fromLocalInput, toLocalInput } from './api';
 import type {
     DepApi,
@@ -223,6 +223,30 @@ export function TaskForm(props: TaskFormProps) {
     );
     const [error, setError] = createSignal<string | null>(null);
     const [submitting, setSubmitting] = createSignal(false);
+
+    // Reset the form when `props.initial` changes (e.g. a drag-PATCH bumped
+    // the parent's start/end in the bundle, or the user selected a different
+    // task). `on(..., { defer: true })` skips the first run since the
+    // signals above already used `init` for their seed values.
+    createEffect(
+        on(
+            () => props.initial,
+            (next) => {
+                if (props.mode !== 'edit' || !next) return;
+                setId(next.id);
+                setName(next.name);
+                setStart(toLocalInput(next.start));
+                setEnd(toLocalInput(next.end));
+                setProgress(next.progress);
+                setResource(next.resource ?? '');
+                setColor(next.color ?? '#3b82f6');
+                setConstraints(constraintsFromApi(next.constraints));
+                setDeps((next.dependencies ?? []).map(depFromApi));
+                setError(null);
+            },
+            { defer: true },
+        ),
+    );
 
     const updateConstraint = <K extends keyof ConstraintRow>(
         key: K,
