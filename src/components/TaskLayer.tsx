@@ -12,6 +12,7 @@ import {
     clampBatchDelta,
 } from '../utils/taskLayerConstraints';
 import { useTaskVirtualization } from '../hooks/useTaskVirtualization';
+import { useBoxSelect } from '../hooks/useBoxSelect';
 import type { TaskStore } from '../stores/taskStore';
 import type { GanttConfigStore } from '../stores/ganttConfigStore';
 import type { ResourceStore } from '../stores/resourceStore';
@@ -188,14 +189,27 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
         getTaskPosition,
     } = useTaskVirtualization(props);
 
+    // Box-select: pointer-down on empty grid space draws a translucent
+    // rect; on release, intersected bars become the selection (replace,
+    // or extend when shift/ctrl held).
+    let layerRef: HTMLDivElement | undefined;
+    const boxSelect = useBoxSelect({
+        taskStore: props.taskStore,
+        selectionStore: props.selectionStore,
+        getLayerEl: () => layerRef,
+    });
+
     return (
         <div
+            ref={layerRef}
             class="task-layer"
+            onMouseDown={boxSelect.handleMouseDown}
             style={{
                 contain: 'layout style',
                 position: 'relative',
                 width: '100%',
                 height: '100%',
+                'pointer-events': 'auto',
             }}
         >
             {/* Summary bars render BEHIND everything */}
@@ -274,6 +288,25 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
                     )}
                 </Index>
             </div>
+
+            {/* Box-select overlay (only rendered while dragging the box) */}
+            {boxSelect.overlay().visible && (
+                <div
+                    class="box-select-overlay"
+                    style={{
+                        position: 'absolute',
+                        left: `${boxSelect.overlay().x}px`,
+                        top: `${boxSelect.overlay().y}px`,
+                        width: `${boxSelect.overlay().width}px`,
+                        height: `${boxSelect.overlay().height}px`,
+                        'background-color':
+                            'var(--g-selection-fill, rgba(99, 102, 241, 0.12))',
+                        border: '1px solid var(--g-selection-color, #6366f1)',
+                        'pointer-events': 'none',
+                        'z-index': 10,
+                    }}
+                />
+            )}
         </div>
     );
 }
