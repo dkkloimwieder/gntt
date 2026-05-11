@@ -413,6 +413,7 @@ export function DbDemo() {
                                 setTimeout(snapshotChartX, 0);
                             }}
                             disableTaskClickModal
+                            disableHoverPopup
                         />
                     </Show>
                 </div>

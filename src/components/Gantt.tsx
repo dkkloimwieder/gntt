@@ -114,6 +114,13 @@ interface GanttProps {
      * Default false (modal still opens for back-compat with existing demos).
      */
     disableTaskClickModal?: boolean;
+    /**
+     * When true, the built-in `TaskDataPopup` does NOT appear on bar
+     * hover. Set this when sweeping the mouse over many bars makes the
+     * appearing/disappearing white card read as "flashing." Default
+     * false (popup still appears for back-compat with existing demos).
+     */
+    disableHoverPopup?: boolean;
     /** Fires whenever the multi-selection set changes. Receives a snapshot Set. */
     onSelectionChange?: (selectedIds: Set<string>) => void;
     /**
@@ -535,8 +542,8 @@ export function Gantt(props: GanttProps): JSX.Element {
             onProgressChange={handleProgressChange}
             onResizeEnd={handleResizeEnd}
             onTaskClick={handleTaskClick}
-            onHover={modals.showHover}
-            onHoverEnd={modals.hideHover}
+            onHover={props.disableHoverPopup ? undefined : modals.showHover}
+            onHoverEnd={props.disableHoverPopup ? undefined : modals.hideHover}
         >
             <GanttContainer
                 ganttConfig={ganttConfig}
@@ -609,8 +616,16 @@ export function Gantt(props: GanttProps): JSX.Element {
                             onProgressChange={handleProgressChange}
                             onResizeEnd={handleResizeEnd}
                             onTaskClick={handleTaskClick}
-                            onHover={modals.showHover}
-                            onHoverEnd={modals.hideHover}
+                            onHover={
+                                props.disableHoverPopup
+                                    ? undefined
+                                    : modals.showHover
+                            }
+                            onHoverEnd={
+                                props.disableHoverPopup
+                                    ? undefined
+                                    : modals.hideHover
+                            }
                             startRow={viewport.rowRange().start}
                             endRow={viewport.rowRange().end}
                             startX={viewport.xRange().start}
