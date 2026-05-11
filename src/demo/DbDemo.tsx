@@ -143,15 +143,32 @@ export function DbDemo() {
         ).__ganttTaskStore;
         const dateStore = (
             window as unknown as {
-                __ganttDateStore?: { xToDate: (x: number) => Date };
+                __ganttDateStore?: {
+                    unit: () => string;
+                    step: () => number;
+                    columnWidth: () => number;
+                };
             }
         ).__ganttDateStore;
         if (!taskStore || !dateStore) return;
 
-        // ms-per-pixel. Linear → exact regardless of view mode.
-        const baseMs = dateStore.xToDate(0).getTime();
-        const refMs = dateStore.xToDate(100).getTime();
-        const msPerPx = (refMs - baseMs) / 100;
+        // ms-per-pixel — derive directly from the chart's `unit` + `step` +
+        // `columnWidth`. Do NOT use xToDate(100)-xToDate(0) — that calls
+        // dateUtils.add which truncates fractional days (e.g. add(start,
+        // 2.5, 'day') drops the .5), yielding a calibration off by up to
+        // ~25% depending on whether `100 / columnWidth` is an integer.
+        const UNIT_MS: Record<string, number> = {
+            millisecond: 1,
+            second: 1_000,
+            minute: 60_000,
+            hour: 3_600_000,
+            day: 86_400_000,
+            week: 604_800_000,
+            month: 2_629_800_000, // avg (Gregorian year / 12)
+            year: 31_556_952_000, // avg (Gregorian)
+        };
+        const unitMs = UNIT_MS[dateStore.unit()] ?? 86_400_000;
+        const msPerPx = (unitMs * dateStore.step()) / dateStore.columnWidth();
 
         const patches: Array<{ id: string; start: string; end: string }> = [];
         for (const id of Object.keys(taskStore.tasks)) {
