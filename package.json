@@ -12,6 +12,12 @@
         "preview:demo": "vite preview --config config/vite/demo.js --port 4173",
         "generate:calendar": "tsx src/scripts/generateCalendar.ts",
         "generate:topology": "tsx src/scripts/generateTopology.ts",
+        "db:generate": "drizzle-kit generate",
+        "db:migrate": "tsx server/db/migrate.ts",
+        "db:seed": "tsx server/db/seed.ts",
+        "db:setup": "pnpm db:migrate && pnpm db:seed",
+        "dev:server": "tsx watch server/index.ts",
+        "dev:all": "concurrently -k -n vite,server -c blue,green \"pnpm dev\" \"pnpm dev:server\"",
         "bench": "tsx benchmarks/constraint/runBenchmarks.ts",
         "bench:all": "tsx benchmarks/constraint/runBenchmarks.ts --all",
         "bench:scaling": "tsx benchmarks/constraint/scalingTest.ts",
@@ -21,9 +27,9 @@
         "typecheck": "tsc --noEmit",
         "test": "vitest run",
         "test:watch": "vitest",
-        "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\" \"tests/**/*.ts\" \"benchmarks/constraint/**/*.ts\"",
-        "prettier": "prettier --write \"src/**/*.{js,jsx,ts,tsx}\" \"tests/**/*.ts\" \"benchmarks/constraint/**/*.ts\"",
-        "prettier-check": "prettier --check \"src/**/*.{js,jsx,ts,tsx}\" \"tests/**/*.ts\" \"benchmarks/constraint/**/*.ts\""
+        "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\" \"tests/**/*.ts\" \"server/**/*.ts\" \"benchmarks/constraint/**/*.ts\"",
+        "prettier": "prettier --write \"src/**/*.{js,jsx,ts,tsx}\" \"tests/**/*.ts\" \"server/**/*.ts\" \"benchmarks/constraint/**/*.ts\"",
+        "prettier-check": "prettier --check \"src/**/*.{js,jsx,ts,tsx}\" \"tests/**/*.ts\" \"server/**/*.ts\" \"benchmarks/constraint/**/*.ts\""
     },
     "repository": {
         "type": "git",
@@ -56,14 +62,21 @@
     },
     "homepage": "",
     "devDependencies": {
+        "@hono/node-server": "^2.0.2",
+        "@types/better-sqlite3": "^7.6.13",
         "@types/node": "^25.6.2",
         "@typescript-eslint/eslint-plugin": "^8.59.2",
         "@typescript-eslint/parser": "^8.59.2",
         "babel-preset-solid": "^1.9.12",
+        "better-sqlite3": "^12.9.0",
+        "concurrently": "^9.2.1",
+        "drizzle-kit": "^0.31.10",
+        "drizzle-orm": "^0.45.2",
         "eslint": "^10.3.0",
         "eslint-config-prettier": "^10.1.8",
         "eslint-plugin-prettier": "^5.5.5",
         "globals": "^17.6.0",
+        "hono": "^4.12.18",
         "postcss-nesting": "^14.0.0",
         "prettier": "3.8.3",
         "tsx": "^4.21.0",
@@ -86,5 +99,10 @@
         "@solid-primitives/scheduled": "^1.5.3",
         "@solid-primitives/scroll": "^2.1.5",
         "solid-js": "^1.9.12"
+    },
+    "pnpm": {
+        "onlyBuiltDependencies": [
+            "better-sqlite3"
+        ]
     }
 }

@@ -41,3 +41,9 @@ feedback*.md
 .dolt/
 *.db
 .beads-credential-key
+
+# Local SQLite DB (recreated by `pnpm db:setup`)
+/data/gantt.db
+/data/gantt.db-journal
+/data/gantt.db-wal
+/data/gantt.db-shm

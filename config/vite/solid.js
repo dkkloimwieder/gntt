@@ -29,6 +29,14 @@ export default defineConfig({
     server: {
         watch: {
             include: ['dist/*', 'src/**/*', 'examples/**/*']
+        },
+        // Proxy /api/* to the demo backend (Hono on :3001 — `pnpm dev:server`).
+        // Same-origin from the browser's perspective, so no CORS dance.
+        proxy: {
+            '/api': {
+                target: 'http://localhost:3001',
+                changeOrigin: true,
+            }
         }
     }
 });
