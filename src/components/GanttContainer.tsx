@@ -65,7 +65,7 @@ interface GanttContainerProps {
     height?: string | number;
     svgWidth?: number;
     svgHeight?: number;
-    resourceHeaderLabel?: string;
+    resourceHeaderLabel?: JSX.Element | string;
     header?: JSX.Element;
     resourceColumn?: JSX.Element;
     children?: JSX.Element;
@@ -261,7 +261,7 @@ export function GanttContainer(props: GanttContainerProps): JSX.Element {
                     'z-index': 20,
                 }}
             >
-                {props.resourceHeaderLabel || 'Resource'}
+                {props.resourceHeaderLabel ?? 'Resource'}
             </div>
 
             {/* Top-right: Date Headers */}

@@ -31,6 +31,12 @@ import { GanttContainer } from './GanttContainer';
 import { Grid } from './Grid';
 import { DateHeaders } from './DateHeaders';
 import { ResourceColumn } from './ResourceColumn';
+import {
+    ColumnPanel,
+    ColumnPanelHeader,
+    computePanelWidth,
+    type ColumnDef,
+} from './ColumnPanel';
 import { TaskLayer } from './TaskLayer';
 import { TaskLayerMinimal } from './TaskLayerMinimal';
 import { TaskDataPopup } from './TaskDataPopup';
@@ -83,6 +89,14 @@ interface GanttProps {
     resources?: ResourceInput[];
     options?: GanttOptions;
     arrowConfig?: ArrowConfigOptions;
+    /**
+     * Configurable left-panel columns. When provided, replaces the
+     * single resource column with a multi-column grid. The first column
+     * still maps to the resource id by default; pass a render fn to
+     * customize. Each row corresponds to one resource (the column's
+     * render receives the first task on that resource).
+     */
+    columns?: ColumnDef[];
     taskLayerMode?: 'minimal' | 'full';
     arrowRenderer?: 'batched' | 'individual';
     overscanCols?: number;
@@ -421,8 +435,17 @@ export function Gantt(props: GanttProps): JSX.Element {
         props.options?.upperHeaderHeight || DEFAULT_UPPER_HEADER_HEIGHT;
     const lowerHeaderHeight = (): number =>
         props.options?.lowerHeaderHeight || DEFAULT_LOWER_HEADER_HEIGHT;
-    const resourceColumnWidth = (): number =>
-        props.options?.resourceColumnWidth || 120;
+    // When custom columns are provided, the panel width is the sum of
+    // the column widths; otherwise fall back to the legacy single-column
+    // width set via options.resourceColumnWidth.
+    const hasCustomColumns = (): boolean =>
+        Array.isArray(props.columns) && props.columns.length > 0;
+    const resourceColumnWidth = (): number => {
+        if (hasCustomColumns()) {
+            return computePanelWidth(props.columns!);
+        }
+        return props.options?.resourceColumnWidth || 120;
+    };
 
     return (
         <GanttEventsProvider
@@ -439,17 +462,35 @@ export function Gantt(props: GanttProps): JSX.Element {
                 svgHeight={svgHeight()}
                 headerHeight={ganttConfig.headerHeight()}
                 resourceColumnWidth={resourceColumnWidth()}
-                resourceHeaderLabel="Resource"
+                resourceHeaderLabel={
+                    hasCustomColumns() ? (
+                        <ColumnPanelHeader columns={props.columns!} />
+                    ) : (
+                        'Resource'
+                    )
+                }
                 onContainerReady={handleContainerReady}
                 resourceColumn={
-                    <ResourceColumn
-                        resourceStore={resourceStore}
-                        ganttConfig={ganttConfig}
-                        width={resourceColumnWidth()}
-                        startRow={viewport.rowRange().start}
-                        endRow={viewport.rowRange().end}
-                        rowLayouts={rowLayouts()}
-                    />
+                    hasCustomColumns() ? (
+                        <ColumnPanel
+                            columns={props.columns!}
+                            taskStore={taskStore}
+                            resourceStore={resourceStore}
+                            ganttConfig={ganttConfig}
+                            startRow={viewport.rowRange().start}
+                            endRow={viewport.rowRange().end}
+                            rowLayouts={rowLayouts()}
+                        />
+                    ) : (
+                        <ResourceColumn
+                            resourceStore={resourceStore}
+                            ganttConfig={ganttConfig}
+                            width={resourceColumnWidth()}
+                            startRow={viewport.rowRange().start}
+                            endRow={viewport.rowRange().end}
+                            rowLayouts={rowLayouts()}
+                        />
+                    )
                 }
                 header={
                     <DateHeaders

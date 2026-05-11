@@ -151,6 +151,11 @@ export function processTask(
     }
 
     return {
+        // Spread custom fields (e.g. `owner`, `priority`) so the
+        // configurable columns API and any consumer's render functions
+        // can access them. The known fields below override any same-name
+        // input (e.g. `name` is normalised to a string).
+        ...task,
         // Required fields
         id,
         name: task.name || '',
