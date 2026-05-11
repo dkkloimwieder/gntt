@@ -23,6 +23,7 @@ import {
     rowLayoutsToSortedArray,
 } from '../utils/rowLayoutCalculator';
 import { computeCriticalPath } from '../utils/criticalPath';
+import { buildExportSvg, svgToBlob, svgToPngBlob } from '../utils/svgExport';
 import { initializeTasks } from '../utils/ganttSetup';
 import { useGanttModals } from '../hooks/useGanttModals';
 import { useGanttScroll, type ContainerAPILike } from '../hooks/useGanttScroll';
@@ -108,6 +109,34 @@ interface GanttProps {
     onTaskClick?: (taskId: string, event: MouseEvent) => void;
     /** Fires whenever the multi-selection set changes. Receives a snapshot Set. */
     onSelectionChange?: (selectedIds: Set<string>) => void;
+    /**
+     * Imperative-handle bridge: receives an API object with side-effect
+     * helpers (export, etc.) once the chart is mounted. Stable across
+     * renders for the chart's lifetime.
+     */
+    onReady?: (api: GanttAPI) => void;
+}
+
+/** Options accepted by `gantt.export()` / `gantt.exportPng()`. */
+export interface GanttExportOptions {
+    /** 'all' = full chart geometry; 'visible' = clip to current viewport. */
+    range?: 'all' | 'visible';
+    /** Background fill (default white; null/'' for transparent). */
+    background?: string | null;
+    /** Render task name labels inside each bar (default true). */
+    showLabels?: boolean;
+    /** PNG only: rasterization scale factor (default 2 for crisp output). */
+    pngScale?: number;
+}
+
+/** Imperative API exposed via the `onReady` callback. */
+export interface GanttAPI {
+    /** Build a self-contained SVG string for the current chart state. */
+    exportSvg(options?: GanttExportOptions): string;
+    /** Same as exportSvg but wrapped in a Blob (image/svg+xml). */
+    exportSvgBlob(options?: GanttExportOptions): Blob;
+    /** Rasterize the export SVG to a PNG Blob. Browser-only. */
+    exportPng(options?: GanttExportOptions): Promise<Blob>;
 }
 
 declare global {
@@ -143,6 +172,52 @@ export function Gantt(props: GanttProps): JSX.Element {
         const cb = props.onSelectionChange;
         if (cb) untrack(() => cb(new Set(ids)));
     });
+
+    // Imperative export API. Built once at mount; reads taskStore /
+    // relationships / scroll state lazily so the parent can call it
+    // anytime without holding stale refs.
+    const buildExportInput = (
+        opts?: GanttExportOptions,
+    ): Parameters<typeof buildExportSvg>[0] => {
+        const range = opts?.range ?? 'all';
+        let visibleRect:
+            | { x: number; y: number; width: number; height: number }
+            | undefined;
+        if (range === 'visible') {
+            const api = containerApi();
+            visibleRect = {
+                x: api?.getScrollLeft() ?? 0,
+                y: api?.getScrollTop() ?? 0,
+                width: api?.getContainerWidth() ?? 0,
+                height: api?.getContainerHeight() ?? 0,
+            };
+        }
+        return {
+            tasks: taskStore.tasks as Record<
+                string,
+                import('../types').ProcessedTask | undefined
+            >,
+            relationships: relationships(),
+            range,
+            visibleRect,
+            background: opts?.background,
+            showLabels: opts?.showLabels,
+        };
+    };
+
+    const api: GanttAPI = {
+        exportSvg: (opts) => buildExportSvg(buildExportInput(opts)),
+        exportSvgBlob: (opts) =>
+            svgToBlob(buildExportSvg(buildExportInput(opts))),
+        exportPng: (opts) =>
+            svgToPngBlob(buildExportSvg(buildExportInput(opts)), {
+                scale: opts?.pngScale,
+                background:
+                    opts?.background === null ? undefined : opts?.background,
+            }),
+    };
+    // Fire onReady once after mount so the parent gets a stable handle.
+    onMount(() => props.onReady?.(api));
 
     // Expose for profiling (development only)
     if (typeof window !== 'undefined') {
