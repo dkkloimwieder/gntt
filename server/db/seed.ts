@@ -60,21 +60,19 @@ raw.transaction(() => {
     db.delete(tasksTable).run();
     db.delete(resourcesTable).run();
 
-    // Resources: one row per unique `task.resource` (chart-side default).
+    // Resources: one row per unique `task.resource`. Sort alphabetically
+    // before assigning `sortOrder` — fixture tasks are roughly random,
+    // so first-appearance order gives an unhelpful E, W, I, B, … display.
     const seenResources = new Set<string>();
-    let order = 0;
-    const resourceRows: ResourceInsert[] = [];
     for (const t of fixture.tasks) {
-        const r = t.resource;
-        if (r && !seenResources.has(r)) {
-            seenResources.add(r);
-            resourceRows.push({
-                id: r,
-                name: r,
-                sortOrder: order++,
-            });
-        }
+        if (t.resource) seenResources.add(t.resource);
     }
+    const sortedResources = Array.from(seenResources).sort();
+    const resourceRows: ResourceInsert[] = sortedResources.map((r, i) => ({
+        id: r,
+        name: r,
+        sortOrder: i,
+    }));
     if (resourceRows.length > 0) {
         db.insert(resourcesTable).values(resourceRows).run();
     }
@@ -124,7 +122,7 @@ raw.transaction(() => {
     }
 
     // Two illustrative blocked-time rows on whichever resources exist.
-    const firstTwo = Array.from(seenResources).slice(0, 2);
+    const firstTwo = sortedResources.slice(0, 2);
     if (firstTwo.length > 0) {
         db.insert(blockedTable)
             .values(

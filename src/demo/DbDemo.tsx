@@ -31,10 +31,65 @@ export function DbDemo() {
     const [modal, setModal] = createSignal<ModalKind>(null);
     const [selectedId, setSelectedId] = createSignal<string | null>(null);
 
+    /**
+     * Side-tables tracking "what's currently in the DB" + "what x each
+     * bar was at last refetch", keyed by task id.
+     *
+     * Why both: on drag end, the chart only fires onDateChange for the
+     * dragged bar, but it batch-moves dependents internally. We can't
+     * compare new dates against bundle() (we deliberately don't setBundle
+     * on drag — that would re-process the tasks array and flash) AND we
+     * can't ask the chart's xToDate for hour-precision dates (it snaps
+     * to day boundaries in Day mode). So instead:
+     *   1. Track each bar's _bar.x at last refetch (`lastX`)
+     *   2. After drag, deltaX_per_id = chart_x_now - lastX[id]
+     *   3. Convert deltaX → deltaMs via xToDate(deltaX) - xToDate(0)
+     *      (linear so precision is preserved)
+     *   4. newStart_id = parse(dbState[id].start) + deltaMs (full HH:MM
+     *      precision)
+     */
+    const dbState = new Map<string, { start: string; end: string }>();
+    const lastX = new Map<string, number>();
+
+    /** Parse the API's "YYYY-MM-DD HH:MM" into a local Date. */
+    const parseDb = (s: string): Date => {
+        const [d, t] = s.split(' ');
+        const [y, mo, da] = d.split('-').map(Number);
+        const [h, mi] = (t ?? '00:00').split(':').map(Number);
+        return new Date(y, mo - 1, da, h, mi);
+    };
+
+    /** Snapshot the chart's _bar.x for every known task. */
+    const snapshotChartX = () => {
+        const ts = (
+            window as unknown as {
+                __ganttTaskStore?: {
+                    tasks: Record<
+                        string,
+                        { _bar?: { x: number; width: number } } | undefined
+                    >;
+                };
+            }
+        ).__ganttTaskStore;
+        if (!ts) return;
+        lastX.clear();
+        for (const id of Object.keys(ts.tasks)) {
+            const x = ts.tasks[id]?._bar?.x;
+            if (typeof x === 'number') lastX.set(id, x);
+        }
+    };
+
     const refetch = async (note?: string) => {
         try {
             const data = await api.bootstrap();
             setBundle(data);
+            dbState.clear();
+            for (const t of data.tasks) {
+                dbState.set(t.id, { start: t.start, end: t.end });
+            }
+            // Snapshot bar positions on the next tick so processTasks
+            // has finished running on the new bundle.
+            queueMicrotask(snapshotChartX);
             setError(null);
             setStatus(
                 `${note ?? 'Loaded'} — ${data.tasks.length} tasks, ${data.resources.length} resources, ${data.blockedTime.length} blocked · ${new Date().toLocaleTimeString()}`,
@@ -53,28 +108,111 @@ export function DbDemo() {
         return bundle()?.tasks.find((t) => t.id === id) ?? null;
     });
 
-    /** Handler for chart drag — PATCH start+end, then refetch. */
+    const fmtDate = (d: Date): string =>
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+
+    /**
+     * Drag-driven mutations: PATCH any task whose `_bar.x` drifted from
+     * its last-snapshotted value (the dragged bar + every batch-moved
+     * dependent). Apply the per-task pixel delta as a TIME delta to the
+     * task's *original* dates from `dbState` — that preserves HH:MM
+     * precision instead of going through the chart's day-boundary-snapping
+     * `xToDate(absolute_x)`.
+     *
+     * NO refetch — `setBundle` would re-process the whole tasks array and
+     * snap each bar back to a (slightly rounded) position, causing the
+     * flash + jump the user reported.
+     *
+     * Form-based edits (Save in the panel, Add modal, Delete) still
+     * refetch because the user has an explicit save-and-sync mental
+     * model there.
+     */
     const onDateChange = async (
-        id: string,
-        range: { start: Date; end: Date },
+        parentId: string,
+        _range: { start: Date; end: Date },
     ) => {
-        const fmt = (d: Date) =>
-            `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-        try {
-            await api.patchTask(id, {
-                start: fmt(range.start),
-                end: fmt(range.end),
+        const taskStore = (
+            window as unknown as {
+                __ganttTaskStore?: {
+                    tasks: Record<
+                        string,
+                        { _bar?: { x: number; width: number } } | undefined
+                    >;
+                };
+            }
+        ).__ganttTaskStore;
+        const dateStore = (
+            window as unknown as {
+                __ganttDateStore?: { xToDate: (x: number) => Date };
+            }
+        ).__ganttDateStore;
+        if (!taskStore || !dateStore) return;
+
+        // ms-per-pixel. Linear → exact regardless of view mode.
+        const baseMs = dateStore.xToDate(0).getTime();
+        const refMs = dateStore.xToDate(100).getTime();
+        const msPerPx = (refMs - baseMs) / 100;
+
+        const patches: Array<{ id: string; start: string; end: string }> = [];
+        for (const id of Object.keys(taskStore.tasks)) {
+            const x = taskStore.tasks[id]?._bar?.x;
+            const prevX = lastX.get(id);
+            const prevDates = dbState.get(id);
+            if (
+                typeof x !== 'number' ||
+                typeof prevX !== 'number' ||
+                !prevDates
+            )
+                continue;
+            const deltaPx = x - prevX;
+            if (Math.abs(deltaPx) < 0.5) continue; // no real movement
+            const deltaMs = Math.round(deltaPx * msPerPx);
+            const newStart = new Date(
+                parseDb(prevDates.start).getTime() + deltaMs,
+            );
+            const newEnd = new Date(parseDb(prevDates.end).getTime() + deltaMs);
+            patches.push({
+                id,
+                start: fmtDate(newStart),
+                end: fmtDate(newEnd),
             });
-            await refetch(`PATCH ${id} (drag)`);
+        }
+
+        if (patches.length === 0) {
+            setStatus(`Drag of ${parentId} produced no PATCH (no Δ)`);
+            return;
+        }
+
+        try {
+            await Promise.all(
+                patches.map((p) =>
+                    api.patchTask(p.id, { start: p.start, end: p.end }),
+                ),
+            );
+            for (const p of patches) {
+                dbState.set(p.id, { start: p.start, end: p.end });
+                const x = taskStore.tasks[p.id]?._bar?.x;
+                if (typeof x === 'number') lastX.set(p.id, x);
+            }
+            const extra = patches.length - 1;
+            setStatus(
+                `PATCH ${parentId} (drag${
+                    extra > 0
+                        ? ` + ${extra} dependent${extra === 1 ? '' : 's'}`
+                        : ''
+                }) ✓ ${new Date().toLocaleTimeString()}`,
+            );
         } catch (err) {
-            setStatus(`PATCH ${id} failed: ${(err as Error).message}`);
+            setStatus(`PATCH ${parentId} failed: ${(err as Error).message}`);
         }
     };
 
     const onProgressChange = async (id: string, progress: number) => {
         try {
             await api.patchTask(id, { progress });
-            await refetch(`PATCH ${id} progress=${progress}`);
+            setStatus(
+                `PATCH ${id} progress=${progress} ✓ ${new Date().toLocaleTimeString()}`,
+            );
         } catch (err) {
             setStatus(`PATCH ${id} progress failed: ${(err as Error).message}`);
         }
@@ -237,6 +375,13 @@ export function DbDemo() {
                             onDateChange={onDateChange}
                             onProgressChange={onProgressChange}
                             onTaskClick={(id) => setSelectedId(id)}
+                            onReady={() => {
+                                // Snapshot bar positions once the chart
+                                // is mounted; refetches re-snapshot via
+                                // queueMicrotask in `refetch`.
+                                setTimeout(snapshotChartX, 0);
+                            }}
+                            disableTaskClickModal
                         />
                     </Show>
                 </div>

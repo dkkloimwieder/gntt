@@ -107,6 +107,13 @@ interface GanttProps {
     onProgressChange?: (taskId: string, progress: number) => void;
     onResizeEnd?: (taskId: string) => void;
     onTaskClick?: (taskId: string, event: MouseEvent) => void;
+    /**
+     * When true, the built-in read-only `TaskDataModal` does NOT open on
+     * bar click. Set this when the consumer renders its own edit UI from
+     * `onTaskClick` and the popup would just get in the way.
+     * Default false (modal still opens for back-compat with existing demos).
+     */
+    disableTaskClickModal?: boolean;
     /** Fires whenever the multi-selection set changes. Receives a snapshot Set. */
     onSelectionChange?: (selectedIds: Set<string>) => void;
     /**
@@ -468,7 +475,7 @@ export function Gantt(props: GanttProps): JSX.Element {
         props.onResizeEnd?.(taskId);
 
     const handleTaskClick = (taskId: string, event: MouseEvent): void => {
-        modals.showModal(taskId);
+        if (!props.disableTaskClickModal) modals.showModal(taskId);
         props.onTaskClick?.(taskId, event);
     };
 
