@@ -141,3 +141,21 @@ pnpm dev
 ```
 
 See `docs/ARCHITECTURE.md` for implementation details.
+
+## DB-backed demo
+
+`examples/db.html` swaps the inline fixtures for a real backend — Node +
+SQLite + Drizzle + Hono, with the chart talking to a REST API. The
+library itself stays storage-agnostic; nothing in `server/` ships in
+the npm bundle.
+
+```bash
+pnpm db:setup    # creates data/gantt.db, applies migrations, loads seed
+pnpm dev:all     # runs Vite (:5173) + Hono (:3001) together
+# Open http://localhost:5173/examples/db.html
+```
+
+The two processes can also be run separately as `pnpm dev` and
+`pnpm dev:server`. See [`docs/DATABASE.md`](docs/DATABASE.md) for the
+schema, REST surface, and the drag-PATCH algorithm used to persist
+moves and resizes without a re-fetch flash.

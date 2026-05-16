@@ -219,6 +219,58 @@ pnpm dev
 
 See `benchmarks/traces/ANALYSIS.md` for current best practices and benchmark results.
 
+## DB-backed Demo
+
+`examples/db.html` is the only demo backed by a real database — Node +
+SQLite + Drizzle + Hono. Everything else uses inline fixtures or
+generators. The chart library does not import any server code; the
+server lives entirely under `server/` and never ships in the npm bundle.
+
+**Two processes, both required for `db.html`:**
+- Vite on `:5173` (the usual `pnpm dev`)
+- Hono on `:3001` (`pnpm dev:server`)
+- Vite proxies `/api/*` → `:3001`, so the browser sees same-origin.
+- Run both at once with `pnpm dev:all`.
+
+**Setup:**
+```bash
+pnpm db:setup    # data/gantt.db, migrations, seed from calendar.json
+pnpm dev:all
+# http://localhost:5173/examples/db.html
+```
+
+**Layout:**
+```
+server/
+├── index.ts           # Hono entry (:3001)
+├── db/
+│   ├── schema.ts      # Drizzle: tasks, resources, dependencies, blocked_time
+│   ├── client.ts      # better-sqlite3 → drizzle()
+│   ├── adapter.ts     # row ↔ GanttTask shape; sole import-seam used by routes
+│   ├── migrate.ts
+│   └── seed.ts
+├── routes/            # bootstrap | tasks | resources | blocked
+└── migrations/
+src/demo/DbDemo.tsx + src/demo/db/   # demo-only UI (api client, modal, forms)
+data/gantt.db                        # gitignored; recreated by db:setup
+```
+
+**Constraints worth remembering:**
+- The adapter is the only file in `server/` that knows the `GanttTask`
+  shape. Routes and tests use it; the demo never imports from `server/`.
+- `tasks.constraints` is a JSON blob (the frontend's `TaskConstraints`
+  shape — many optional fields).
+- `blocked_time` is flat metadata; the chart's constraint engine does
+  not consult it. Bars are absolute calendar time.
+- Drag persistence does NOT re-fetch (would snap-back on day-rounded
+  dates). Instead it snapshots each bar's `_bar.x` and `_bar.width`,
+  computes per-task pixel deltas after drag, and PATCHes in parallel.
+  Move/resize-end/resize-start are disambiguated by which delta is
+  non-zero. See `DbDemo.tsx` and `docs/DATABASE.md` for the algorithm.
+
+Full schema + REST surface + algorithm details are in
+[`docs/DATABASE.md`](docs/DATABASE.md).
+
 ## Development Workflow
 
 1. Clone and run `pnpm i`

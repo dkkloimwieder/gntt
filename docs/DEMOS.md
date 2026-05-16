@@ -31,6 +31,7 @@ pnpm build:demo && npx serve dist-demo -l 5174
 | [resource-groups.html](../examples/resource-groups.html) | GanttResourceGroupsDemo.tsx | Collapsible team resource groups |
 | [constraint.html](../examples/constraint.html) | ConstraintDemo.tsx | FS/SS/FF/SF dependency constraints |
 | [showcase.html](../examples/showcase.html) | ShowcaseDemo.tsx | Props and configuration showcase |
+| [db.html](../examples/db.html) | DbDemo.tsx | DB-backed CRUD over Drizzle + SQLite + Hono (needs `pnpm dev:all`; see [DATABASE.md](./DATABASE.md)) |
 
 ### Component Demos
 
