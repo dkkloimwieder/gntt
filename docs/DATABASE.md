@@ -84,10 +84,10 @@ maps to HTTP codes.
 | PATCH | `/api/tasks/:id` | `{ name?, start?, end?, progress?, resource?, color?, colorProgress?, baselineStart?, baselineEnd?, constraints? }` | Updated task |
 | POST | `/api/tasks` | `GanttTaskInput` (optionally with inline `dependencies`) | Created task, 201 |
 | DELETE | `/api/tasks/:id` | — | `{ ok: true }` |
-| PUT | `/api/tasks/:id/dependencies` | `Array<{ predecessor, type?, lag?, maxGap? }>` | Replaces the task's predecessor list (dedupes, rejects self-deps and unknown predecessors) |
-| POST | `/api/resources` | `{ id, name, groupName?, sortOrder? }` | Created resource |
+| PUT | `/api/tasks/:id/dependencies` | `Array<{ id, type?, lag?, max? }>` — `id` is the predecessor task id; `max` is the max gap in hours (null/omitted = elastic) | Replaces the task's predecessor list (dedupes on `(id, type)`, rejects self-deps and unknown predecessors) |
+| POST | `/api/resources` | `{ id, name, group?, order? }` | Created resource, 201 |
 | DELETE | `/api/resources/:id` | — | `{ ok: true }` |
-| POST | `/api/blocked` | `{ resourceId, start, end, reason? }` | Created slot |
+| POST | `/api/blocked` | `{ resource, start, end, reason? }` — `resource` is the resource id | Created slot |
 | DELETE | `/api/blocked/:id` | — | `{ ok: true }` |
 | GET | `/healthz` | — | `"ok"` (plain text, no `/api` prefix) |
 
