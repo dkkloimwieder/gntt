@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { createSignal, createMemo, For, onMount, onCleanup } from 'solid-js';
+import { createSignal, createMemo, For, onMount } from 'solid-js';
 import { createTaskStore } from '../stores/taskStore.js';
 import { Arrow } from '../components/Arrow';
 

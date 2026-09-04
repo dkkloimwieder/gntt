@@ -6,7 +6,8 @@ import { generateArrow, type ArrowPaths } from '../utils/arrowBatchPaths';
 /**
  * ArrowLayerBatched - High-performance arrow renderer using batched SVG paths.
  *
- * Trade-offs vs ArrowLayer:
+ * Trade-offs vs rendering one <Arrow> per dependency (the removed
+ * ArrowLayer approach):
  * - DOM Elements: 2 paths total (vs 2N for N arrows)
  * - Reconciliation: Single update (vs N component updates)
  * - Per-arrow styling: NO (uniform stroke/fill)

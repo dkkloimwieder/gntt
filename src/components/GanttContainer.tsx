@@ -9,53 +9,16 @@ import {
 // Throttle interval for scroll signal updates
 const SCROLL_THROTTLE_MS = 100;
 
-/** Scroll timing debug info */
-interface ScrollDebugInfo {
-    domSync: number;
-    signalUpdate: number;
-    total: number;
-    worstTotal: number;
-    callCount: number;
-}
-
-// Extend Window interface for debug object
-declare global {
-    interface Window {
-        __ganttScrollDebug: ScrollDebugInfo;
-    }
-}
-
-// Global debug object for scroll timing
-if (typeof window !== 'undefined') {
-    window.__ganttScrollDebug = {
-        domSync: 0,
-        signalUpdate: 0,
-        total: 0,
-        worstTotal: 0,
-        callCount: 0,
-    };
-}
-
-interface ScrollTiming {
-    domSync: number;
-    signalUpdate: number;
-    total: number;
-    worstTotal: number;
-}
-
 interface ContainerAPI {
     scrollTo: (x: number, smooth?: boolean) => void;
     getScrollLeft: () => number;
     getScrollTop: () => number;
     getContainerWidth: () => number;
     getContainerHeight: () => number;
-    getSvgElement: () => SVGSVGElement | undefined;
     scrollLeftSignal: Accessor<number>;
     scrollTopSignal: Accessor<number>;
     containerWidthSignal: Accessor<number>;
     containerHeightSignal: Accessor<number>;
-    scrollTimingSignal: Accessor<ScrollTiming>;
-    resetWorstTiming: () => void;
 }
 
 interface GanttContainerProps {
@@ -80,7 +43,6 @@ interface GanttContainerProps {
  */
 export function GanttContainer(props: GanttContainerProps): JSX.Element {
     let scrollAreaRef: HTMLDivElement | undefined;
-    let svgRef: SVGSVGElement | undefined;
     let dateHeadersRef: HTMLDivElement | undefined;
     let resourceBodyRef: HTMLDivElement | undefined;
 
@@ -88,14 +50,6 @@ export function GanttContainer(props: GanttContainerProps): JSX.Element {
     const [scrollTop, setScrollTop] = createSignal(0);
     const [containerWidth, setContainerWidth] = createSignal(0);
     const [viewportHeight, setViewportHeight] = createSignal(0);
-
-    // Debug timing signals for performance monitoring (setter wired in when needed)
-    const [scrollTiming] = createSignal<ScrollTiming>({
-        domSync: 0,
-        signalUpdate: 0,
-        total: 0,
-        worstTotal: 0,
-    });
 
     // Resource column width
     const resourceColumnWidth = (): number => props.resourceColumnWidth || 60;
@@ -190,15 +144,10 @@ export function GanttContainer(props: GanttContainerProps): JSX.Element {
             getScrollTop: () => scrollTop(),
             getContainerWidth: () => containerWidth(),
             getContainerHeight: () => viewportHeight(),
-            getSvgElement: () => svgRef,
             scrollLeftSignal: scrollLeft,
             scrollTopSignal: scrollTop,
             containerWidthSignal: containerWidth,
             containerHeightSignal: viewportHeight,
-            scrollTimingSignal: scrollTiming,
-            resetWorstTiming: () => {
-                // No-op - timing tracking removed for chunk-based scrolling
-            },
         });
     });
 
@@ -323,7 +272,6 @@ export function GanttContainer(props: GanttContainerProps): JSX.Element {
                 >
                     {/* SVG layer */}
                     <svg
-                        ref={svgRef}
                         class="gantt"
                         width="100%"
                         height="100%"

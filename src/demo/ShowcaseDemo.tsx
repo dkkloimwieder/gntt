@@ -3,7 +3,6 @@ import {
     createSignal,
     createMemo,
     For,
-    Show,
     onMount,
     onCleanup,
     batch,
@@ -14,7 +13,6 @@ import { Arrow } from '../components/Arrow';
 import { TaskDataPopup } from '../components/TaskDataPopup';
 import { TaskDataModal } from '../components/TaskDataModal';
 import { createTaskStore } from '../stores/taskStore.js';
-import { createGanttConfigStore } from '../stores/ganttConfigStore.js';
 import {
     resolveConstraints,
     buildRelationshipIndex,
@@ -541,12 +539,8 @@ const styles = {
 // MAIN COMPONENT
 // ============================================================================
 export default function ShowcaseDemo() {
-    // Task store and config store
+    // Task store
     const taskStore = createTaskStore();
-    const ganttConfig = createGanttConfigStore({
-        columnWidth: 45,
-        barHeight: 30,
-    });
 
     // Configuration state
     const [taskConfig, setTaskConfig] = createStore({

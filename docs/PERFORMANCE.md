@@ -21,6 +21,11 @@ This document covers performance analysis and optimizations for the SolidJS Gant
 
 ## Completed Optimizations
 
+> **Historical note**: the sections below are a record of work as it was done.
+> `src/components/ArrowLayer.tsx` (the per-arrow renderer named in sections 7,
+> 8, 10, 11 and in the file table at the end) has since been deleted — it had
+> no importer. `ArrowLayerBatched.tsx` is the only arrow layer that remains.
+
 ### 1. ScrollTo Forced Reflow Fix
 
 **Problem**: `scrollTo({ left: x, behavior: 'auto' })` triggered synchronous layout calculation (~1,900ms forced reflow).

@@ -274,7 +274,7 @@ export function Arrow(props: ArrowProps): JSX.Element {
     );
 }
 
-// Backward-compatible re-exports for existing consumers (ArrowDemo, ArrowLayer, etc.)
+// Backward-compatible re-exports for existing consumers (ArrowDemo, etc.)
 export {
     getAnchorPoint,
     autoSelectStartAnchor,

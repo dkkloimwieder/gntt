@@ -42,7 +42,7 @@ The SolidJS implementation lives in `src/` and provides reactive, fine-grained u
 | Grid & Headers | Complete | `src/components/Grid.tsx`, `DateHeaders.tsx` |
 | Resource Column | Complete | `src/components/ResourceColumn.tsx` |
 | Task Layer | Complete | `src/components/TaskLayer.tsx` |
-| Arrow Layer | Complete | `src/components/ArrowLayer.tsx` |
+| Arrow Layer | Complete | `src/components/ArrowLayerBatched.tsx` |
 | ExpandedTaskContainer | Complete | `src/components/ExpandedTaskContainer.tsx` |
 | SubtaskBar | Complete | `src/components/SubtaskBar.tsx` |
 
@@ -94,7 +94,6 @@ The library exports the following from `src/index.ts`:
 src/
 ├── components/
 │   ├── Arrow.tsx           # Dependency arrow rendering
-│   ├── ArrowLayer.tsx      # Container for all arrows
 │   ├── Bar.tsx             # Task bar with drag/resize/progress
 │   ├── DateHeaders.tsx     # Month/day headers
 │   ├── Gantt.tsx           # Main orchestrator component
@@ -538,8 +537,8 @@ const viewport = createVirtualViewport({
 
 // Returns reactive ranges:
 viewport.colRange()   // { start: 0, end: 64 } - for DateHeaders
-viewport.rowRange()   // { start: 0, end: 30 } - for Grid, TaskLayer, ArrowLayer
-viewport.xRange()     // { start: 0, end: 1800 } - for TaskLayer, ArrowLayer X filtering
+viewport.rowRange()   // { start: 0, end: 30 } - for Grid, TaskLayer, arrow layer
+viewport.xRange()     // { start: 0, end: 1800 } - for TaskLayer, arrow layer X filtering
 ```
 
 **Usage**:
@@ -1113,6 +1112,10 @@ TaskLayer.tsx / ArrowLayer.tsx
 └── <For each={visibleItems()}> - Keyed by item identity
     └── New items get new components, removed items are destroyed
 ```
+
+> **Historical note**: the per-arrow `src/components/ArrowLayer.tsx` referenced
+> above was deleted in a later cleanup (it had no importer).
+> `ArrowLayerBatched.tsx` is the only arrow layer that remains.
 
 **Key Pattern**: solid-primitives/virtual approach
 - `offset / itemSize → visible range` for viewport calculation

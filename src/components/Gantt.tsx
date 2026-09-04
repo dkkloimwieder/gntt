@@ -284,9 +284,8 @@ export function Gantt(props: GanttProps): JSX.Element {
         return typeof filter === 'function' ? tasks.filter(filter) : tasks;
     });
 
-    // Initial mount + reactive reinit on tasks / filter / collapse changes
-    onMount(() => runSetup(effectiveTasks()));
-
+    // Initial mount + reactive reinit on tasks / filter / collapse changes.
+    // This effect also covers the first run, so no separate onMount is needed.
     createEffect(() => {
         // Track all dependencies that require task reinitialization
         const tasks = effectiveTasks();
