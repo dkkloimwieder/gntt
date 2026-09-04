@@ -23,7 +23,27 @@ export {
 } from './stores/resourceStore';
 
 // Contexts
+//
+// Both context objects use an explicit `null` default rather than the
+// default-less `createContext<T>()` form, because "mounted without the
+// matching provider" is a supported state for each of them. The two hooks
+// below are the only places that translate that `null` into their own public
+// no-provider value, and those two values are the published contract:
+
+/**
+ * `useGanttEvents()` ALWAYS returns a full `GanttEventHandlers` set — never
+ * `null` or `undefined`. Outside a `<GanttEventsProvider>` it returns no-ops,
+ * so a consumer may call any handler unconditionally.
+ */
 export { GanttEventsProvider, useGanttEvents } from './contexts/GanttEvents';
+
+/**
+ * `useGanttStores()` returns `GanttStores | undefined` — `undefined`, never
+ * `null`, outside a `<GanttProvider>`, so callers can fall back to their own
+ * stores. This is the form README.md documents ("Advanced usage —
+ * `<GanttProvider>`") and the form `<Gantt>` itself depends on for the bare
+ * `<Gantt tasks={...} />` mount.
+ */
 export {
     GanttProvider,
     useGanttStores,

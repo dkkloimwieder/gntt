@@ -20,7 +20,18 @@ interface GanttEventsProviderProps {
     children: JSX.Element;
 }
 
-const GanttEventsContext = createContext<GanttEventHandlers>();
+/**
+ * Explicit `null` default, NOT a default-less
+ * `createContext<GanttEventHandlers>()`.
+ *
+ * "No provider" is a supported state: `Bar` and the demo harnesses that mount
+ * bars without a `<GanttEventsProvider>` (BarDemo, ShowcaseDemo,
+ * GanttMinimalTest, GanttPerfIsolate, GanttExperiments) rely on
+ * `useGanttEvents` handing back no-ops instead of failing. A default-less
+ * context signals absence by throwing on read, which those mounts cannot
+ * survive; a `null` default keeps absence a testable value.
+ */
+const GanttEventsContext = createContext<GanttEventHandlers | null>(null);
 
 /**
  * Provider component that wraps the Gantt chart and provides event handlers.
@@ -60,6 +71,11 @@ export function GanttEventsProvider(
 
 /**
  * Hook to access Gantt event handlers from any nested component.
+ *
+ * PUBLIC CONTRACT — always returns a fully populated handler set, never
+ * `null`/`undefined`. Outside a `<GanttEventsProvider>` the context reads as
+ * `null` and the no-op set below is returned, so consumers may call every
+ * handler unconditionally.
  */
 export function useGanttEvents(): GanttEventHandlers {
     const context = useContext(GanttEventsContext);

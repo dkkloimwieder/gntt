@@ -27,7 +27,17 @@ interface GanttProviderProps {
     children: JSX.Element;
 }
 
-const GanttStoresContext = createContext<GanttStores>();
+/**
+ * Explicit `null` default, NOT a default-less `createContext<GanttStores>()`.
+ *
+ * "No provider" is a supported, load-bearing state here: it is the bare
+ * `<Gantt tasks={...} />` form, the library's most common usage. A
+ * default-less context signals that absence by throwing on read, which would
+ * kill that form outright; a `null` default keeps it a value the caller can
+ * test. `useGanttStores` maps that `null` back to `undefined` so the public
+ * signature stays `GanttStores | undefined` (see below).
+ */
+const GanttStoresContext = createContext<GanttStores | null>(null);
 
 /**
  * Creates the four Gantt stores once and provides them via context. Useful
@@ -54,9 +64,15 @@ export function GanttProvider(props: GanttProviderProps): JSX.Element {
  * Read the four Gantt stores from a surrounding `<GanttProvider>`. Returns
  * `undefined` when called outside a provider so the caller can fall back to
  * its own store instances.
+ *
+ * PUBLIC CONTRACT — `GanttStores | undefined`, never `null`. The context's own
+ * no-provider value is `null` (see above); the `?? undefined` here is the
+ * single place that translation happens, so the documented signature
+ * (README.md, "Advanced usage — `<GanttProvider>`") and `Gantt.tsx`'s
+ * `useGanttStores() ?? { ...own stores }` both stay exactly as they are.
  */
 export function useGanttStores(): GanttStores | undefined {
-    return useContext(GanttStoresContext);
+    return useContext(GanttStoresContext) ?? undefined;
 }
 
 export default GanttStoresContext;
