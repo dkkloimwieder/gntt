@@ -1,2 +1,6 @@
+# Single source of truth for pnpm 10 build-script approval.
+# Keep this list here only — a `pnpm.onlyBuiltDependencies` block in
+# package.json silently overrides this file rather than merging with it.
 onlyBuiltDependencies:
+  - better-sqlite3
   - esbuild

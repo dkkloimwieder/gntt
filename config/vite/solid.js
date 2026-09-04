@@ -25,10 +25,9 @@ export default defineConfig({
             },
         },
     },
-    output: { interop: 'auto' },
     server: {
         watch: {
-            include: ['dist/*', 'src/**/*', 'examples/**/*']
+            include: ['dist/*', 'src/**/*', 'examples/**/*'],
         },
         // Proxy /api/* to the demo backend (Hono on :3001 — `pnpm dev:server`).
         // Same-origin from the browser's perspective, so no CORS dance.
@@ -36,7 +35,7 @@ export default defineConfig({
             '/api': {
                 target: 'http://localhost:3001',
                 changeOrigin: true,
-            }
-        }
-    }
+            },
+        },
+    },
 });

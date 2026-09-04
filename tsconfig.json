@@ -19,6 +19,12 @@
     "resolveJsonModule": true,
     "isolatedModules": true
   },
-  "include": ["src/**/*", "tests/**/*.ts", "benchmarks/constraint/**/*.ts"],
+  "include": [
+    "src/**/*",
+    "tests/**/*.ts",
+    "tests/**/*.tsx",
+    "benchmarks/constraint/**/*.ts",
+    "vitest.config.ts"
+  ],
   "exclude": ["node_modules", "dist", "dist-demo"]
 }

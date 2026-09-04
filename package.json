@@ -27,9 +27,9 @@
         "typecheck": "tsc --noEmit",
         "test": "vitest run",
         "test:watch": "vitest",
-        "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\" \"tests/**/*.ts\" \"server/**/*.ts\" \"benchmarks/constraint/**/*.ts\"",
-        "prettier": "prettier --write \"src/**/*.{js,jsx,ts,tsx}\" \"tests/**/*.ts\" \"server/**/*.ts\" \"benchmarks/constraint/**/*.ts\"",
-        "prettier-check": "prettier --check \"src/**/*.{js,jsx,ts,tsx}\" \"tests/**/*.ts\" \"server/**/*.ts\" \"benchmarks/constraint/**/*.ts\""
+        "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\" \"tests/**/*.{ts,tsx}\" \"server/**/*.ts\" \"benchmarks/constraint/**/*.ts\" \"config/vite/**/*.js\" vitest.config.ts eslint.config.mjs",
+        "prettier": "prettier --write \"src/**/*.{js,jsx,ts,tsx}\" \"tests/**/*.{ts,tsx}\" \"server/**/*.ts\" \"benchmarks/constraint/**/*.ts\" \"config/vite/**/*.js\" vitest.config.ts eslint.config.mjs",
+        "prettier-check": "prettier --check \"src/**/*.{js,jsx,ts,tsx}\" \"tests/**/*.{ts,tsx}\" \"server/**/*.ts\" \"benchmarks/constraint/**/*.ts\" \"config/vite/**/*.js\" vitest.config.ts eslint.config.mjs"
     },
     "repository": {
         "type": "git",
@@ -99,10 +99,5 @@
         "@solid-primitives/scheduled": "^1.5.3",
         "@solid-primitives/scroll": "^2.1.5",
         "solid-js": "^1.9.12"
-    },
-    "pnpm": {
-        "onlyBuiltDependencies": [
-            "better-sqlite3"
-        ]
     }
 }
