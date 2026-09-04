@@ -1,0 +1,439 @@
+---
+title: "Components and JSX"
+titleTemplate: ":title"
+mainNavExclude: true
+version: "2.0"
+---
+
+Components are reusable units that combine rendering structure with related behavior.
+They nest to form a component tree, from the application root down to individual controls.
+A component is a function that receives props and returns elements.
+
+## How JSX executes
+
+JSX keeps element structure and JavaScript expressions in the same source.
+Use curly braces to place an expression inside an element.
+Lowercase JSX names describe native elements, while names that begin with a capital letter refer to components.
+
+Solid compiles JSX into renderer operations.
+In a browser build, those operations create or claim DOM nodes and connect reactive expressions to them.
+In a server build, the same JSX source compiles to server-rendering operations.
+There is no virtual DOM value that Solid repeatedly rebuilds and compares.
+
+A component function runs when Solid mounts that component.
+Compiled JSX invokes component functions through `createComponent`, which runs the function untracked so reactive reads in the component body do not subscribe the parent computation.
+Reactive expressions created by the component track their own dependencies.
+
+```tsx
+import { createSignal } from "solid-js";
+
+function Counter() {
+	const [count, setCount] = createSignal(0);
+
+	return (
+		<button onClick={() => setCount(count() + 1)}>Count: {count()}</button>
+	);
+}
+```
+
+The component sets up its signal and returns its JSX when mounted.
+The expression `{count()}` runs in a tracking scope and updates when `count` changes.
+The event handler runs when the button is clicked.
+
+## Props
+
+Parents pass data and configuration to child components through JSX props.
+The child receives those props as one object.
+Compiled component props can use getters so an expression such as `name={selected().name}` stays reactive until the receiving component reads `props.name`.
+Read reactive props inside JSX, a memo, or an effect.
+
+```tsx
+type GreetingProps = {
+	name: string;
+	punctuation?: string;
+};
+
+function Greeting(props: GreetingProps) {
+	return (
+		<p>
+			Hello, {props.name}
+			{props.punctuation ?? "."}
+		</p>
+	);
+}
+```
+
+Reading a reactive prop into a local variable at the top level of a component captures that read outside a tracking scope.
+Solid 2.0 warns about this pattern in development, including destructuring reactive props in the parameter list.
+Keep the props object intact, or derive a local value with `createMemo` when it needs its own reactive identity.
+
+```tsx
+import { createMemo } from "solid-js";
+
+function FullName(props: { first: string; last: string }) {
+	const fullName = createMemo(() => `${props.first} ${props.last}`);
+	return <span>{fullName()}</span>;
+}
+```
+
+See the [`Component`, `ParentProps`, and `FlowProps` types](/reference/solid-js/types/component-types) for typing component contracts.
+
+## Handling events
+
+Pass a function to a camelCase event prop such as `onClick` or `onInput`.
+Solid delegates supported events through the owning render or hydration root.
+The handler runs when the browser dispatches the event, so reactive reads inside the handler use current values.
+
+```tsx
+function SaveButton(props: { onSave: () => void }) {
+	return (
+		<button type="button" onClick={() => props.onSave()}>
+			Save
+		</button>
+	);
+}
+```
+
+Use a `ref` directive with `addEventListener` when you need native listener options such as capture or passive handling.
+
+## Refs and directives
+
+A `ref` callback receives an element after Solid creates it.
+Use the callback to keep an element reference or apply behavior that needs the DOM node.
+
+```tsx
+function SearchField() {
+	let input!: HTMLInputElement;
+
+	return (
+		<>
+			<input ref={(element) => (input = element)} type="search" />
+			<button type="button" onClick={() => input.select()}>
+				Select query
+			</button>
+		</>
+	);
+}
+```
+
+Solid 2 uses ref callbacks and directive factories instead of the `use:` namespace.
+A directive factory creates owned reactive primitives during component setup and returns the callback that applies the directive to an element.
+
+Ref callbacks run untracked and without an owner.
+Do not create effects or register cleanup inside the returned callback.
+Create them in the factory, where they belong to the component owner.
+
+```tsx
+import { onSettled } from "solid-js";
+
+function listen(
+	type: string,
+	listener: EventListener,
+	options?: AddEventListenerOptions
+) {
+	let element: HTMLElement | undefined;
+
+	onSettled(() => {
+		const target = element;
+		if (!target) return;
+
+		target.addEventListener(type, listener, options);
+		return () => target.removeEventListener(type, listener, options);
+	});
+
+	return (next: HTMLElement) => {
+		element = next;
+	};
+}
+```
+
+The factory registers setup and cleanup while it has an owner.
+The returned callback only stores the element for the settled work.
+
+The `ref` prop also accepts an array.
+Solid recursively flattens the array and calls each callback in order, so separate directives can share one element.
+
+```tsx
+function autofocus(element: HTMLInputElement) {
+	element.autofocus = true;
+}
+
+function SearchField(props: { onInput: EventListener }) {
+	let input!: HTMLInputElement;
+
+	return (
+		<>
+			<input
+				type="search"
+				ref={[
+					(element) => (input = element),
+					autofocus,
+					listen("input", props.onInput, { passive: true }),
+				]}
+			/>
+			<button type="button" onClick={() => input.select()}>
+				Select query
+			</button>
+		</>
+	);
+}
+```
+
+Use a ref array to compose element access, reusable directives, and third-party integrations without creating one wrapper callback.
+Ref callback return values are ignored; register cleanup through an owned primitive such as `onSettled`.
+See the [`ref` reference](/reference/solid-web/jsx-properties/ref) for its accepted values and callback behavior.
+
+## Classes
+
+Use the `class` prop for static and conditional class names.
+Solid 2 accepts strings, objects, and nested arrays:
+
+```tsx
+function SaveButton(props: {
+	class?: string;
+	active: boolean;
+	saving: boolean;
+}) {
+	return (
+		<button
+			class={[
+				"button",
+				props.class,
+				{
+					active: props.active,
+					"saving muted": props.saving,
+				},
+			]}
+		>
+			Save
+		</button>
+	);
+}
+```
+
+- A string supplies the complete class value or one always-present array entry.
+- An object adds each key whose value is truthy.
+  A key can contain several space-separated class names.
+- An array combines strings, objects, and other arrays.
+
+Put conditional names in an object instead of constructing a string with concatenation, `filter(Boolean)`, or `join`.
+Solid can then add and remove the affected class tokens directly.
+The `classList` prop from Solid 1 is replaced by these object and array forms of `class`.
+See the [`class` reference](/reference/solid-web/jsx-properties/class) for each supported value form.
+
+## Children and composition
+
+A component accepts children only when its props type includes a `children` property.
+Use `ParentProps` for optional element children or write a specific children type for a render callback.
+
+Most wrapper components can render `props.children` directly.
+
+```tsx
+import type { ParentProps } from "solid-js";
+
+function Panel(props: ParentProps<{ title: string }>) {
+	return (
+		<section>
+			<h2>{props.title}</h2>
+			<div>{props.children}</div>
+		</section>
+	);
+}
+```
+
+Use the [`children` helper](/reference/solid-js/components-context/children) when a component must resolve, inspect, or iterate over its children.
+It returns an accessor and adds `toArray()` for iteration.
+
+```tsx
+import { children, type ParentProps } from "solid-js";
+
+function Stack(props: ParentProps) {
+	const resolved = children(() => props.children);
+	return <div class="stack">{resolved.toArray()}</div>;
+}
+```
+
+Composition can also use a function child when the parent needs to provide a value to the nested JSX.
+The control-flow components use this pattern for narrowed values and list rows.
+
+## Context
+
+Context passes a value through a component subtree without forwarding it through every intermediate component.
+Use it when a value belongs to one subtree and several descendants need that value.
+For state that is truly application-wide and does not need subtree scoping, a module-level signal or store can be simpler.
+[`createContext`](/reference/solid-js/components-context/create-context) returns a context that is also its provider component.
+[`useContext`](/reference/solid-js/components-context/use-context) reads the value associated with the current owner.
+
+```tsx
+import { createContext, useContext, type ParentProps } from "solid-js";
+
+type Theme = "light" | "dark";
+
+const ThemeContext = createContext<Theme>("light");
+
+function ThemeProvider(props: ParentProps<{ value: Theme }>) {
+	return <ThemeContext value={props.value}>{props.children}</ThemeContext>;
+}
+
+function ThemeButton() {
+	const theme = useContext(ThemeContext);
+	return <button class={theme}>Save</button>;
+}
+```
+
+When a context has a default value, `useContext` returns that value outside a matching provider.
+When it has no default, reading it outside a matching provider throws `ContextNotFoundError`.
+Providers create a scoped owner, so nested providers can replace a value for their own descendants.
+
+## Rendering lists
+
+Use [`For`](/reference/solid-js/components-jsx/for) when rows come from an array.
+Its default keyed mode reuses the mapped row for an item with the same identity.
+The callback receives the raw item and a reactive index accessor.
+
+```tsx
+import { For, createSignal } from "solid-js";
+
+type Todo = { id: number; text: string };
+
+function TodoList() {
+	const [todos] = createSignal<Todo[]>([
+		{ id: 1, text: "Read the guide" },
+		{ id: 2, text: "Build an example" },
+	]);
+
+	return (
+		<ul>
+			<For each={todos()} fallback={<li>No tasks</li>}>
+				{(todo, index) => (
+					<li>
+						{index() + 1}. {todo.text}
+					</li>
+				)}
+			</For>
+		</ul>
+	);
+}
+```
+
+Set `keyed={false}` for position-based mapping.
+That form receives an item accessor and a stable numeric index.
+Pass a key function when identity should come from part of each item; that form provides accessors for both the item and index.
+
+Use [`Repeat`](/reference/solid-js/components-jsx/repeat) for positional rendering over a store.
+`Repeat` creates rows from a numeric range instead of diffing an array or item identities.
+Each row reads its store position directly, so a store update can notify only the expressions that read the changed properties.
+
+Set `from` and `count` to render a sliding window without creating a sliced array.
+When the window moves, `Repeat` preserves rows whose indexes remain in range, disposes rows that leave it, and creates rows for the new indexes.
+
+```tsx
+import { Repeat, createSignal, createStore } from "solid-js";
+
+function ActivityLog() {
+	const [rows] = createStore(
+		Array.from({ length: 1_000 }, (_, id) => ({
+			id,
+			message: `Activity ${id}`,
+		}))
+	);
+	const [from, setFrom] = createSignal(0);
+	const size = 20;
+
+	return (
+		<>
+			<button
+				onClick={() =>
+					setFrom((index) => Math.min(index + 1, rows.length - size))
+				}
+			>
+				Next
+			</button>
+			<ul>
+				<Repeat from={from()} count={Math.min(size, rows.length - from())}>
+					{(index) => <li>{rows[index].message}</li>}
+				</Repeat>
+			</ul>
+		</>
+	);
+}
+```
+
+## Conditional content
+
+[`Show`](/reference/solid-js/components-jsx/show) renders its children when `when` is truthy and renders `fallback` otherwise.
+Its default function-child form receives an accessor for the narrowed value and preserves the child while `when` remains truthy.
+
+```tsx
+import { Show, createSignal } from "solid-js";
+
+type User = { name: string };
+
+function Account() {
+	const [user] = createSignal<User | undefined>({ name: "Ada" });
+
+	return (
+		<Show when={user()} fallback={<a href="/sign-in">Sign in</a>}>
+			{(current) => <p>Signed in as {current().name}</p>}
+		</Show>
+	);
+}
+```
+
+With `keyed`, the callback receives the raw narrowed value and the child remounts when that value changes identity.
+
+Use [`Switch` and `Match`](/reference/solid-js/components-jsx/switch-and-match) when several conditions are mutually exclusive.
+`Switch` renders the first truthy `Match`, or its fallback when none match.
+Function children follow the same keyed and non-keyed value rules as `Show`.
+
+```tsx
+import { Match, Switch } from "solid-js";
+
+function Status(props: { code: number }) {
+	return (
+		<Switch fallback={<p>Unknown status</p>}>
+			<Match when={props.code === 200}>
+				<p>Ready</p>
+			</Match>
+			<Match when={props.code === 404}>
+				<p>Not found</p>
+			</Match>
+		</Switch>
+	);
+}
+```
+
+## Dynamic components
+
+Import `dynamic` from `@solidjs/web`.
+`dynamic()` is the canonical API for selecting a component or native element from a reactive source.
+It returns a stable component reference that forwards props and children.
+
+```tsx
+import { createSignal, type Component } from "solid-js";
+import { dynamic } from "@solidjs/web";
+
+const Compact: Component<{ value: string }> = (props) => (
+	<span>{props.value}</span>
+);
+const Detailed: Component<{ value: string }> = (props) => (
+	<strong>{props.value}</strong>
+);
+
+const [detailed, setDetailed] = createSignal(false);
+const Result = dynamic(() => (detailed() ? Detailed : Compact));
+
+export function Preview() {
+	return (
+		<>
+			<button onClick={() => setDetailed((value) => !value)}>
+				Toggle detail
+			</button>
+			<Result value="Current result" />
+		</>
+	);
+}
+```
+
+The source may also resolve to a native tag name or an async component.
+See the [`dynamic()` reference](/reference/solid-web/components/dynamic).
