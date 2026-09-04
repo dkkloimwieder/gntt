@@ -1,15 +1,11 @@
 // @ts-nocheck
-import {
-    createSignal,
-    createMemo,
-    onMount,
-    onCleanup,
-    Index,
-    For,
-    Show,
-    batch,
-} from 'solid-js';
+import { createSignal, createMemo, Index, For, Show, batch } from 'solid-js';
 import { createStore, produce } from 'solid-js/store';
+import {
+    useDemoMount,
+    useRafLoop,
+    useViewportSize,
+} from './shared/demoLifecycle';
 import calendarData from '../data/generated/calendar.json';
 import constraintTestData from '../data/fixtures/constraint-test.json';
 import topologyBreadthData from '../data/generated/topology-breadth.json';
@@ -1482,8 +1478,28 @@ export function GanttPerfIsolate() {
     const mockResourceStore = { displayResources: () => resources };
     const mockGanttConfig = { barHeight: () => ROW_HEIGHT, padding: () => GAP };
 
-    const [viewportWidth, setViewportWidth] = createSignal(1200);
-    const [viewportHeight, setViewportHeight] = createSignal(800);
+    let containerRef;
+    let scrollerRef;
+
+    const [viewportWidth, viewportHeight] = useViewportSize(
+        () => containerRef,
+        {
+            // The harness listens to window resize only; no ResizeObserver.
+            observe: () => null,
+            measure: (el) => ({
+                width: el.clientWidth,
+                height: el.clientHeight - 40, // minus header
+            }),
+            // The harness has no ResizeObserver, so it needs the listener.
+            windowResize: true,
+            // Trigger arrow re-render when viewport changes (hourWidth changes)
+            onMeasure: () => {
+                setPositionVersion((v) => v + 1);
+            },
+            initialWidth: 1200,
+            initialHeight: 800,
+        },
+    );
     const [scrollX, setScrollX] = createSignal(0);
     const [scrollY, setScrollY] = createSignal(0);
 
@@ -1752,22 +1768,10 @@ export function GanttPerfIsolate() {
         return visibleDayRange();
     });
 
-    let containerRef;
-    let scrollerRef;
+    const autoScrollLoop = useRafLoop();
 
-    onMount(() => {
-        const updateSize = () => {
-            if (containerRef) {
-                setViewportWidth(containerRef.clientWidth);
-                setViewportHeight(containerRef.clientHeight - 40); // minus header
-                // Trigger arrow re-render when viewport changes (hourWidth changes)
-                setPositionVersion((v) => v + 1);
-            }
-        };
-        updateSize();
-        window.addEventListener('resize', updateSize);
-        onCleanup(() => window.removeEventListener('resize', updateSize));
-
+    // Viewport tracking lives in useViewportSize above.
+    useDemoMount(() => {
         // Auto-scroll test - bounce back and forth
         if (autoTest && scrollerRef) {
             let currentH = 0;
@@ -1801,9 +1805,8 @@ export function GanttPerfIsolate() {
                     }
                     scrollerRef.scrollTop = currentV;
                 }
-                requestAnimationFrame(tick);
             };
-            requestAnimationFrame(tick);
+            autoScrollLoop.start(tick);
         }
     });
 

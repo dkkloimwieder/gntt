@@ -1,6 +1,12 @@
 // @ts-nocheck
-import { createSignal, createMemo, onMount, onCleanup, Index } from 'solid-js';
+import { createSignal, createMemo, Index } from 'solid-js';
 import { createStore } from 'solid-js/store';
+import {
+    createLatch,
+    useDemoMount,
+    useRafLoop,
+    useViewportSize,
+} from './shared/demoLifecycle';
 import calendarData from '../data/generated/calendar.json';
 import { useGanttEvents, GanttEventsProvider } from '../contexts/GanttEvents';
 import { useDrag } from '../hooks/useDrag.js';
@@ -269,9 +275,18 @@ export function GanttMinimalTest() {
     const [tasks] = createStore(initialTasks);
     const allTaskIds = Object.keys(tasks);
 
+    let containerRef;
+
     // Viewport size (updated on mount and resize)
-    const [viewportWidth, setViewportWidth] = createSignal(1200);
-    const [viewportHeight, setViewportHeight] = createSignal(800);
+    const [viewportWidth, viewportHeight] = useViewportSize(
+        () => containerRef?.querySelector('.gantt-scroll-area'),
+        {
+            observe: () => containerRef,
+            initialDelay: 100,
+            initialWidth: 1200,
+            initialHeight: 800,
+        },
+    );
 
     // Calculate visible cols/rows from viewport size + overscan
     const visibleCols = createMemo(
@@ -324,20 +339,20 @@ export function GanttMinimalTest() {
     const [fps, setFps] = createSignal(0);
     const [worstFrame, setWorstFrame] = createSignal(0);
     const [avgFrame, setAvgFrame] = createSignal(0);
-    const [running, setRunning] = createSignal(false);
+    const [running, setRunning, isRunning] = createLatch();
     let frameTimes = [];
     let frameCount = 0;
     let lastFpsUpdate = performance.now();
     let lastFrameTime = performance.now();
     let scrollRef;
-    let containerRef;
 
     // Stress test modes: 'vertical' | 'horizontal' | 'both'
     const [testMode, setTestMode] = createSignal(null);
     let stressAbort = null;
+    const stressLoop = useRafLoop();
 
     const runStressTest = (mode) => {
-        if (running()) {
+        if (isRunning()) {
             if (stressAbort) stressAbort.abort = true;
             setRunning(false);
             setTestMode(null);
@@ -364,7 +379,7 @@ export function GanttMinimalTest() {
                     worst: worstFrame(),
                     avg: avgFrame(),
                 });
-                return;
+                return false;
             }
 
             const scrollArea =
@@ -402,9 +417,8 @@ export function GanttMinimalTest() {
                     scrollArea.scrollLeft = currentScrollH;
                 }
             }
-            requestAnimationFrame(tick);
         };
-        requestAnimationFrame(tick);
+        stressLoop.start(tick);
     };
 
     const stopTest = () => {
@@ -413,59 +427,35 @@ export function GanttMinimalTest() {
         setTestMode(null);
     };
 
-    // FPS counter + viewport tracking
-    onMount(() => {
-        // Track viewport size
-        const updateViewport = () => {
-            if (containerRef) {
-                const scrollArea =
-                    containerRef.querySelector('.gantt-scroll-area');
-                if (scrollArea) {
-                    setViewportWidth(scrollArea.clientWidth);
-                    setViewportHeight(scrollArea.clientHeight);
-                }
-            }
-        };
-
-        // Initial size
-        setTimeout(updateViewport, 100);
-
-        // Resize observer
-        const resizeObserver = new ResizeObserver(updateViewport);
-        if (containerRef) {
-            resizeObserver.observe(containerRef);
+    // FPS measurement (viewport tracking lives in useViewportSize above)
+    const fpsLoop = useRafLoop((timestamp) => {
+        frameCount++;
+        const frameTime = timestamp - lastFrameTime;
+        lastFrameTime = timestamp;
+        if (running() && frameTime < 500) {
+            frameTimes.push(frameTime);
         }
+        if (frameTimes.length > 60) frameTimes.shift();
 
-        onCleanup(() => resizeObserver.disconnect());
-
-        // FPS measurement
-        const measureFrame = (timestamp) => {
-            frameCount++;
-            const frameTime = timestamp - lastFrameTime;
-            lastFrameTime = timestamp;
-            if (running() && frameTime < 500) {
-                frameTimes.push(frameTime);
+        const elapsed = timestamp - lastFpsUpdate;
+        if (elapsed >= 1000) {
+            setFps(Math.round((frameCount * 1000) / elapsed));
+            frameCount = 0;
+            lastFpsUpdate = timestamp;
+            if (frameTimes.length > 0) {
+                setWorstFrame(Math.max(...frameTimes).toFixed(1));
+                setAvgFrame(
+                    (
+                        frameTimes.reduce((a, b) => a + b, 0) /
+                        frameTimes.length
+                    ).toFixed(1),
+                );
             }
-            if (frameTimes.length > 60) frameTimes.shift();
+        }
+    });
 
-            const elapsed = timestamp - lastFpsUpdate;
-            if (elapsed >= 1000) {
-                setFps(Math.round((frameCount * 1000) / elapsed));
-                frameCount = 0;
-                lastFpsUpdate = timestamp;
-                if (frameTimes.length > 0) {
-                    setWorstFrame(Math.max(...frameTimes).toFixed(1));
-                    setAvgFrame(
-                        (
-                            frameTimes.reduce((a, b) => a + b, 0) /
-                            frameTimes.length
-                        ).toFixed(1),
-                    );
-                }
-            }
-            requestAnimationFrame(measureFrame);
-        };
-        requestAnimationFrame(measureFrame);
+    useDemoMount(() => {
+        fpsLoop.start();
     });
 
     const fpsColor = () =>

@@ -1,14 +1,13 @@
 // @ts-nocheck
-import {
-    createSignal,
-    createMemo,
-    onMount,
-    onCleanup,
-    Index,
-    untrack,
-} from 'solid-js';
+import { createSignal, createMemo, Index, untrack } from 'solid-js';
 import { Dynamic } from 'solid-js/web';
 import { createStore } from 'solid-js/store';
+import {
+    createLatch,
+    useDemoMount,
+    useRafLoop,
+    useViewportSize,
+} from './shared/demoLifecycle';
 import calendarData from '../data/generated/calendar.json';
 import { useGanttEvents, GanttEventsProvider } from '../contexts/GanttEvents';
 import { useDrag } from '../hooks/useDrag.js';
@@ -562,8 +561,17 @@ export function GanttExperiments() {
     const [barVariant, setBarVariant] = createSignal(initialVariant);
     const [virtMode, setVirtMode] = createSignal(initialVirt);
 
-    const [viewportWidth, setViewportWidth] = createSignal(1200);
-    const [viewportHeight, setViewportHeight] = createSignal(800);
+    let containerRef;
+
+    const [viewportWidth, viewportHeight] = useViewportSize(
+        () => containerRef?.querySelector('.gantt-scroll-area'),
+        {
+            observe: () => containerRef,
+            initialDelay: 100,
+            initialWidth: 1200,
+            initialHeight: 800,
+        },
+    );
 
     // Scroll position in pixels
     const [scrollX, setScrollX] = createSignal(0);
@@ -889,13 +897,13 @@ export function GanttExperiments() {
         return visibleTasksCombined();
     };
 
-    let containerRef;
     let stressAbort = null;
-    const [running, setRunning] = createSignal(false);
+    const [running, setRunning, isRunning] = createLatch();
     const [testMode, setTestMode] = createSignal(null);
+    const stressLoop = useRafLoop();
 
     const runStressTest = (mode) => {
-        if (running()) {
+        if (isRunning()) {
             if (stressAbort) stressAbort.abort = true;
             setRunning(false);
             setTestMode(null);
@@ -928,7 +936,7 @@ export function GanttExperiments() {
             if (controller.abort || performance.now() - startTime > duration) {
                 setRunning(false);
                 setTestMode(null);
-                return;
+                return false;
             }
 
             if (scrollArea) {
@@ -956,31 +964,17 @@ export function GanttExperiments() {
                     scrollArea.scrollLeft = currentScrollH;
                 }
             }
-            requestAnimationFrame(tick);
         };
-        requestAnimationFrame(tick);
+        stressLoop.start(tick);
     };
 
-    onMount(() => {
-        const updateViewport = () => {
-            if (containerRef) {
-                const scrollArea =
-                    containerRef.querySelector('.gantt-scroll-area');
-                if (scrollArea) {
-                    setViewportWidth(scrollArea.clientWidth);
-                    setViewportHeight(scrollArea.clientHeight);
-                }
-            }
-        };
-        setTimeout(updateViewport, 100);
-        const resizeObserver = new ResizeObserver(updateViewport);
-        if (containerRef) resizeObserver.observe(containerRef);
-        onCleanup(() => resizeObserver.disconnect());
-
-        // Auto-start test if URL param provided
-        if (autoTest && ['vertical', 'horizontal', 'both'].includes(autoTest)) {
-            setTimeout(() => runStressTest(autoTest), 500);
-        }
+    // Auto-start test if URL param provided (viewport tracking lives in
+    // useViewportSize above)
+    useDemoMount(() => {
+        if (!autoTest || !['vertical', 'horizontal', 'both'].includes(autoTest))
+            return;
+        const autoStart = setTimeout(() => runStressTest(autoTest), 500);
+        return () => clearTimeout(autoStart);
     });
 
     const BarComponent = () => BAR_VARIANTS[barVariant()] || TestBarBaseline;

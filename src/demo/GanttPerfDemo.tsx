@@ -1,6 +1,7 @@
 // @ts-nocheck
-import { createSignal, createMemo, onMount, onCleanup } from 'solid-js';
+import { createSignal, createMemo } from 'solid-js';
 import { createRAF } from '@solid-primitives/raf';
+import { createLatch, useDemoMount, useRafLoop } from './shared/demoLifecycle';
 import { Gantt } from '../components/Gantt';
 import calendarData from '../data/generated/calendar.json';
 import {
@@ -31,9 +32,13 @@ export function GanttPerfDemo() {
     const [avgFrameTime, setAvgFrameTime] = createSignal(0);
 
     // Stress test state
-    const [stressTestRunning, setStressTestRunning] = createSignal(false);
-    const [verticalStressTestRunning, setVerticalStressTestRunning] =
-        createSignal(false);
+    const [stressTestRunning, setStressTestRunning, isStressTestRunning] =
+        createLatch();
+    const [
+        verticalStressTestRunning,
+        setVerticalStressTestRunning,
+        isVerticalStressTestRunning,
+    ] = createLatch();
     const [scrollEventsPerSec, setScrollEventsPerSec] = createSignal(0);
 
     // Buffer controls for testing virtualization tradeoffs
@@ -43,7 +48,8 @@ export function GanttPerfDemo() {
     const [heapSize, setHeapSize] = createSignal(null);
 
     // Advanced perf tracking
-    const [benchmarkRunning, setBenchmarkRunning] = createSignal(false);
+    const [benchmarkRunning, setBenchmarkRunning, isBenchmarkRunning] =
+        createLatch();
     const [lastBenchmarkResult, setLastBenchmarkResult] = createSignal(null);
     const [arrowRenderer, setArrowRenderer] = createSignal('batched');
     // Render mode: 'simple' (flat tasks, static heights) or 'detailed' (hierarchy, subtasks)
@@ -106,8 +112,9 @@ export function GanttPerfDemo() {
 
     // Horizontal scroll stress test
     let stressTestAbort = null;
+    const stressLoop = useRafLoop();
     const runScrollStressTest = () => {
-        if (stressTestRunning()) {
+        if (isStressTestRunning()) {
             if (stressTestAbort) stressTestAbort.abort = true;
             setStressTestRunning(false);
             return;
@@ -135,7 +142,7 @@ export function GanttPerfDemo() {
                     worst: worstFrameTime(),
                     avg: avgFrameTime(),
                 });
-                return;
+                return false;
             }
 
             const deltaX = direction * 200;
@@ -147,18 +154,17 @@ export function GanttPerfDemo() {
                 direction = -1;
             else if (scrollPos < 500) direction = 1;
             scrollArea.scrollLeft = scrollPos;
-
-            // Use RAF for vsync-aligned updates (eliminates tearing)
-            requestAnimationFrame(fireScrollEvent);
         };
 
-        requestAnimationFrame(fireScrollEvent);
+        // Use RAF for vsync-aligned updates (eliminates tearing)
+        stressLoop.start(fireScrollEvent);
     };
 
     // Vertical scroll stress test
     let verticalStressTestAbort = null;
+    const verticalStressLoop = useRafLoop();
     const runVerticalScrollStressTest = () => {
-        if (verticalStressTestRunning()) {
+        if (isVerticalStressTestRunning()) {
             if (verticalStressTestAbort) verticalStressTestAbort.abort = true;
             setVerticalStressTestRunning(false);
             return;
@@ -186,7 +192,7 @@ export function GanttPerfDemo() {
                     worst: worstFrameTime(),
                     avg: avgFrameTime(),
                 });
-                return;
+                return false;
             }
 
             const deltaY = direction * 100;
@@ -198,17 +204,15 @@ export function GanttPerfDemo() {
                 direction = -1;
             else if (scrollPos < 200) direction = 1;
             scrollArea.scrollTop = scrollPos;
-
-            // Use RAF for vsync-aligned updates (eliminates tearing)
-            requestAnimationFrame(fireScrollEvent);
         };
 
-        requestAnimationFrame(fireScrollEvent);
+        // Use RAF for vsync-aligned updates (eliminates tearing)
+        verticalStressLoop.start(fireScrollEvent);
     };
 
     // Advanced benchmark: Start collecting detailed metrics
     const startBenchmark = () => {
-        if (benchmarkRunning()) {
+        if (isBenchmarkRunning()) {
             stopBenchmark();
             return;
         }
@@ -224,7 +228,7 @@ export function GanttPerfDemo() {
 
     // Stop and collect results
     const stopBenchmark = () => {
-        if (!benchmarkRunning()) return;
+        if (!isBenchmarkRunning()) return;
 
         frameTracker?.stopTracking();
         stopMemoTracking();
@@ -266,22 +270,17 @@ export function GanttPerfDemo() {
     };
 
     // Track scroll events and log perf stats
-    onMount(() => {
+    useDemoMount(() => {
         const scrollArea = document.querySelector('.gantt-scroll-area');
-        if (scrollArea) {
-            const trackScroll = () => scrollEventCount++;
-            scrollArea.addEventListener('scroll', trackScroll, {
-                passive: true,
-            });
-            onCleanup(() =>
-                scrollArea.removeEventListener('scroll', trackScroll),
-            );
-        }
+        const trackScroll = () => scrollEventCount++;
+        scrollArea?.addEventListener('scroll', trackScroll, {
+            passive: true,
+        });
 
         // Perf stats logger - logs every 2 seconds during stress test
         let lastLogTime = 0;
         const logInterval = setInterval(() => {
-            if (stressTestRunning() || verticalStressTestRunning()) {
+            if (isStressTestRunning() || isVerticalStressTestRunning()) {
                 const now = performance.now();
                 if (now - lastLogTime > 2000) {
                     lastLogTime = now;
@@ -295,7 +294,11 @@ export function GanttPerfDemo() {
                 }
             }
         }, 500);
-        onCleanup(() => clearInterval(logInterval));
+
+        return () => {
+            scrollArea?.removeEventListener('scroll', trackScroll);
+            clearInterval(logInterval);
+        };
     });
 
     // Gantt options
@@ -331,7 +334,7 @@ export function GanttPerfDemo() {
         });
     };
 
-    onMount(() => {
+    useDemoMount(() => {
         loadTasks();
         startFpsCounter();
     });

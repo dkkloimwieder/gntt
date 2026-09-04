@@ -1,5 +1,6 @@
 // @ts-nocheck
-import { createSignal, createMemo, onMount, onCleanup, Show } from 'solid-js';
+import { createSignal, createMemo, Show } from 'solid-js';
+import { createLatch, useDemoMount, useRafLoop } from './shared/demoLifecycle';
 import { Gantt } from '../components/Gantt';
 import calendarData from '../data/generated/calendar.json';
 import {
@@ -22,7 +23,7 @@ import * as ArrowModule from '../components/Arrow';
  */
 export function GanttProfiler() {
     const [tasks, setTasks] = createSignal([]);
-    const [recording, setRecording] = createSignal(false);
+    const [recording, setRecording, isRecording] = createLatch();
     const [analysisText, setAnalysisText] = createSignal('');
     const [callTreeText, setCallTreeText] = createSignal('');
     const [viewMode, setViewMode] = createSignal('Hour');
@@ -35,7 +36,6 @@ export function GanttProfiler() {
     let instrumentedStore = false;
     let scrollEventCount = 0;
     let rafCount = 0;
-    let rafId = null;
 
     // Instrument the taskStore methods after Gantt mounts
     const instrumentStore = () => {
@@ -72,6 +72,8 @@ export function GanttProfiler() {
         }
     };
 
+    const frameLoop = useRafLoop();
+
     // Start profiling
     const startProfile = () => {
         clearRecording();
@@ -83,13 +85,11 @@ export function GanttProfiler() {
         setRecording(true);
 
         // Track frames
-        const countFrames = () => {
-            if (!recording()) return;
+        frameLoop.start(() => {
+            if (!isRecording()) return false;
             rafCount++;
             setFrameCount(rafCount);
-            rafId = requestAnimationFrame(countFrames);
-        };
-        rafId = requestAnimationFrame(countFrames);
+        });
 
         console.log('Profiling started - scroll the chart then click Stop');
     };
@@ -98,7 +98,7 @@ export function GanttProfiler() {
     const stopProfile = () => {
         stopRecording();
         setRecording(false);
-        if (rafId) cancelAnimationFrame(rafId);
+        frameLoop.stop();
 
         setScrollEvents(scrollEventCount);
 
@@ -162,20 +162,22 @@ export function GanttProfiler() {
     };
 
     // Track scroll events
-    onMount(() => {
+    useDemoMount(() => {
         setTasks(calendarData.tasks);
 
         // Wait for Gantt to render then instrument
-        setTimeout(instrumentStore, 500);
+        const instrumentTimer = setTimeout(instrumentStore, 500);
 
         const scrollArea = document.querySelector('.gantt-scroll-area');
-        if (scrollArea) {
-            const onScroll = () => {
-                if (recording()) scrollEventCount++;
-            };
-            scrollArea.addEventListener('scroll', onScroll, { passive: true });
-            onCleanup(() => scrollArea.removeEventListener('scroll', onScroll));
-        }
+        const onScroll = () => {
+            if (isRecording()) scrollEventCount++;
+        };
+        scrollArea?.addEventListener('scroll', onScroll, { passive: true });
+
+        return () => {
+            clearTimeout(instrumentTimer);
+            scrollArea?.removeEventListener('scroll', onScroll);
+        };
     });
 
     const options = createMemo(() => ({

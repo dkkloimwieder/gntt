@@ -15,6 +15,7 @@ import { createStore } from 'solid-js/store';
 import { createRAF } from '@solid-primitives/raf';
 import calendarData from '../data/generated/calendar.json';
 import { useDrag } from '../hooks/useDrag';
+import { createLatch } from '../demo/shared/demoLifecycle';
 
 // Mock context (like GanttEvents in real app)
 const TestEventsContext = createContext({
@@ -1854,7 +1855,7 @@ function IndexTestDemo() {
     });
 
     // Test controls
-    const [running, setRunning] = createSignal(false);
+    const [running, setRunning, isRunning] = createLatch();
     const [variant, setVariant] = createSignal('minimal');
     const [showArrows, setShowArrows] = createSignal(false);
     const [realScrollMode, setRealScrollMode] = createSignal(false);
@@ -1944,7 +1945,7 @@ function IndexTestDemo() {
     };
 
     const startTest = () => {
-        if (running()) {
+        if (isRunning()) {
             stopTest();
             return;
         }
@@ -1994,6 +1995,7 @@ function IndexTestDemo() {
 
     onCleanup(() => {
         if (intervalId) clearInterval(intervalId);
+        if (scrollAnimId) cancelAnimationFrame(scrollAnimId);
     });
 
     // Stats color helpers
