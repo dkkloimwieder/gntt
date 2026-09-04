@@ -135,6 +135,7 @@ Gate: per-commit gate + dev smoke (gantt.html first paint, view-mode switch, dra
 - **E2.10** `bug` P0 S — **Contexts with null defaults.** `GanttStores.tsx:30` and `GanttEvents.tsx:23` → `createContext<T | null>(null)`; `useGanttStores` returns `useContext(Ctx) ?? undefined` (public type unchanged); `useGanttEvents` keeps the no-op fallback; `index.ts:26/29` contracts documented. Harmless on 1.9. Deps: none.
 - **E2.11** `task` P1 S — **Proxy hygiene.** `ColumnPanel.tsx:202/211`: row-level `createMemo` + inline cell expression (fixes the pre-existing non-reactive cells); document `ColumnDef.render` purity; `SummaryBar.tsx:63` reads leaves instead of memoising the `_bar` proxy; `useGanttModals.ts:47/52/57/62` return plain copies (`{...task}`; `snapshot` after the flip) and `equals` on x/y/width for the position memos; `ShowcaseDemo.tsx:595-606` same. Deps: E2.3.
 - **E2.12** `bug` P1 L — **Demos with the same defect (config written then re-read to mirror).** ShowcaseDemo: `updateTaskA/B(patch)` explicit patches from the seven handlers (:1084-1217, :1775), `applyPreset` as one draft write per task (:807-875), `handleResizeEnd(taskId, geom)` (:910); ConstraintDemo: `updateTasks(key)` explicit + `resolveMovement` as a pure planner over a local `Map<id,{x,y}>` applied once (:90-275, :777); GanttPerfIsolate: cascade overlay before the write (:1645-1648), mount `GanttEventsProvider` unconditionally (:2086); DbDemo: consume the `onDateChange` geometry payload (or `flush()` first — legal in the handler), record `{x,width}` used per patch and re-base from them (:195-242), functional `TaskForm` updaters (:254/:257/:263/:266), `untrack` the top-level read at `TaskForm.tsx:200`; `BarDemo.tsx:199` → `setTaskProgress`, :462 thunks. Strip `@ts-nocheck` from Showcase/Constraint/Db files (D8). Deps: E2.7, E2.11.
+- **E2.13** `bug` P0 S — **ArrowLayerBatched real dependencies, BEFORE E2.3.** *(Added 2026-09-04 during execution, from measured probes in the E1 scout wave — not in the original tree.)* `ArrowLayerBatched.tsx` works today only **by accident**: `taskCount()` (:95-99) does a non-`untrack`ed `Object.keys(store.tasks)` and so subscribes to the store root, and today's `updateBarPosition` replaces the whole task object, so `setProperty` notifies the root and `spatialIndex` re-runs. The per-arrow position reads at :139-141 are `untrack`ed and `props.positionVersion` is `void`ed, so neither contributes a dependency. The moment **E2.3** switches to leaf mutation that edge disappears and arrows silently stop following drags — on `main`, on 1.9, before any flip; the shipped `Gantt` mounts no arrow layer, so nothing surfaces it until E5.3. Do the 1.9-compatible half of E4.4 first: drop the `untrack` at :139-140, drop `void props.positionVersion` at :123, move the module caches (:70-72) into component/memo state. Leaves for E4.4: removing the `positionVersion` prop and the `triggerArrowUpdate` protocol from `GanttPerfIsolate.tsx:1529/:1587`, the `Arrow.tsx` re-benchmark, and un-skipping E1.7. Deps: E1.3. **Blocks E2.3.**
 
 ### E3 — The flip (branch `solid-2`) — P0
 
@@ -182,7 +183,7 @@ Gate: `pnpm build:demo` green; every page in the matrix opened with the console 
 
 ## Sequencing and critical path
 
-E0.1 → E0.2 → E0.3 → E0.4 → E0.5 → E1.1..E1.6 → E2.1 → E2.2 → E2.3 → E2.4 → E2.6 → E2.7 → E2.9 → E2.12 → **E3.0 → E3.1 → E3.2** → E4.2 → E4.1 → E4.3 → E4.6 → E5.3 → E6.1 → E6.2 → E7.5.
+E0.1 → E0.2 → E0.3 → E0.4 → E0.5 → E1.1..E1.6 → E2.1 → E2.2 → E2.13 → E2.3 → E2.4 → E2.6 → E2.7 → E2.9 → E2.12 → **E3.0 → E3.1 → E3.2** → E4.2 → E4.1 → E4.3 → E4.6 → E5.3 → E6.1 → E6.2 → E7.5.
 Parallel after E0: E0.6/E0.7; E1.x among themselves; E2.5/E2.8/E2.10/E2.11 alongside E2.6/E2.7; after E4.2: E4.4/E4.5/E4.7/E4.8, E5.1/E5.2, E7.2/E7.4.
 
 Why this order: the two fail-closed defects (blank first paint, persisted stale geometry) are data-flow shapes, not syntax, so they are fixed on 1.9 where the synchronous runtime and the existing suite verify them; the flip then becomes mechanical and bisectable; characterization tests written before the flip turn the flip's test summary into a named regression list; docs rules land first because executing agents need them while doing E2–E4.
@@ -237,6 +238,7 @@ Regenerate/extend with `python3 docs/migration/solid2/beads-spec.py` (idempotent
 | E2.10 | `gantt-b4m.10` |
 | E2.11 | `gantt-b4m.11` |
 | E2.12 | `gantt-b4m.12` |
+| E2.13 | `gantt-b4m.13` |
 | E3 | `gantt-5rc` |
 | E3.0 | `gantt-5rc.1` |
 | E3.1 | `gantt-5rc.2` |
