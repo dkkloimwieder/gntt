@@ -1,4 +1,4 @@
-import { createMemo, untrack, For, JSX } from 'solid-js';
+import { createMemo, For, JSX } from 'solid-js';
 import type { TaskStore } from '../stores/taskStore';
 import type { Relationship, BarPosition, DependencyType } from '../types';
 import { generateArrow, type ArrowPaths } from '../utils/arrowBatchPaths';
@@ -21,6 +21,16 @@ import { generateArrow, type ArrowPaths } from '../utils/arrowBatchPaths';
  *
  * Path generation lives in src/utils/arrowBatchPaths.ts (right-angle
  * lines, chevron-only heads — see that file for the perf trade-offs).
+ *
+ * DEPENDENCIES. `spatialIndex` reads every drawn position through
+ * `taskStore.getBarPosition` WITHOUT `untrack`, so whatever that reader
+ * touches — store leaves, a scale signal — is a real dependency and a
+ * moved bar repaints its arrows on its own. Scroll/viewport props
+ * (`startRow`/`endRow`/`startX`/`endX`) are read by `batchedPaths` only,
+ * so scrolling never rebuilds the index. Neither memo keeps mutable state
+ * outside itself: the per-arrow path cache rides on the index generation
+ * that produced it and the visible-set diff rides on `batchedPaths`' own
+ * `prev`, so two mounted instances cannot hand each other stale paths.
  */
 
 interface ArrowConfig {
@@ -38,6 +48,13 @@ interface ArrowLayerBatchedProps {
     endRow?: number;
     startX?: number;
     endX?: number;
+    /**
+     * Vestigial. The layer used to declare its position dependency by
+     * `void`ing this counter and reading every position untracked; it now
+     * subscribes to the positions themselves, so nothing reads this and
+     * bumping it repaints nothing. Kept only so the one caller
+     * (`GanttPerfIsolate`) still typechecks — E4.4 removes both.
+     */
     positionVersion?: number;
     arrowConfig?: ArrowConfig;
 }
@@ -58,6 +75,30 @@ interface StyleGroup {
     stroke?: string;
 }
 
+/**
+ * One generation of the spatial index. `pathCache` is carried BY the
+ * generation rather than kept in a mutable module variable: a rebuild
+ * hands out a fresh empty map, which is what invalidates the per-arrow
+ * paths, and two mounted instances can never share one.
+ */
+interface SpatialIndex {
+    index: Map<number, Set<number>>;
+    positions: Map<number, CachedPosition>;
+    pathCache: Map<number, ArrowPaths>;
+}
+
+/**
+ * `batchedPaths`' memoised output plus the state its reuse check needs:
+ * the index generation it was computed from and the visible relationship
+ * set it covers. Kept in the memo's own `prev` value so nothing outside
+ * the component can observe or corrupt it.
+ */
+interface BatchedPaths {
+    source: SpatialIndex;
+    visible: Set<number>;
+    groups: StyleGroup[];
+}
+
 const DEFAULTS = {
     CURVE_RADIUS: 5,
     HEAD_SIZE: 5,
@@ -65,12 +106,6 @@ const DEFAULTS = {
     STROKE_WIDTH: 1.4,
     STROKE_OPACITY: 1,
 };
-
-// Module-level caches: persist across renders so re-mounting the
-// component doesn't pay the full rebuild cost.
-let arrowPathCache = new Map<number, ArrowPaths>();
-let cachedResult: StyleGroup[] = [];
-let lastVisibleSet = new Set<number>();
 
 export function ArrowLayerBatched(props: ArrowLayerBatchedProps): JSX.Element {
     const curve = (): number =>
@@ -100,33 +135,26 @@ export function ArrowLayerBatched(props: ArrowLayerBatchedProps): JSX.Element {
 
     /**
      * SPATIAL INDEX: Map row → Set<relationship indices>
-     * Rebuilt when relationships change or task count changes (positions ready).
+     * Rebuilt when relationships change, when the task count changes
+     * (positions ready) or when any position this layer draws moves.
      * Enables O(visible_rows) lookup instead of O(total_arrows) iteration.
      */
-    const spatialIndex = createMemo(() => {
-        const empty = {
+    const spatialIndex = createMemo((): SpatialIndex => {
+        const empty = (): SpatialIndex => ({
             index: new Map<number, Set<number>>(),
             positions: new Map<number, CachedPosition>(),
-        };
+            pathCache: new Map<number, ArrowPaths>(),
+        });
 
         const rels = props.relationships || [];
-        if (rels.length === 0) return empty;
+        if (rels.length === 0) return empty();
 
         const store = props.taskStore;
-        if (!store) return empty;
+        if (!store) return empty();
 
         // Depend on task count to rebuild when positions become available
         const tc = taskCount();
-        if (tc === 0) return empty;
-
-        // Depend on positionVersion to rebuild when task positions change.
-        // This prop is incremented whenever updateBarPosition is called.
-        void props.positionVersion;
-
-        // Clear path cache when positions change (task drag, resize, load)
-        arrowPathCache.clear();
-        lastVisibleSet = new Set();
-        cachedResult = [];
+        if (tc === 0) return empty();
 
         const rh = rowHeight();
         const index = new Map<number, Set<number>>();
@@ -136,9 +164,12 @@ export function ArrowLayerBatched(props: ArrowLayerBatchedProps): JSX.Element {
             const rel = rels[i];
             if (!rel) continue;
 
-            // Use untrack for individual position reads to avoid per-task deps
-            const fromPos = untrack(() => store.getBarPosition(rel.from));
-            const toPos = untrack(() => store.getBarPosition(rel.to));
+            // Tracked on purpose: these reads ARE this memo's position
+            // dependency. Whatever `getBarPosition` touches — store leaves,
+            // a scale signal — invalidates the index when it changes, so a
+            // moved bar repaints its arrows without any manual counter.
+            const fromPos = store.getBarPosition(rel.from);
+            const toPos = store.getBarPosition(rel.to);
             if (!fromPos || !toPos) continue;
 
             positions.set(i, {
@@ -158,113 +189,119 @@ export function ArrowLayerBatched(props: ArrowLayerBatchedProps): JSX.Element {
             }
         }
 
-        return { index, positions };
+        return { index, positions, pathCache: new Map<number, ArrowPaths>() };
     });
 
     /**
      * Build batched paths for visible arrows using spatial index.
      * Per-arrow path cache + visible-set diff: only rebuilds when the
-     * visible arrow set actually changes.
+     * visible arrow set actually changes. Both caches live in this memo's
+     * `prev` value / in the index generation, so they are per-instance.
      */
-    const batchedPaths = createMemo((): StyleGroup[] => {
-        const { index, positions } = spatialIndex();
-        if (positions.size === 0) return [];
-
-        const sr = startRow();
-        const er = endRow();
-        const sx = startX();
-        const ex = endX();
-        const c = curve();
-        const hs = headSize();
-
-        // Y-axis filter via spatial index (with 3-row overscan)
-        const rowFilteredIndices = new Set<number>();
-        for (let row = sr - 3; row <= er + 3; row++) {
-            const rowRels = index.get(row);
-            if (rowRels) {
-                for (const idx of rowRels) rowFilteredIndices.add(idx);
-            }
-        }
-
-        // X-axis filter: source OR target overlaps view
-        const visibleIndices = new Set<number>();
-        for (const idx of rowFilteredIndices) {
-            const pos = positions.get(idx);
-            if (!pos) continue;
-
-            const fromRight = pos.from.x + pos.from.width;
-            const toRight = pos.to.x + pos.to.width;
-            const sourceInView = fromRight >= sx && pos.from.x <= ex;
-            const targetInView = toRight >= sx && pos.to.x <= ex;
-
-            if (sourceInView || targetInView) {
-                visibleIndices.add(idx);
-            }
-        }
-
-        // Reuse cached output if the visible set is unchanged
-        const setsEqual =
-            visibleIndices.size === lastVisibleSet.size &&
-            [...visibleIndices].every((idx) => lastVisibleSet.has(idx));
-        if (setsEqual && cachedResult.length > 0) {
-            return cachedResult;
-        }
-
-        lastVisibleSet = new Set(visibleIndices);
-
-        // Group by visual style: dasharray + stroke
-        const styleGroups = new Map<
-            string,
-            {
-                lines: string[];
-                heads: string[];
-                dasharray: string;
-                stroke?: string;
-            }
-        >();
-
-        for (const idx of visibleIndices) {
-            const pos = positions.get(idx);
-            if (!pos) continue;
-
-            let cached = arrowPathCache.get(idx);
-            if (!cached) {
-                cached = generateArrow(pos.from, pos.to, pos.type, c, hs);
-                arrowPathCache.set(idx, cached);
+    const batchedPaths = createMemo(
+        (prev: BatchedPaths | undefined): BatchedPaths => {
+            const source = spatialIndex();
+            const { index, positions, pathCache } = source;
+            if (positions.size === 0) {
+                return { source, visible: new Set<number>(), groups: [] };
             }
 
-            const styleKey = `${pos.strokeDasharray || ''}|${pos.stroke || ''}`;
-            if (!styleGroups.has(styleKey)) {
-                styleGroups.set(styleKey, {
-                    lines: [],
-                    heads: [],
-                    dasharray: pos.strokeDasharray || '',
-                    stroke: pos.stroke,
+            const sr = startRow();
+            const er = endRow();
+            const sx = startX();
+            const ex = endX();
+            const c = curve();
+            const hs = headSize();
+
+            // Y-axis filter via spatial index (with 3-row overscan)
+            const rowFilteredIndices = new Set<number>();
+            for (let row = sr - 3; row <= er + 3; row++) {
+                const rowRels = index.get(row);
+                if (rowRels) {
+                    for (const idx of rowRels) rowFilteredIndices.add(idx);
+                }
+            }
+
+            // X-axis filter: source OR target overlaps view
+            const visibleIndices = new Set<number>();
+            for (const idx of rowFilteredIndices) {
+                const pos = positions.get(idx);
+                if (!pos) continue;
+
+                const fromRight = pos.from.x + pos.from.width;
+                const toRight = pos.to.x + pos.to.width;
+                const sourceInView = fromRight >= sx && pos.from.x <= ex;
+                const targetInView = toRight >= sx && pos.to.x <= ex;
+
+                if (sourceInView || targetInView) {
+                    visibleIndices.add(idx);
+                }
+            }
+
+            // Reuse the previous output if it came from THIS index
+            // generation and covers exactly the same visible set.
+            const reusable = prev && prev.source === source ? prev : undefined;
+            const setsEqual =
+                reusable !== undefined &&
+                visibleIndices.size === reusable.visible.size &&
+                [...visibleIndices].every((idx) => reusable.visible.has(idx));
+            if (setsEqual && reusable.groups.length > 0) {
+                return reusable;
+            }
+
+            // Group by visual style: dasharray + stroke
+            const styleGroups = new Map<
+                string,
+                {
+                    lines: string[];
+                    heads: string[];
+                    dasharray: string;
+                    stroke?: string;
+                }
+            >();
+
+            for (const idx of visibleIndices) {
+                const pos = positions.get(idx);
+                if (!pos) continue;
+
+                let cached = pathCache.get(idx);
+                if (!cached) {
+                    cached = generateArrow(pos.from, pos.to, pos.type, c, hs);
+                    pathCache.set(idx, cached);
+                }
+
+                const styleKey = `${pos.strokeDasharray || ''}|${pos.stroke || ''}`;
+                if (!styleGroups.has(styleKey)) {
+                    styleGroups.set(styleKey, {
+                        lines: [],
+                        heads: [],
+                        dasharray: pos.strokeDasharray || '',
+                        stroke: pos.stroke,
+                    });
+                }
+                const group = styleGroups.get(styleKey)!;
+                group.lines.push(cached.linePath);
+                if (cached.headPath) group.heads.push(cached.headPath);
+            }
+
+            const groups: StyleGroup[] = [];
+            for (const [key, group] of styleGroups) {
+                groups.push({
+                    key,
+                    lines: group.lines.join(' '),
+                    heads: group.heads.join(' '),
+                    dasharray: group.dasharray,
+                    stroke: group.stroke,
                 });
             }
-            const group = styleGroups.get(styleKey)!;
-            group.lines.push(cached.linePath);
-            if (cached.headPath) group.heads.push(cached.headPath);
-        }
 
-        const result: StyleGroup[] = [];
-        for (const [key, group] of styleGroups) {
-            result.push({
-                key,
-                lines: group.lines.join(' '),
-                heads: group.heads.join(' '),
-                dasharray: group.dasharray,
-                stroke: group.stroke,
-            });
-        }
-
-        cachedResult = result;
-        return cachedResult;
-    });
+            return { source, visible: visibleIndices, groups };
+        },
+    );
 
     return (
         <g class="arrow-layer-batched">
-            <For each={batchedPaths()}>
+            <For each={batchedPaths().groups}>
                 {(group) => (
                     <>
                         {/* Arrow lines for this style group */}

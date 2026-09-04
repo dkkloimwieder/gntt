@@ -1,5 +1,6 @@
 /**
- * Characterization — `<ArrowLayerBatched>`'s dependency protocol on 1.9 (E1.7).
+ * `<ArrowLayerBatched>`'s dependency protocol on 1.9 — rewritten by E2.13
+ * (`gantt-b4m.13`) from the E1.7 characterization it replaces.
  *
  * WHERE THIS COMPONENT IS ACTUALLY MOUNTED (checked, not inherited from the
  * issue text). `rg ArrowLayerBatched src examples` finds exactly one live
@@ -8,64 +9,56 @@
  * `GanttMinimalTest.tsx:19` is a commented-out import. The shipped `<Gantt>`
  * renders no arrow layer at all.
  *
- * THE PROTOCOL. The component `untrack`s every position read
- * (`ArrowLayerBatched.tsx:140-141`) and `void`s a `positionVersion` prop
- * (`:124`) as its only declared position dependency. In its one real mount the
- * counter IS load-bearing: GanttPerfIsolate's mock store leaf-writes
- * (`state[id].startHours = updates.x / hw`, `:1531-1536`) and repaints solely
- * through `triggerArrowUpdate = () => setPositionVersion(v => v + 1)` (`:1546`,
- * called at `:1605/:1673`); its `getBarPosition` further multiplies by the
- * `hourWidth()` SIGNAL (`:1556-1563`), which the same `untrack` freezes.
+ * WHAT E1.7 PINNED, AND WHY IT HAD TO CHANGE. The component used to `untrack`
+ * every position read and `void` a `positionVersion` prop as its only declared
+ * position dependency, so it subscribed to no position at all. It repainted
+ * anyway, for a reason it did not own: `spatialIndex` also calls `taskCount()`
+ * (`:131-134`), a NON-untracked `Object.keys(store.tasks)` whose `ownKeys` trap
+ * calls `trackSelf`, subscribing the memo to the store ROOT's `$SELF` node —
+ * and today's `updateBarPosition` replaces the whole task object at a root key
+ * inside `produce` (`taskStore.ts:110-120`), which fires `$SELF`. E2.3
+ * (`gantt-b4m.3`) turns that write into a leaf mutation (`t._bar[k] = v`),
+ * which fires `_bar` and never the root: on the old component the demo-mounted
+ * arrows would have silently frozen, on `main`, still on 1.9.
  *
- * Drive the component from the library `taskStore` instead — which nothing
- * mounts it with — and the counter stops being load-bearing, for a reason that
- * is an accident of the STORE's write shape rather than a dependency of this
- * component. `spatialIndex` also calls `taskCount()` (`:96-99`), a NON-untracked
- * `Object.keys(store.tasks)`; the store proxy's `ownKeys` trap calls
- * `trackSelf`, so the memo subscribes to the store ROOT's `$SELF` node, and
- * `setProperty` fires `$SELF` on every write to the root object. Today's
- * `updateBarPosition` writes the root — it replaces the whole task object
- * inside `produce` (`taskStore.ts:110-120`) — so moving a bar happens to
- * invalidate the index even though nothing in the memo subscribed to a
- * position. The suite asserts that root notification directly (test 4) instead
- * of asserting it in prose.
- *
- * WHICH ISSUE FLIPS WHAT. E2.13 (`gantt-b4m.13`) does the 1.9-compatible half
- * of E4.4 and now BLOCKS E2.3 in the plan: drop the `untrack` at `:139-140`,
- * drop `void props.positionVersion` at `:123`, move the module caches into
- * component state. E2.3 (`gantt-b4m.3`) then makes `updateBarPosition` a leaf
- * mutation. E4.4 (`gantt-avv.4`) finally removes the `positionVersion` prop and
- * GanttPerfIsolate's `triggerArrowUpdate` protocol.
+ * WHAT THIS SUITE PINS NOW. The reads at `:171-172` are tracked, so whatever
+ * `getBarPosition` touches — store leaves, or a scale SIGNAL, the shape the one
+ * real mount uses (`GanttPerfIsolate.tsx:1556-1563`: `x: task.startHours *
+ * hourWidth()`) — is a real dependency of `spatialIndex`. Every case below is
+ * therefore written against the LEAF write shape, so it says the same thing
+ * before and after E2.3 lands:
  *
  *   1-2  arrows appear over the real `taskStore` with `positionVersion` never
- *        passed at all. Stay green through E2.13/E2.3/E4.4.
- *   3    the real `taskStore.updateBarPosition` repaints. GREEN today (measured
- *        un-skipped, not assumed) and deliberately NOT skipped: it is the only
- *        executed coupling between the production store's mutator and this
- *        component. It stays green iff E2.13 lands before E2.3 — see the case.
- *   4    why 3 passes: production `updateBarPosition` notifies the store ROOT
- *        (1 re-run of a `taskCount()`-shaped computation), a leaf mutation
- *        notifies only `_bar` (0 re-runs). E2.3 drops the 1 to 0.
- *   5-6  the leaf write shape E2.3 introduces: stale render, rescued only by a
- *        `positionVersion` bump. Both flip at E2.13.
- *   7    the other half of the `untrack`: a SIGNAL-derived position (the
- *        `hourWidth()` shape of the only real mount) is frozen too, with no
- *        store write anywhere. Flips at E2.13.
- *   8    the module-level caches are shared across instances, so a second mount
- *        can hand its paths to the first one. Flips at E2.13.
+ *        passed at all.
+ *   3    the production `taskStore.updateBarPosition` repaints — the only
+ *        executed coupling between the shipped mutator and this component.
+ *        Green under object replacement (today) and under E2.3's leaf write.
+ *   4    the mechanism, measured: a `getBarPosition`-shaped computation re-runs
+ *        for BOTH write shapes, while a `taskCount()`-shaped one re-runs for
+ *        neither leaf write. The component subscribes to the former.
+ *   5    the acceptance probe: a bare `s.t1._bar.x = …` leaf mutation re-runs
+ *        `spatialIndex` (counted through the store's reader) and moves the
+ *        rendered path, with `positionVersion` never passed.
+ *   6    `positionVersion` is inert: bumping it re-reads nothing and repaints
+ *        nothing. E4.4 (`gantt-avv.4`) removes the prop and
+ *        `GanttPerfIsolate`'s `triggerArrowUpdate` protocol; this case is what
+ *        says the protocol is already dead weight.
+ *   7    a SIGNAL-derived position change repaints with no store write and no
+ *        counter — the viewport-rescale half of the old `untrack`.
+ *   8    the per-arrow path cache and the visible-set diff are per-instance:
+ *        a second mount over a second store cannot hand the first one its
+ *        paths.
+ *   9    what is LEFT of `taskCount()`: a root key no relationship names still
+ *        rebuilds the index. Added in review round 2 — without it, stubbing
+ *        `taskCount()` to a constant leaves the suite green.
+ *   10   the reuse short-circuit: an unchanged visible set returns `prev` by
+ *        identity, so the `<For>` row is not re-created. Also round 2 — the
+ *        reviewer measured that disabling reuse entirely was invisible here.
  *
- * MANDATORY PROP: finite `endRow`. `endRow()` defaults to `Infinity` (`:88`)
+ * MANDATORY PROP: finite `endRow`. `endRow()` defaults to `Infinity` (`:123`)
  * and `batchedPaths` loops `for (let row = sr - 3; row <= er + 3; row++)`
- * (`:182`), which never terminates once there are relationships and positioned
+ * (`:218`), which never terminates once there are relationships and positioned
  * tasks. Every mount below passes an explicit viewport.
- *
- * MODULE-LEVEL CACHES: `arrowPathCache` / `cachedResult` / `lastVisibleSet`
- * (`:71-73`) are module scope and therefore shared by every mount in this file.
- * They are reset at the top of each `spatialIndex` run that has both
- * relationships and tasks (`:127-129`), and the only case that mounts against
- * an empty store asserts an empty render (`batchedPaths` returns before reading
- * them, `:171`), so no test inherits another's cache by accident. Test 8 makes
- * the sharing itself the assertion, and runs last.
  */
 import { describe, it, expect, afterEach } from 'vitest';
 import { createComputed, createRoot, createSignal } from 'solid-js';
@@ -115,7 +108,7 @@ const SHIFT = 100;
  * Expected path strings, derived by hand from the fixture geometry so the
  * assertions do not merely re-run `generateArrow` against itself.
  *
- * `rowHeight()` is 38 (`ArrowLayerBatched.tsx:89`), so `t1` sits on row 0 and
+ * `rowHeight()` is 38 (`ArrowLayerBatched.tsx:124`), so `t1` sits on row 0 and
  * `t2` on row 1 — 38px apart, past `ALIGNMENT_THRESHOLD` (8), so the FS start
  * anchor is 'bottom' and the end anchor 'left' (`arrowBatchPaths.ts:41-57`).
  *   start offset  = clamp(0.1, 0.9, (to.x - curve - from.x) / from.width) = 0.9
@@ -155,7 +148,7 @@ interface MountedLayer {
 interface MountOptions {
     taskStore: TaskStore;
     relationships: Relationship[];
-    /** Reactive counter for the manual protocol; omitted = prop stays undefined. */
+    /** Reactive counter for the vestigial prop; omitted = prop stays undefined. */
     positionVersion?: () => number;
     /** Reactive right edge; omitted = a constant 5000. Read by `batchedPaths` only. */
     endX?: () => number;
@@ -201,28 +194,34 @@ function mountLayer(options: MountOptions): MountedLayer {
  * A `TaskStore` backed by a local `createStore`, offering the bar move as the
  * LEAF mutation E2.3 (`gantt-b4m.3`) rewrites `updateBarPosition` into
  * (`PLAN.md:128`: `t._bar[k] = position[k]`). `setProperty` runs on the `_bar`
- * node; the root `$SELF` stays silent.
+ * node; the root `$SELF` stays silent — which is precisely why the component
+ * has to subscribe to the leaf.
  *
  * The other write shape — today's whole-object replacement at a root key — is
  * NOT re-implemented here: the cases that need it call the production
  * `taskStore.updateBarPosition` directly (tests 3 and 4), so there is no copy
  * of a production body in this file to rot when E2.3 rewrites it.
  *
+ * `barPositionReads` counts `getBarPosition` calls, i.e. `spatialIndex` runs
+ * that got past the `taskCount() === 0` bail — two calls per run per
+ * relationship. That is how tests 5 and 6 observe memo invalidation instead of
+ * inferring it from the DOM.
+ *
  * Only `tasks`, `getTask` and `getBarPosition` are wired to the local store;
  * the spread supplies the rest of the `TaskStore` interface, none of which
  * `<ArrowLayerBatched>` touches.
- *
- * Why not drive the replacement half through `taskStore.updateTask` instead?
- * Measured: it would not demonstrate anything. `updateTask` is `setTasks(id,
- * taskData)` (`taskStore.ts:99-101`), and a path setter whose previous value
- * and new value are both wrappable non-arrays takes `mergeStoreNode(prev,
- * value)` — a key-wise merge INTO the existing task node. The root `$SELF`
- * never fires. Only `produce`'s setter trap, which calls `setProperty` on the
- * root directly, moves the root node.
  */
 interface ProbeStore {
     store: TaskStore;
     mutateTaskBarX: (id: string, x: number) => void;
+    /**
+     * Add a task at a NEW root key. `setProperty` notifies that key's node and
+     * the store root's `$SELF`; when the key is one no relationship mentions,
+     * `$SELF` is the only edge that can reach `spatialIndex` — which is what
+     * test 9 uses to isolate `taskCount()`.
+     */
+    addTask: (task: ProcessedTask) => void;
+    barPositionReads: () => number;
 }
 
 function createProbeStore(tasks: ProcessedTask[]): ProbeStore {
@@ -230,12 +229,14 @@ function createProbeStore(tasks: ProcessedTask[]): ProbeStore {
     for (const task of tasks) seed[task.id] = task;
     const [state, setState] =
         createStore<Record<string, ProcessedTask | undefined>>(seed);
+    let reads = 0;
 
     const store: TaskStore = {
         ...createTaskStore(),
         tasks: state,
         getTask: (id) => state[id],
         getBarPosition: (id) => {
+            reads++;
             const task = state[id];
             if (!task || !task._bar) return null;
             return {
@@ -257,14 +258,24 @@ function createProbeStore(tasks: ProcessedTask[]): ProbeStore {
         );
     };
 
-    return { store, mutateTaskBarX };
+    const addTask = (task: ProcessedTask): void => {
+        setState(
+            produce((draft) => {
+                draft[task.id] = task;
+            }),
+        );
+    };
+
+    return { store, mutateTaskBarX, addTask, barPositionReads: () => reads };
 }
 
 /**
  * A `TaskStore` whose bar positions are derived from a SIGNAL and never
  * written to the store at all — the shape of the only real mount
  * (`GanttPerfIsolate.tsx:1556-1563`: `x: task.startHours * hourWidth()`).
- * `setShift` is the analogue of a viewport resize.
+ * `setShift` is the analogue of a viewport resize. No store write happens
+ * anywhere here, so the store-root edge cannot rescue this case: only a
+ * tracked read of `getBarPosition` can.
  */
 interface ShiftProbeStore {
     store: TaskStore;
@@ -300,17 +311,17 @@ function createShiftProbeStore(tasks: ProcessedTask[]): ShiftProbeStore {
 }
 
 /**
- * Re-runs of a computation shaped exactly like `taskCount()`
- * (`ArrowLayerBatched.tsx:96-99`) across `write()` — i.e. how many times the
- * store ROOT notified. 0 means the component's index would not rebuild.
+ * Re-runs of a computation shaped like one of the component's two reads,
+ * across `write()`. `read` is either `() => store.getBarPosition(id)` (the
+ * tracked position read at `ArrowLayerBatched.tsx:171-172`) or
+ * `() => Object.keys(store.tasks).length` (`taskCount()`, `:131-134`).
  */
-function countRootNotifications(store: TaskStore, write: () => void): number {
+function countReruns(read: () => unknown, write: () => void): number {
     let runs = 0;
     const dispose = createRoot((disposeRoot) => {
         createComputed(() => {
-            const count = Object.keys(store.tasks).length;
+            read();
             runs++;
-            return count;
         });
         return disposeRoot;
     });
@@ -344,9 +355,9 @@ describe('ArrowLayerBatched — arrows appear without the manual protocol', () =
         const taskStore = createTaskStore();
         const layer = mountLayer({ taskStore, relationships: RELATIONSHIPS });
 
-        // tc === 0 ⇒ spatialIndex returns `empty` (:113-120) and batchedPaths
-        // bails at `positions.size === 0` (:171) before touching the module
-        // caches — but taskCount() has already subscribed to the store root.
+        // tc === 0 ⇒ spatialIndex returns `empty()` (:149-157) and batchedPaths
+        // bails at `positions.size === 0` (:205) — but taskCount() has already
+        // subscribed to the store root, so the load below invalidates it.
         expect(layer.paths()).toHaveLength(0);
 
         taskStore.updateTasks(seedTasks());
@@ -360,26 +371,15 @@ describe('ArrowLayerBatched — arrows appear without the manual protocol', () =
 
 describe('ArrowLayerBatched — what actually invalidates the spatial index', () => {
     /**
-     * The assertion E1.7 was filed for. It PASSES on solid-js 1.9 (measured by
-     * running it un-skipped, not assumed), so it is landed EXECUTED: skipping
-     * it would leave this file with no running coupling between the production
-     * store's mutator and this component at all, and a green skip pins nothing.
+     * The only executed coupling between the shipped store's mutator and this
+     * component, and the case that ORDER protects: E2.13 lands before E2.3 so
+     * this stays green across the store rewrite.
      *
-     * It passes for a reason the component does not own — `updateBarPosition`
-     * replaces the whole task object at a root key inside `produce`
-     * (`taskStore.ts:110-120`), the root `$SELF` fires, `taskCount()`
-     * invalidates, the index rebuilds and repeats its untracked position reads.
-     * Test 4 asserts exactly that. The component's own declared dependency
-     * (`void props.positionVersion`, `:124`) contributes nothing: the prop is
+     * It is green under BOTH write shapes for the same reason now — the memo
+     * subscribes to `_bar.x` through `getBarPosition`. Object replacement
+     * (today) notifies the task node, a leaf mutation (E2.3) notifies the
+     * `_bar.x` node, and the memo is subscribed to both. `positionVersion` is
      * never passed here.
-     *
-     * TODO(E2.13 / gantt-b4m.13): this is the case that ORDER protects. E2.13
-     * gives the component real position dependencies on 1.9 and the plan now
-     * records it as blocking E2.3, so on the planned order this stays green
-     * throughout — and green for the right reason afterwards.
-     * TODO(E2.3 / gantt-b4m.3): if E2.3 lands first, this goes RED on `main`,
-     * still on 1.9. That is the tripwire, not a regression in the test: it says
-     * the demo-mounted arrow layer is drawing positions it never subscribed to.
      */
     it('updateBarPosition repaints the arrow with no positionVersion bump', () => {
         const taskStore = createTaskStore();
@@ -401,47 +401,58 @@ describe('ArrowLayerBatched — what actually invalidates the spatial index', ()
 
     /**
      * The mechanism behind test 3, as an executed measurement rather than a
-     * claim in a comment: the SAME logical move notifies the store root when it
-     * is written as a whole-object replacement (production `updateBarPosition`
-     * today) and does not when it is written as a leaf mutation (the shape E2.3
-     * introduces). `taskCount()` is subscribed to the root and to nothing else,
-     * so 1 vs 0 is the whole difference between tests 3 and 5.
+     * claim in a comment. Both of the component's reads are exercised against
+     * both write shapes:
      *
-     * TODO(E2.3 / gantt-b4m.3): the first expectation drops to 0. E2.13 does
-     * not touch the store, so it leaves both numbers alone.
+     *   getBarPosition-shaped ← production updateBarPosition   → 1 re-run
+     *   getBarPosition-shaped ← bare leaf mutation             → 1 re-run
+     *   taskCount-shaped      ← bare leaf mutation             → 0 re-runs
+     *
+     * The first two are what make test 3 survive E2.3; the third is the edge
+     * the component used to ride on, measured as absent for a leaf write.
+     * The production store's root-notification count is deliberately NOT
+     * asserted: it is 1 today and 0 after E2.3, and nothing here depends on
+     * it any more.
      */
-    it('updateBarPosition notifies the store root; a leaf mutation does not', () => {
+    it('the position read re-runs for both write shapes; taskCount does not', () => {
         const taskStore = createTaskStore();
         taskStore.updateTasks(seedTasks());
         settle();
 
-        const rootRuns = countRootNotifications(taskStore, () =>
-            taskStore.updateBarPosition('t1', { x: MOVED_X }),
+        const replacementRuns = countReruns(
+            () => taskStore.getBarPosition('t1'),
+            () => taskStore.updateBarPosition('t1', { x: MOVED_X }),
         );
-        expect(rootRuns).toBe(1);
+        expect(replacementRuns).toBe(1);
         expect(taskStore.getBarPosition('t1')?.x).toBe(MOVED_X);
 
         const probe = createProbeStore(seedTasks());
-        const leafRuns = countRootNotifications(probe.store, () =>
-            probe.mutateTaskBarX('t1', MOVED_X),
+        const leafRuns = countReruns(
+            () => probe.store.getBarPosition('t1'),
+            () => probe.mutateTaskBarX('t1', MOVED_X),
         );
-        expect(leafRuns).toBe(0);
+        expect(leafRuns).toBe(1);
         // Same destination, so the two writes really are the same move.
         expect(probe.store.getBarPosition('t1')?.x).toBe(MOVED_X);
+
+        const rootProbe = createProbeStore(seedTasks());
+        const rootRuns = countReruns(
+            () => Object.keys(rootProbe.store.tasks).length,
+            () => rootProbe.mutateTaskBarX('t1', MOVED_X),
+        );
+        expect(rootRuns).toBe(0);
     });
 
     /**
-     * The accident, stated negatively. A leaf write to `t1._bar.x` notifies the
-     * `_bar` node only, so `taskCount()`'s root subscription never fires,
-     * `spatialIndex` never re-runs, and the untracked reads at `:140-141` are
-     * never repeated: the rendered arrow keeps pointing at the old position
-     * with no error and no warning.
+     * E2.13's acceptance probe. A bare leaf mutation of `t1._bar.x` — the write
+     * shape E2.3 gives `updateBarPosition`, with nothing else touched — must
+     * re-run `spatialIndex` and move the rendered path, with `positionVersion`
+     * never passed at all.
      *
-     * TODO(E2.13 / gantt-b4m.13): once the `untrack` is dropped and
-     * `getBarPosition` subscribes, the stale expectation below flips to
-     * LINE_FROM_200 (the store readback above stays as it is).
+     * The re-run is counted, not inferred: `barPositionReads()` only advances
+     * inside `spatialIndex`, two reads per run for this one relationship.
      */
-    it('a leaf mutation of _bar.x leaves the rendered arrow stale', () => {
+    it('a bare leaf mutation of _bar.x re-runs the index and repaints', () => {
         const probe = createProbeStore(seedTasks());
         const layer = mountLayer({
             taskStore: probe.store,
@@ -449,107 +460,205 @@ describe('ArrowLayerBatched — what actually invalidates the spatial index', ()
         });
         expect(layer.lines()).toBe(LINE_FROM_100);
 
-        probe.mutateTaskBarX('t1', MOVED_X);
-        settle();
-
-        // The store really did move the bar ...
-        expect(probe.store.getBarPosition('t1')?.x).toBe(MOVED_X);
-        // ... and the render did not notice.
-        expect(layer.lines()).toBe(LINE_FROM_100);
-        expect(layer.heads()).toBe(HEAD);
-    });
-
-    /**
-     * …and the manual protocol is what rescues it: bumping `positionVersion`
-     * invalidates `spatialIndex` through `void props.positionVersion` (`:124`),
-     * which re-runs the untracked position reads. This is the contract
-     * `GanttPerfIsolate.triggerArrowUpdate` (`:1546/:1605`) depends on.
-     *
-     * TODO(E2.13 / gantt-b4m.13): drops `void props.positionVersion`, so the
-     * mid-test stale expectation flips to LINE_FROM_200 and the bump stops
-     * being what repaints. E4.4 (`gantt-avv.4`) then removes the prop and
-     * GanttPerfIsolate's protocol outright, and this case goes with them.
-     */
-    it('bumping positionVersion after a leaf mutation repaints the arrow', () => {
-        const probe = createProbeStore(seedTasks());
-        const [positionVersion, setPositionVersion] = createSignal(0);
-        const layer = mountLayer({
-            taskStore: probe.store,
-            relationships: RELATIONSHIPS,
-            positionVersion,
-        });
-        expect(layer.lines()).toBe(LINE_FROM_100);
+        const readsBefore = probe.barPositionReads();
+        expect(readsBefore).toBeGreaterThan(0);
 
         probe.mutateTaskBarX('t1', MOVED_X);
         settle();
+
+        // The memo re-ran, re-reading both endpoints. Counted before the
+        // store readback below, which goes through the same counter.
+        expect(probe.barPositionReads()).toBe(readsBefore + 2);
+        // The store moved the bar ...
         expect(probe.store.getBarPosition('t1')?.x).toBe(MOVED_X);
-        expect(layer.lines()).toBe(LINE_FROM_100);
-
-        setPositionVersion((v) => v + 1);
-        settle();
-
+        // ... and the render followed.
         expect(layer.lines()).toBe(LINE_FROM_200);
         expect(layer.heads()).toBe(HEAD);
     });
 
     /**
-     * The other half of the `untrack` at `:140-141`, and the half the only real
-     * mount actually depends on: positions derived from a SIGNAL, with no store
-     * write anywhere. GanttPerfIsolate computes `x: task.startHours *
-     * hourWidth()` (`:1556-1563`), so a viewport resize goes stale for the same
-     * reason a leaf mutation does — and the store-root accident cannot rescue
-     * it, because nothing writes the store.
+     * `positionVersion` is inert. It used to be the component's only declared
+     * position dependency (`void props.positionVersion`, now deleted) and the
+     * contract `GanttPerfIsolate.triggerArrowUpdate` (`:1546/:1605`) relies on;
+     * now nothing reads the prop, so bumping it re-reads no position and
+     * repaints nothing — the leaf mutation already did both.
      *
-     * TODO(E2.13 / gantt-b4m.13): the stale expectation flips to LINE_SHIFTED
-     * and the `positionVersion` bump becomes unnecessary; E4.4
-     * (`gantt-avv.4`) then removes the prop this case passes.
+     * E4.4 (`gantt-avv.4`) removes the prop and the demo protocol; this case is
+     * the evidence that removing them changes no behaviour.
      */
-    it('a signal-derived position change leaves the arrow stale until the counter bumps', () => {
-        const probe = createShiftProbeStore(seedTasks());
+    it('bumping positionVersion re-reads nothing and repaints nothing', () => {
+        const probe = createProbeStore(seedTasks());
         const [positionVersion, setPositionVersion] = createSignal(0);
         const layer = mountLayer({
             taskStore: probe.store,
             relationships: RELATIONSHIPS,
             positionVersion,
+        });
+        expect(layer.lines()).toBe(LINE_FROM_100);
+
+        probe.mutateTaskBarX('t1', MOVED_X);
+        settle();
+        // Repainted with the counter left at 0.
+        expect(positionVersion()).toBe(0);
+        expect(layer.lines()).toBe(LINE_FROM_200);
+
+        const readsBefore = probe.barPositionReads();
+        setPositionVersion((v) => v + 1);
+        settle();
+
+        expect(positionVersion()).toBe(1);
+        expect(probe.barPositionReads()).toBe(readsBefore);
+        expect(layer.lines()).toBe(LINE_FROM_200);
+        expect(layer.heads()).toBe(HEAD);
+    });
+
+    /**
+     * The other half of the old `untrack`, and the half the only real mount
+     * actually depends on: positions derived from a SIGNAL, with no store write
+     * anywhere. GanttPerfIsolate computes `x: task.startHours * hourWidth()`
+     * (`:1556-1563`), so a viewport resize used to go stale for the same reason
+     * a leaf mutation did — and the store-root accident could never have
+     * rescued it, because nothing writes the store. The tracked read picks it
+     * up with no counter in sight.
+     */
+    it('a signal-derived position change repaints with no counter', () => {
+        const probe = createShiftProbeStore(seedTasks());
+        const layer = mountLayer({
+            taskStore: probe.store,
+            relationships: RELATIONSHIPS,
         });
         expect(layer.lines()).toBe(LINE_FROM_100);
 
         probe.setShift(SHIFT);
         settle();
 
-        // Both bars have moved as far as the store is concerned ...
+        // Both bars moved as far as the store is concerned ...
         expect(probe.store.getBarPosition('t1')?.x).toBe(FROM_BAR.x + SHIFT);
         expect(probe.store.getBarPosition('t2')?.x).toBe(TO_BAR.x + SHIFT);
-        // ... and the render is frozen at the pre-resize geometry.
-        expect(layer.lines()).toBe(LINE_FROM_100);
-        expect(layer.heads()).toBe(HEAD);
-
-        setPositionVersion((v) => v + 1);
-        settle();
-
+        // ... and the render followed the rescale.
         expect(layer.lines()).toBe(LINE_SHIFTED);
         expect(layer.heads()).toBe(HEAD_SHIFTED);
     });
+
+    /**
+     * What is LEFT of `taskCount()` (`ArrowLayerBatched.tsx:131-134`) once the
+     * position reads are tracked — measured, because the answer is "almost
+     * nothing" and the E2.13 review caught that no case here could see it.
+     *
+     * `taskCount()` is a non-untracked `Object.keys(store.tasks)`; the `ownKeys`
+     * trap calls `trackSelf`, subscribing `spatialIndex` to the store ROOT's
+     * `$SELF` node. Every other root-key event now reaches the memo without it:
+     * a tracked `state[id]` read subscribes to that key even when the key is
+     * MISSING (solid-js 1.9 `store.ts` `get` trap: no existing node + a listener
+     * ⇒ `getDataNode(nodes, property, value)()`), which is why test 2's
+     * empty-store-then-load case, and any add/remove of a task a relationship
+     * NAMES, stay green with `taskCount()` stubbed to a constant.
+     *
+     * The one edge only `$SELF` still carries is a root key this layer never
+     * looks at. Its rendered output is identical — the drawn positions did not
+     * move — so this case pins the MECHANISM (`getBarPosition` re-read ⇒ the
+     * index really was rebuilt) and not a pixel. That is deliberate: without it,
+     * replacing `taskCount()`'s body with `const taskCount = () => 1;` leaves
+     * the whole suite green, and E4.4 would delete a live subscription blind.
+     *
+     * TODO(E4.4) (bd gantt-avv.4): DELETE this test in the same commit that
+     * deletes `taskCount()` — same convention as tests/taskStore.test.ts:207.
+     * It exists only to make that deletion a decision rather than an accident.
+     */
+    it('adding a task no relationship references still rebuilds the index', () => {
+        const probe = createProbeStore(seedTasks());
+        const layer = mountLayer({
+            taskStore: probe.store,
+            relationships: RELATIONSHIPS,
+        });
+        expect(layer.lines()).toBe(LINE_FROM_100);
+
+        const readsBefore = probe.barPositionReads();
+        expect(readsBefore).toBe(2);
+
+        // t3 is in no relationship, so nothing this memo READS changes; only
+        // the store root's key set does.
+        probe.addTask(makeTask('t3', { _index: 2 }));
+        settle();
+
+        // The index rebuilt anyway: both endpoints were re-read.
+        expect(probe.barPositionReads()).toBe(readsBefore + 2);
+        // And it rebuilt to the same drawing, because nothing drawn moved.
+        expect(layer.lines()).toBe(LINE_FROM_100);
+        expect(layer.heads()).toBe(HEAD);
+    });
 });
 
-describe('ArrowLayerBatched — module-level caches are shared by every instance', () => {
+describe('ArrowLayerBatched — the visible-set reuse short-circuit', () => {
     /**
-     * `cachedResult` / `lastVisibleSet` (`:72-73`) are module scope, and
-     * `batchedPaths` returns `cachedResult` whenever the visible index SET is
-     * unchanged (`:206-211`) — a set of relationship INDICES, which says
-     * nothing about which store produced them. Two concurrent mounts over
-     * different stores therefore collide: B's `spatialIndex` run leaves
-     * `lastVisibleSet = {0}` and `cachedResult = [B's paths]`, and the next
-     * `batchedPaths` re-run in A (viewport props only — `spatialIndex` does not
-     * read `endX`) hands A the paths B computed.
+     * `batchedPaths` returns its previous value BY IDENTITY when the index
+     * generation and the visible set are both unchanged (`:243-250`), so a
+     * scroll tick that reveals no new arrow leaves `createMemo`'s value equal
+     * by `===`, the `<For>` never re-runs, and the two `<path>` nodes are never
+     * torn down. That is the short-circuit main got from its module-level
+     * `cachedResult`, and the E2.13 review measured that nothing pinned it:
+     * `const reusable = undefined` (never reuse) left the suite green.
      *
-     * This test runs LAST because it deliberately leaves the module caches
-     * holding a foreign result.
-     *
-     * TODO(E2.13 / gantt-b4m.13): moves the caches into component state, after
-     * which A keeps rendering LINE_FROM_100 and this expectation flips.
+     * DOM node identity is the observable, because it is the thing the reuse
+     * exists to buy. The second half is the control: a viewport change that
+     * DOES churn the visible set tears the row down and builds a new one, so
+     * `toBe(linesNode)` above is discriminating and not merely true of a
+     * component that never re-renders at all.
      */
-    it("a second mount's cached paths leak into the first mount's render", () => {
+    it('an unchanged visible set keeps the same <path> nodes; a changed one does not', () => {
+        const probe = createProbeStore(seedTasks());
+        const [endX, setEndX] = createSignal(5000);
+        const layer = mountLayer({
+            taskStore: probe.store,
+            relationships: RELATIONSHIPS,
+            endX,
+        });
+        expect(layer.lines()).toBe(LINE_FROM_100);
+        const linesNode = layer.paths()[0];
+        const headsNode = layer.paths()[1];
+        expect(linesNode).toBeDefined();
+
+        // Viewport tick with both bars still in view: `batchedPaths` re-runs
+        // (it reads `endX`), recomputes the same visible set, and must hand
+        // back `prev`.
+        setEndX(4999);
+        settle();
+        expect(layer.paths()[0]).toBe(linesNode);
+        expect(layer.paths()[1]).toBe(headsNode);
+        expect(layer.lines()).toBe(LINE_FROM_100);
+
+        // Control: churn the visible set to empty and back. Same memo, same
+        // index generation, but a real regroup — new nodes.
+        setEndX(50);
+        settle();
+        expect(layer.paths()).toHaveLength(0);
+
+        setEndX(5000);
+        settle();
+        expect(layer.lines()).toBe(LINE_FROM_100);
+        expect(layer.paths()[0]).not.toBe(linesNode);
+    });
+});
+
+describe('ArrowLayerBatched — caches are per-instance', () => {
+    /**
+     * The caches used to be module scope: `cachedResult` / `lastVisibleSet`
+     * were returned whenever the visible index SET was unchanged — a set of
+     * relationship INDICES, which says nothing about which store produced them
+     * — and `arrowPathCache` was keyed by the same indices. Two concurrent
+     * mounts over different stores therefore collided, and B's paths appeared
+     * in A's render.
+     *
+     * They now ride on the memos themselves: the per-arrow path cache on the
+     * `spatialIndex` generation that produced it, the visible-set diff on
+     * `batchedPaths`' own `prev`. Both leak paths are exercised:
+     *   phase 1 — A re-runs `batchedPaths` only (viewport prop), which is where
+     *             the shared `cachedResult` used to be handed over;
+     *   phase 2 — A's visible SET churns to empty and back, forcing a real
+     *             regroup, which is where the shared `arrowPathCache` used to
+     *             be consulted.
+     */
+    it("a second mount's paths do not leak into the first mount's render", () => {
         const first = createProbeStore(seedTasks());
         const [endX, setEndX] = createSignal(5000);
         const layerA = mountLayer({
@@ -569,15 +678,31 @@ describe('ArrowLayerBatched — module-level caches are shared by every instance
         });
         expect(layerB.lines()).toBe(LINE_FROM_200);
 
-        // Re-run A's `batchedPaths` only: `endX` is read at `:176`, well after
-        // `spatialIndex()`, so A's own positions are never re-read.
+        // Phase 1: re-run A's `batchedPaths` only — `endX` is read at `:212`,
+        // well after `spatialIndex()`, so A's own positions are never re-read.
+        // That is also the perf contract: viewport props (scroll) must not
+        // rebuild the index, which is the only place the tracked position
+        // reads live.
+        const readsBefore = first.barPositionReads();
         setEndX(4999);
         settle();
+        expect(first.barPositionReads()).toBe(readsBefore);
 
-        // A's store never moved ...
+        // A's store never moved, and A still renders A's arrow.
         expect(first.store.getBarPosition('t1')?.x).toBe(FROM_BAR.x);
-        // ... yet A now renders B's arrow.
-        expect(layerA.lines()).toBe(LINE_FROM_200);
+        expect(layerA.lines()).toBe(LINE_FROM_100);
+        expect(layerB.lines()).toBe(LINE_FROM_200);
+
+        // Phase 2: churn A's visible set (both bars right of the viewport ⇒
+        // nothing visible) and back, forcing a regroup off the path cache.
+        setEndX(50);
+        settle();
+        expect(layerA.paths()).toHaveLength(0);
+
+        setEndX(5000);
+        settle();
+        expect(layerA.lines()).toBe(LINE_FROM_100);
+        expect(layerA.heads()).toBe(HEAD);
         expect(layerB.lines()).toBe(LINE_FROM_200);
     });
 });
