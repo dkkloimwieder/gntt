@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createRoot, createMemo } from 'solid-js';
 import { createSelectionStore } from '../src/stores/selectionStore';
+import { settle } from './helpers/settle';
 
 describe('createSelectionStore — direct API', () => {
     it('starts empty', () => {
@@ -60,45 +61,62 @@ describe('createSelectionStore — direct API', () => {
     });
 });
 
+// `selectedIds` is a plain signal (selectionStore.ts:32). SolidJS 2.0 throws
+// REACTIVE_WRITE_IN_OWNED_SCOPE for a signal write inside a createRoot body
+// — store setters are exempt there, signal setters are not — so the store is
+// built and driven from the test scope and the root body holds nothing but
+// the memo. `settle()` is a no-op on 1.9 and becomes the real flush at E3.1.
 describe('createSelectionStore — reactivity', () => {
     it('memo subscribers re-compute when selection changes', () => {
         let observedSize = -1;
-        createRoot((dispose) => {
-            const s = createSelectionStore();
-            const size = createMemo(() => {
+        const s = createSelectionStore();
+        let size!: () => number;
+        let dispose!: () => void;
+        createRoot((d) => {
+            dispose = d;
+            size = createMemo(() => {
                 observedSize = s.selectedIds().size;
                 return observedSize;
             });
-            size(); // prime
-            expect(observedSize).toBe(0);
-            s.add('a');
-            size();
-            expect(observedSize).toBe(1);
-            s.toggle('b');
-            size();
-            expect(observedSize).toBe(2);
-            s.clear();
-            size();
-            expect(observedSize).toBe(0);
-            dispose();
         });
+        size(); // prime
+        expect(observedSize).toBe(0);
+        s.add('a');
+        settle();
+        size();
+        expect(observedSize).toBe(1);
+        s.toggle('b');
+        settle();
+        size();
+        expect(observedSize).toBe(2);
+        s.clear();
+        settle();
+        size();
+        expect(observedSize).toBe(0);
+        dispose();
     });
 
     it('add no-op does not invalidate downstream memo', () => {
         let runs = 0;
-        createRoot(() => {
-            const s = createSelectionStore();
-            s.add('a');
-            const memo = createMemo(() => {
+        const s = createSelectionStore();
+        s.add('a');
+        settle();
+        let memo!: () => number;
+        let dispose!: () => void;
+        createRoot((d) => {
+            dispose = d;
+            memo = createMemo(() => {
                 runs++;
                 return s.selectedIds().size;
             });
-            memo();
-            expect(runs).toBe(1);
-            // Re-add same id: identity stable → memo should not re-run when read.
-            s.add('a');
-            memo();
-            expect(runs).toBe(1);
         });
+        memo();
+        expect(runs).toBe(1);
+        // Re-add same id: identity stable → memo should not re-run when read.
+        s.add('a');
+        settle();
+        memo();
+        expect(runs).toBe(1);
+        dispose();
     });
 });
