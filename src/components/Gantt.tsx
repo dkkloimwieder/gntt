@@ -263,8 +263,10 @@ export function Gantt(props: GanttProps): JSX.Element {
     const [containerApi, setContainerApi] =
         createSignal<ContainerAPILike | null>(null);
 
-    // Scroll + viewport-dimension wiring
-    const scroll = useGanttScroll();
+    // Scroll + viewport-dimension wiring. The hook owns its primitives and
+    // derives from the container api accessor, so `onContainerReady` stays
+    // free of primitive creation.
+    const scroll = useGanttScroll(containerApi);
 
     // Relationships state (populated by initializeTasks)
     const [relationships, setRelationships] = createSignal<Relationship[]>([]);
@@ -506,14 +508,18 @@ export function Gantt(props: GanttProps): JSX.Element {
         props.onTaskClick?.(taskId, event);
     };
 
+    // Runs inside GanttContainer's mount scope, which becomes a
+    // children-forbidden `onSettled` in 2.0: no primitive creation here,
+    // and nothing that reads back a signal that scope just wrote.
     const handleContainerReady = (api: ContainerAPILike): void => {
         setContainerApi(api);
-        scroll.handleContainerReady(api);
 
-        // Handle 'today' scroll immediately (doesn't depend on tasks)
+        // Handle 'today' scroll immediately (doesn't depend on tasks).
+        // `containerWidth` is the width GanttContainer measured, handed
+        // over as data — not a `getContainerWidth()` signal read-back.
         if (props.options?.scrollTo === 'today') {
             const todayX = dateStore.dateToX(new Date());
-            api.scrollTo(todayX - api.getContainerWidth() / 4, false);
+            api.scrollTo(todayX - api.containerWidth / 4, false);
         }
     };
 

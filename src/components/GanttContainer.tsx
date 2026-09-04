@@ -15,6 +15,13 @@ interface ContainerAPI {
     getScrollTop: () => number;
     getContainerWidth: () => number;
     getContainerHeight: () => number;
+    /**
+     * Viewport size measured at mount, as plain data. `onContainerReady`
+     * runs inside this component's own mount scope, so a consumer there
+     * cannot rely on reading back the signals the same scope just wrote.
+     */
+    containerWidth: number;
+    containerHeight: number;
     scrollLeftSignal: Accessor<number>;
     scrollTopSignal: Accessor<number>;
     containerWidthSignal: Accessor<number>;
@@ -35,6 +42,16 @@ interface GanttContainerProps {
     barsLayer?: JSX.Element;
     overlay?: JSX.Element;
     onScroll?: (scrollLeft: number, scrollTop: number) => void;
+    /**
+     * Fired once from `onMount` with the container's imperative API.
+     *
+     * MUST NOT create reactive primitives — no `createSignal`,
+     * `createMemo`, `createEffect` or `onCleanup`, directly or through a
+     * callee. Under SolidJS 2.0 this `onMount` becomes `onSettled`, whose
+     * body is children-forbidden and throws on primitive creation.
+     * Derive from the accessors on the API object from an owner that
+     * outlives the callback instead — see `useGanttScroll`.
+     */
     onContainerReady?: (api: ContainerAPI) => void;
 }
 
@@ -122,8 +139,17 @@ export function GanttContainer(props: GanttContainerProps): JSX.Element {
 
     // Setup on mount
     onMount(() => {
+        // Measure once, up front. Both dimensions are seeded from the
+        // measurement so the mount path does not depend on the
+        // ResizeObserver having fired yet (its first callback re-sets the
+        // same numbers, which the signals' default equality swallows), and
+        // so the API below can carry them as plain data.
+        const measuredWidth = scrollAreaRef?.clientWidth ?? 0;
+        const measuredHeight = scrollAreaRef?.clientHeight ?? 0;
+
         if (scrollAreaRef) {
-            setContainerWidth(scrollAreaRef.clientWidth);
+            setContainerWidth(measuredWidth);
+            setViewportHeight(measuredHeight);
 
             // Observe resize
             const resizeObserver = new ResizeObserver((entries) => {
@@ -137,13 +163,17 @@ export function GanttContainer(props: GanttContainerProps): JSX.Element {
             onCleanup(() => resizeObserver.disconnect());
         }
 
-        // Expose scroll API and viewport info to parent
+        // Expose scroll API and viewport info to parent. The measured
+        // dimensions go across as data, not as a read-back of the signals
+        // this same scope just wrote.
         props.onContainerReady?.({
             scrollTo,
             getScrollLeft: () => scrollLeft(),
             getScrollTop: () => scrollTop(),
             getContainerWidth: () => containerWidth(),
             getContainerHeight: () => viewportHeight(),
+            containerWidth: measuredWidth,
+            containerHeight: measuredHeight,
             scrollLeftSignal: scrollLeft,
             scrollTopSignal: scrollTop,
             containerWidthSignal: containerWidth,
