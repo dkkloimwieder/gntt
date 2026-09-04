@@ -6,9 +6,10 @@ import { settle } from './helpers/settle';
 // Characterization tests for `createGanttConfigStore` on solid-js 1.9.12.
 //
 // These pin what the store does TODAY so the flip to SolidJS 2.0 (E3) turns
-// into a named regression list instead of a mystery. They assert current
-// behaviour even where that behaviour is a defect — the two `it.skip`s below
-// are the defect, landed red-and-named rather than "fixed".
+// into a named regression list instead of a mystery. They asserted current
+// behaviour even where that behaviour was a defect: the two expansion cases
+// that landed here as `it.skip` were the defect, named rather than "fixed",
+// and E2.4 (bd gantt-b4m.4) is what un-skipped them.
 //
 // Digest chain pinned: `lib-stores-config-date` STRUCT sites in
 // docs/migration/solid2/digest-t2.md — ganttConfigStore.ts:146
@@ -17,7 +18,8 @@ import { settle } from './helpers/settle';
 // `prev` and returns the post-write value), :173/:175/:189/:199
 // (store-path-setter / store-produce / store-delete on the Set) — plus
 // CHAIN J2 in digest-t1.md:540 ("makeSetter prev/return + getConfig
-// snapshot").
+// snapshot"). E2.4 rewrote every one of those sites; the assertions are
+// unchanged, which is the point — the observable contract survived.
 //
 // Test posture (CLAUDE.md migration rule 10): `settle()` after every write,
 // before reading back — a no-op on 1.9, `flush` after E3.1. `createRoot`
@@ -70,20 +72,18 @@ describe('createGanttConfigStore — construction', () => {
 // ---------------------------------------------------------------------------
 
 describe('createGanttConfigStore — expandedTasks', () => {
-    // TODO(E2.4): un-skip — bd gantt-b4m.4 moves `expandedTasks` out of the
-    // store into a signal holding an immutable Set.
-    //
-    // MEASURED on solid-js 1.9.12: `has()` stays false and the memo never
-    // re-runs. The mechanism is worse than "the Set is mutated in place" — on
-    // 1.9 the Set is never written AT ALL. `toggleTaskExpansion`
-    // (ganttConfigStore.ts:172-183) calls `setState('expandedTasks',
-    // produce(fn))`; store `produce` only invokes `fn` when `isWrappable(state)`
-    // is true, and `isWrappable` rejects a Set (its prototype is Set.prototype,
-    // neither a plain object nor an array), so `produce` returns the identical
-    // Set and `updatePath` short-circuits on `value === prev`. Nothing is
-    // written and nothing is notified. `expandTask` (:185-193) and
-    // `collapseTask` (:195-203) have the same body and the same outcome.
-    it.skip('TODO(E2.4) toggleTaskExpansion notifies a memo over expandedTasks()', () => {
+    // WAS RED before E2.4, and this is the defect it named: `has()` stayed
+    // false and the memo never re-ran. The mechanism was worse than "the Set is
+    // mutated in place" — on 1.9 the Set was never written AT ALL. The old
+    // `toggleTaskExpansion` called `setState('expandedTasks', produce(fn))`;
+    // store `produce` only invokes `fn` when `isWrappable(state)` is true, and
+    // `isWrappable` rejects a Set (its prototype is Set.prototype, neither a
+    // plain object nor an array), so `produce` returned the identical Set and
+    // `updatePath` short-circuited on `value === prev`. Nothing was written and
+    // nothing was notified; `expandTask`/`collapseTask` had the same body and
+    // the same outcome. E2.4 moved `expandedTasks` out of the store into a
+    // signal over an immutable Set, so each mutator now replaces the Set.
+    it('toggleTaskExpansion notifies a memo over expandedTasks()', () => {
         const cfg = createGanttConfigStore({});
         let runs = 0;
         let has!: () => boolean;
@@ -111,10 +111,10 @@ describe('createGanttConfigStore — expandedTasks', () => {
         dispose();
     });
 
-    // TODO(E2.4): un-skip — bd gantt-b4m.4. Same root cause as above, stated
-    // without any reactivity in play: this is not a missing notification, the
-    // committed state itself is untouched.
-    it.skip('TODO(E2.4) toggleTaskExpansion/expandTask/collapseTask write committed state', () => {
+    // Same root cause as above, stated without any reactivity in play: before
+    // E2.4 this was not a missing notification, the committed state itself was
+    // untouched.
+    it('toggleTaskExpansion/expandTask/collapseTask write committed state', () => {
         const cfg = createGanttConfigStore({});
 
         cfg.toggleTaskExpansion('t1');
@@ -126,10 +126,12 @@ describe('createGanttConfigStore — expandedTasks', () => {
         settle();
         expect(cfg.isTaskExpanded('t2')).toBe(true);
 
-        // Drive `collapseTask` PAST its committed-state guard
+        // Drive `collapseTask` PAST the committed-state guard it used to carry
         // (`if (!state.expandedTasks.has(taskId)) return;`) by seeding the Set
-        // through `expandAllTasks`, the one path that does write today. The
-        // guard therefore cannot be what swallows the call — `produce` is.
+        // through `expandAllTasks`, the one path that wrote even then. The
+        // guard therefore was not what swallowed the call — `produce` was.
+        // E2.4 deleted the guard outright: replacing the Set is idempotent, so
+        // the guard bought nothing and would have read committed state.
         cfg.expandAllTasks(['t3']);
         settle();
         expect(cfg.isTaskExpanded('t3')).toBe(true); // green even today
@@ -137,6 +139,74 @@ describe('createGanttConfigStore — expandedTasks', () => {
         cfg.collapseTask('t3');
         settle();
         expect(cfg.isTaskExpanded('t3')).toBe(false);
+    });
+
+    it('toggleTaskExpansion flips the same id back off', () => {
+        // The two cases above drive toggle ON and then take the id back off
+        // with `collapseTask`, so neither of them exercises toggle's OFF
+        // branch: a `toggleTaskExpansion` that only ever ADDS passes both.
+        // Toggling one id twice is what pins the branch.
+        const cfg = createGanttConfigStore({});
+
+        cfg.toggleTaskExpansion('t1');
+        settle();
+        expect(cfg.isTaskExpanded('t1')).toBe(true);
+
+        cfg.toggleTaskExpansion('t1');
+        settle();
+        expect(cfg.isTaskExpanded('t1')).toBe(false);
+        expect(cfg.expandedTasks().size).toBe(0);
+
+        // And a toggle of a DIFFERENT id leaves the first one alone — the
+        // mutator replaces the Set, so a bug that dropped `prev` on the floor
+        // (`new Set([taskId])`) would still pass the round trip above.
+        cfg.toggleTaskExpansion('t1');
+        cfg.toggleTaskExpansion('t2');
+        settle();
+        expect(Array.from(cfg.expandedTasks())).toEqual(['t1', 't2']);
+    });
+
+    it('expandTask stays content-idempotent but replaces the Set every time', () => {
+        // E2.4 deleted the `if (state.expandedTasks.has(taskId)) return;`
+        // guard the old `expandTask`/`collapseTask` carried: a guard that reads
+        // COMMITTED state is exactly the shape deferred writes break (it would
+        // read the pre-write value and swallow a legitimate call). Replacing
+        // the Set is idempotent in CONTENT, but it is still a write, so a
+        // redundant expand does re-notify. That is the deliberate trade, pinned
+        // here rather than left to be rediscovered — and it costs nothing
+        // today: nothing in src/ calls these mutators, only `isTaskExpanded`
+        // and `expandedTasks()`.
+        const cfg = createGanttConfigStore({});
+        let runs = 0;
+        let ids!: () => string[];
+        let dispose!: () => void;
+        createRoot((d) => {
+            dispose = d;
+            ids = createMemo(() => {
+                runs++;
+                return Array.from(cfg.expandedTasks());
+            });
+        });
+        expect(runs).toBe(1);
+
+        cfg.expandTask('t1');
+        settle();
+        expect(ids()).toEqual(['t1']);
+        expect(runs).toBe(2);
+
+        cfg.expandTask('t1');
+        settle();
+        expect(ids()).toEqual(['t1']);
+        expect(runs).toBe(3);
+
+        // Symmetrically on the collapse side: deleting an id that is not in
+        // the Set still replaces it, so the contents hold and the memo re-runs.
+        cfg.collapseTask('absent');
+        settle();
+        expect(ids()).toEqual(['t1']);
+        expect(runs).toBe(4);
+
+        dispose();
     });
 
     it('seeds the Set from options.expandedTasks', () => {
@@ -229,8 +299,9 @@ describe('createGanttConfigStore — expandedTasks', () => {
         expect(ids()).toEqual(['zz']);
         expect(cfg.isTaskExpanded('zz')).toBe(true);
         expect(cfg.isTaskExpanded('a')).toBe(false);
-        // A Set is not wrappable, so the store keeps the caller's own instance
-        // rather than a proxy of it — measured through its consequence first,
+        // Nothing copies the Set on write — the signal keeps the caller's own
+        // instance, exactly as the store did (a Set is not wrappable, so there
+        // was never a proxy either) — measured through its consequence first,
         // because that is what a consumer can observe: mutating the Set the
         // caller still holds edits committed state behind the store's back and
         // notifies nobody, so the memo goes on serving a stale projection.
@@ -244,8 +315,10 @@ describe('createGanttConfigStore — expandedTasks', () => {
         expect(cfg.isTaskExpanded('yy')).toBe(true);
         expect(runs).toBe(2);
         expect(ids()).toEqual(['zz']);
-        // E2.4 replaces this with a signal over an immutable Set, at which
-        // point the identity below is what stops holding.
+        // E2.4 moved this behind a signal over an immutable Set. "Immutable" is
+        // a rule the STORE keeps (every mutator replaces the Set); it is not
+        // enforced against the caller, and `setExpandedTasks` does not copy —
+        // so the identity below still holds, and so does the aliasing above.
         expect(cfg.expandedTasks()).toBe(replacement);
 
         dispose();
@@ -283,13 +356,13 @@ describe('createGanttConfigStore — expandedTasks', () => {
 
 describe('createGanttConfigStore — makeSetter', () => {
     it('composes two updater-form calls in one turn: 30 + 10 + 10 === 50', () => {
-        // CHAIN J2. `makeSetter` computes `prev` by reading the committed store
-        // proxy `state[key]` (ganttConfigStore.ts:161) and then writes. On 1.9
-        // writes commit synchronously, so the second call reads 40 and the pair
-        // composes to +20. Under rc.6's deferred writes the same code yields
-        // +10, because both calls read the same committed 30; E2.4 restores
-        // +20 by moving the `prev` read inside the draft. This assertion is the
-        // one that names that regression at the flip.
+        // CHAIN J2. `makeSetter` used to compute `prev` by reading the
+        // committed store proxy `state[key]` and only then write. On 1.9 writes
+        // commit synchronously, so the second call read 40 and the pair
+        // composed to +20. Under rc.6's deferred writes that same code yields
+        // +10, because both calls read the same committed 30; E2.4 moved the
+        // `prev` read inside the draft, which keeps +20 on both runtimes. This
+        // assertion is the one that would name a slide back to +10.
         const cfg = createGanttConfigStore({ columnWidth: 30 });
         cfg.setColumnWidth((w) => w + 10);
         cfg.setColumnWidth((w) => w + 10);
@@ -298,10 +371,11 @@ describe('createGanttConfigStore — makeSetter', () => {
     });
 
     // NB: deliberately no assertion on any setter's RETURN value. `makeSetter`
-    // returns `state[key]` after the write to satisfy `Setter<T>`, and on 1.9
-    // that is the new value — but D13 makes all 20 setters void-returning
-    // `ConfigSetter<T>` in E2.4, so such an assertion would have to be deleted
-    // rather than adjusted.
+    // used to return `state[key]` after the write to satisfy `Setter<T>`, and
+    // on 1.9 that was the new value — but D13 made all 20 setters
+    // void-returning `ConfigSetter<T>` in E2.4, so such an assertion would have
+    // had to be deleted rather than adjusted. No in-repo caller reads a
+    // setter's return value.
 
     it('value form assigns and notifies only that path', () => {
         const cfg = createGanttConfigStore({ columnWidth: 30, barHeight: 30 });
@@ -392,6 +466,40 @@ describe('createGanttConfigStore — updateOptions', () => {
         expect(barRuns).toBe(2);
         // And a memo over a field `updateOptions` did not name never runs again.
         expect(columnRuns).toBe(1);
+
+        dispose();
+    });
+
+    it('applies a store field and expandedTasks in ONE flush', () => {
+        // E2.4 split `expandedTasks` out of the store, so `updateOptions` now
+        // writes two reactive cells instead of one. A memo that reads both —
+        // Gantt.tsx's `rowLayouts` is exactly that (barHeight + padding +
+        // subtaskHeightRatio + expandedTasks) — must still see a single
+        // update, not one per cell. On 1.9 the `batch()` wrapper is what buys
+        // that; under 2.0's default microtask batching it comes for free, so
+        // this assertion holds across the flip and is what would catch the
+        // wrapper being dropped too early.
+        const cfg = createGanttConfigStore({
+            barHeight: 30,
+            expandedTasks: ['a'],
+        });
+        let runs = 0;
+        let view!: () => string;
+        let dispose!: () => void;
+        createRoot((d) => {
+            dispose = d;
+            view = createMemo(() => {
+                runs++;
+                return `${cfg.barHeight()}:${Array.from(cfg.expandedTasks()).join(',')}`;
+            });
+        });
+        expect(view()).toBe('30:a');
+        expect(runs).toBe(1);
+
+        cfg.updateOptions({ barHeight: 40, expandedTasks: ['x', 'y'] });
+        settle();
+        expect(view()).toBe('40:x,y');
+        expect(runs).toBe(2);
 
         dispose();
     });

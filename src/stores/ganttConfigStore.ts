@@ -1,4 +1,4 @@
-import { Accessor, Setter } from 'solid-js';
+import { Accessor, batch, createSignal } from 'solid-js';
 import { createStore, produce } from 'solid-js/store';
 import {
     DEFAULT_COLUMN_WIDTH,
@@ -31,6 +31,20 @@ interface GanttConfigOptions {
     expandedTasks?: string[];
 }
 
+/**
+ * Committed shape of the config store.
+ *
+ * `expandedTasks` is deliberately NOT a field here: a `Set` inside a store is
+ * not proxied, so it lives in its own signal over an immutable Set (decision
+ * D6 — see `createGanttConfigStore`).
+ *
+ * `ganttStart`, `ganttEnd` and the entries of `ignoredDates` are UNPROXIED
+ * `Date`s: the store hands back the very instance it was given. REPLACE them,
+ * never mutate one in place — an in-place `setDate()`/`setHours()` edits
+ * committed state behind the store's back and notifies nobody. The same rule
+ * covers `ProcessedTask._start` / `_end` / `_baselineStart` / `_baselineEnd`
+ * (see the note on those fields in `src/types.ts`).
+ */
 interface GanttConfigState {
     ganttStart: Date;
     ganttEnd: Date;
@@ -51,8 +65,28 @@ interface GanttConfigState {
     ignoredPositions: number[];
     subtaskHeightRatio: number;
     renderMode: RenderMode;
-    expandedTasks: Set<string>;
 }
+
+/**
+ * Setter shape for the 20 config fields (decision D13).
+ *
+ * Deliberately `void`-returning, unlike solid's `Setter<T>`: a setter cannot
+ * honestly return the value it just staged once writes are deferred — reading
+ * the store back inside the setter would yield the PRE-write committed value.
+ * No caller in this repo uses the return value.
+ *
+ * As with solid's `Setter<T>`, the value overload excludes `Function`, so a
+ * function argument is always taken as an updater and function-valued fields
+ * (`ignoredFunction`) cannot be assigned through the value form; pass
+ * `() => fn` instead. Dropping that `Exclude` would turn a compile error into
+ * a runtime crash (the updater path calls the value with `prev`).
+ */
+export type ConfigSetter<T> = (
+    // Mirrors solid's own `Setter<T>`, which excludes the bare `Function`
+    // type so that any function argument is unambiguously an updater.
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
+    value: Exclude<T, Function> | ((prev: T) => T),
+) => void;
 
 export interface GanttConfigStore {
     // Getters (signals)
@@ -78,26 +112,26 @@ export interface GanttConfigStore {
     expandedTasks: Accessor<Set<string>>;
 
     // Setters
-    setGanttStart: Setter<Date>;
-    setGanttEnd: Setter<Date>;
-    setUnit: Setter<string>;
-    setStep: Setter<number>;
-    setColumnWidth: Setter<number>;
-    setBarHeight: Setter<number>;
-    setHeaderHeight: Setter<number>;
-    setPadding: Setter<number>;
-    setBarCornerRadius: Setter<number>;
-    setReadonly: Setter<boolean>;
-    setReadonlyDates: Setter<boolean>;
-    setReadonlyProgress: Setter<boolean>;
-    setShowExpectedProgress: Setter<boolean>;
-    setAutoMoveLabel: Setter<boolean>;
-    setIgnoredDates: Setter<Date[]>;
-    setIgnoredFunction: Setter<((date: Date) => boolean) | null>;
-    setIgnoredPositions: Setter<number[]>;
-    setSubtaskHeightRatio: Setter<number>;
-    setRenderMode: Setter<RenderMode>;
-    setExpandedTasks: Setter<Set<string>>;
+    setGanttStart: ConfigSetter<Date>;
+    setGanttEnd: ConfigSetter<Date>;
+    setUnit: ConfigSetter<string>;
+    setStep: ConfigSetter<number>;
+    setColumnWidth: ConfigSetter<number>;
+    setBarHeight: ConfigSetter<number>;
+    setHeaderHeight: ConfigSetter<number>;
+    setPadding: ConfigSetter<number>;
+    setBarCornerRadius: ConfigSetter<number>;
+    setReadonly: ConfigSetter<boolean>;
+    setReadonlyDates: ConfigSetter<boolean>;
+    setReadonlyProgress: ConfigSetter<boolean>;
+    setShowExpectedProgress: ConfigSetter<boolean>;
+    setAutoMoveLabel: ConfigSetter<boolean>;
+    setIgnoredDates: ConfigSetter<Date[]>;
+    setIgnoredFunction: ConfigSetter<((date: Date) => boolean) | null>;
+    setIgnoredPositions: ConfigSetter<number[]>;
+    setSubtaskHeightRatio: ConfigSetter<number>;
+    setRenderMode: ConfigSetter<RenderMode>;
+    setExpandedTasks: ConfigSetter<Set<string>>;
 
     // Task expansion methods
     isTaskExpanded: (taskId: string) => boolean;
@@ -119,6 +153,11 @@ export interface GanttConfigStore {
  * Backed by a single createStore for path-level reactivity (only the
  * specific field's readers re-run on change), atomic batch updates, and
  * to keep the store-pattern consistent with taskStore.
+ *
+ * One field sits outside that store: `expandedTasks` is a signal over an
+ * immutable `Set` (decision D6), because a `Set` is not wrappable and so
+ * would never be proxied inside the store. `updateOptions` is therefore the
+ * one writer that touches two reactive cells; see its note.
  */
 export function createGanttConfigStore(
     options: GanttConfigOptions = {},
@@ -143,120 +182,167 @@ export function createGanttConfigStore(
         ignoredPositions: [],
         subtaskHeightRatio: options.subtaskHeightRatio || 0.5,
         renderMode: options.renderMode || 'simple',
-        expandedTasks: new Set(options.expandedTasks || []),
     });
 
-    // Builds a Setter<T>-compatible function that targets a single store path.
-    // Accepts either a value or an updater function — same contract as createSignal's setter.
+    // `expandedTasks` lives OUTSIDE the store (decision D6). A `Set` is not
+    // wrappable, so it is never proxied: mutating one in place notifies
+    // nothing, and `produce` will not even invoke its callback on it. So it is
+    // a signal over an IMMUTABLE Set — every mutator below builds a NEW Set
+    // and replaces it, which is a plain reference write and always notifies.
+    // `ReadonlySet` keeps that honest inside this module; the public accessor
+    // and setter keep their `Set<string>` shape (D6: public option and
+    // accessor types unchanged).
+    const [expandedTasks, setExpandedTasks] = createSignal<ReadonlySet<string>>(
+        new Set(options.expandedTasks ?? []),
+    );
+
+    // Builds a ConfigSetter<T> that targets a single store field (decision
+    // D13: void-returning). Accepts either a value or an updater function.
+    // The updater's `prev` is read from the DRAFT, not from the committed
+    // store proxy, so two updater calls in the same turn compose (30 → 40 →
+    // 50) both today and once writes are deferred.
     function makeSetter<K extends keyof GanttConfigState>(
         key: K,
-    ): Setter<GanttConfigState[K]> {
-        return ((value: unknown) => {
-            const next =
-                typeof value === 'function'
-                    ? (
-                          value as (
-                              prev: GanttConfigState[K],
-                          ) => GanttConfigState[K]
-                      )(state[key])
-                    : (value as GanttConfigState[K]);
-            setState(key, next as never);
-            return state[key];
-        }) as Setter<GanttConfigState[K]>;
+    ): ConfigSetter<GanttConfigState[K]> {
+        return (value) => {
+            setState(
+                produce((draft: GanttConfigState) => {
+                    draft[key] =
+                        typeof value === 'function'
+                            ? (
+                                  value as (
+                                      prev: GanttConfigState[K],
+                                  ) => GanttConfigState[K]
+                              )(draft[key])
+                            : (value as GanttConfigState[K]);
+                }),
+            );
+        };
     }
 
-    // Expansion management methods
+    // Expansion management methods. None of them guards on committed state
+    // first: building a fresh Set is idempotent on its own, and a guard that
+    // reads state the caller may have written earlier in the same turn is
+    // exactly the shape deferred writes break.
     const isTaskExpanded = (taskId: string): boolean =>
-        state.expandedTasks.has(taskId);
+        expandedTasks().has(taskId);
 
     const toggleTaskExpansion = (taskId: string): void => {
-        setState(
-            'expandedTasks',
-            produce((set: Set<string>) => {
-                if (set.has(taskId)) {
-                    set.delete(taskId);
-                } else {
-                    set.add(taskId);
-                }
-            }),
-        );
+        setExpandedTasks((prev) => {
+            const next = new Set(prev);
+            if (next.has(taskId)) {
+                next.delete(taskId);
+            } else {
+                next.add(taskId);
+            }
+            return next;
+        });
     };
 
     const expandTask = (taskId: string): void => {
-        if (state.expandedTasks.has(taskId)) return;
-        setState(
-            'expandedTasks',
-            produce((set: Set<string>) => {
-                set.add(taskId);
-            }),
-        );
+        setExpandedTasks((prev) => {
+            const next = new Set(prev);
+            next.add(taskId);
+            return next;
+        });
     };
 
     const collapseTask = (taskId: string): void => {
-        if (!state.expandedTasks.has(taskId)) return;
-        setState(
-            'expandedTasks',
-            produce((set: Set<string>) => {
-                set.delete(taskId);
-            }),
-        );
+        setExpandedTasks((prev) => {
+            const next = new Set(prev);
+            next.delete(taskId);
+            return next;
+        });
     };
 
     const expandAllTasks = (taskIds: string[]): void => {
-        setState('expandedTasks', new Set(taskIds));
+        setExpandedTasks(new Set(taskIds));
     };
 
     const collapseAllTasks = (): void => {
-        setState('expandedTasks', new Set<string>());
+        setExpandedTasks(new Set<string>());
     };
 
-    // Update many options atomically (single reactivity flush)
-    const updateOptions = (newOptions: Partial<GanttConfigOptions>): void => {
-        setState(
-            produce((s: GanttConfigState) => {
-                if (newOptions.ganttStart !== undefined)
-                    s.ganttStart = newOptions.ganttStart;
-                if (newOptions.ganttEnd !== undefined)
-                    s.ganttEnd = newOptions.ganttEnd;
-                if (newOptions.unit !== undefined) s.unit = newOptions.unit;
-                if (newOptions.step !== undefined) s.step = newOptions.step;
-                if (newOptions.columnWidth !== undefined)
-                    s.columnWidth = newOptions.columnWidth;
-                if (newOptions.barHeight !== undefined)
-                    s.barHeight = newOptions.barHeight;
-                if (newOptions.headerHeight !== undefined)
-                    s.headerHeight = newOptions.headerHeight;
-                if (newOptions.padding !== undefined)
-                    s.padding = newOptions.padding;
-                if (newOptions.barCornerRadius !== undefined)
-                    s.barCornerRadius = newOptions.barCornerRadius;
-                if (newOptions.readonly !== undefined)
-                    s.readonly = newOptions.readonly;
-                if (newOptions.readonlyDates !== undefined)
-                    s.readonlyDates = newOptions.readonlyDates;
-                if (newOptions.readonlyProgress !== undefined)
-                    s.readonlyProgress = newOptions.readonlyProgress;
-                if (newOptions.showExpectedProgress !== undefined)
-                    s.showExpectedProgress = newOptions.showExpectedProgress;
-                if (newOptions.autoMoveLabel !== undefined)
-                    s.autoMoveLabel = newOptions.autoMoveLabel;
-                if (newOptions.ignoredDates !== undefined)
-                    s.ignoredDates = newOptions.ignoredDates;
-                if (newOptions.ignoredFunction !== undefined)
-                    s.ignoredFunction = newOptions.ignoredFunction;
-                if (newOptions.ignoredPositions !== undefined)
-                    s.ignoredPositions = newOptions.ignoredPositions;
-                if (newOptions.subtaskHeightRatio !== undefined)
-                    s.subtaskHeightRatio = newOptions.subtaskHeightRatio;
-                if (newOptions.renderMode !== undefined)
-                    s.renderMode = newOptions.renderMode;
-                if (newOptions.expandedTasks !== undefined)
-                    s.expandedTasks = new Set(newOptions.expandedTasks);
-            }),
+    // Public `setExpandedTasks`: same value-or-updater contract as the other
+    // 19 setters, over the signal instead of the store. The Set handed in is
+    // stored as-is (no defensive copy) — mutate it after the call and the
+    // store shows the mutation without notifying anyone.
+    const setExpandedTasksValue: ConfigSetter<Set<string>> = (value) => {
+        setExpandedTasks((prev) =>
+            typeof value === 'function' ? value(prev as Set<string>) : value,
         );
     };
 
-    // Get current configuration snapshot
+    // Update many options atomically (single reactivity flush).
+    //
+    // Two reactive cells are written now that `expandedTasks` is a signal, so
+    // the `batch` is what keeps the whole update one flush. E3 deletes the
+    // wrapper: 2.0 batches every write to the microtask flush by default.
+    const updateOptions = (newOptions: Partial<GanttConfigOptions>): void => {
+        batch(() => {
+            if (newOptions.expandedTasks !== undefined) {
+                setExpandedTasks(new Set(newOptions.expandedTasks));
+            }
+            setState(
+                produce((s: GanttConfigState) => {
+                    if (newOptions.ganttStart !== undefined)
+                        s.ganttStart = newOptions.ganttStart;
+                    if (newOptions.ganttEnd !== undefined)
+                        s.ganttEnd = newOptions.ganttEnd;
+                    if (newOptions.unit !== undefined) s.unit = newOptions.unit;
+                    if (newOptions.step !== undefined) s.step = newOptions.step;
+                    if (newOptions.columnWidth !== undefined)
+                        s.columnWidth = newOptions.columnWidth;
+                    if (newOptions.barHeight !== undefined)
+                        s.barHeight = newOptions.barHeight;
+                    if (newOptions.headerHeight !== undefined)
+                        s.headerHeight = newOptions.headerHeight;
+                    if (newOptions.padding !== undefined)
+                        s.padding = newOptions.padding;
+                    if (newOptions.barCornerRadius !== undefined)
+                        s.barCornerRadius = newOptions.barCornerRadius;
+                    if (newOptions.readonly !== undefined)
+                        s.readonly = newOptions.readonly;
+                    if (newOptions.readonlyDates !== undefined)
+                        s.readonlyDates = newOptions.readonlyDates;
+                    if (newOptions.readonlyProgress !== undefined)
+                        s.readonlyProgress = newOptions.readonlyProgress;
+                    if (newOptions.showExpectedProgress !== undefined)
+                        s.showExpectedProgress =
+                            newOptions.showExpectedProgress;
+                    if (newOptions.autoMoveLabel !== undefined)
+                        s.autoMoveLabel = newOptions.autoMoveLabel;
+                    if (newOptions.ignoredDates !== undefined)
+                        s.ignoredDates = newOptions.ignoredDates;
+                    if (newOptions.ignoredFunction !== undefined)
+                        s.ignoredFunction = newOptions.ignoredFunction;
+                    if (newOptions.ignoredPositions !== undefined)
+                        s.ignoredPositions = newOptions.ignoredPositions;
+                    if (newOptions.subtaskHeightRatio !== undefined)
+                        s.subtaskHeightRatio = newOptions.subtaskHeightRatio;
+                    if (newOptions.renderMode !== undefined)
+                        s.renderMode = newOptions.renderMode;
+                }),
+            );
+        });
+    };
+
+    /**
+     * Snapshot of the COMMITTED configuration.
+     *
+     * Reads committed state, never a staged write: a caller that calls a
+     * setter and snapshots in the same turn sees the PRE-write values once
+     * writes are deferred, so settle (E3: `flush()`) in between if the write
+     * must be visible here.
+     *
+     * Fields are projected, not deep-copied: `ganttStart`/`ganttEnd` and the
+     * `ignoredDates` entries are the caller's own `Date` instances, and
+     * `ignoredFunction` passes straight through. `expandedTasks` is the one
+     * field whose shape differs from its accessor — `string[]` here,
+     * `Set<string>` off the store — and it is re-projected on every call.
+     *
+     * Reading it inside a tracked scope subscribes to every field it touches.
+     */
     const getConfig = (): GanttConfigOptions => ({
         ganttStart: state.ganttStart,
         ganttEnd: state.ganttEnd,
@@ -277,7 +363,7 @@ export function createGanttConfigStore(
         ignoredPositions: state.ignoredPositions,
         subtaskHeightRatio: state.subtaskHeightRatio,
         renderMode: state.renderMode,
-        expandedTasks: Array.from(state.expandedTasks),
+        expandedTasks: Array.from(expandedTasks()),
     });
 
     return {
@@ -301,7 +387,11 @@ export function createGanttConfigStore(
         ignoredPositions: () => state.ignoredPositions,
         subtaskHeightRatio: () => state.subtaskHeightRatio,
         renderMode: () => state.renderMode,
-        expandedTasks: () => state.expandedTasks,
+        // Cast, not a copy: the signal holds the exact Set instance and this
+        // module never mutates it in place. The `Set<string>` face is the
+        // published one (D6) and is what consumers such as
+        // `calculateRowLayouts` are typed against.
+        expandedTasks: () => expandedTasks() as Set<string>,
 
         // Setters
         setGanttStart: makeSetter('ganttStart'),
@@ -323,7 +413,7 @@ export function createGanttConfigStore(
         setIgnoredPositions: makeSetter('ignoredPositions'),
         setSubtaskHeightRatio: makeSetter('subtaskHeightRatio'),
         setRenderMode: makeSetter('renderMode'),
-        setExpandedTasks: makeSetter('expandedTasks'),
+        setExpandedTasks: setExpandedTasksValue,
 
         // Task expansion methods
         isTaskExpanded,

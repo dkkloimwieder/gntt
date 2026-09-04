@@ -189,6 +189,13 @@ export interface GanttTask {
 /**
  * Processed task (internal representation after processing)
  * Includes computed fields prefixed with _ or $
+ *
+ * UNPROXIED DATES: `_start`, `_end`, `_baselineStart` and `_baselineEnd` are
+ * `Date`s, and a `Date` inside a store is never wrapped in a proxy — the store
+ * hands back the very instance it was given. REPLACE them (`task._start = new
+ * Date(...)`), never mutate one in place: an in-place `setDate()`/`setHours()`
+ * edits committed state behind the store's back and notifies no reader. The
+ * numeric leaves of `_bar` are ordinary proxied fields and stay leaf-mutable.
  */
 export interface ProcessedTask extends Omit<
     GanttTask,
@@ -308,6 +315,14 @@ export interface ViewMode {
 
 /**
  * Gantt chart configuration options
+ *
+ * UNPROXIED DATES: `ganttStart`, `ganttEnd` and every entry of `ignoredDates`
+ * land in `GanttConfigState` (src/stores/ganttConfigStore.ts) as `Date`s, and a
+ * `Date` inside a store is never wrapped in a proxy — the store keeps, and
+ * hands back, the caller's own instance. REPLACE them, never mutate one in
+ * place: an in-place `setDate()`/`setHours()` edits committed state behind the
+ * store's back and notifies no reader. `ignoredDates` itself is an ordinary
+ * array and IS proxied; only its elements carry this rule.
  */
 export interface GanttConfigOptions {
     /** Chart start date */
