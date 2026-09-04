@@ -194,7 +194,9 @@ export function ExportDemo() {
                     viewMode: 'Day',
                     scrollTo: 'start',
                 }}
-                onReady={(a) => setApi(a)}
+                onReady={(a) => {
+                    setApi(a);
+                }}
             />
         </div>
     );

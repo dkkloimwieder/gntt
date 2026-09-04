@@ -105,7 +105,9 @@ export function TaskDataModal(props: TaskDataModalProps): JSX.Element {
                             Task Data: {props.task?.()?.name || 'Unknown'}
                         </h3>
                         <button
-                            onClick={() => props.onClose?.()}
+                            onClick={() => {
+                                props.onClose?.();
+                            }}
                             style={{
                                 border: 'none',
                                 background: 'none',

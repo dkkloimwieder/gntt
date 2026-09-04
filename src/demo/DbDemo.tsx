@@ -108,7 +108,11 @@ export function DbDemo() {
         }
     };
 
-    onMount(() => refetch('Loaded'));
+    // Block body: `refetch` returns a Promise, and a mount callback may
+    // only return undefined or a cleanup function.
+    onMount(() => {
+        void refetch('Loaded');
+    });
 
     const selectedTask = createMemo<TaskApi | null>(() => {
         const id = selectedId();
@@ -360,7 +364,9 @@ export function DbDemo() {
                         options={{ viewMode: 'Day', scrollTo: 'start' }}
                         onDateChange={onDateChange}
                         onProgressChange={onProgressChange}
-                        onTaskClick={(id) => setSelectedId(id)}
+                        onTaskClick={(id) => {
+                            setSelectedId(id);
+                        }}
                         onReady={() => {
                             // Snapshot bar positions once the chart is
                             // mounted; refetches re-snapshot via
@@ -519,20 +525,30 @@ export function DbDemo() {
 
             {/* Modals */}
             <Show when={modal() === 'add'}>
-                <Modal onClose={() => setModal(null)}>
+                <Modal
+                    onClose={() => {
+                        setModal(null);
+                    }}
+                >
                     <h3 style={{ margin: '0 0 12px 0' }}>Add new event</h3>
                     <TaskForm
                         mode="create"
                         resources={bundle()?.resources ?? []}
                         allTasks={bundle()?.tasks ?? []}
                         onSubmit={(v) => submitTask('create', v)}
-                        onCancel={() => setModal(null)}
+                        onCancel={() => {
+                            setModal(null);
+                        }}
                         submitLabel="Create"
                     />
                 </Modal>
             </Show>
             <Show when={modal() === 'resources'}>
-                <Modal onClose={() => setModal(null)}>
+                <Modal
+                    onClose={() => {
+                        setModal(null);
+                    }}
+                >
                     <ResourceManager
                         resources={bundle()?.resources ?? []}
                         onCreate={async (input) => {
@@ -543,12 +559,19 @@ export function DbDemo() {
                             await api.deleteResource(id);
                             await refetch(`Deleted resource ${id}`);
                         }}
-                        onClose={() => setModal(null)}
+                        onClose={() => {
+                            setModal(null);
+                        }}
                     />
                 </Modal>
             </Show>
             <Show when={modal() === 'blocked'}>
-                <Modal onClose={() => setModal(null)} width="720px">
+                <Modal
+                    onClose={() => {
+                        setModal(null);
+                    }}
+                    width="720px"
+                >
                     <BlockedManager
                         resources={bundle()?.resources ?? []}
                         blocked={bundle()?.blockedTime ?? []}
@@ -560,7 +583,9 @@ export function DbDemo() {
                             await api.deleteBlocked(id);
                             await refetch(`Removed blocked slot ${id}`);
                         }}
-                        onClose={() => setModal(null)}
+                        onClose={() => {
+                            setModal(null);
+                        }}
                     />
                 </Modal>
             </Show>

@@ -159,21 +159,31 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
         );
     };
 
-    // Pure callback-bridges to props
+    // Pure callback-bridges to props. Block bodies on purpose: these cross
+    // the component boundary into consumer code, and a callback that leaks
+    // a return value is rejected wherever the caller validates cleanups.
     const handleDateChange = (
         taskId: string,
         position: { x: number; width: number },
-    ): void => props.onDateChange?.(taskId, position);
-    const handleProgressChange = (taskId: string, progress: number): void =>
+    ): void => {
+        props.onDateChange?.(taskId, position);
+    };
+    const handleProgressChange = (taskId: string, progress: number): void => {
         props.onProgressChange?.(taskId, progress);
+    };
     const handleHover = (
         taskId: string,
         clientX: number,
         clientY: number,
-    ): void => props.onHover?.(taskId, clientX, clientY);
-    const handleHoverEnd = (): void => props.onHoverEnd?.();
-    const handleTaskClick = (taskId: string, event: MouseEvent): void =>
+    ): void => {
+        props.onHover?.(taskId, clientX, clientY);
+    };
+    const handleHoverEnd = (): void => {
+        props.onHoverEnd?.();
+    };
+    const handleTaskClick = (taskId: string, event: MouseEvent): void => {
         handleTaskClickWithSelection(taskId, event);
+    };
 
     const handleCollectDescendants = (taskId: string): Set<string> => {
         if (!props.taskStore) return new Set();

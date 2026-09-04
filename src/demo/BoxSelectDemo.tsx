@@ -138,9 +138,9 @@ export function BoxSelectDemo() {
                     viewMode: 'Day',
                     scrollTo: 'start',
                 }}
-                onSelectionChange={(set) =>
-                    setSelectedIds(Array.from(set).sort())
-                }
+                onSelectionChange={(set) => {
+                    setSelectedIds(Array.from(set).sort());
+                }}
             />
         </div>
     );

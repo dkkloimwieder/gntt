@@ -28,16 +28,27 @@ const GanttEventsContext = createContext<GanttEventHandlers>();
 export function GanttEventsProvider(
     props: GanttEventsProviderProps,
 ): JSX.Element {
+    // Block bodies on purpose: each bridge hands control to consumer code
+    // across the component boundary, so it must not leak a return value.
     const handlers: GanttEventHandlers = {
-        onDateChange: (taskId, position) =>
-            props.onDateChange?.(taskId, position),
-        onProgressChange: (taskId, progress) =>
-            props.onProgressChange?.(taskId, progress),
-        onResizeEnd: (taskId) => props.onResizeEnd?.(taskId),
-        onTaskClick: (taskId, event) => props.onTaskClick?.(taskId, event),
-        onHover: (taskId, clientX, clientY) =>
-            props.onHover?.(taskId, clientX, clientY),
-        onHoverEnd: () => props.onHoverEnd?.(),
+        onDateChange: (taskId, position) => {
+            props.onDateChange?.(taskId, position);
+        },
+        onProgressChange: (taskId, progress) => {
+            props.onProgressChange?.(taskId, progress);
+        },
+        onResizeEnd: (taskId) => {
+            props.onResizeEnd?.(taskId);
+        },
+        onTaskClick: (taskId, event) => {
+            props.onTaskClick?.(taskId, event);
+        },
+        onHover: (taskId, clientX, clientY) => {
+            props.onHover?.(taskId, clientX, clientY);
+        },
+        onHoverEnd: () => {
+            props.onHoverEnd?.();
+        },
     };
 
     return (

@@ -251,16 +251,20 @@ export function TaskForm(props: TaskFormProps) {
     const updateConstraint = <K extends keyof ConstraintRow>(
         key: K,
         value: ConstraintRow[K],
-    ) => setConstraints({ ...constraints(), [key]: value });
+    ) => {
+        setConstraints({ ...constraints(), [key]: value });
+    };
 
-    const addDep = () =>
+    const addDep = (): void => {
         setDeps([
             ...deps(),
             { id: '', type: 'FS', lag: 0, maxMode: 'elastic', maxValue: 0 },
         ]);
+    };
 
-    const removeDep = (idx: number) =>
+    const removeDep = (idx: number): void => {
         setDeps(deps().filter((_, i) => i !== idx));
+    };
 
     const updateDep = (idx: number, patch: Partial<DepRow>) => {
         const next = deps().map((d, i) => (i === idx ? { ...d, ...patch } : d));
@@ -746,7 +750,9 @@ export function TaskForm(props: TaskFormProps) {
                             type="button"
                             style={buttonStyle}
                             disabled={submitting()}
-                            onClick={() => props.onCancel?.()}
+                            onClick={() => {
+                                props.onCancel?.();
+                            }}
                         >
                             Cancel
                         </button>

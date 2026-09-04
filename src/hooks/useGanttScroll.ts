@@ -56,18 +56,26 @@ export function useGanttScroll(): GanttScroll {
             });
         } else {
             if (api.scrollLeftSignal) {
-                createEffect(() => setScrollLeft(api.scrollLeftSignal!()));
+                createEffect(() => {
+                    setScrollLeft(api.scrollLeftSignal!());
+                });
             }
             if (api.scrollTopSignal) {
-                createEffect(() => setScrollTop(api.scrollTopSignal!()));
+                createEffect(() => {
+                    setScrollTop(api.scrollTopSignal!());
+                });
             }
         }
 
         if (api.containerWidthSignal) {
-            createEffect(() => setViewportWidth(api.containerWidthSignal!()));
+            createEffect(() => {
+                setViewportWidth(api.containerWidthSignal!());
+            });
         }
         if (api.containerHeightSignal) {
-            createEffect(() => setViewportHeight(api.containerHeightSignal!()));
+            createEffect(() => {
+                setViewportHeight(api.containerHeightSignal!());
+            });
         }
     };
 

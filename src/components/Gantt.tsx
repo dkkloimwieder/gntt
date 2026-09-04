@@ -3,6 +3,7 @@ import {
     createMemo,
     createEffect,
     onMount,
+    onCleanup,
     untrack,
     Accessor,
     JSX,
@@ -231,7 +232,25 @@ export function Gantt(props: GanttProps): JSX.Element {
             }),
     };
     // Fire onReady once after mount so the parent gets a stable handle.
-    onMount(() => props.onReady?.(api));
+    // The consumer callback is deferred by a microtask so it never runs
+    // inside the mount scope itself: in Solid 2.0 this `onMount` becomes
+    // `onSettled`, whose scope is children-forbidden (no primitive
+    // creation, no `onCleanup`) and whose return value is validated.
+    // Deferring restores the unrestricted scope consumers had on 1.x.
+    // Both bodies are blocks so no callback return value escapes.
+    // The microtask can outlive the component, which the synchronous call
+    // could not; `disposed` restores that guarantee. Registered in the
+    // component body, not inside the lifecycle callback, so it stays legal
+    // when E3.1 turns this into a children-forbidden `onSettled`.
+    let disposed = false;
+    onCleanup(() => {
+        disposed = true;
+    });
+    onMount(() => {
+        queueMicrotask(() => {
+            if (!disposed) props.onReady?.(api);
+        });
+    });
 
     // Expose for profiling (development only)
     if (typeof window !== 'undefined') {
@@ -475,10 +494,12 @@ export function Gantt(props: GanttProps): JSX.Element {
         }
     };
 
-    const handleProgressChange = (taskId: string, progress: number): void =>
+    const handleProgressChange = (taskId: string, progress: number): void => {
         props.onProgressChange?.(taskId, progress);
-    const handleResizeEnd = (taskId: string): void =>
+    };
+    const handleResizeEnd = (taskId: string): void => {
         props.onResizeEnd?.(taskId);
+    };
 
     const handleTaskClick = (taskId: string, event: MouseEvent): void => {
         if (!props.disableTaskClickModal) modals.showModal(taskId);
