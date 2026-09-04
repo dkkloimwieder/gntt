@@ -12,9 +12,28 @@ import { createSignal, Accessor } from 'solid-js';
 export interface SelectionStore {
     /** Current selection as a Set. Subscribers see new Set on mutation. */
     selectedIds: Accessor<Set<string>>;
-    /** Convenience: count of selected ids. */
+    /**
+     * Convenience: count of selected ids.
+     *
+     * COMMITTED-STATE READER — see `isSelected`. Reading it straight after
+     * `add`/`toggle`/`replace`/`clear` in the same turn counts the selection
+     * from BEFORE that mutation.
+     */
     selectionCount: Accessor<number>;
-    /** True if the given id is currently selected. */
+    /**
+     * True if the given id is currently selected.
+     *
+     * COMMITTED-STATE READER. It answers about the selection as committed,
+     * which is not necessarily what a mutator called earlier in the same turn
+     * staged. Never use it as a toggle-then-branch oracle —
+     * `toggle(id); if (isSelected(id)) ...` reports the PREVIOUS state.
+     * Compute the resulting selection yourself (see
+     * `TaskLayer.handleTaskClickWithSelection`) and branch on that, or read
+     * this one turn later from an effect on `selectedIds`.
+     *
+     * The mutators themselves are safe to chain: they are functional updaters
+     * that compose against whatever is already staged.
+     */
     isSelected: (id: string) => boolean;
     /** Replace the entire selection with the given ids. */
     replace: (ids: Iterable<string>) => void;

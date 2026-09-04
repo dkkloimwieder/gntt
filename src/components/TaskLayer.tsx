@@ -55,7 +55,22 @@ interface TaskLayerProps {
     onResizeEnd?: (taskId: string) => void;
     onHover?: (taskId: string, clientX: number, clientY: number) => void;
     onHoverEnd?: () => void;
-    onTaskClick?: (taskId: string, event: MouseEvent) => void;
+    /**
+     * Fired on a bar click, after the click's selection intent has been
+     * applied.
+     *
+     * `selection` is the selection this click PRODUCED, computed locally and
+     * handed over rather than read back out of the store — a consumer that
+     * called `selectionStore.selectedIds()` from here would observe the
+     * PRE-click selection once writes are deferred (digest chain E). It is
+     * `undefined` only when no `selectionStore` is wired, in which case the
+     * click changed no selection at all.
+     */
+    onTaskClick?: (
+        taskId: string,
+        event: MouseEvent,
+        selection?: ReadonlySet<string>,
+    ) => void;
 }
 
 /**
@@ -126,21 +141,39 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
     // Click intent: shift extends the selection, ctrl/meta toggles, plain
     // click replaces it with just this task. Bar passes the raw event so
     // we can read modifiers without re-binding handlers.
+    //
+    // Each branch derives the RESULTING selection as a local Set from the
+    // selection read once up front, applies exactly the one store mutator it
+    // always applied, and reports that local to the consumer. The store keeps
+    // its functional updaters (verified safe — they compose against staged
+    // state), and nothing here reads the selection back after writing it, so
+    // the consumer contract survives deferred writes unchanged.
     const handleTaskClickWithSelection = (
         taskId: string,
         event: MouseEvent,
     ): void => {
         const sel = props.selectionStore;
+        let resulting: Set<string> | undefined;
         if (sel) {
+            const current = sel.selectedIds();
             if (event.shiftKey) {
+                resulting = new Set(current);
+                resulting.add(taskId);
                 sel.add(taskId);
             } else if (event.ctrlKey || event.metaKey) {
+                resulting = new Set(current);
+                if (resulting.has(taskId)) {
+                    resulting.delete(taskId);
+                } else {
+                    resulting.add(taskId);
+                }
                 sel.toggle(taskId);
             } else {
+                resulting = new Set([taskId]);
                 sel.replace([taskId]);
             }
         }
-        props.onTaskClick?.(taskId, event);
+        props.onTaskClick?.(taskId, event, resulting);
     };
 
     const handleClampBatchDelta = (

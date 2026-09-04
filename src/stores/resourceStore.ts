@@ -26,9 +26,22 @@ export interface ResourceStore {
     toggleGroup: (groupId: string) => void;
     expandGroup: (groupId: string) => void;
     collapseGroup: (groupId: string) => void;
+    /**
+     * Answers about the COMMITTED collapse state.
+     *
+     * Not a toggle-then-branch oracle: `toggleGroup(id)` followed by
+     * `isGroupCollapsed(id)` in the same turn reports the state from BEFORE
+     * the toggle, because the write has only been staged. Decide from the
+     * value you are about to write, not from a read-back.
+     */
     isGroupCollapsed: (groupId: string) => boolean;
     expandAll: () => void;
-    collapseAll: () => void;
+    /**
+     * Collapse groups. With no argument, collapses every group in the
+     * COMMITTED resource list; pass the ids explicitly when the resource
+     * list was written in the same turn.
+     */
+    collapseAll: (ids?: string[]) => void;
 }
 
 /**
@@ -105,7 +118,15 @@ export function createResourceStore(
         });
     };
 
-    // Check if a group is collapsed
+    /**
+     * Check if a group is collapsed.
+     *
+     * COMMITTED-STATE READER. Reads the collapsed set as it stands, which is
+     * not necessarily what a mutator called earlier in the same turn staged.
+     * Never use it as a toggle-then-branch oracle
+     * (`toggleGroup(id); if (isGroupCollapsed(id)) ...` answers about the
+     * PREVIOUS state); compute the intended next state and act on that.
+     */
     const isGroupCollapsed = (groupId: string): boolean => {
         return collapsedGroups().has(groupId);
     };
@@ -125,10 +146,19 @@ export function createResourceStore(
         setCollapsedGroups(new Set<string>());
     };
 
-    // Collapse all groups
-    const collapseAll = (): void => {
-        const groups = getGroups();
-        setCollapsedGroups(new Set(groups.map((g) => g.id)));
+    /**
+     * Collapse all groups.
+     *
+     * @param ids Group ids to collapse. When omitted the ids are derived from
+     * the `getGroups()` memo — i.e. from the COMMITTED resource list. A caller
+     * that has just written the resource list in the same turn must pass the
+     * ids it built, otherwise the read-back yields the pre-write groups and
+     * the wrong (or no) groups collapse. Mirrors
+     * `taskStore.collapseAllTasks(ids?)`.
+     */
+    const collapseAll = (ids?: string[]): void => {
+        const groupIds = ids ?? getGroups().map((g) => g.id);
+        setCollapsedGroups(new Set(groupIds));
     };
 
     return {
