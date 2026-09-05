@@ -19,6 +19,18 @@
 
 // Inline Function Profiler (main tool)
 export { prof } from './profiler.js';
+import { createFrameMetrics } from './metrics/frameMetrics.js';
+import {
+    startMemoTracking,
+    stopMemoTracking,
+    analyzeMemos,
+    clearMemoTracking,
+} from './instrumentation/memoTracker.js';
+import {
+    createBenchmarkResult,
+    downloadJSON,
+    generateReport,
+} from './export/jsonExporter.js';
 
 // Frame Metrics
 export {
@@ -68,18 +80,6 @@ export {
  * @returns {Object} Benchmark runner API
  */
 export function createBenchmarkRunner(config = {}) {
-    const { createFrameMetrics } = require('./metrics/frameMetrics.js');
-    const {
-        startMemoTracking,
-        stopMemoTracking,
-        analyzeMemos,
-        clearMemoTracking,
-    } = require('./instrumentation/memoTracker.js');
-    const {
-        createBenchmarkResult,
-        downloadJSON,
-        generateReport,
-    } = require('./export/jsonExporter.js');
 
     const frameTracker = createFrameMetrics();
     let startTime = 0;
@@ -238,7 +238,7 @@ export async function runScrollBenchmark(scrollContainer, options = {}) {
 // Expose on window for debugging
 if (typeof window !== 'undefined') {
     window.__ganttPerf = {
-        createFrameMetrics: () => require('./metrics/frameMetrics.js').createFrameMetrics(),
+        createFrameMetrics: () => createFrameMetrics(),
         createBenchmarkRunner,
         runScrollBenchmark,
     };

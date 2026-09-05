@@ -8,6 +8,7 @@
  * wiring stores together — the setup pipeline is a pure function of
  * the rawTasks + stores.
  */
+import { untrack } from 'solid-js';
 import { processTasks } from './taskProcessor';
 import {
     computeDisplayResources,
@@ -82,17 +83,19 @@ export function initializeTasks(
         columnWidth: window.columnWidth,
     });
 
-    const config = {
+    // Not written in this turn, so the committed values are the right ones.
+    // This runs from an effect's apply, where a bare reactive read is flagged
+    // as a strict-read mistake; `untrack` states that these are one-shot.
+    const config = untrack(() => ({
         ganttStart: window.ganttStart,
         ganttEnd: window.ganttEnd,
         unit: window.unit,
         step: window.step,
         columnWidth: window.columnWidth,
-        // Not written in this turn, so the committed values are the right ones.
         headerHeight: ganttConfig.headerHeight(),
         barHeight: ganttConfig.barHeight(),
         padding: ganttConfig.padding(),
-    };
+    }));
 
     // Resource index map: when explicit resources were passed the store was
     // populated by the caller in an earlier turn, so its memo is current and
@@ -106,17 +109,18 @@ export function initializeTasks(
     // Backward-compat fallback: if caller didn't pass the flag, infer
     // from current store state (matches pre-flag behavior).
     const explicit =
-        hasExplicitResources ?? resourceStore.resources().length > 0;
+        hasExplicitResources ??
+        untrack(() => resourceStore.resources().length > 0);
 
     if (explicit && useResourceStore) {
-        resourceIndexMap = resourceStore.resourceIndexMap();
+        resourceIndexMap = untrack(() => resourceStore.resourceIndexMap());
     } else if (!explicit) {
         const extracted = extractResourcesFromTasks(rawTasks);
         resourceStore.updateResources(extracted);
         resourceIndexMap = computeResourceIndexMap(
             computeDisplayResources(
                 normalizeResources(extracted),
-                resourceStore.collapsedGroups(),
+                untrack(() => resourceStore.collapsedGroups()),
             ),
         );
     }
@@ -132,7 +136,7 @@ export function initializeTasks(
     recomputeAllSummaryBounds(taskMap);
 
     // Apply subtask-collapse visibility (in addition to resource group collapse)
-    const collapsedTaskSet = taskStore.collapsedTasks();
+    const collapsedTaskSet = untrack(() => taskStore.collapsedTasks());
     for (const task of taskMap.values()) {
         const processedTask = task as ProcessedTask;
         if (

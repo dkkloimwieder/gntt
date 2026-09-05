@@ -174,6 +174,19 @@ export function ColumnPanel(props: ColumnPanelProps): JSX.Element {
         };
     };
 
+    // Cell content: the column's own renderer, else the task field named by
+    // `col.key`. Called from JSX so a change to the task re-renders the cell.
+    const cellValue = (
+        col: ColumnDef,
+        task: ProcessedTask | undefined,
+        resourceId: string,
+    ): JSX.Element => {
+        if (col.render) return col.render(task, resourceId) as JSX.Element;
+        const raw =
+            task && (task as unknown as Record<string, unknown>)[col.key];
+        return (raw ?? '') as JSX.Element;
+    };
+
     const cellStyle = (col: ColumnDef): Record<string, string | number> => ({
         width: `${col.width ?? DEFAULT_COLUMN_WIDTH}px`,
         'flex-shrink': 0,
@@ -200,7 +213,14 @@ export function ColumnPanel(props: ColumnPanelProps): JSX.Element {
         >
             <For each={visibleResources()}>
                 {(item) => {
-                    const task = firstTaskForResource(item.id);
+                    // Row-level memo: the store scan runs once per row and
+                    // re-runs only when the task set changes. Reading the
+                    // store directly in this callback body would be a
+                    // one-shot (strict-read) read that never updated — the
+                    // cells used to be non-reactive for exactly that reason.
+                    const task = createMemo(() =>
+                        firstTaskForResource(item.id),
+                    );
                     return (
                         <div
                             class="column-panel-row"
@@ -208,27 +228,15 @@ export function ColumnPanel(props: ColumnPanelProps): JSX.Element {
                             style={rowStyle(item)}
                         >
                             <For each={props.columns}>
-                                {(col) => {
-                                    const value = col.render
-                                        ? col.render(task, item.id)
-                                        : ((task &&
-                                              (
-                                                  task as unknown as Record<
-                                                      string,
-                                                      unknown
-                                                  >
-                                              )[col.key]) ??
-                                          '');
-                                    return (
-                                        <div
-                                            class="column-panel-cell"
-                                            data-col-key={col.key}
-                                            style={cellStyle(col)}
-                                        >
-                                            {value as JSX.Element}
-                                        </div>
-                                    );
-                                }}
+                                {(col) => (
+                                    <div
+                                        class="column-panel-cell"
+                                        data-col-key={col.key}
+                                        style={cellStyle(col)}
+                                    >
+                                        {cellValue(col, task(), item.id)}
+                                    </div>
+                                )}
                             </For>
                         </div>
                     );

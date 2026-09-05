@@ -5,6 +5,7 @@ import {
     createSignal,
     onCleanup,
     onSettled,
+    untrack,
 } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 import {
@@ -167,13 +168,18 @@ declare global {
 export function Gantt(props: GanttProps): JSX.Element {
     // Stores: prefer those from a surrounding <GanttProvider>; otherwise
     // create our own so the bare <Gantt tasks={...} /> form keeps working.
+    // The initial options/resources are read ONCE to seed the stores; later
+    // changes reach them through the effects below, so these reads are
+    // deliberately untracked (a bare read in a component body is flagged).
     const provided = useGanttStores();
-    const stores = provided ?? {
-        taskStore: createTaskStore(),
-        ganttConfig: createGanttConfigStore(props.options || {}),
-        dateStore: createGanttDateStore(props.options || {}),
-        resourceStore: createResourceStore(props.resources || []),
-    };
+    const stores =
+        provided ??
+        untrack(() => ({
+            taskStore: createTaskStore(),
+            ganttConfig: createGanttConfigStore(props.options || {}),
+            dateStore: createGanttDateStore(props.options || {}),
+            resourceStore: createResourceStore(props.resources || []),
+        }));
     const { taskStore, ganttConfig, dateStore, resourceStore } = stores;
 
     // Selection store is component-local — provider doesn't need to share
@@ -281,7 +287,9 @@ export function Gantt(props: GanttProps): JSX.Element {
     // This decides whether re-runs (e.g. after a filter change) should
     // re-extract resources from the current task list or leave the
     // store as the parent populated it.
-    const hasExplicitResources = (props.resources?.length ?? 0) > 0;
+    const hasExplicitResources = untrack(
+        () => (props.resources?.length ?? 0) > 0,
+    );
 
     // Run the setup pipeline; commit results into local signals.
     const runSetup = (rawTasks: GanttTask[]): void => {
@@ -331,7 +339,7 @@ export function Gantt(props: GanttProps): JSX.Element {
     );
 
     // View-mode change: dateStore swaps mode; tasks must reinit
-    let prevViewMode = props.options?.viewMode;
+    let prevViewMode = untrack(() => props.options?.viewMode);
     createEffect(
         () => props.options?.viewMode,
         (viewMode) => {
@@ -475,9 +483,11 @@ export function Gantt(props: GanttProps): JSX.Element {
         rowHeight,
         totalRows: () => resourceCount() || taskCount(),
         sortedRowLayouts,
-        overscanCols: props.overscanCols ?? 5,
-        overscanRows: props.overscanRows ?? 5,
-        overscanX: props.overscanX ?? 600,
+        // Plain numbers, read once at creation (the viewport takes values,
+        // not accessors, for these), so the reads are untracked on purpose.
+        overscanCols: untrack(() => props.overscanCols ?? 5),
+        overscanRows: untrack(() => props.overscanRows ?? 5),
+        overscanX: untrack(() => props.overscanX ?? 600),
     });
 
     // Event handlers — bridge to props

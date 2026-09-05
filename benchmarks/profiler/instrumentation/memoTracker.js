@@ -133,7 +133,7 @@ export function createTrackedMemo(fn, name, options) {
         return result;
     };
 
-    return createMemo(trackedFn, undefined, options);
+    return createMemo(trackedFn, options);
 }
 
 /**
