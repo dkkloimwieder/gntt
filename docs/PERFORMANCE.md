@@ -84,7 +84,7 @@ GridTicks component removed entirely. Vertical lines now rendered via Grid.tsx p
 
 ### 4. Intl.DateTimeFormat Caching
 
-**Problem**: `date_utils.format()` created 2 new `Intl.DateTimeFormat` instances per call. With 8,700 hour columns, this meant 17,400 expensive constructor calls per render (~1 second of scripting time).
+**Problem**: `dateUtils.format()` created 2 new `Intl.DateTimeFormat` instances per call. With 8,700 hour columns, this meant 17,400 expensive constructor calls per render (~1 second of scripting time).
 
 **Solution**: Cache formatters at module level by locale.
 
@@ -572,10 +572,10 @@ pnpm dev
 | `src/utils/createVirtualViewport.ts` | **NEW** - Simple 2D viewport virtualization utility |
 | `src/components/Grid.tsx` | SVG pattern for vertical lines |
 | `src/components/GanttContainer.tsx` | Direct scrollLeft assignment, viewport signals |
-| `src/components/Gantt.tsx` | Uses createVirtualViewport, untrack() in Y-sync effect |
+| `src/components/Gantt.tsx` | Uses createVirtualViewport; Y-sync is a split effect whose apply writes `taskStore.setBarYs(ys)` in one draft |
 | `src/components/DateHeaders.tsx` | Column virtualization |
 | `src/components/TaskLayer.tsx` | Row/X filtering (the untrack() over `_bar` was removed in the SolidJS 2.0 migration) |
-| `src/components/ArrowLayer.tsx` | Row filtering, untrack() in positionMap, cached positions during drag |
+| `src/components/ArrowLayerBatched.tsx` | 2D-virtualized batched paths; tracked position reads (no `untrack`, no version counter); per-instance path cache |
 | `src/components/ArrowLayerBatched.tsx` | **ENHANCED** - Spatial row indexing for O(visible_rows) lookup |
 | `src/demo/GanttPerfDemo.tsx` | Default to 'batched' arrow renderer |
 | `src/utils/dateUtils.ts` | Cached Intl.DateTimeFormat instances |

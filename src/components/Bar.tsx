@@ -293,8 +293,7 @@ export function Bar(props: BarProps): JSX.Element {
         const dir = e.key === 'ArrowLeft' ? -1 : 1;
         const delta = dir * colW;
         const onDateChange = props.onDateChange ?? events.onDateChange;
-        const onResizeEnd: (taskId: string, geometry?: DragGeometry) => void =
-            props.onResizeEnd ?? events.onResizeEnd;
+        const onResizeEnd = props.onResizeEnd ?? events.onResizeEnd;
 
         if (e.shiftKey) {
             // Resize from the right edge. The new rect travels to both

@@ -280,7 +280,7 @@ const expectChainAHolds = (m: MountedGantt): void => {
 };
 
 /**
- * `TaskLayer` renders POOLED `<Index>` arrays that grow to the high-water
+ * `TaskLayer` renders POOLED `<For keyed={false}>` arrays that grow to the high-water
  * task count plus a fixed buffer and never shrink, so the DOM holds far more
  * `.bar` elements than there are tasks. Today: 8 regular slots + 5 summary
  * slots = 13 `.bar`.
@@ -414,7 +414,7 @@ describe('<Gantt> first paint (chain A, chain I)', () => {
 
             // …and it is THIS task's geometry, not a neighbour's. Bar.tsx
             // reads `_bar.x`/`_bar.width` straight off the task object, so a
-            // pooled `<Index>` binding the wrong task to a slot shows up
+            // pooled `<For keyed={false}>` binding the wrong task to a slot shows up
             // here even when every individual number is a legal one.
             expect(wrapper.style.transform).toBe(
                 `translate(${task._bar.x}px, ${task._bar.y}px)`,

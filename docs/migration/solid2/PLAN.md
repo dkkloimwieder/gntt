@@ -175,12 +175,13 @@ Gate: `pnpm build:demo` green; every page in the matrix opened with the console 
 
   **Status:** `gantt-g22.3` was closed on 2026-09-05 while two of its four
   declared prerequisites (E5.1, E5.2) and E4.7 were still open, and no
-  commit on `main..solid-2` claims it. What actually signed off the
-  end-of-migration gate is the automated
-  `tests/diagnostics.gate.test.tsx` (mount, drag, expand, view-mode, zero
-  diagnostics) from E4.6 — **not** the manual 21-page browser matrix. Anyone
-  wanting the manual matrix must re-run it and paste the result into
-  `gantt-g22.3`.
+  commit on `main..solid-2` claims it. The matrix WAS executed — driven
+  through Chrome over CDP rather than by hand (all 20 examples + `db.html`
+  loaded with zero exceptions/errors; drag, keyboard, progress, multi-select,
+  box-select, group collapse, export, DB drag-PATCH, view-mode and the perf
+  stress controls exercised) — and the results live in the issue's notes,
+  not in the repo. The automated `tests/diagnostics.gate.test.tsx` (E4.6)
+  guards the same console-clean property in CI.
 
 ### E6 — Performance re-baseline + built artifacts (branch) — P1
 
@@ -209,7 +210,7 @@ Rough effort: E0 ~2d · E1 ~3d · E2 ~7d · E3 ~3d · E4 ~4d · E5 ~3d · E6 ~1.
 ## Verification
 
 Per issue: the per-commit gate above (+ the issue's own acceptance). From E3.1: `pnpm test` must list both projects (client jsdom: 14 existing + new suites; server node: 4).
-End of migration (before E6.2 and again on the merge commit): clean install on Node 22; full gate; `dist/ganttss.es.js` externalizes both runtimes; smoke matrix (E5.3) with zero diagnostics — **signed off against the automated `tests/diagnostics.gate.test.tsx` gate, not the manual 21-page matrix; see the E5.3 status note**; bench scripts complete against fresh `dist-demo`; `git grep` sweeps for removed APIs return nothing outside dated doc history.
+End of migration (before E6.2 and again on the merge commit): clean install on Node 22; full gate; `dist/ganttss.es.js` externalizes both runtimes; smoke matrix (E5.3) with zero diagnostics — **executed via CDP on 2026-09-05, results in `gantt-g22.3`; `tests/diagnostics.gate.test.tsx` guards the same property in CI**; bench scripts complete against fresh `dist-demo`; `git grep` sweeps for removed APIs return nothing outside dated doc history.
 
 ## Creating the beads tree (what executing this plan does)
 
@@ -310,5 +311,5 @@ both E6 issues; E7.1, E7.2, E7.4. Epics `gantt-ola` (E0), `gantt-rci` (E1),
 
 The epics `gantt-avv` (E4), `gantt-g22` (E5), `gantt-l03` (E6) and
 `gantt-b4z` (E7) stay open until their children are. E5.3 (`gantt-g22.3`)
-is closed but was signed off against the automated diagnostics gate — see
-its status note above.
+is closed; its matrix was run via CDP and recorded in the issue — see its
+status note above.

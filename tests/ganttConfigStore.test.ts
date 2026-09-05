@@ -477,7 +477,7 @@ describe('createGanttConfigStore — updateOptions', () => {
         // Gantt.tsx's `rowLayouts` is exactly that (barHeight + padding +
         // subtaskHeightRatio + expandedTasks) — must still see a single
         // update, not one per cell. 2.0's default microtask batching buys
-        // that with no explicit `batch()` wrapper (ganttConfigStore.ts:276);
+        // that with no explicit batching wrapper (ganttConfigStore.ts:276);
         // this assertion is what would catch a write escaping the flush.
         const cfg = createGanttConfigStore({
             barHeight: 30,
@@ -609,9 +609,9 @@ describe('createGanttConfigStore — getConfig', () => {
     });
 
     it('reflects a preceding write once it has settled', () => {
-        // CHAIN J2: getConfig() reads COMMITTED state. On 1.9 the write above
-        // commits synchronously; after the flip only the settle() in between
-        // makes this hold. A caller that mutates and snapshots in the same turn
+        // CHAIN J2: getConfig() reads COMMITTED state. The write above is
+        // staged until the flush, so only the settle() in between makes this
+        // hold. A caller that mutates and snapshots in the same turn
         // WITHOUT settling sees pre-mutation values — E2.4 documents that
         // rather than changing it, which is why there is no assertion here for
         // the un-settled case.

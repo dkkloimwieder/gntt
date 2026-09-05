@@ -334,7 +334,8 @@ export function Gantt(props: GanttProps): JSX.Element {
     });
 
     // Initial mount + reactive reinit on tasks / filter / collapse changes.
-    // This effect also covers the first run, so no separate onMount is needed.
+    // The first run of this effect IS the initial setup; no separate
+    // lifecycle hook is needed.
     createEffect(
         // compute: track everything that requires task reinitialization and
         // hand it over as a fresh object so apply runs on every change.

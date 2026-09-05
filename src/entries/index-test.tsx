@@ -27,8 +27,8 @@ const useTestEvents = () => useContext(TestEventsContext);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // INDEX RECYCLING DIAGNOSTIC DEMO
-// Purpose: Test <Index> DOM recycling WITHOUT scroll complexity
-// Question: How fast can <Index> update 340 DOM nodes when task IDs change?
+// Purpose: Test <For keyed={false}> DOM recycling WITHOUT scroll complexity
+// Question: How fast can <For keyed={false}> update 340 DOM nodes when task IDs change?
 // ═══════════════════════════════════════════════════════════════════════════
 
 // Inject optimized CSS for V7b

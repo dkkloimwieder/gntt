@@ -410,7 +410,7 @@ describe('createTaskStore — whole-value mutations', () => {
     });
 
     // The assertion that distinguishes delete-the-key from assign-undefined.
-    // On 1.9 `setTasks(id, undefined)` made solid-js/store's setProperty
+    // On 1.9 `setTasks(id, undefined)` made the 1.x store's setProperty
     // `delete` the key; the equivalent 2.0 draft assignment KEEPS it holding
     // undefined, so `'a' in tasks` and `Object.keys` would still report it
     // while getAllTasks (which filters undefined) would not. E2.3

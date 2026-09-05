@@ -14,7 +14,7 @@ import solid from '@solidjs/vite-plugin';
 //   - The plugin sets a per-project posture from `test.environment`:
 //     `environment: 'node'` (or 'edge-runtime') selects the SERVER posture
 //     (dist/esm/index.mjs:3621); every DOM environment keeps the CLIENT
-//     posture, and an unset one is defaulted to jsdom (:3645).
+//     posture, and an unset one is defaulted to jsdom (:3646-3647).
 //   - Conditions are assembled per environment (:3751-3758):
 //     `['solid', 'development'?, 'browser'?, ...vite defaults]`, where
 //     `'browser'` is injected only when NOT in server posture; an unset

@@ -39,7 +39,8 @@
  *   4    the mechanism, measured: a `getBarPosition`-shaped computation re-runs
  *        for the leaf write — through the production mutator and through a
  *        bare `_bar.x` mutation alike — while a `taskCount()`-shaped one
- *        re-runs for neither. The component subscribes to the former.
+ *        does not re-run for the bare leaf write. The component subscribes
+ *        to the former.
  *   5    the acceptance probe: a bare `s.t1._bar.x = …` leaf mutation re-runs
  *        `spatialIndex` (counted through the store's reader) and moves the
  *        rendered path.

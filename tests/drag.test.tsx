@@ -11,10 +11,12 @@
  * `onDateChange`.
  *
  * Why they matter under deferred writes: `onDragEnd` runs in the same
- * synchronous stack as the last `onDragMove` (`useDrag.handleMouseUp`,
- * useDrag.ts:160-177), so nothing the move staged is committed yet.
- * `useBarDrag` therefore reports the geometry the final move COMPUTED
- * (`data.lastGeom`, useBarDrag.ts:294-295), never a store read-back — the
+ * synchronous stack as the last `onDragMove` (`useDrag.handleMouseUp`).
+ * `useDrag` calls `flush()` between the two — the one sanctioned library
+ * flush site — so in a full mount a store re-read would agree; that is
+ * exactly why the discriminating harness below is built at hook level with
+ * a deferring store double. `useBarDrag` does not depend on that flush: it
+ * reports the geometry the final move COMPUTED (`data.lastGeom`), and the
  * store read that survives there is the no-move fallback only. These tests
  * pin that.
  *

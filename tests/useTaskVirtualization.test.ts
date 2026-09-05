@@ -99,7 +99,7 @@ afterEach(() => {
  *    permits for store writes. Every signal write (`updateResources`,
  *    the reactive `endRow` below) stays in the test body.
  *
- * `mergeProps` — not a spread — merges `extra`, so a caller can hand in a
+ * `merge` — not a spread — merges `extra`, so a caller can hand in a
  * getter-backed reactive prop the way JSX does.
  */
 function createHarness(
