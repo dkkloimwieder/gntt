@@ -43,7 +43,7 @@
  * be reached at the hook level today — that copy lives inside a component.
  */
 import { describe, it, expect, afterEach } from 'vitest';
-import { createRoot, createSignal, mergeProps } from 'solid-js';
+import { createRoot, createSignal, merge } from 'solid-js';
 import {
     useTaskVirtualization,
     type TaskVirtualization,
@@ -132,7 +132,7 @@ function createHarness(
         const resourceStore = createResourceStore(resources);
         const ganttConfig = createGanttConfigStore(configOptions);
         taskStore.updateTasks(tasks);
-        const props = mergeProps(
+        const props = merge(
             { taskStore, ganttConfig, resourceStore, startRow: 0, endRow: 10 },
             extra,
         );

@@ -1,5 +1,5 @@
+import type { JSX } from '@solidjs/web';
 // @ts-nocheck
-import { JSX } from 'solid-js';
 
 interface Props {
     onClose: () => void;

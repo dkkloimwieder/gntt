@@ -1,4 +1,5 @@
-import { For, JSX } from 'solid-js';
+import { For } from 'solid-js';
+import type { JSX } from '@solidjs/web';
 import { SubtaskBar } from './SubtaskBar';
 import type { TaskStore } from '../stores/taskStore';
 import type { GanttConfigStore } from '../stores/ganttConfigStore';

@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { createSignal, createMemo, For, onMount } from 'solid-js';
+import { createSignal, createMemo, For, onSettled } from 'solid-js';
 import { createTaskStore } from '../stores/taskStore.js';
 import { Arrow } from '../components/Arrow';
 
@@ -659,7 +659,7 @@ export function ConstraintDemo() {
     });
 
     // Initialize store
-    onMount(() => {
+    onSettled(() => {
         taskStore.updateTasks(allTasks());
     });
 

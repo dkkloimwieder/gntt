@@ -1,7 +1,7 @@
+import type { JSX } from '@solidjs/web';
 // Note: createMemo was attempted for optimization but created reactive cascades
 // that hurt scroll performance. Plain functions work better here.
 
-import { JSX } from 'solid-js';
 import { prof } from '../utils/profiler';
 import type { TaskStore } from '../stores/taskStore';
 import type { BarPosition, DependencyType } from '../types';

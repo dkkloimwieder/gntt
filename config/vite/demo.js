@@ -1,12 +1,12 @@
 import { resolve } from 'path';
 import { defineConfig } from 'vite';
-import solidPlugin from 'vite-plugin-solid';
+import solid from '@solidjs/vite-plugin';
 
 const root = resolve(__dirname, '../..');
 
 export default defineConfig({
     root,
-    plugins: [solidPlugin()],
+    plugins: [solid()],
     build: {
         outDir: 'dist-demo',
         rollupOptions: {

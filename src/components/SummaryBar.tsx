@@ -1,4 +1,5 @@
-import { createMemo, JSX, Accessor } from 'solid-js';
+import { createMemo, Accessor } from 'solid-js';
+import type { JSX } from '@solidjs/web';
 import { useDrag } from '../hooks/useDrag';
 import { snapToGrid, computeLabelPosition } from '../utils/barCalculations';
 import type { TaskStore } from '../stores/taskStore';
@@ -190,7 +191,7 @@ export function SummaryBar(props: SummaryBarProps): JSX.Element {
             role="group"
             aria-roledescription="summary task"
             aria-label={ariaLabel()}
-            tabIndex={readonly() ? -1 : 0}
+            tabindex={readonly() ? -1 : 0}
             onMouseDown={handleBarMouseDown}
             style={{
                 position: 'absolute',

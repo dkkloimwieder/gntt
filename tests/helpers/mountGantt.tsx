@@ -95,7 +95,7 @@
  * not import it from there yet — this tree is still on solid-js 1.9.
  */
 import type { ComponentProps } from 'solid-js';
-import { render } from 'solid-js/web';
+import { render } from '@solidjs/web';
 import { Gantt } from '../../src/components/Gantt';
 import { GanttProvider } from '../../src/contexts/GanttStores';
 import type { TaskStore } from '../../src/stores/taskStore';

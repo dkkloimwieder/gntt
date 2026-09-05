@@ -1,4 +1,4 @@
-import { render } from 'solid-js/web';
+import { render } from '@solidjs/web';
 import FilterSearchDemo from '../demo/FilterSearchDemo';
 
 const root = document.getElementById('app');

@@ -1,4 +1,4 @@
-import { createSignal, onCleanup, Accessor } from 'solid-js';
+import { createSignal, flush, onCleanup, Accessor } from 'solid-js';
 
 type DragState =
     | 'idle'
@@ -156,11 +156,16 @@ export function useDrag(options: UseDragOptions = {}): UseDragResult {
 
         stopRaf();
 
-        // Process any pending move one last time
+        // Process any pending move one last time, then commit it. Writes are
+        // staged until the next flush, and onDragEnd below re-reads the store
+        // to report the final geometry — without this flush it would report
+        // the geometry from BEFORE the last move. This is the one sanctioned
+        // library flush site (mouseup is an event handler, so it is legal).
         if (pendingMove) {
             onDragMove?.(pendingMove, dragData, dragState());
             pendingMove = null;
         }
+        flush();
 
         const svg = dragData.svg;
         const svgCoords = toSvgCoords(e.clientX, e.clientY, svg);

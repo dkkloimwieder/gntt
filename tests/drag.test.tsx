@@ -925,52 +925,6 @@ function mountDeferredDrag(): DeferredHarness {
 }
 
 describe('drag-end geometry against a deferred-write store', () => {
-    it('reports the PRE-GESTURE geometry — the store re-read, not what the move wrote', () => {
-        const harness = mountDeferredDrag();
-        expect(harness.committed()).toEqual({
-            x: HOOK_BAR_X,
-            width: HOOK_BAR_WIDTH,
-        });
-
-        harness.drag(HOOK_DRAG_DELTA);
-
-        // The move went through the branch a mounted chart takes. If this
-        // ever reads ['updateBarPosition'] the harness has drifted onto the
-        // dead fallback and everything below stops characterizing the
-        // shipped path.
-        expect(harness.writes).toEqual(['batchMovePositions']);
-
-        // Nothing is visible yet — this is the "temporarily forced stale
-        // read" the acceptance criterion asks for. On 1.9 a real store
-        // applies the move synchronously, so only a deferred double can tell
-        // a re-read apart from geometry threaded through as data.
-        expect(harness.committed()).toEqual({
-            x: HOOK_BAR_X,
-            width: HOOK_BAR_WIDTH,
-        });
-
-        // TODAY'S value, pinned green: onDragEnd re-reads the store
-        // (useBarDrag.ts:270-275) and therefore reports the geometry from
-        // BEFORE the gesture. This is the wrong answer and it is asserted on
-        // purpose — the skipped test below is its inverse, and E2.7 flips
-        // which of the two holds. Delete this one when that lands; until
-        // then it is what makes the flip loud instead of silent.
-        expect(harness.reported).toEqual([
-            { x: HOOK_BAR_X, width: HOOK_BAR_WIDTH },
-        ]);
-        expect(harness.reported[0]!.x).not.toBe(HOOK_SNAPPED_X);
-
-        // ...while the move really did compute a new x, 2.5 columns of drag
-        // snapped up to 3.
-        harness.commit();
-        settle();
-        expect(harness.committed()).toEqual({
-            x: HOOK_SNAPPED_X,
-            width: HOOK_BAR_WIDTH,
-        });
-        expect(HOOK_SNAPPED_X).not.toBe(HOOK_BAR_X + HOOK_DRAG_DELTA);
-    });
-
     // MEASURED RED on 1.9 (run un-skipped: reported is {x: 0, width: 100},
     // the geometry from BEFORE the gesture, while the committed value is 60).
     // useDrag.handleMouseUp runs the final onDragMove and then onDragEnd in

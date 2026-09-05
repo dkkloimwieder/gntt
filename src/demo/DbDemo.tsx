@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { Show, createMemo, createSignal, onMount } from 'solid-js';
+import { Show, createMemo, createSignal, onSettled } from 'solid-js';
 import { Gantt } from '../components/Gantt';
 import { BlockedManager } from './db/BlockedManager';
 import { Modal } from './db/Modal';
@@ -110,7 +110,7 @@ export function DbDemo() {
 
     // Block body: `refetch` returns a Promise, and a mount callback may
     // only return undefined or a cleanup function.
-    onMount(() => {
+    onSettled(() => {
         void refetch('Loaded');
     });
 

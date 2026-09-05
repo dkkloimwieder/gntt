@@ -1,7 +1,7 @@
 // @ts-nocheck
-import { createSignal, createMemo, Index, untrack } from 'solid-js';
-import { Dynamic } from 'solid-js/web';
-import { createStore } from 'solid-js/store';
+import { createSignal, createMemo, For, untrack } from 'solid-js';
+import { Dynamic } from '@solidjs/web';
+import { createStore } from 'solid-js';
 import {
     createLatch,
     useDemoMount,
@@ -1178,14 +1178,14 @@ export function GanttExperiments() {
                                     'pointer-events': 'auto',
                                 }}
                             >
-                                <Index each={visibleTasks()}>
+                                <For keyed={false} each={visibleTasks()}>
                                     {(task) => (
                                         <Dynamic
                                             component={BarComponent()}
                                             task={task}
                                         />
                                     )}
-                                </Index>
+                                </For>
                             </div>
                         }
                     >

@@ -61,9 +61,8 @@
  * tasks. Every mount below passes an explicit viewport.
  */
 import { describe, it, expect, afterEach } from 'vitest';
-import { createComputed, createRoot, createSignal } from 'solid-js';
-import { createStore, produce } from 'solid-js/store';
-import { render } from 'solid-js/web';
+import { createEffect, createRoot, createSignal, createStore } from 'solid-js';
+import { render } from '@solidjs/web';
 import { ArrowLayerBatched } from '../src/components/ArrowLayerBatched';
 import { createTaskStore, type TaskStore } from '../src/stores/taskStore';
 import { settle } from './helpers/settle';
@@ -250,20 +249,16 @@ function createProbeStore(tasks: ProcessedTask[]): ProbeStore {
     };
 
     const mutateTaskBarX = (id: string, x: number): void => {
-        setState(
-            produce((draft) => {
-                const task = draft[id];
-                if (task?._bar) task._bar.x = x;
-            }),
-        );
+        setState((draft) => {
+            const task = draft[id];
+            if (task?._bar) task._bar.x = x;
+        });
     };
 
     const addTask = (task: ProcessedTask): void => {
-        setState(
-            produce((draft) => {
-                draft[task.id] = task;
-            }),
-        );
+        setState((draft) => {
+            draft[task.id] = task;
+        });
     };
 
     return { store, mutateTaskBarX, addTask, barPositionReads: () => reads };
@@ -319,10 +314,13 @@ function createShiftProbeStore(tasks: ProcessedTask[]): ShiftProbeStore {
 function countReruns(read: () => unknown, write: () => void): number {
     let runs = 0;
     const dispose = createRoot((disposeRoot) => {
-        createComputed(() => {
-            read();
-            runs++;
-        });
+        createEffect(
+            () => {
+                read();
+                runs++;
+            },
+            () => {},
+        );
         return disposeRoot;
     });
     const before = runs;

@@ -1,13 +1,6 @@
 // @ts-nocheck
-import {
-    createSignal,
-    createMemo,
-    For,
-    onMount,
-    onCleanup,
-    batch,
-} from 'solid-js';
-import { createStore } from 'solid-js/store';
+import { createSignal, createMemo, For, onSettled, onCleanup } from 'solid-js';
+import { createStore } from 'solid-js';
 import { Bar } from '../components/Bar';
 import { Arrow } from '../components/Arrow';
 import { TaskDataPopup } from '../components/TaskDataPopup';
@@ -651,7 +644,7 @@ export default function ShowcaseDemo() {
         taskStore.updateTasks(tasks);
     };
 
-    onMount(() => {
+    onSettled(() => {
         initializeTasks();
     });
 
@@ -767,36 +760,33 @@ export default function ShowcaseDemo() {
             PRESET_POSITIONS[presetKey] || PRESET_POSITIONS.default;
 
         // Batch all store updates to prevent timing issues
-        batch(() => {
-            setTaskConfig(preset.taskConfig);
-            setArrowConfig(preset.arrowConfig);
-            setConstraintConfig(preset.constraintConfig);
-            setGlobalConfig(preset.globalConfig);
-            setActivePreset(presetKey);
-            // Reset task configs to defaults
-            setTaskBConfig({
-                name: 'Task B',
-                color: '#27ae60',
-                colorProgress: '#2ecc71',
-                progress: 50,
-                locked: false,
-            });
-            setTaskCConfig({
-                name: 'Task C',
-                color: '#3498db',
-                colorProgress: '#2980b9',
-                progress: 50,
-                locked: false,
-            });
-            setTaskDConfig({
-                name: 'Task D',
-                color: '#9b59b6',
-                colorProgress: '#8e44ad',
-                progress: 50,
-                locked: false,
-            });
+        setTaskConfig(preset.taskConfig);
+        setArrowConfig(preset.arrowConfig);
+        setConstraintConfig(preset.constraintConfig);
+        setGlobalConfig(preset.globalConfig);
+        setActivePreset(presetKey);
+        // Reset task configs to defaults
+        setTaskBConfig({
+            name: 'Task B',
+            color: '#27ae60',
+            colorProgress: '#2ecc71',
+            progress: 50,
+            locked: false,
         });
-
+        setTaskCConfig({
+            name: 'Task C',
+            color: '#3498db',
+            colorProgress: '#2980b9',
+            progress: 50,
+            locked: false,
+        });
+        setTaskDConfig({
+            name: 'Task D',
+            color: '#9b59b6',
+            colorProgress: '#8e44ad',
+            progress: 50,
+            locked: false,
+        });
         // Reset task positions based on preset
         taskStore.updateBarPosition('task-a', {
             ...positions['task-a'],

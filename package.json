@@ -2,7 +2,7 @@
     "name": "ganttss",
     "version": "1.0.3",
     "description": "",
-    "main": "dist/ganttss.umd.js",
+    "main": "dist/ganttss.es.js",
     "module": "dist/ganttss.es.js",
     "type": "module",
     "scripts": {
@@ -44,7 +44,7 @@
         ".": {
             "style": "./dist/ganttss.css",
             "import": "./dist/ganttss.es.js",
-            "require": "./dist/ganttss.umd.js"
+            "require": "./dist/ganttss.es.js"
         }
     },
     "keywords": [
@@ -63,11 +63,12 @@
     "homepage": "",
     "devDependencies": {
         "@hono/node-server": "^2.0.2",
+        "@solid-primitives/raf": "4.0.0-next.2",
+        "@solidjs/vite-plugin": "3.0.0-next.39",
         "@types/better-sqlite3": "^7.6.13",
         "@types/node": "^25.6.2",
         "@typescript-eslint/eslint-plugin": "^8.59.2",
         "@typescript-eslint/parser": "^8.59.2",
-        "babel-preset-solid": "^1.9.12",
         "better-sqlite3": "^12.9.0",
         "concurrently": "^9.2.1",
         "drizzle-kit": "^0.31.10",
@@ -83,7 +84,6 @@
         "tsx": "^4.21.0",
         "typescript": "^6.0.3",
         "vite": "^8.0.11",
-        "vite-plugin-solid": "^2.11.12",
         "vitest": "^4.1.5"
     },
     "eslintIgnore": [
@@ -93,12 +93,11 @@
         "*.css"
     ],
     "packageManager": "pnpm@10.23.0+sha512.21c4e5698002ade97e4efe8b8b4a89a8de3c85a37919f957e7a0f30f38fbc5bbdd05980ffe29179b2fb6e6e691242e098d945d1601772cad0fef5fb6411e2a4b",
+    "engines": {
+        "node": "^20.19.0 || >=22.12.0"
+    },
     "dependencies": {
-        "@solid-primitives/memo": "^1.4.5",
-        "@solid-primitives/raf": "^2.3.4",
-        "@solid-primitives/resize-observer": "^2.1.5",
-        "@solid-primitives/scheduled": "^1.5.3",
-        "@solid-primitives/scroll": "^2.1.5",
-        "solid-js": "^1.9.12"
+        "@solidjs/web": "2.0.0-rc.6",
+        "solid-js": "2.0.0-rc.6"
     }
 }

@@ -1,4 +1,5 @@
-import { Show, JSX } from 'solid-js';
+import { Show } from 'solid-js';
+import type { JSX } from '@solidjs/web';
 import type { ProcessedTask, BarPosition } from '../types';
 import { DEFAULT_BAR_HEIGHT } from '../constants';
 

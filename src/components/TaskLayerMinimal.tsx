@@ -1,4 +1,5 @@
-import { createMemo, Index, untrack, JSX } from 'solid-js';
+import { createMemo, For, untrack } from 'solid-js';
+import type { JSX } from '@solidjs/web';
 import { BarMinimal } from './BarMinimal';
 import type { ResourceStore } from '../stores/resourceStore';
 import type { TaskStore } from '../stores/taskStore';
@@ -127,9 +128,9 @@ export function TaskLayerMinimal(props: TaskLayerMinimalProps): JSX.Element {
             }}
         >
             {/* Direct Index → BarMinimal (NO wrapper div, NO display:none) */}
-            <Index each={visibleTasks()}>
+            <For keyed={false} each={visibleTasks()}>
                 {(task) => <BarMinimal task={task} />}
-            </Index>
+            </For>
         </div>
     );
 }

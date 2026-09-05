@@ -247,13 +247,7 @@ export function useBarDrag(deps: UseBarDragDeps) {
                           )
                         : 0;
 
-                const currentTask = deps.taskStore.getTask(t.id);
-                if (currentTask) {
-                    deps.taskStore.updateTask(t.id, {
-                        ...currentTask,
-                        progress: newProgress,
-                    });
-                }
+                deps.taskStore.setTaskProgress(t.id, newProgress);
             }
         },
 

@@ -1,4 +1,5 @@
-import { For, Show, createMemo, JSX } from 'solid-js';
+import { For, Show, createMemo } from 'solid-js';
+import type { JSX } from '@solidjs/web';
 import type { ResourceStore } from '../stores/resourceStore';
 import type { GanttConfigStore } from '../stores/ganttConfigStore';
 import type { RowLayout } from '../utils/rowLayoutCalculator';

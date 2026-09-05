@@ -1,13 +1,12 @@
 import {
-    createSignal,
-    createMemo,
-    createEffect,
-    onMount,
-    onCleanup,
-    untrack,
     Accessor,
-    JSX,
+    createEffect,
+    createMemo,
+    createSignal,
+    onCleanup,
+    onSettled,
 } from 'solid-js';
+import type { JSX } from '@solidjs/web';
 import {
     DEFAULT_UPPER_HEADER_HEIGHT,
     DEFAULT_LOWER_HEADER_HEIGHT,
@@ -182,11 +181,12 @@ export function Gantt(props: GanttProps): JSX.Element {
     const selectionStore = createSelectionStore();
 
     // Notify the parent on every selection change.
-    createEffect(() => {
-        const ids = selectionStore.selectedIds();
-        const cb = props.onSelectionChange;
-        if (cb) untrack(() => cb(new Set(ids)));
-    });
+    createEffect(
+        () => new Set(selectionStore.selectedIds()),
+        (ids) => {
+            props.onSelectionChange?.(ids);
+        },
+    );
 
     // Imperative export API. Built once at mount; reads taskStore /
     // relationships / scroll state lazily so the parent can call it
@@ -246,7 +246,7 @@ export function Gantt(props: GanttProps): JSX.Element {
     onCleanup(() => {
         disposed = true;
     });
-    onMount(() => {
+    onSettled(() => {
         queueMicrotask(() => {
             if (!disposed) props.onReady?.(api);
         });
@@ -307,44 +307,43 @@ export function Gantt(props: GanttProps): JSX.Element {
 
     // Initial mount + reactive reinit on tasks / filter / collapse changes.
     // This effect also covers the first run, so no separate onMount is needed.
-    createEffect(() => {
-        // Track all dependencies that require task reinitialization
-        const tasks = effectiveTasks();
-        const _collapsed = resourceStore.collapsedGroups();
-        const _collapsedTasks = taskStore.collapsedTasks();
-
-        if (tasks && tasks.length > 0) {
-            // untrack so initializeTasks doesn't create reactive deps
-            untrack(() => runSetup(tasks));
-        } else {
+    createEffect(
+        // compute: track everything that requires task reinitialization and
+        // hand it over as a fresh object so apply runs on every change.
+        () => ({
+            tasks: effectiveTasks(),
+            collapsedGroups: resourceStore.collapsedGroups(),
+            collapsedTasks: taskStore.collapsedTasks(),
+        }),
+        ({ tasks }) => {
             // Filter wiped out everything — clear the store so the empty
             // state renders correctly instead of showing stale rows.
-            untrack(() => runSetup([]));
-        }
-    });
+            runSetup(tasks && tasks.length > 0 ? tasks : []);
+        },
+    );
 
     // Sync config store when parent passes new options
-    createEffect(() => {
-        const opts = props.options;
-        if (opts) ganttConfig.updateOptions(opts);
-    });
+    createEffect(
+        () => props.options,
+        (opts) => {
+            if (opts) ganttConfig.updateOptions(opts);
+        },
+    );
 
     // View-mode change: dateStore swaps mode; tasks must reinit
-    const [prevViewMode, setPrevViewMode] = createSignal(
-        props.options?.viewMode,
-    );
-    createEffect(() => {
-        const viewMode = props.options?.viewMode;
-        const prev = prevViewMode();
-        if (viewMode && viewMode !== prev) {
-            setPrevViewMode(viewMode);
-            dateStore.changeViewMode(viewMode);
-            const tasks = effectiveTasks();
-            if (tasks && tasks.length > 0) {
-                untrack(() => runSetup(tasks));
+    let prevViewMode = props.options?.viewMode;
+    createEffect(
+        () => props.options?.viewMode,
+        (viewMode) => {
+            if (viewMode && viewMode !== prevViewMode) {
+                prevViewMode = viewMode;
+                dateStore.changeViewMode(viewMode);
+                const tasks = effectiveTasks();
+                if (tasks && tasks.length > 0) runSetup(tasks);
             }
-        }
-    });
+        },
+        { defer: true },
+    );
 
     // Computed dimensions
     const taskCount = createMemo(() => {
@@ -399,25 +398,22 @@ export function Gantt(props: GanttProps): JSX.Element {
 
     // Sync _bar.y to row layout positions so Arrow (reads _bar.y) and
     // Bar (uses taskPosition.y) stay aligned.
-    createEffect(() => {
-        const layouts = rowLayouts();
-        if (!layouts || layouts.size === 0) return;
-
-        // Don't subscribe to per-task changes — only react to layout changes.
-        untrack(() => {
+    createEffect(
+        () => rowLayouts(),
+        (layouts) => {
+            if (!layouts || layouts.size === 0) return;
+            const ys = new Map<string, number>();
             for (const [resourceId, layout] of layouts) {
                 if (resourceId === '__total__') continue;
                 if (!layout.taskPositions) continue;
-
                 for (const [taskId, taskPos] of layout.taskPositions) {
-                    const task = taskStore.tasks[taskId];
-                    if (task && task._bar && task._bar.y !== taskPos.y) {
-                        taskStore.updateBarPosition(taskId, { y: taskPos.y });
-                    }
+                    ys.set(taskId, taskPos.y);
                 }
             }
-        });
-    });
+            // One draft write; the store skips entries whose y already matches.
+            taskStore.setBarYs(ys);
+        },
+    );
 
     // Critical-path overlay: empty set when feature is off so downstream
     // components can read it unconditionally. Uses columnWidth as the
@@ -513,37 +509,53 @@ export function Gantt(props: GanttProps): JSX.Element {
     // and nothing that reads back a signal that scope just wrote.
     const handleContainerReady = (api: ContainerAPILike): void => {
         setContainerApi(api);
-
-        // Handle 'today' scroll immediately (doesn't depend on tasks).
-        // `containerWidth` is the width GanttContainer measured, handed
-        // over as data — not a `getContainerWidth()` signal read-back.
-        if (props.options?.scrollTo === 'today') {
-            const todayX = dateStore.dateToX(new Date());
-            api.scrollTo(todayX - api.containerWidth / 4, false);
-        }
     };
+
+    // Effect: scroll so today sits one quarter in (scrollTo: 'today').
+    // `dateToX` reads the date window, which the setup effect stages in the
+    // same flush the container becomes ready — so this is an effect over
+    // both, not a read inside `onContainerReady`, and it waits until the
+    // window has landed (tasks committed, or there were none to wait for).
+    // `containerWidth` is the width GanttContainer measured, handed over as
+    // data — not a `getContainerWidth()` signal read-back.
+    let todayScrollDone = false;
+    createEffect(
+        () => ({
+            api: containerApi(),
+            wanted: props.options?.scrollTo === 'today',
+            ready: taskStore.taskCount() > 0 || effectiveTasks().length === 0,
+            todayX: dateStore.dateToX(new Date()),
+        }),
+        ({ api, wanted, ready, todayX }) => {
+            if (!todayScrollDone && api && wanted && ready) {
+                api.scrollTo(todayX - api.containerWidth / 4, false);
+                todayScrollDone = true;
+            }
+        },
+    );
 
     // Effect: scroll to first task once tasks are ready (scrollTo: 'start')
     let initialScrollDone = false;
-    createEffect(() => {
-        const tasks = taskStore.tasks;
-        const api = containerApi();
-        const taskIds = Object.keys(tasks);
-        if (
-            !initialScrollDone &&
-            api &&
-            props.options?.scrollTo === 'start' &&
-            tasks &&
-            taskIds.length > 0
-        ) {
+    createEffect(
+        () => {
+            const taskIds = Object.keys(taskStore.tasks);
             const firstTaskId = taskIds[0];
-            const firstTask = firstTaskId ? tasks[firstTaskId] : undefined;
-            if (firstTask?._bar?.x) {
-                api.scrollTo(Math.max(0, firstTask._bar.x - 50), false);
+            const firstTask = firstTaskId
+                ? taskStore.tasks[firstTaskId]
+                : undefined;
+            return {
+                api: containerApi(),
+                wanted: props.options?.scrollTo === 'start',
+                x: firstTask?._bar?.x,
+            };
+        },
+        ({ api, wanted, x }) => {
+            if (!initialScrollDone && api && wanted && x) {
+                api.scrollTo(Math.max(0, x - 50), false);
                 initialScrollDone = true;
             }
-        }
-    });
+        },
+    );
 
     // Header / resource-column dimensions
     const upperHeaderHeight = (): number =>

@@ -1,6 +1,6 @@
 // @ts-nocheck
-import { createSignal, createMemo, Index, For, Show, batch } from 'solid-js';
-import { createStore, produce } from 'solid-js/store';
+import { createSignal, createMemo, For, Show } from 'solid-js';
+import { createStore } from 'solid-js';
 import {
     useDemoMount,
     useRafLoop,
@@ -1528,18 +1528,16 @@ export function GanttPerfIsolate() {
     // Note: Arrow re-render is triggered ONCE after batch via setPositionVersion
     const updateBarPosition = (id, updates) => {
         const hw = hourWidth();
-        setTasks(
-            produce((state) => {
-                if (state[id]) {
-                    if (updates.x !== undefined) {
-                        state[id].startHours = updates.x / hw;
-                    }
-                    if (updates.width !== undefined) {
-                        state[id].durationHours = updates.width / hw;
-                    }
+        setTasks((state) => {
+            if (state[id]) {
+                if (updates.x !== undefined) {
+                    state[id].startHours = updates.x / hw;
                 }
-            }),
-        );
+                if (updates.width !== undefined) {
+                    state[id].durationHours = updates.width / hw;
+                }
+            }
+        });
     };
 
     // Separate function to trigger arrow re-render (call once after batch)
@@ -1593,17 +1591,15 @@ export function GanttPerfIsolate() {
         if (result.blocked) return;
 
         // Batch ALL updates to avoid multiple reactivity triggers
-        batch(() => {
-            updateBarPosition(taskId, { x: result.constrainedX });
+        updateBarPosition(taskId, { x: result.constrainedX });
 
-            // Apply cascade updates to successors
-            for (const [succId, update] of result.cascadeUpdates) {
-                updateBarPosition(succId, update);
-            }
+        // Apply cascade updates to successors
+        for (const [succId, update] of result.cascadeUpdates) {
+            updateBarPosition(succId, update);
+        }
 
-            // Trigger arrow re-render once after all updates
-            triggerArrowUpdate();
-        });
+        // Trigger arrow re-render once after all updates
+        triggerArrowUpdate();
     };
 
     // Resize constraint callback - uses constraint engine with resize-specific logic
@@ -1657,21 +1653,15 @@ export function GanttPerfIsolate() {
         finalWidth = Math.max(minWidth, finalWidth);
 
         // Batch ALL updates
-        batch(() => {
-            updateBarPosition(taskId, { x: finalX, width: finalWidth });
+        updateBarPosition(taskId, { x: finalX, width: finalWidth });
 
-            // Calculate and apply cascade updates for the final position
-            const cascadeUpdates = calculateCascadeUpdates(
-                taskId,
-                finalX,
-                context,
-            );
-            for (const [succId, update] of cascadeUpdates) {
-                updateBarPosition(succId, update);
-            }
+        // Calculate and apply cascade updates for the final position
+        const cascadeUpdates = calculateCascadeUpdates(taskId, finalX, context);
+        for (const [succId, update] of cascadeUpdates) {
+            updateBarPosition(succId, update);
+        }
 
-            triggerArrowUpdate();
-        });
+        triggerArrowUpdate();
     };
 
     // Visible ranges

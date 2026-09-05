@@ -1,4 +1,5 @@
-import { createMemo, Accessor, JSX } from 'solid-js';
+import { createMemo, Accessor } from 'solid-js';
+import type { JSX } from '@solidjs/web';
 import {
     computeProgressWidth,
     computeExpectedProgress,
@@ -418,7 +419,7 @@ export function Bar(props: BarProps): JSX.Element {
             aria-label={ariaLabel()}
             aria-disabled={readonly() || isLocked() ? 'true' : 'false'}
             aria-selected={props.isSelected ? 'true' : undefined}
-            tabIndex={readonly() ? -1 : 0}
+            tabindex={readonly() ? -1 : 0}
             onMouseDown={handleBarMouseDown}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}

@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { createSignal, createMemo, For, Index, onMount, Show } from 'solid-js';
+import { createSignal, createMemo, For, onSettled, Show } from 'solid-js';
 import { createTaskStore } from '../stores/taskStore.js';
 import { createGanttConfigStore } from '../stores/ganttConfigStore.js';
 import { Bar } from '../components/Bar';
@@ -170,7 +170,7 @@ export function BarDemo() {
     ];
 
     // Initialize tasks
-    onMount(() => {
+    onSettled(() => {
         const tasks = sampleTasks.map((task, i) => ({
             ...task,
             _bar: {
@@ -394,7 +394,7 @@ export function BarDemo() {
 
                 {/* Bars layer - use Index instead of For to prevent component recreation on position updates */}
                 <g class="bars">
-                    <Index each={allTasks()}>
+                    <For keyed={false} each={allTasks()}>
                         {(task) => (
                             <Bar
                                 task={task()}
@@ -451,7 +451,7 @@ export function BarDemo() {
                                 }}
                             />
                         )}
-                    </Index>
+                    </For>
                 </g>
 
                 {/* Debug overlay - shows constraints under each bar */}

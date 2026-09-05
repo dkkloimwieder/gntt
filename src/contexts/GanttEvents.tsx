@@ -1,4 +1,5 @@
-import { createContext, useContext, JSX } from 'solid-js';
+import { createContext, useContext } from 'solid-js';
+import type { JSX } from '@solidjs/web';
 import type { BarPosition } from '../types';
 
 interface GanttEventHandlers {
@@ -63,9 +64,9 @@ export function GanttEventsProvider(
     };
 
     return (
-        <GanttEventsContext.Provider value={handlers}>
+        <GanttEventsContext value={handlers}>
             {props.children}
-        </GanttEventsContext.Provider>
+        </GanttEventsContext>
     );
 }
 

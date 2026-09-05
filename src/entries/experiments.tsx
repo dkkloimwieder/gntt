@@ -1,4 +1,4 @@
-import { render } from 'solid-js/web';
+import { render } from '@solidjs/web';
 import GanttExperiments from '../demo/GanttExperiments';
 
 const root = document.getElementById('app');

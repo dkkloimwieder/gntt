@@ -75,7 +75,7 @@ describe('createGanttConfigStore — expandedTasks', () => {
     // WAS RED before E2.4, and this is the defect it named: `has()` stayed
     // false and the memo never re-ran. The mechanism was worse than "the Set is
     // mutated in place" — on 1.9 the Set was never written AT ALL. The old
-    // `toggleTaskExpansion` called `setState('expandedTasks', produce(fn))`;
+    // `toggleTaskExpansion` called `setState('expandedTasks', (fn))`;
     // store `produce` only invokes `fn` when `isWrappable(state)` is true, and
     // `isWrappable` rejects a Set (its prototype is Set.prototype, neither a
     // plain object nor an array), so `produce` returned the identical Set and

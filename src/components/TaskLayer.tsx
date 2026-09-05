@@ -1,4 +1,5 @@
-import { For, Index, createMemo, Accessor, JSX } from 'solid-js';
+import { For, createMemo, Accessor } from 'solid-js';
+import type { JSX } from '@solidjs/web';
 import { Bar } from './Bar';
 import { SummaryBar } from './SummaryBar';
 import { ExpandedTaskContainer } from './ExpandedTaskContainer';
@@ -257,7 +258,7 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
         >
             {/* Summary bars render BEHIND everything */}
             <div class="summary-layer" style={{ contain: 'layout style' }}>
-                <Index each={pooledSummaryIds()}>
+                <For keyed={false} each={pooledSummaryIds()}>
                     {(taskId: Accessor<string | undefined>) => (
                         <div style={{ display: taskId() ? 'block' : 'none' }}>
                             <SummaryBar
@@ -270,7 +271,7 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
                             />
                         </div>
                     )}
-                </Index>
+                </For>
             </div>
 
             {/* Expanded task containers (parent + subtasks) */}
@@ -289,7 +290,7 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
 
             {/* Regular task bars render ON TOP */}
             <div class="task-bars-layer" style={{ contain: 'layout style' }}>
-                <Index each={pooledRegularTasks()}>
+                <For keyed={false} each={pooledRegularTasks()}>
                     {(task: Accessor<ProcessedTask | undefined>) => (
                         <div
                             style={{
@@ -329,7 +330,7 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
                             />
                         </div>
                     )}
-                </Index>
+                </For>
             </div>
 
             {/* Box-select overlay (only rendered while dragging the box) */}

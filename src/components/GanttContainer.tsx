@@ -1,4 +1,5 @@
-import { createSignal, onMount, onCleanup, JSX, Accessor } from 'solid-js';
+import { createSignal, onSettled, Accessor } from 'solid-js';
+import type { JSX } from '@solidjs/web';
 import type { GanttConfigStore } from '../stores/ganttConfigStore';
 import {
     DEFAULT_COLUMN_WIDTH,
@@ -138,7 +139,7 @@ export function GanttContainer(props: GanttContainerProps): JSX.Element {
     };
 
     // Setup on mount
-    onMount(() => {
+    onSettled(() => {
         // Measure once, up front. Both dimensions are seeded from the
         // measurement so the mount path does not depend on the
         // ResizeObserver having fired yet (its first callback re-sets the
@@ -147,20 +148,19 @@ export function GanttContainer(props: GanttContainerProps): JSX.Element {
         const measuredWidth = scrollAreaRef?.clientWidth ?? 0;
         const measuredHeight = scrollAreaRef?.clientHeight ?? 0;
 
+        let resizeObserver: ResizeObserver | undefined;
         if (scrollAreaRef) {
             setContainerWidth(measuredWidth);
             setViewportHeight(measuredHeight);
 
             // Observe resize
-            const resizeObserver = new ResizeObserver((entries) => {
+            resizeObserver = new ResizeObserver((entries) => {
                 for (const entry of entries) {
                     setContainerWidth(entry.contentRect.width);
                     setViewportHeight(entry.contentRect.height);
                 }
             });
             resizeObserver.observe(scrollAreaRef);
-
-            onCleanup(() => resizeObserver.disconnect());
         }
 
         // Expose scroll API and viewport info to parent. The measured
@@ -179,6 +179,8 @@ export function GanttContainer(props: GanttContainerProps): JSX.Element {
             containerWidthSignal: containerWidth,
             containerHeightSignal: viewportHeight,
         });
+
+        return () => resizeObserver?.disconnect();
     });
 
     // CSS variables from config

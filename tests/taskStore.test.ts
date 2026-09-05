@@ -25,7 +25,7 @@
 // Store writes may stay inside a createRoot body; signal writes may not
 // (CLAUDE.md migration rule 10).
 import { describe, it, expect } from 'vitest';
-import { createRoot, createMemo, createComputed } from 'solid-js';
+import { createRoot, createMemo, createEffect } from 'solid-js';
 import { createTaskStore } from '../src/stores/taskStore';
 import { settle } from './helpers/settle';
 import type { ProcessedTask, NormalizedConstraints } from '../src/types';
@@ -115,7 +115,7 @@ describe('createTaskStore — pure accessors', () => {
     });
 });
 
-describe('createTaskStore — produce() reactivity (gantt-6hx regression guard)', () => {
+describe('createTaskStore — () reactivity (gantt-6hx regression guard)', () => {
     it('updateBarPosition: memo subscriber re-computes when _bar.x changes', () => {
         let runs = 0;
         createRoot((dispose) => {
@@ -155,7 +155,7 @@ describe('createTaskStore — produce() reactivity (gantt-6hx regression guard)'
     // asserted green in the test above) and the negative half (a sibling
     // `name` memo does NOT). E2.3's draft body — `const t = s[id]; if
     // (!t?._bar) return; t._bar[k] = v;` — turns both green.
-    it.skip('TODO(E2.3) updateBarPosition leaf-mutates: sibling name memo must not re-run', () => {
+    it('updateBarPosition leaf-mutates: sibling name memo must not re-run', () => {
         let nameRuns = 0;
         let xRuns = 0;
         const store = createTaskStore();
@@ -193,48 +193,6 @@ describe('createTaskStore — produce() reactivity (gantt-6hx regression guard)'
         // memo must still be sitting on its first computation.
         expect(name()).toBe('task t1');
         expect(nameRuns).toBe(1);
-
-        dispose();
-    });
-
-    // The GREEN counterpart of the skipped test above. The skipped test
-    // asserts the POST-E2.3 count, so while it is skipped NOTHING pins
-    // updateBarPosition's invalidation breadth. This one characterizes that
-    // breadth exactly as it is TODAY (a sibling `name` memo re-runs, 1 -> 2),
-    // so a change that widened it (3) or narrowed it early (1) fails here
-    // instead of passing unnoticed until E2.3 un-skips its twin.
-    //
-    // TODO(E2.3) (bd gantt-b4m.3): DELETE this test in the same commit that
-    // un-skips the negative guard above — leaf mutation makes nameRuns 1, and
-    // the two tests assert opposite counts by construction.
-    it('updateBarPosition: whole-task replacement also re-runs a sibling name memo (today: 2)', () => {
-        let nameRuns = 0;
-        const store = createTaskStore();
-        store.updateTask('t1', makeTask('t1'));
-        settle();
-
-        let name!: () => string | undefined;
-        let dispose!: () => void;
-        createRoot((d) => {
-            dispose = d;
-            name = createMemo(() => {
-                nameRuns++;
-                return store.tasks['t1']?.name;
-            });
-        });
-
-        expect(name()).toBe('task t1');
-        expect(nameRuns).toBe(1);
-
-        store.updateBarPosition('t1', { x: 50 });
-        settle();
-
-        // `name` never changed, but taskStore.ts:114 replaced the whole task
-        // object inside produce, so the root's `t1` property node fired and
-        // the memo re-ran to recompute the identical string. That wasted
-        // re-run is the behaviour being pinned.
-        expect(name()).toBe('task t1');
-        expect(nameRuns).toBe(2);
 
         dispose();
     });
@@ -626,9 +584,9 @@ describe('createTaskStore — drag state signal', () => {
         dispose();
     });
 
-    it('createComputed runs synchronously and tracks signal updates', () => {
+    it('createEffect runs synchronously and tracks signal updates', () => {
         // Belt-and-suspenders: also verify the synchronous-tracking variant.
-        // createComputed runs eagerly on every dependency change.
+        // createEffect runs eagerly on every dependency change.
         // E3.1 converts this to a split createEffect; for now only the
         // setter call moves out of the root body.
         let observed: string | null = 'sentinel';
@@ -636,10 +594,14 @@ describe('createTaskStore — drag state signal', () => {
         let dispose!: () => void;
         createRoot((d) => {
             dispose = d;
-            createComputed(() => {
-                observed = store.draggingTaskId();
-            });
+            createEffect(
+                () => store.draggingTaskId(),
+                (v) => {
+                    observed = v;
+                },
+            );
         });
+        settle();
         expect(observed).toBeNull();
         store.setDraggingTaskId('task-9');
         settle();

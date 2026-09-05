@@ -1,4 +1,5 @@
-import { For, createMemo, JSX } from 'solid-js';
+import { For, createMemo } from 'solid-js';
+import type { JSX } from '@solidjs/web';
 import { DEFAULT_BAR_HEIGHT, DEFAULT_PADDING } from '../constants';
 import type { ResourceStore } from '../stores/resourceStore';
 import type { TaskStore } from '../stores/taskStore';

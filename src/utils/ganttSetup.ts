@@ -9,7 +9,12 @@
  * the rawTasks + stores.
  */
 import { processTasks } from './taskProcessor';
-import { extractResourcesFromTasks } from './resourceProcessor';
+import {
+    computeDisplayResources,
+    computeResourceIndexMap,
+    extractResourcesFromTasks,
+    normalizeResources,
+} from './resourceProcessor';
 import {
     buildHierarchy,
     isHiddenByCollapsedAncestor,
@@ -62,32 +67,41 @@ export function initializeTasks(
         return { relationships: [], legacyResources: [] };
     }
 
-    // Setup date store with task bounds
-    dateStore.setupDates(rawTasks);
+    // Date window: `setupDates` stages the signal writes and RETURNS the
+    // window it computed. Nothing below reads the date store back — writes
+    // are deferred until the next flush, so a read-back here would still see
+    // the previous window.
+    const window = dateStore.setupDates(rawTasks);
 
-    // Sync config store with date store values
-    ganttConfig.setGanttStart(dateStore.ganttStart());
-    ganttConfig.setGanttEnd(dateStore.ganttEnd());
-    ganttConfig.setUnit(dateStore.unit());
-    ganttConfig.setStep(dateStore.step());
-    ganttConfig.setColumnWidth(dateStore.columnWidth());
+    // Mirror the window into the config store in one write.
+    ganttConfig.updateOptions({
+        ganttStart: window.ganttStart,
+        ganttEnd: window.ganttEnd,
+        unit: window.unit,
+        step: window.step,
+        columnWidth: window.columnWidth,
+    });
 
     const config = {
-        ganttStart: dateStore.ganttStart(),
-        ganttEnd: dateStore.ganttEnd(),
-        unit: dateStore.unit(),
-        step: dateStore.step(),
-        columnWidth: dateStore.columnWidth(),
+        ganttStart: window.ganttStart,
+        ganttEnd: window.ganttEnd,
+        unit: window.unit,
+        step: window.step,
+        columnWidth: window.columnWidth,
+        // Not written in this turn, so the committed values are the right ones.
         headerHeight: ganttConfig.headerHeight(),
         barHeight: ganttConfig.barHeight(),
         padding: ganttConfig.padding(),
     };
 
-    // Resource index map: prefer the resourceStore (respects collapse
-    // state) when explicit resources were passed; otherwise re-extract
-    // from the current task list. The flag must come from the caller —
-    // checking `resourceStore.resources().length > 0` is unreliable
-    // because we ourselves populate it during the first run.
+    // Resource index map: when explicit resources were passed the store was
+    // populated by the caller in an earlier turn, so its memo is current and
+    // respects collapse state. Otherwise the resources are re-extracted from
+    // the task list here, in which case the map is built from the SAME local
+    // list that is published to the store — never read back from the memo
+    // this turn just staged. The flag must come from the caller: checking
+    // `resourceStore.resources().length > 0` is unreliable because we
+    // ourselves populate it during the first run.
     let resourceIndexMap: Map<string, number> | null = null;
     // Backward-compat fallback: if caller didn't pass the flag, infer
     // from current store state (matches pre-flag behavior).
@@ -99,7 +113,12 @@ export function initializeTasks(
     } else if (!explicit) {
         const extracted = extractResourcesFromTasks(rawTasks);
         resourceStore.updateResources(extracted);
-        resourceIndexMap = resourceStore.resourceIndexMap();
+        resourceIndexMap = computeResourceIndexMap(
+            computeDisplayResources(
+                normalizeResources(extracted),
+                resourceStore.collapsedGroups(),
+            ),
+        );
     }
 
     const {

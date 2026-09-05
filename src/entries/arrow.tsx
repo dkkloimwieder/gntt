@@ -1,4 +1,4 @@
-import { render } from 'solid-js/web';
+import { render } from '@solidjs/web';
 import { ArrowDemo } from '../demo/ArrowDemo';
 
 const root = document.getElementById('app');

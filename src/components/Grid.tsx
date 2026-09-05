@@ -1,4 +1,5 @@
-import { createMemo, For, Show, JSX } from 'solid-js';
+import { createMemo, For, Show } from 'solid-js';
+import type { JSX } from '@solidjs/web';
 import type { DateInfo } from '../types';
 import type { ResourceStore } from '../stores/resourceStore';
 import type { RowLayout } from '../utils/rowLayoutCalculator';

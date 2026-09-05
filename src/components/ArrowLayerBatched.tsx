@@ -1,4 +1,5 @@
-import { createMemo, For, JSX } from 'solid-js';
+import { createMemo, For } from 'solid-js';
+import type { JSX } from '@solidjs/web';
 import type { TaskStore } from '../stores/taskStore';
 import type { Relationship, BarPosition, DependencyType } from '../types';
 import { generateArrow, type ArrowPaths } from '../utils/arrowBatchPaths';

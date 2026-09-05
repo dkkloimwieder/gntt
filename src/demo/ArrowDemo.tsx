@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { createSignal, For, onMount } from 'solid-js';
+import { createSignal, For, onSettled } from 'solid-js';
 import { createTaskStore } from '../stores/taskStore.js';
 import { Arrow, ARROW_DEFAULTS } from '../components/Arrow';
 
@@ -347,7 +347,7 @@ export function ArrowDemo() {
     // INITIALIZATION
     // ═══════════════════════════════════════════════════════════════════════════
 
-    onMount(() => {
+    onSettled(() => {
         // Initialize task store with scenarios
         const tasks = scenarios.map((s, i) => ({
             id: s.id,

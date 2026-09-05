@@ -1,5 +1,5 @@
 import { configDefaults, defineConfig } from 'vitest/config';
-import solidPlugin from 'vite-plugin-solid';
+import solid from '@solidjs/vite-plugin';
 
 // Vitest config for the test suite.
 //
@@ -41,7 +41,7 @@ import solidPlugin from 'vite-plugin-solid';
 // single-segment `tests/*.test.*` would leave such a file collected by
 // NEITHER project: silently never run.
 export default defineConfig({
-    plugins: [solidPlugin()],
+    plugins: [solid()],
     test: {
         globals: false,
         projects: [

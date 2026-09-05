@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { createMemo, Index, Show } from 'solid-js';
+import { createMemo, For, Show } from 'solid-js';
 
 /**
  * DateHeadersOptimized - Uses <Index> with fixed slot pool for zero DOM churn.
@@ -163,7 +163,7 @@ export function DateHeadersOptimized(props) {
                         height: `${upperHeaderHeight()}px`,
                     }}
                 >
-                    <Index each={upperSlots()}>
+                    <For keyed={false} each={upperSlots()}>
                         {(slot) => {
                             const startInfo = () =>
                                 dateInfos()[slot().startIndex];
@@ -188,7 +188,7 @@ export function DateHeadersOptimized(props) {
                                 </div>
                             );
                         }}
-                    </Index>
+                    </For>
                 </div>
             </Show>
 
@@ -200,7 +200,7 @@ export function DateHeadersOptimized(props) {
                     height: `${lowerHeaderHeight()}px`,
                 }}
             >
-                <Index each={lowerSlots()}>
+                <For keyed={false} each={lowerSlots()}>
                     {(dayIndex) => {
                         // dayIndex is a signal - when scroll changes, this updates
                         const entry = () => dateInfos()[dayIndex()];
@@ -229,7 +229,7 @@ export function DateHeadersOptimized(props) {
                             </div>
                         );
                     }}
-                </Index>
+                </For>
             </div>
 
             {props.sideHeader}

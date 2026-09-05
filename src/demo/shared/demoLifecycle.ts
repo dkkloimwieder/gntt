@@ -17,7 +17,7 @@
  *
  * Demo-only: nothing under `src/demo` ships in the npm bundle.
  */
-import { createSignal, onCleanup, onMount } from 'solid-js';
+import { createSignal, onSettled } from 'solid-js';
 import type { Accessor } from 'solid-js';
 
 /** A teardown function collected by the helpers below. */
@@ -32,9 +32,9 @@ export type Cleanup = () => void;
  * (`onSettled` with a returned cleanup) a single-file edit.
  */
 export function useDemoMount(setup: () => Cleanup | void): void {
-    onMount(() => {
+    onSettled(() => {
         const dispose = setup();
-        if (dispose) onCleanup(dispose);
+        return dispose || undefined;
     });
 }
 
@@ -204,7 +204,7 @@ export function useRafLoop(tick?: RafTick): RafLoop {
         frame = requestAnimationFrame(step);
     };
 
-    onCleanup(stop);
+    onSettled(() => stop);
 
     return { start, stop, isRunning: () => running };
 }
