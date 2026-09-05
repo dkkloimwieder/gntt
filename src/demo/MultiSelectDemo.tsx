@@ -116,6 +116,7 @@ export function MultiSelectDemo() {
             </div>
             <Gantt
                 tasks={tasks}
+                disableTaskClickModal
                 options={{
                     viewMode: 'Day',
                     scrollTo: 'start',
