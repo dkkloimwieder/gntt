@@ -524,9 +524,9 @@ describe('ArrowLayerBatched — what actually invalidates the spatial index', ()
      * replacing `taskCount()`'s body with `const taskCount = () => 1;` leaves
      * the whole suite green, and E4.4 would delete a live subscription blind.
      *
-     * TODO(E4.4) (bd gantt-avv.4): DELETE this test in the same commit that
-     * deletes `taskCount()` — same convention as tests/taskStore.test.ts:207.
-     * It exists only to make that deletion a decision rather than an accident.
+     * E4.4 (bd gantt-avv.4) kept `taskCount()`, so this case stays. If a
+     * later change deletes `taskCount()`, delete this test in the same
+     * commit — it exists to make that deletion a decision, not an accident.
      */
     it('adding a task no relationship references still rebuilds the index', () => {
         const probe = createProbeStore(seedTasks());

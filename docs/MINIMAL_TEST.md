@@ -51,7 +51,7 @@ GanttMinimalTest
 │   ├── ResourceColumn (row labels)
 │   ├── Grid (SVG background)
 │   └── barsLayer
-│       └── <Index each={visibleTasks()}>
+│       └── <For keyed={false} each={visibleTasks()}>
 │           └── TestBar (task bars)
 └── Stress Test UI (FPS metrics, controls)
 ```
@@ -73,7 +73,7 @@ onScroll(scrollLeft, scrollTop) → setRowOffset(), setColOffset()
     ↓
 visibleTasks memo recalculates (2D window)
     ↓
-<Index> renders TestBar for each visible task
+<For keyed={false}> renders TestBar for each visible task (pooled, non-keyed)
     ↓
 TestBar reads task via createMemo(t()) and pos()
     ↓

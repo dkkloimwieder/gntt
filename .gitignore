@@ -23,6 +23,10 @@ coverage
 build/Release
 dist/*
 
+# Scratch demo builds (e.g. 10K-task benchmark bundles) and agent worktrees
+/dist-demo-*/
+.claude/worktrees/
+
 # Dependency directory
 # https://www.npmjs.org/doc/misc/npm-faq.html#should-i-check-my-node_modules-folder-into-git
 node_modules
