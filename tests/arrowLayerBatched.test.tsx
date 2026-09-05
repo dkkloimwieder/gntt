@@ -18,27 +18,28 @@
  * anyway, for a reason it did not own: `spatialIndex` also calls `taskCount()`
  * (`:128-131`), a NON-untracked `Object.keys(store.tasks)` whose `ownKeys` trap
  * calls `trackSelf`, subscribing the memo to the store ROOT's `$SELF` node —
- * and today's `updateBarPosition` replaces the whole task object at a root key
- * inside `produce` (`taskStore.ts:110-120`), which fires `$SELF`. E2.3
- * (`gantt-b4m.3`) turns that write into a leaf mutation (`t._bar[k] = v`),
- * which fires `_bar` and never the root: on the old component the demo-mounted
- * arrows would have silently frozen, on `main`, still on 1.9.
+ * and `updateBarPosition` used to replace the whole task object at a root key
+ * inside `produce`, which fired `$SELF`. E2.3 (`gantt-b4m.3`) turned that
+ * write into a leaf mutation (`t._bar[k] = v`), which fires `_bar` and never
+ * the root — so the old component's arrows would have silently frozen.
  *
  * WHAT THIS SUITE PINS NOW. The reads at `:168-169` are tracked, so whatever
  * `getBarPosition` touches — store leaves, or a scale SIGNAL, the shape the one
  * real mount uses (`GanttPerfIsolate.tsx:1546-1557`: `x: task.startHours *
  * hourWidth()`) — is a real dependency of `spatialIndex`. Every case below is
  * therefore written against the LEAF write shape, so it says the same thing
- * before and after E2.3 lands:
+ * before and after E2.3 landed:
  *
  *   1-2  arrows appear over the real `taskStore` with no manual invalidation
  *        of any kind.
  *   3    the production `taskStore.updateBarPosition` repaints — the only
  *        executed coupling between the shipped mutator and this component.
- *        Green under object replacement and under E2.3's leaf write.
+ *        Was green under object replacement and stayed green under E2.3's
+ *        leaf write.
  *   4    the mechanism, measured: a `getBarPosition`-shaped computation re-runs
- *        for BOTH write shapes, while a `taskCount()`-shaped one re-runs for
- *        neither leaf write. The component subscribes to the former.
+ *        for the leaf write — through the production mutator and through a
+ *        bare `_bar.x` mutation alike — while a `taskCount()`-shaped one
+ *        re-runs for neither. The component subscribes to the former.
  *   5    the acceptance probe: a bare `s.t1._bar.x = …` leaf mutation re-runs
  *        `spatialIndex` (counted through the store's reader) and moves the
  *        rendered path.
@@ -192,15 +193,14 @@ function mountLayer(options: MountOptions): MountedLayer {
 
 /**
  * A `TaskStore` backed by a local `createStore`, offering the bar move as the
- * LEAF mutation E2.3 (`gantt-b4m.3`) rewrites `updateBarPosition` into
- * (`PLAN.md:128`: `t._bar[k] = position[k]`). `setProperty` runs on the `_bar`
- * node; the root `$SELF` stays silent — which is precisely why the component
- * has to subscribe to the leaf.
+ * LEAF mutation E2.3 (`gantt-b4m.3`) rewrote `updateBarPosition` into
+ * (`taskStore.ts:116-123`: `task._bar[key] = v` inside the draft). The write
+ * lands on the `_bar` node; the root `$SELF` stays silent — which is precisely
+ * why the component has to subscribe to the leaf.
  *
- * The other write shape — today's whole-object replacement at a root key — is
- * NOT re-implemented here: the cases that need it call the production
- * `taskStore.updateBarPosition` directly (tests 3 and 4), so there is no copy
- * of a production body in this file to rot when E2.3 rewrites it.
+ * The production mutator is not re-implemented here: the cases that want it
+ * call `taskStore.updateBarPosition` directly (tests 3 and 4), so there is no
+ * copy of a production body in this file to rot.
  *
  * `barPositionReads` counts `getBarPosition` calls, i.e. `spatialIndex` runs
  * that got past the `taskCount() === 0` bail — two calls per run per
@@ -371,12 +371,12 @@ describe('ArrowLayerBatched — arrows appear without the manual protocol', () =
 describe('ArrowLayerBatched — what actually invalidates the spatial index', () => {
     /**
      * The only executed coupling between the shipped store's mutator and this
-     * component, and the case that ORDER protects: E2.13 lands before E2.3 so
-     * this stays green across the store rewrite.
+     * component, and the case that ORDER protected: E2.13 landed before E2.3
+     * so this stayed green across the store rewrite.
      *
-     * It is green under BOTH write shapes for the same reason now — the memo
+     * It was green under both write shapes for the same reason — the memo
      * subscribes to `_bar.x` through `getBarPosition`. Object replacement
-     * (today) notifies the task node, a leaf mutation (E2.3) notifies the
+     * notified the task node, the leaf mutation E2.3 shipped notifies the
      * `_bar.x` node, and the memo is subscribed to both. Nothing invalidates
      * the layer by hand.
      */
@@ -401,28 +401,28 @@ describe('ArrowLayerBatched — what actually invalidates the spatial index', ()
     /**
      * The mechanism behind test 3, as an executed measurement rather than a
      * claim in a comment. Both of the component's reads are exercised against
-     * both write shapes:
+     * the leaf write, reached two ways:
      *
      *   getBarPosition-shaped ← production updateBarPosition   → 1 re-run
-     *   getBarPosition-shaped ← bare leaf mutation             → 1 re-run
-     *   taskCount-shaped      ← bare leaf mutation             → 0 re-runs
+     *   getBarPosition-shaped ← bare `_bar.x` leaf mutation    → 1 re-run
+     *   taskCount-shaped      ← bare `_bar.x` leaf mutation    → 0 re-runs
      *
-     * The first two are what make test 3 survive E2.3; the third is the edge
+     * The first two are what made test 3 survive E2.3; the third is the edge
      * the component used to ride on, measured as absent for a leaf write.
      * The production store's root-notification count is deliberately NOT
-     * asserted: it is 1 today and 0 after E2.3, and nothing here depends on
-     * it any more.
+     * asserted: it was 1 before E2.3 and is 0 now, and nothing here depends
+     * on it.
      */
-    it('the position read re-runs for both write shapes; taskCount does not', () => {
+    it('the position read re-runs for a leaf write; taskCount does not', () => {
         const taskStore = createTaskStore();
         taskStore.updateTasks(seedTasks());
         settle();
 
-        const replacementRuns = countReruns(
+        const productionRuns = countReruns(
             () => taskStore.getBarPosition('t1'),
             () => taskStore.updateBarPosition('t1', { x: MOVED_X }),
         );
-        expect(replacementRuns).toBe(1);
+        expect(productionRuns).toBe(1);
         expect(taskStore.getBarPosition('t1')?.x).toBe(MOVED_X);
 
         const probe = createProbeStore(seedTasks());
@@ -444,7 +444,7 @@ describe('ArrowLayerBatched — what actually invalidates the spatial index', ()
 
     /**
      * E2.13's acceptance probe. A bare leaf mutation of `t1._bar.x` — the write
-     * shape E2.3 gives `updateBarPosition`, with nothing else touched — must
+     * shape E2.3 gave `updateBarPosition`, with nothing else touched — must
      * re-run `spatialIndex` and move the rendered path, with nothing
      * invalidating the layer by hand.
      *

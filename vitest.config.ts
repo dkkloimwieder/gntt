@@ -4,27 +4,36 @@ import solid from '@solidjs/vite-plugin';
 // Vitest config for the test suite.
 //
 // The SolidJS plugin stays at the root so both projects inherit it
-// (`extends: true`) and solid-js resolves to its client/dev build — that is
-// what makes createEffect / createRoot reactive in tests. The plugin owns
-// `resolve.conditions` and we deliberately do NOT hand-write them here.
+// (`extends: true`) and the `client` project resolves solid-js to its
+// client/dev build — that is what makes createEffect / createRoot reactive in
+// tests. The plugin owns `resolve.conditions` and we deliberately do NOT
+// hand-write them here.
 //
 // How that resolution actually works (verified against the installed
-// vite-plugin-solid 2.11.12, not assumed):
-//   - The plugin prepends `['solid', 'development', 'browser']` to whatever
-//     Vite's per-environment defaults produced, keyed only on
-//     `mode === 'test'` (dist/esm/index.mjs:152). It never consults
-//     `test.environment` for this; the single place it reads that field is
-//     :80-82, where it defaults an unset one to jsdom.
+// @solidjs/vite-plugin 3.0.0-next.39, not assumed):
+//   - The plugin sets a per-project posture from `test.environment`:
+//     `environment: 'node'` (or 'edge-runtime') selects the SERVER posture
+//     (dist/esm/index.mjs:3621); every DOM environment keeps the CLIENT
+//     posture, and an unset one is defaulted to jsdom (:3645).
+//   - Conditions are assembled per environment (:3751-3758):
+//     `['solid', 'development'?, 'browser'?, ...vite defaults]`, where
+//     `'browser'` is injected only when NOT in server posture; an unset
+//     `resolve.conditions` falls back to `defaultServerConditions` (:3748).
 //   - solid-js publishes no `solid` export key, so the branch is decided by
-//     `browser` vs `node` in its exports map — and `browser` is listed first,
-//     so with this plugin installed even the node project loads `dist/dev.js`
-//     (checked by running a `createEffect` under `--project server`: it fires,
-//     and its arity is the client build's).
-//   - The server-build hazard is therefore NOT "the plugin reacts to
-//     `environment: 'node'`". It is Vitest's per-environment condition
-//     defaults selecting solid-js's `node` key (`dist/server.js`, whose
-//     `createEffect(fn, value) {}` is an inert stub), which is what would
-//     happen if the plugin were dropped or run with `ssr: true`.
+//     `browser` vs `node`. The client project therefore resolves
+//     `browser.development.import` -> dist/dev.js (live subscription graph);
+//     the server project resolves `node.import` -> dist/server.js, whose
+//     `createEffect` is an inert stub, and the plugin inlines solid-js there
+//     (:3649-3663) so the shared worker pool cannot leak the client build in.
+//   - Measured, not inferred: the same `createEffect` + `flush` + setter +
+//     `flush` probe reports `ran: 2, DEV: object, arity: 0` under
+//     `--project client` and `ran: 0, DEV: undefined, arity: 3` under
+//     `--project server`.
+//   - Consequence: anything under `tests/server/**` gets the server build BY
+//     DESIGN, and a reactive assertion placed there passes vacuously because
+//     effects never run. Reactive tests do not belong in that project; today
+//     it holds only DB/HTTP suites (adapter, crud, routes, schema), which is
+//     the correct use of it.
 // We still give each project its own environment explicitly, and set none at
 // the root, so the posture is stated rather than inherited.
 //

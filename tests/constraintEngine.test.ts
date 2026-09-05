@@ -18,6 +18,7 @@ import {
     getMaxEndFromDownstream,
     getMaxXFromLockedSuccessors,
     calculateCascadeUpdates,
+    resolveResizeCascade,
     resolveConstraints,
     detectCycles,
     collectDependentTasks,
@@ -558,6 +559,114 @@ describe('calculateCascadeUpdates', () => {
         const updates = calculateCascadeUpdates('a', 200, ctx);
         expect(updates.has('a')).toBe(true);
         expect(updates.get('a')?.x).toBe(200);
+    });
+});
+
+/**
+ * The resize entry. Its whole reason to exist is that the caller already knows
+ * the new rect and the store may not: a drag stages its write and reads back
+ * the PRE-gesture geometry in the same turn. So the geometry travels as a
+ * VALUE and is overlaid on the resized task's bar, and only on that one.
+ */
+describe('resolveResizeCascade', () => {
+    it('the passed geometry overrides the store read for the resized task', () => {
+        // The store still reports the pre-resize width; the caller knows better.
+        const tasks = makeTasks([
+            { id: 'a', x: 0, width: 50 }, // end 50
+            { id: 's', x: 10, width: 50 },
+        ]);
+        const rels: Relationship[] = [
+            { from: 'a', to: 's', type: 'FS', lag: 0 },
+        ];
+        const ctx = {
+            getBarPosition: (id: string) => tasks[id]?._bar,
+            getTask: (id: string) => tasks[id],
+            relationships: rels,
+            pixelsPerHour: PPH,
+            ganttStartDate: GANTT_START,
+        };
+
+        const updates = resolveResizeCascade('a', { x: 0, width: 200 }, ctx);
+
+        // Successor relaxed against the NEW right edge (0 + 200), not the
+        // stored one (0 + 50), which would have left `s` at 10.
+        expect(updates.get('s')?.x).toBe(200);
+        // The store was never written; the overlay is read-only.
+        expect(tasks['a']?._bar.width).toBe(50);
+    });
+
+    it('overlays the resized task only — every other bar is read as stored', () => {
+        // `s` has two predecessors. If the overlay leaked to `b`, b.end would
+        // read 200 and `s` would land at 200; b's real end of 300 must win.
+        const tasks = makeTasks([
+            { id: 'a', x: 0, width: 50 },
+            { id: 'b', x: 0, width: 300 }, // end 300
+            { id: 's', x: 10, width: 50 },
+        ]);
+        const rels: Relationship[] = [
+            { from: 'a', to: 's', type: 'FS', lag: 0 },
+            { from: 'b', to: 's', type: 'FS', lag: 0 },
+        ];
+        const ctx = {
+            getBarPosition: (id: string) => tasks[id]?._bar,
+            getTask: (id: string) => tasks[id],
+            relationships: rels,
+            pixelsPerHour: PPH,
+            ganttStartDate: GANTT_START,
+        };
+
+        const updates = resolveResizeCascade('a', { x: 0, width: 200 }, ctx);
+
+        expect(updates.get('s')?.x).toBe(300);
+    });
+
+    it('cascades a width-only change, which resolveConstraints cannot', () => {
+        const tasks = makeTasks([
+            { id: 'a', x: 0, width: 50 }, // end 50
+            { id: 'b', x: 60, width: 50 },
+        ]);
+        const rels: Relationship[] = [
+            { from: 'a', to: 'b', type: 'FS', lag: 0 },
+        ];
+        const ctx = {
+            getBarPosition: (id: string) => tasks[id]?._bar,
+            getTask: (id: string) => tasks[id],
+            relationships: rels,
+            pixelsPerHour: PPH,
+            ganttStartDate: GANTT_START,
+        };
+
+        // X did not move, so `resolveConstraints`'s cascade gate never opens
+        // even though the right edge went from 50 to 100.
+        const viaResolve = resolveConstraints('a', 0, 100, ctx);
+        expect(viaResolve.cascadeUpdates.size).toBe(0);
+
+        // The resize entry has no such gate: b's min becomes a's new end.
+        const updates = resolveResizeCascade('a', { x: 0, width: 100 }, ctx);
+        expect(updates.get('b')?.x).toBe(100);
+    });
+
+    it('never returns the resized task itself', () => {
+        const tasks = makeTasks([
+            { id: 'a', x: 0, width: 50 },
+            { id: 'b', x: 60, width: 50 },
+        ]);
+        const rels: Relationship[] = [
+            { from: 'a', to: 'b', type: 'FS', lag: 0 },
+        ];
+        const updates = resolveResizeCascade(
+            'a',
+            { x: 200, width: 100 },
+            {
+                getBarPosition: (id: string) => tasks[id]?._bar,
+                getTask: (id: string) => tasks[id],
+                relationships: rels,
+                pixelsPerHour: PPH,
+                ganttStartDate: GANTT_START,
+            },
+        );
+        expect(updates.has('a')).toBe(false);
+        expect(updates.get('b')?.x).toBe(300); // 200 + 100, FS lag 0
     });
 });
 

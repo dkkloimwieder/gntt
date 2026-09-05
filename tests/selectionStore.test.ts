@@ -77,7 +77,7 @@ describe('createSelectionStore — direct API', () => {
 // REACTIVE_WRITE_IN_OWNED_SCOPE for a signal write inside a createRoot body
 // — store setters are exempt there, signal setters are not — so the store is
 // built and driven from the test scope and the root body holds nothing but
-// the memo. `settle()` is a no-op on 1.9 and becomes the real flush at E3.1.
+// the memo. `settle()` is `flush` from solid-js.
 describe('createSelectionStore — reactivity', () => {
     it('memo subscribers re-compute when selection changes', () => {
         let observedSize = -1;
@@ -95,16 +95,13 @@ describe('createSelectionStore — reactivity', () => {
         expect(observedSize).toBe(0);
         s.add('a');
         settle();
-        settle();
         size();
         expect(observedSize).toBe(1);
         s.toggle('b');
         settle();
-        settle();
         size();
         expect(observedSize).toBe(2);
         s.clear();
-        settle();
         settle();
         size();
         expect(observedSize).toBe(0);
@@ -115,7 +112,6 @@ describe('createSelectionStore — reactivity', () => {
         let runs = 0;
         const s = createSelectionStore();
         s.add('a');
-        settle();
         settle();
         let memo!: () => number;
         let dispose!: () => void;
@@ -130,7 +126,6 @@ describe('createSelectionStore — reactivity', () => {
         expect(runs).toBe(1);
         // Re-add same id: identity stable → memo should not re-run when read.
         s.add('a');
-        settle();
         settle();
         memo();
         expect(runs).toBe(1);

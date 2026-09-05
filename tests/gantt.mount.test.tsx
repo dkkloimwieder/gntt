@@ -1,10 +1,9 @@
 /**
- * E1.1 — first-paint characterization of a mounted `<Gantt>` on solid-js 1.9.
+ * E1.1 — first-paint behaviour of a mounted `<Gantt>` on solid-js 2.0.
  *
- * CHARACTERIZATION, not specification: every assertion below pins what the
- * chart does TODAY so that when the runtime flips to SolidJS 2.0 (E3) the
- * breakage arrives as a named regression list instead of a mystery. Nothing
- * here is a claim about what the chart *should* do.
+ * Originally a CHARACTERIZATION suite written on 1.9 so the flip to SolidJS
+ * 2.0 (E3) would arrive as a named regression list; the flip landed and every
+ * chain below is repaired, so these now assert the shipped contract.
  *
  * Everything geometric is pinned as a MEASURED ABSOLUTE (see `EXPECTED`),
  * never as a re-derivation of the formula the implementation uses. Relative
@@ -17,26 +16,27 @@
  *
  * Chains pinned (see docs/migration/solid2/PLAN.md and digest-t1/digest-t2):
  *
- *   chain A — blank first paint. `ganttSetup.initializeTasks` writes the date
- *     store and then reads five accessors back (`ganttStart`, `ganttEnd`,
- *     `unit`, `step`, `columnWidth`), and writes the resource list and then
- *     reads `resourceIndexMap()` back. Under 2.0's deferred writes both
- *     read-backs return the value from BEFORE the write: bars get positioned
- *     against the `new Date()` defaults and every task falls to
- *     `_resourceIndex === -1` / `_isHidden === true` — a blank chart. The
- *     tripwires here are the absolute window (`dates().length`, `ganttStart`,
- *     `ganttEnd`), the absolute `_bar` geometry, `_bar.x === dateToX(_start)`
- *     (which re-reads the window off the LIVE store at assert time, so it
- *     reds on its own when only the store side of the read-back goes stale
- *     and the stored geometry is still the measured one), the
+ *   chain A — blank first paint. `ganttSetup.initializeTasks` used to write
+ *     the date store and then read five accessors back (`ganttStart`,
+ *     `ganttEnd`, `unit`, `step`, `columnWidth`), and to write the resource
+ *     list and then read `resourceIndexMap()` back. Under 2.0's deferred
+ *     writes both read-backs return the value from BEFORE the write: bars
+ *     would be positioned against the `new Date()` defaults and every task
+ *     would fall to `_resourceIndex === -1` / `_isHidden === true` — a blank
+ *     chart. The tripwires here are the absolute window (`dates().length`,
+ *     `ganttStart`, `ganttEnd`), the absolute `_bar` geometry, `_bar.x ===
+ *     dateToX(_start)` (which re-reads the window off the LIVE store at
+ *     assert time, so it reds on its own when only the store side of the
+ *     read-back goes stale and the stored geometry is still the measured
+ *     one), the
  *     `_resourceIndex`/`_isHidden` row assertions, and the rendered
  *     `.bar-wrapper[data-id]` set. Repaired by E2.1 + E2.2.
  *
- *   chain I — the container handshake. `GanttContainer`'s `onMount`
+ *   chain I — the container handshake. `GanttContainer`'s mount callback
  *     constructs a `ResizeObserver` and calls `onContainerReady`, and
- *     `useGanttScroll.handleContainerReady` creates six `createEffect`s
- *     inside that callback. `onMount` becomes `onSettled` in 2.0, whose body
- *     is children-forbidden, so creating primitives there throws and the
+ *     `useGanttScroll.handleContainerReady` used to create six
+ *     `createEffect`s inside that callback. Under `onSettled`'s
+ *     children-forbidden body (GanttContainer.tsx:142) that throws and the
  *     mount dies. Every case in this file mounting at all is the tripwire.
  *     Repaired by E2.6.
  *
@@ -63,16 +63,17 @@
  *     (b) `onReady` is a consumer callback fired out of a lifecycle scope.
  *         E0.6 already deferred it with `queueMicrotask` behind a disposal
  *         guard; the "not yet at mount, exactly once after one microtask"
- *         case pins that deferral so the `onMount` → `onSettled` rewrite
- *         cannot quietly drop it.
- *     (c) `onSelectionChange` is invoked from the compute half of a
- *         `createEffect` (Gantt.tsx:185). E3.2 splits that effect; the
- *         mount-time empty-Set call and the synchronous post-click call
- *         pinned below both have to survive the split.
+ *         case pins that deferral so the `onSettled` rewrite did not quietly
+ *         drop it, and nothing later can.
+ *     (c) `onSelectionChange` used to be invoked from a `createEffect`'s
+ *         tracked body. E3.2 split that effect, so the call now lives in the
+ *         untracked apply half; the mount-time empty-Set call and the
+ *         synchronous post-click call pinned below both had to survive the
+ *         split.
  *
- * Deliberately absent: `it.skip`. Nothing in this file is red on 1.9 — every
- * chain above is a deferred-write hazard that only bites under
- * `@solidjs/signals`, so all of these must be green today.
+ * Deliberately absent: `it.skip`. Every chain above was a deferred-write
+ * hazard under `@solidjs/signals`; all of them were repaired by E2.x before
+ * the flip, so the whole file must be green on 2.0.0-rc.6.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { mountGantt, type MountedGantt } from './helpers/mountGantt';
@@ -121,8 +122,9 @@ const TASKS: GanttTask[] = [
 const RESOURCE_ROWS = ['R1', 'R2'] as const;
 
 /**
- * Every number below was MEASURED against a real mount on solid-js 1.9.12 —
- * none of it is recomputed here from the formula under test.
+ * Every number below was MEASURED against a real mount (originally on
+ * solid-js 1.9.12, re-verified on 2.0.0-rc.6) — none of it is recomputed
+ * here from the formula under test.
  *
  * How each falls out, for the reader who needs to re-derive one by hand after
  * a deliberate fixture change (do NOT put these derivations in an assertion —

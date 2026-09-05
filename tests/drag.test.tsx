@@ -1,32 +1,26 @@
 /**
  * E1.6 — drag-end geometry characterization (chains B, C, D).
  *
- * These are CHARACTERIZATION tests: they pin what a gesture does on
- * solid-js 1.9 so the 2.0 flip (E3) produces a named regression list rather
- * than a mystery. Nothing here is a statement about what the library
- * *should* do — several assertions below pin behaviour that is arguably
- * wrong (a stationary press still reports a date change; a left-edge resize
- * drags the right edge with it; a keyboard resize never cascades its FS
- * successor; a summary move is reported through `onResizeEnd` and never
- * through `onDateChange`; a drag reports the geometry from BEFORE the
- * gesture as soon as the store stops writing synchronously).
+ * These began as CHARACTERIZATION tests on solid-js 1.9 so the 2.0 flip (E3)
+ * would produce a named regression list rather than a mystery. The flip
+ * landed; several behaviours they pinned as arguably wrong were then fixed by
+ * E2.7 (`gantt-b4m.7`), so re-read each case's own comment before trusting
+ * this list. What is still pinned as arguably wrong: a stationary press
+ * still reports a date change; a left-edge resize drags the right edge with
+ * it; a summary move is reported through `onResizeEnd` and never through
+ * `onDateChange`.
  *
- * Why they are flip-sensitive: every one of them depends on the store write
- * made by the LAST `onDragMove` being visible to `onDragEnd`, which runs in
- * the same synchronous stack (`useDrag.handleMouseUp`, useDrag.ts:160-177).
- * On 1.9 store writes apply immediately, so `useBarDrag`'s "read directly
- * from store to avoid reactive timing issues" re-read at useBarDrag.ts:271
- * happens to return the geometry the move just wrote. Under 2.0's deferred
- * writes it returns the pre-gesture value instead.
+ * Why they matter under deferred writes: `onDragEnd` runs in the same
+ * synchronous stack as the last `onDragMove` (`useDrag.handleMouseUp`,
+ * useDrag.ts:160-177), so nothing the move staged is committed yet.
+ * `useBarDrag` therefore reports the geometry the final move COMPUTED
+ * (`data.lastGeom`, useBarDrag.ts:294-295), never a store read-back — the
+ * store read that survives there is the no-move fallback only. These tests
+ * pin that.
  *
- * MATCHED PAIRS. Two behaviours cannot be characterized by a single test,
- * because today's answer is the wrong one. Each is written twice: a GREEN
- * test asserting the current (wrong) value, so the suite fails loudly at the
- * moment it changes, and a SKIPPED test asserting the contract, ready to be
- * un-skipped by the issue named in its title. Exactly one of each pair can
- * hold at a time. They are the drag-end report (green here, skipped at the
- * bottom of the file) and the keyboard-resize cascade (both in `keyboard
- * gestures`). Nothing else in this file is skipped.
+ * The two behaviours that used to be matched green/skipped pairs — the
+ * drag-end report and the keyboard-resize cascade — were resolved by E2.7
+ * (`gantt-b4m.7`); only the contract half survives. Nothing here is skipped.
  *
  * Every delta in this file is chosen so that a plausible wrong
  * implementation produces a DIFFERENT number, not the same one — see
@@ -45,8 +39,8 @@
  *     synchronous rAF stub would recurse forever; a queue that is drained
  *     explicitly gives deterministic intermediate frames and stops stray
  *     callbacks from firing after a test has disposed its mount.
- *   - `settle()` is a no-op on 1.9. It is called after every write so the
- *     suite is already shaped for E3.1, which turns it into `flush`.
+ *   - `settle()` is `flush` from solid-js. It is called after every write,
+ *     before anything is read back.
  */
 import { describe, it, expect, afterEach, beforeEach } from 'vitest';
 import { createRoot } from 'solid-js';
@@ -770,8 +764,9 @@ describe('summary bar drag', () => {
 // The acceptance criterion: does onDragEnd use the geometry the final move
 // WROTE, or does it re-read the store?
 //
-// On 1.9 those two are the same value, so a full mount cannot tell them
-// apart — the re-read at useBarDrag.ts:271 gives the right answer by luck.
+// On a synchronously-committing store those two are the same value, so a
+// full mount cannot tell them apart — a store re-read would give the right
+// answer by luck.
 // The only discriminating harness is a store double that DEFERS its writes,
 // i.e. the "temporarily forced stale read" the criterion asks for. It is
 // built at hook level because a mounted <Gantt> owns its task store and

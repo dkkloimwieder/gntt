@@ -38,10 +38,10 @@
  * rendered). A gesture that quietly did nothing emits no diagnostics either,
  * and would make this file a very convincing no-op.
  *
- * ── The one tolerated diagnostic ─────────────────────────────────────────
- * `KNOWN_OPEN` holds it, and it is subtracted ONCE from the phase named —
- * see the comment on the constant. Everything else, in every phase, must be
- * silent.
+ * ── Tolerated diagnostics ────────────────────────────────────────────────
+ * `KNOWN_OPEN` is empty: every diagnostic, in every phase, must be silent.
+ * The subtraction machinery is kept so a future known-open entry is a
+ * one-line change.
  *
  * ── Assertion severity ───────────────────────────────────────────────────
  * `error` and `warn` fail; `info` does not. That is the package's own advice
@@ -79,29 +79,8 @@ import type { GanttTask, ProcessedTask } from '../src/types';
 /**
  * Diagnostics this gate knowingly tolerates, keyed by phase. Each entry is
  * subtracted AT MOST ONCE from that phase's events, so a second instance —
- * or the same code in another phase — still fails.
- *
- * `view-mode switch` → `STRICT_READ_UNTRACKED`:
- *   `src/components/Gantt.tsx:349`, the apply of the deferred view-mode
- *   effect, reads the `effectiveTasks()` memo directly:
- *
- *       (viewMode) => {
- *           ...
- *           const tasks = effectiveTasks();      // <- strict read
- *           if (tasks && tasks.length > 0) runSetup(tasks);
- *       }
- *
- *   An effect's apply is a strict-read scope in 2.0, so the one-shot read
- *   warns. It is a genuine library defect, not a test artefact: the fix is
- *   `untrack(() => effectiveTasks())` (the read is deliberately one-shot —
- *   the effect already tracks `props.options?.viewMode` and must not also
- *   re-run on every task edit). It fires only on a view-mode CHANGE, which
- *   is why the mount-time strict-read cleanup (E4.3) did not catch it.
- *
- *   `src/components/Gantt.tsx` belongs to a sibling agent this wave, so it
- *   is not fixed here. DELETE THIS ENTRY once the read is untracked — the
- *   subtraction is "at most once", so the gate stays green either way, but
- *   a stale entry means tolerating a diagnostic that no longer exists.
+ * or the same code in another phase — still fails. Empty today: every phase
+ * must be silent.
  */
 const KNOWN_OPEN: Readonly<Record<string, readonly string[]>> = {};
 
@@ -380,7 +359,12 @@ describe('dev diagnostics gate', () => {
         mounted = undefined;
         settle();
         expectClean('dispose');
-    });
+        // Explicit timeout: this is the longest case in the suite (a 50-task
+        // mount plus four gestures) and it has been seen to exceed Vitest's
+        // 5 s default under concurrent load. `publish.yml` runs `pnpm test`
+        // before every npm publish, so the default is a release-blocking
+        // flake waiting to happen.
+    }, 20_000);
 
     it('renders the custom-columns panel without a diagnostic', () => {
         const run = withDiagnostics(() => {
@@ -411,8 +395,8 @@ describe('dev diagnostics gate', () => {
         // Without this, "no diagnostics" is indistinguishable from "the
         // channel is dead" — a renamed export, a production resolution, a
         // capture that was never registered. This reproduces exactly the
-        // shape of the library defect `KNOWN_OPEN` documents: a reactive
-        // read in an effect's APPLY, a strict-read scope in 2.0.
+        // shape the gate is watching for: a reactive read in an effect's
+        // APPLY, a strict-read scope in 2.0.
         let disposeRoot = (): void => {};
         const run = withDiagnostics(() => {
             createRoot((dispose) => {

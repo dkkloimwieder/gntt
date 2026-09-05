@@ -3,11 +3,11 @@ import { createRoot, createMemo } from 'solid-js';
 import { createGanttConfigStore } from '../src/stores/ganttConfigStore';
 import { settle } from './helpers/settle';
 
-// Characterization tests for `createGanttConfigStore` on solid-js 1.9.12.
+// Behaviour tests for `createGanttConfigStore` on solid-js 2.0.0-rc.6.
 //
-// These pin what the store does TODAY so the flip to SolidJS 2.0 (E3) turns
-// into a named regression list instead of a mystery. They asserted current
-// behaviour even where that behaviour was a defect: the two expansion cases
+// These began as characterization on 1.9 so the flip to SolidJS 2.0 (E3)
+// would turn into a named regression list instead of a mystery. They asserted
+// then-current behaviour even where it was a defect: the two expansion cases
 // that landed here as `it.skip` were the defect, named rather than "fixed",
 // and E2.4 (bd gantt-b4m.4) is what un-skipped them.
 //
@@ -22,7 +22,7 @@ import { settle } from './helpers/settle';
 // unchanged, which is the point — the observable contract survived.
 //
 // Test posture (CLAUDE.md migration rule 10): `settle()` after every write,
-// before reading back — a no-op on 1.9, `flush` after E3.1. `createRoot`
+// before reading back — `settle()` is `flush` from solid-js. `createRoot`
 // bodies create primitives only; every write happens outside them.
 
 // ---------------------------------------------------------------------------
@@ -49,7 +49,7 @@ describe('createGanttConfigStore — construction', () => {
         // The asymmetry with the `??` fields above is deliberate current
         // behaviour, not an accident of this test: ganttConfigStore.ts seeds
         // unit/step/subtaskHeightRatio with `||` and the pixel fields with
-        // `??`. E2.4 rewrites this constructor, so pin both halves.
+        // `??`. E2.4 rewrote this constructor, so both halves are pinned.
         const cfg = createGanttConfigStore({
             unit: '',
             step: 0,
@@ -222,8 +222,9 @@ describe('createGanttConfigStore — expandedTasks', () => {
     // The four tests below are the working half of the same API and the reason
     // this file is not one skip plus three unrelated tests: they all assign a
     // FRESH Set through `setState`, which is a plain property write, so they
-    // both land and notify on 1.9. E2.4 rewrites every one of these code paths,
-    // so they hold the working half in place while the broken half is fixed.
+    // both landed and notified even before E2.4. E2.4 rewrote every one of
+    // these code paths; these cases held the working half in place while the
+    // broken half was fixed.
 
     it('expandAllTasks replaces the Set and notifies', () => {
         const cfg = createGanttConfigStore({});
@@ -305,7 +306,7 @@ describe('createGanttConfigStore — expandedTasks', () => {
         // because that is what a consumer can observe: mutating the Set the
         // caller still holds edits committed state behind the store's back and
         // notifies nobody, so the memo goes on serving a stale projection.
-        // (This is a SEPARATE fact from why the two skips above are red —
+        // (This is a SEPARATE fact from why the two cases above were red —
         // those never reach a mutation at all, because `produce` declines to
         // invoke its callback on an unwrappable value.) A store that
         // defensively copied on write would fail here, at the first line, not
@@ -475,10 +476,9 @@ describe('createGanttConfigStore — updateOptions', () => {
         // writes two reactive cells instead of one. A memo that reads both —
         // Gantt.tsx's `rowLayouts` is exactly that (barHeight + padding +
         // subtaskHeightRatio + expandedTasks) — must still see a single
-        // update, not one per cell. On 1.9 the `batch()` wrapper is what buys
-        // that; under 2.0's default microtask batching it comes for free, so
-        // this assertion holds across the flip and is what would catch the
-        // wrapper being dropped too early.
+        // update, not one per cell. 2.0's default microtask batching buys
+        // that with no explicit `batch()` wrapper (ganttConfigStore.ts:276);
+        // this assertion is what would catch a write escaping the flush.
         const cfg = createGanttConfigStore({
             barHeight: 30,
             expandedTasks: ['a'],

@@ -1,4 +1,6 @@
-// Characterization suite for `createTaskStore` on solid-js 1.9.12.
+// Suite for `createTaskStore` on solid-js 2.0.0-rc.6. Originally an E1
+// characterization of 1.9; E2.3 and E3.1 have landed and every assertion
+// below now pins the corrected contract.
 //
 // Pins the digest chain `lib-stores-task` — specifically the two high
 // hazards HAZ src/stores/taskStore.ts:108 (updateBarPosition's existence
@@ -9,18 +11,18 @@
 // bodies). See docs/migration/solid2/digest-t2.md.
 //
 // Rule for this file: every write is followed by `settle()` BEFORE its
-// result is read back — a no-op on 1.9, the real flush after E3.1 — so the
-// flip is mechanical. Consecutive writes that nothing reads between them
-// share one settle() (the two `updateTask` seeds in 'getAllTasks filters
-// out undefined slots', the three in 'batchMovePositions: subscribers see
-// each moved task update', the two `collapseTask` calls in 'expandAllTasks
-// empties the collapsed set'); all three are independent keys or functional
+// result is read back — `settle()` is `flush` from solid-js. Consecutive
+// writes that nothing reads between them share one settle() (the two
+// `updateTask` seeds in 'getAllTasks filters out undefined slots', the three
+// in 'batchMovePositions: subscribers see each moved task update', the two
+// `collapseTask` calls in 'expandAllTasks empties the collapsed set'); all
+// three are independent keys or functional
 // updaters, so they compose across a deferred batch.
 //
 // ONE site deliberately omits `settle()` mid-sequence: 'updateBarPosition:
 // lands on a task created in the same turn'. There, "no flush between the
-// two writes" IS the characterized behaviour — the E3.1 settle() sweep must
-// skip it. The call site repeats this warning.
+// two writes" IS the behaviour under test — no settle() may be added there.
+// The call site repeats this warning.
 //
 // Store writes may stay inside a createRoot body; signal writes may not
 // (CLAUDE.md migration rule 10).
@@ -115,7 +117,7 @@ describe('createTaskStore — pure accessors', () => {
     });
 });
 
-describe('createTaskStore — () reactivity (gantt-6hx regression guard)', () => {
+describe('createTaskStore — draft-setter reactivity (gantt-6hx regression guard)', () => {
     it('updateBarPosition: memo subscriber re-computes when _bar.x changes', () => {
         let runs = 0;
         createRoot((dispose) => {
@@ -129,7 +131,8 @@ describe('createTaskStore — () reactivity (gantt-6hx regression guard)', () =>
             // Initial read primes the memo.
             expect(x()).toBe(0);
             expect(runs).toBe(1);
-            // Mutate via produce — the path-level subscriber must invalidate.
+            // Mutate through the draft setter — the path-level subscriber
+            // must invalidate.
             store.updateBarPosition('t1', { x: 999 });
             settle();
             expect(x()).toBe(999);
@@ -138,23 +141,17 @@ describe('createTaskStore — () reactivity (gantt-6hx regression guard)', () =>
         });
     });
 
-    // TODO(E2.3) (bd gantt-b4m.3): un-skip once updateBarPosition
-    // leaf-mutates `_bar` instead of replacing the whole task object.
+    // Was RED on solid-js 1.9.12 (nameRuns went 1 -> 2): `updateBarPosition`
+    // used to assign `state[id] = { ...task, _bar: {...} }`, firing the
+    // root's `t1` property node and with it EVERY leaf memo that read
+    // `store.tasks['t1']`, not just the ones reading `_bar`. E2.3
+    // (gantt-b4m.3) made it a leaf mutation inside the draft
+    // (taskStore.ts:116-123: `const task = s[id]; if (!task?._bar) return;
+    // task._bar[key] = v;`).
     //
-    // MEASURED RED on solid-js 1.9.12: nameRuns goes 1 -> 2. taskStore.ts:114
-    // assigns `state[id] = { ...task, _bar: { ...task._bar, ...position } }`
-    // inside produce (the commit 6e5538c object-replacement hack for
-    // gantt-6hx cause #2), so setProperty sees `state['t1'] !== value` and
-    // fires the root's `t1` property node — a dependency of EVERY leaf memo
-    // that read `store.tasks['t1']`, not just the ones reading `_bar`. Memos
-    // are eager on 1.9, so the counter has already moved before the memo is
-    // read back.
-    //
-    // Both halves live in this one test so E2.3 un-skips a complete
-    // contract: the positive half (an `_bar.x` memo DOES re-run, also
-    // asserted green in the test above) and the negative half (a sibling
-    // `name` memo does NOT). E2.3's draft body — `const t = s[id]; if
-    // (!t?._bar) return; t._bar[k] = v;` — turns both green.
+    // Both halves live in one test so the contract is complete: an `_bar.x`
+    // memo re-runs (also asserted green in the test above) and a sibling
+    // `name` memo does not.
     it('updateBarPosition leaf-mutates: sibling name memo must not re-run', () => {
         let nameRuns = 0;
         let xRuns = 0;
@@ -277,10 +274,10 @@ describe('createTaskStore — () reactivity (gantt-6hx regression guard)', () =>
         ).not.toThrow();
         settle();
         expect(store.getTask('missing')).toBeUndefined();
-        // The bail must leave no key behind. E2.3 (gantt-b4m.3) moves this
+        // The bail must leave no key behind. E2.3 (gantt-b4m.3) moved this
         // guard INSIDE the draft, where a careless `draft[id]` write on the
         // miss path auto-vivifies 'missing' and inflates taskCount() and
-        // getAllTasks(). On 1.9 `getTask()` above happens to catch that too,
+        // getAllTasks(). On 1.9 `getTask()` above happened to catch that too,
         // because assigning undefined DELETES the key; on 2.0 it does not
         // (CLAUDE.md rule 6 — assigning undefined KEEPS the key), so a slot
         // holding undefined still reads as undefined through getTask() and
@@ -290,31 +287,27 @@ describe('createTaskStore — () reactivity (gantt-6hx regression guard)', () =>
     });
 
     // Same-turn create-then-position, the shape ShowcaseDemo.tsx:657/:807 and
-    // Gantt.tsx:395 both hit. updateBarPosition's existence guard
-    // (taskStore.ts:108, `if (!tasks[id]) return;`) reads the COMMITTED store,
-    // which on 1.9 is the same thing as the staged store because every write
-    // applies synchronously. Under 2.0's deferred writes the reconcile staged
-    // by updateTasks is invisible to that guard, so it bails and the position
-    // is silently dropped. E2.3 (gantt-b4m.3) moves the guard inside the
-    // draft, where staged state IS visible.
+    // Gantt.tsx:395 both hit. `updateBarPosition` opens with an existence
+    // guard; E2.3 (gantt-b4m.3) moved that guard INSIDE the draft callback
+    // (taskStore.ts:117), where it reads staged state, instead of reading the
+    // outer store proxy from a scope a deferred write can leave behind.
     //
     // !! DO NOT INSERT settle() BETWEEN THE TWO WRITES BELOW !!
     // "Same turn" — no flush between updateTasks and updateBarPosition — is
     // this test's entire discriminating power, and this is the suite's only
-    // coverage of HAZ taskStore.ts:108. A settle() inserted there lets the
-    // guard see a committed 'a' on 2.0 too, so the test goes green on the
-    // flipped runtime while pinning nothing. The E3.1 settle() sweep must
-    // skip this site.
+    // coverage of that guard. A settle() there hands the guard a fully
+    // committed 'a' by construction, so any guard whatsoever passes and the
+    // case pins nothing.
     it('updateBarPosition: lands on a task created in the same turn', () => {
         const store = createTaskStore();
         store.updateTasks([makeTask('a')]);
-        // Mid-turn, un-flushed read of the COMMITTED store — the very read
-        // the guard on the next line performs. On 1.9 the reconcile has
-        // already applied, so the new task and its untouched _bar are
-        // visible. Under 2.0's deferred writes this is `undefined`, the
-        // guard bails, and the position is dropped. Asserting it here pins
-        // the MECHANISM and not just its consequence, so the flip reports
-        // WHY the position was lost rather than only that x stayed 0.
+        // Measured on 2.0.0-rc.6, not assumed: this un-flushed read through
+        // the store proxy ALREADY sees the task `updateTasks` staged on the
+        // line above, with its untouched `_bar`. That is the premise the
+        // guard rests on, so it is pinned here rather than left implicit — if
+        // a runtime ever defers the staged data itself and not just the
+        // notification, this line reds first and names WHY the position was
+        // lost, instead of only reporting that x stayed 0.
         expect(store.tasks['a']?._bar?.x).toBe(0);
         store.updateBarPosition('a', { x: 50 });
         settle();
@@ -375,7 +368,7 @@ describe('createTaskStore — () reactivity (gantt-6hx regression guard)', () =>
     });
 });
 
-describe('createTaskStore — non-produce mutations', () => {
+describe('createTaskStore — whole-value mutations', () => {
     it('updateTask: subscriber sees new task value when whole task replaced', () => {
         createRoot((dispose) => {
             const store = createTaskStore();
@@ -416,13 +409,13 @@ describe('createTaskStore — non-produce mutations', () => {
         expect(store.getTask('a')).toBeUndefined();
     });
 
-    // The assertion that distinguishes delete-the-key from
-    // assign-undefined after the flip. On 1.9 `setTasks(id, undefined)`
-    // (taskStore.ts:134) makes solid-js/store's setProperty `delete` the
-    // key; the equivalent 2.0 draft assignment KEEPS it holding undefined,
-    // so `'a' in tasks` and `Object.keys` would still report it while
-    // getAllTasks (which filters undefined) would not. E2.3 (gantt-b4m.3)
-    // rewrites removeTask as `delete draft[id]` to keep this green.
+    // The assertion that distinguishes delete-the-key from assign-undefined.
+    // On 1.9 `setTasks(id, undefined)` made solid-js/store's setProperty
+    // `delete` the key; the equivalent 2.0 draft assignment KEEPS it holding
+    // undefined, so `'a' in tasks` and `Object.keys` would still report it
+    // while getAllTasks (which filters undefined) would not. E2.3
+    // (gantt-b4m.3) rewrote removeTask as `delete draft[id]`, which is what
+    // keeps this green.
     it('removeTask: deletes the key outright and every counter agrees', () => {
         const store = createTaskStore();
         store.updateTasks([makeTask('a'), makeTask('b')]);
@@ -584,11 +577,12 @@ describe('createTaskStore — drag state signal', () => {
         dispose();
     });
 
-    it('createEffect runs synchronously and tracks signal updates', () => {
-        // Belt-and-suspenders: also verify the synchronous-tracking variant.
-        // createEffect runs eagerly on every dependency change.
-        // E3.1 converts this to a split createEffect; for now only the
-        // setter call moves out of the root body.
+    it('a split createEffect tracks signal updates and applies on flush', () => {
+        // Belt-and-suspenders alongside the memo case above. Split form
+        // (`compute` tracks, `apply` writes) — the only `createEffect` shape
+        // SolidJS 2.0 accepts. `compute` re-runs on every dependency change;
+        // `apply` runs on the flush, which is why each write below is
+        // followed by settle() before `observed` is read.
         let observed: string | null = 'sentinel';
         const store = createTaskStore();
         let dispose!: () => void;
