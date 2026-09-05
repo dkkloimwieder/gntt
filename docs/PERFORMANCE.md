@@ -284,7 +284,9 @@ This ensures smooth visual transitions during scroll - each task bar always disp
 
 **File**: `src/components/TaskLayer.tsx`
 
-**Test Results**:
+**Test Results** (solid-js 1.9.12; for the SolidJS 2.0.0-rc.6 paired
+comparison see `benchmarks/traces/ANALYSIS.md`, "SolidJS 2.0.0-rc.6 vs
+1.9.12"):
 | Test | FPS | Worst Frame | Avg Frame |
 |------|-----|-------------|-----------|
 | H-Scroll | 60 | 24.7ms | 16.8ms |
