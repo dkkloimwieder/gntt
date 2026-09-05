@@ -1,6 +1,6 @@
 # SolidJS Architecture Documentation
 
-**Last Updated**: December 29, 2025 (Constraint engine rewrite - iterative relaxation algorithm for correct cascade resolution)
+**Last Updated**: SolidJS 2.0 migration — public API delta (E4.8) and the deferred-write reactivity contract.
 
 This document describes the SolidJS Gantt chart implementation.
 
@@ -9,15 +9,17 @@ This document describes the SolidJS Gantt chart implementation.
 ## Table of Contents
 
 1. [Project Overview](#project-overview)
-2. [Directory Structure](#directory-structure)
-3. [Core Components](#core-components)
-4. [Stores](#stores)
-5. [Utility Functions](#utility-functions)
-6. [Hooks](#hooks)
-7. [Demo Pages](#demo-pages)
-8. [Configuration Options](#configuration-options)
-9. [Key Features](#key-features)
-10. [Development Workflow](#development-workflow)
+2. [Public API](#public-api-srcindexts)
+3. [Reactivity contract (SolidJS 2.0)](#reactivity-contract-solidjs-20)
+4. [Directory Structure](#directory-structure)
+5. [Core Components](#core-components)
+6. [Stores](#stores)
+7. [Utility Functions](#utility-functions)
+8. [Hooks](#hooks)
+9. [Demo Pages](#demo-pages)
+10. [Configuration Options](#configuration-options)
+11. [Key Features](#key-features)
+12. [Development Workflow](#development-workflow)
 
 ---
 
@@ -52,39 +54,147 @@ The SolidJS implementation lives in `src/` and provides reactive, fine-grained u
 
 ## Public API (`src/index.ts`)
 
-The library exports the following from `src/index.ts`:
+`src/index.ts` is the whole published surface — nothing else in `src/` is
+reachable by a consumer. Peer runtimes: `solid-js` and `@solidjs/web` at
+`2.0.0-rc.6`, both left external in the bundle and compiled with
+`jsxImportSource: '@solidjs/web'`. Packaging is ESM-only.
 
 ### Main Component
 - `Gantt` - Main Gantt chart component
 
 ### Store Factories
-- `createTaskStore()` - Creates reactive task state management
-- `createGanttConfigStore(config)` - Creates configuration store
-- `createGanttDateStore()` - Creates date/timeline calculation store
-- `createResourceStore()` - Creates resource group store
+- `createTaskStore(): TaskStore` - reactive task state (no arguments)
+- `createGanttConfigStore(options?: GanttConfigOptions): GanttConfigStore`
+- `createGanttDateStore(options?: GanttDateStoreOptions): GanttDateStore`
+- `createResourceStore(resources?: ResourceInput[]): ResourceStore`
+
+Their interface types (`TaskStore`, `GanttConfigStore`, `GanttDateStore`,
+`ResourceStore`) are exported alongside them. `createSelectionStore` is
+**internal**: `<Gantt>` creates the selection store itself and it is neither
+exported nor carried on the stores context.
 
 ### Context API
-- `GanttEventsProvider` - Wraps Gantt to provide event handlers via context
-- `useGanttEvents()` - Hook to access event handlers (`onDateChange`, `onProgressChange`, `onTaskClick`, etc.)
+- `GanttEventsProvider` / `useGanttEvents()` - event handlers by context.
+  `useGanttEvents()` **always** returns a full `GanttEventHandlers` set;
+  outside a provider the handlers are no-ops, so a consumer may call any of
+  them unconditionally.
+- `GanttProvider` / `useGanttStores()` - the four stores by context, typed
+  `GanttStores` = `{ taskStore, ganttConfig, dateStore, resourceStore }`.
+  `useGanttStores()` returns `GanttStores | undefined` — `undefined`, never
+  `null`, outside a provider, so `useGanttStores() ?? ownStores` is the
+  intended shape. Solid 2.0 makes a default-less context throw in
+  `useContext`, so `GanttStoresContext` carries an explicit `null` default
+  and the hook maps it back to `undefined`.
 
 ### Constraint Functions
-- `resolveMovement(taskId, deltaX, taskStore, options)` - Resolve drag movement with dependency constraints
-- `detectCycles(taskId, taskStore)` - Check for circular dependencies
+- `resolveConstraints(taskId, proposedX, proposedWidth, context): ResolveResult`
+  - resolve a proposed drag/resize against FS/SS/FF/SF dependencies
+- `calculateCascadeUpdates(taskId, newX, context): Map<string, { x: number }>`
+  - propagate a move downstream
 
 ### Hierarchy Functions
-- `buildHierarchy(tasks)` - Build parent-child task tree from flat array
-- `collectDescendants(taskId, taskStore)` - Get all descendant task IDs
+- `buildHierarchy<T>(tasks: T[]): Map<string, T>` - parent/child tree from a flat array
+- `collectDescendants<T>(taskId, tasksObj): Set<string>` - all descendant ids
 
 ### Generator Functions
-- `generateSubtaskDemo(config)` - Generate test data with parent/child tasks
+- `generateSubtaskDemo(config?): SubtaskDemoResult` - test data with parent/child tasks
 
-### Date Utilities (re-exported from `date_utils.ts`)
+### Diagnostics
+- `setDiagnosticHandler(handler | null)` plus the `DiagnosticHandler` and
+  `DiagnosticLevel` types - route the library's data-validation warnings
+  (silence them in tests, forward them to an error tracker). This is the
+  library's own channel and is unrelated to the SolidJS 2.0 dev-build
+  diagnostics.
+
+### Date Utilities (re-exported from `dateUtils.ts`)
 - `parse(date)` - Parse date string to Date object
 - `format(date, formatString)` - Format Date to string
 - `diff(date1, date2, scale)` - Calculate difference between dates
 - `add(date, qty, scale)` - Add time to date
 - `start_of(date, scale)` - Get start of time period
 - `parse_duration(duration)` - Parse duration string (e.g., "2d", "4h")
+
+camelCase aliases are exported for the snake_case names: `parseDuration`,
+`toString`, `startOf`, `getDateValues`, `convertScales`, `getDaysInMonth`,
+`getDaysInYear`.
+
+### Types
+`DependencyType`, `Dependency`, `NormalizedDependency`, `TaskConstraints`,
+`NormalizedConstraints`, `LockState`, `GanttTask`, `ProcessedTask`,
+`BarPosition`, `Relationship`, `ConstraintResult`, `ConstraintContext`.
+
+---
+
+## Reactivity contract (SolidJS 2.0)
+
+Solid 2.0 **defers writes**: a setter stages its value, and reads return the
+previously committed one until the microtask flush (or an explicit
+`flush()`). Three parts of the public API are shaped by that.
+
+### Config setters are void updaters
+
+```ts
+export type ConfigSetter<T> = (
+    value: Exclude<T, Function> | ((prev: T) => T),
+) => void;
+```
+
+All twenty `set*` fields on `GanttConfigStore` have this type. It mirrors
+Solid's own `Setter<T>` — including the `Exclude<Function>` guard, which is
+what makes a function argument unambiguously an updater rather than a value
+— but it returns `void`, because under deferred writes there is no
+post-write value left to hand back. Internally each setter writes through a
+draft and reads `prev` off that draft, so two updater calls in one turn
+compose:
+
+```ts
+config.setColumnWidth((w) => w * 2); // composes against the staged value
+config.setColumnWidth(90); // returns undefined — nothing to read
+```
+
+`ConfigSetter<T>` is exported from `src/stores/ganttConfigStore.ts`.
+
+### Readers answer about committed state
+
+`taskStore.getTask`, `getBarPosition`, `getAllTasks`, `taskCount`,
+`isTaskCollapsed`; `resourceStore.isGroupCollapsed`;
+`ganttConfigStore.getConfig()`; and — internally — `selectionStore.isSelected`
+and `selectionCount` all read committed state. Inside JSX, a memo,
+or an effect's compute they subscribe and track normally. Called immediately
+after a write in the same turn they report the **pre-write** value:
+
+```ts
+taskStore.toggleTaskCollapse('t1');
+taskStore.isTaskCollapsed('t1'); // pre-toggle answer
+flush();
+taskStore.isTaskCollapsed('t1'); // committed
+```
+
+`flush()` is legal in event handlers, timers, promise continuations and test
+bodies; it is a silent no-op inside an effect's apply and **throws** inside
+`onSettled`. The only sanctioned `flush()` in the library is
+`useDrag.handleMouseUp`, which commits the final drag move before
+`onDragEnd` re-reads the geometry.
+
+The producer-side fix is preferred over `flush()`: a producer returns what it
+computed rather than making the caller read it back. `setupDates`,
+`changeViewMode` and `extendTimeline` return a `DateWindow`;
+`taskStore.collapseAllTasks(ids?)` and `resourceStore.collapseAll(ids?)` take
+the ids a same-turn caller already built instead of re-deriving them from a
+list that has not committed yet.
+
+### `ColumnDef.render` must be pure
+
+```ts
+render?: (
+    task: ProcessedTask | undefined,
+    resourceId: string,
+) => JSX.Element | string | number | null | undefined;
+```
+
+It is called from inside a tracking scope on every re-render of its cell, so
+it must only return markup — no store writes (they would trip
+`REACTIVE_WRITE_IN_OWNED_SCOPE`), no requests, no reactive primitives.
 
 ---
 
@@ -128,7 +238,13 @@ src/
 │   ├── subtaskGenerator.ts # Subtask demo data generation
 │   └── rowLayoutCalculator.ts # Variable row heights for subtasks
 ├── hooks/
-│   └── useDrag.ts          # RAF-based drag state machine
+│   ├── useDrag.ts          # RAF-based drag state machine
+│   ├── useBarDrag.ts       # Bar move/resize/progress gestures
+│   ├── useBoxSelect.ts     # Rubber-band multi-select
+│   ├── useBarConfig.ts     # Derived bar geometry
+│   ├── useGanttModals.ts   # Modal/popup state
+│   ├── useGanttScroll.ts   # Scroll + viewport accessors
+│   └── useTaskVirtualization.ts # Visible row/column ranges
 ├── entries/                # Vite entry points for demos
 │   ├── gantt.tsx
 │   ├── resource-groups.tsx
@@ -139,7 +255,7 @@ src/
 │   ├── constraint.tsx
 │   └── showcase.tsx
 ├── scripts/
-│   └── generateCalendar.js # CLI for generating test data
+│   └── generateCalendar.ts # CLI for generating test data
 ├── data/
 │   └── calendar.json       # Generated test data
 └── styles/
@@ -345,34 +461,44 @@ dependencies: [
 **Purpose**: Reactive state management for task data and positions.
 
 **API**:
-```javascript
+```ts
 const taskStore = createTaskStore();
 
-// Get task by ID
+// --- readers (COMMITTED state; see the reactivity contract above) ---
 const task = taskStore.getTask('task-1');
+const pos = taskStore.getBarPosition('task-1'); // { x, y, width, height, index }
+const all = taskStore.getAllTasks();
+const n = taskStore.taskCount();
+const hidden = taskStore.isTaskCollapsed('task-1');
 
-// Get bar position (reactive)
-const pos = taskStore.getBarPosition('task-1');
-// Returns: { x, y, width, height, index }
-
-// Update single task
-taskStore.updateTask('task-1', taskData);
-
-// Update bar position only
-taskStore.updateBarPosition('task-1', { x: 100 });
-
-// Batch update all tasks
-taskStore.updateTasks(tasksArray);
-
-// Remove task
-taskStore.removeTask('task-1');
-
-// Clear all
+// --- writes ---
+taskStore.updateTask('task-1', taskData); // replace the whole task object
+taskStore.patchTask('task-1', { name: 'Renamed' }); // merge — only touched leaves notify
+taskStore.setTaskProgress('task-1', 60);
+taskStore.updateBarPosition('task-1', { x: 100 }); // leaf-mutates _bar
+taskStore.setBarYs(ys); // Map<id, y> — one draft write for a whole layout pass
+taskStore.updateTasks(tasksArray); // batch replace
+taskStore.removeTask('task-1'); // `delete draft[id]`
 taskStore.clear();
+
+// --- collapse state ---
+taskStore.toggleTaskCollapse('task-1');
+taskStore.collapseAllTasks(); // derives ids from committed state
+taskStore.collapseAllTasks(idsIJustBuilt); // pass ids when you wrote the list this turn
 ```
 
 **Internal Structure**:
-Uses `createStore({})` for fine-grained reactivity. Each task includes `_bar` property with position data.
+Uses `createStore({})` for fine-grained reactivity. Each task includes a
+`_bar` property with position data. `collapsedTasks` is deliberately **not**
+in the store — a `Set` inside a store is not proxied under Solid 2.0, so it
+lives in a signal and is replaced (never mutated) on each change.
+
+**Leaf mutation is load-bearing.** `updateBarPosition` and
+`batchMovePositions` write `task._bar.x = n` inside the draft rather than
+replacing the task object. Replacing it would notify every subscriber of
+every other field on that task, which is exactly the fan-out the store exists
+to avoid. `patchTask` merges for the same reason; `updateTask` is the
+explicit "the whole object changed" path.
 
 **Fine-Grained Reactivity** (December 2025):
 The store uses SolidJS `createStore` instead of `createSignal(Map)` to enable path-level dependency tracking:
@@ -416,19 +542,28 @@ Without affecting the other 400+ tasks in the chart.
 | `ignoredPositions` | `number[]` | `[]` | Pixel X positions to skip |
 
 **API**:
-```javascript
+```ts
 const config = createGanttConfigStore({ columnWidth: 45 });
 
 // Access signals
-config.columnWidth();  // 45
-config.setColumnWidth(50);
+config.columnWidth(); // 45
 
-// Batch update
+// Setters are ConfigSetter<T> — void-returning, value or updater
+config.setColumnWidth(50);
+config.setColumnWidth((w) => w + 5);
+
+// Batch update: one flush across the store field and the expandedTasks signal
 config.updateOptions({ barHeight: 40, padding: 20 });
 
-// Snapshot
+// COMMITTED snapshot — reflects a write from this turn only after a flush
 const snapshot = config.getConfig();
 ```
+
+**Task expansion** (`isTaskExpanded`, `toggleTaskExpansion`, `expandTask`,
+`collapseTask`, `expandAllTasks(ids)`, `collapseAllTasks()`) is backed by a
+signal holding an immutable `Set<string>`, not by a store field: Solid 2.0
+does not proxy a `Set` inside a store, so every mutator builds a new `Set`
+and replaces it. The public accessor still presents a `Set<string>`.
 
 ---
 
@@ -460,6 +595,17 @@ resourceStore.toggleGroup('Engineering');
 // Expand/collapse specific group
 resourceStore.expandGroup('Engineering');
 resourceStore.collapseGroup('Engineering');
+
+// COMMITTED-state reader — not a toggle-then-branch oracle in the same turn
+resourceStore.isGroupCollapsed('Engineering');
+
+// Bulk collapse. With no argument the ids come from the getGroups() memo,
+// i.e. from the COMMITTED resource list. Pass the ids explicitly when the
+// resource list was written in this same turn. Mirrors
+// taskStore.collapseAllTasks(ids?).
+resourceStore.expandAll();
+resourceStore.collapseAll();
+resourceStore.collapseAll(idsIJustBuilt);
 
 // Update resources
 resourceStore.updateResources(newResources);
@@ -657,7 +803,7 @@ Iterative relaxation re-evaluates each task against ALL predecessors on every it
 
 ---
 
-### Date Utilities (`date_utils.ts`)
+### Date Utilities (`dateUtils.ts`)
 
 Date manipulation functions.
 
@@ -687,6 +833,14 @@ Date manipulation functions.
 - Batches move updates to prevent jank
 - Automatic cleanup on unmount
 - SVG coordinate conversion
+
+**The one sanctioned `flush()`.** `handleMouseUp` calls `flush()` after the
+final `onDragMove` and before `onDragEnd`. Each rAF frame is its own task, so
+every earlier move has already committed — but the last one is still staged
+when the gesture ends, and `onDragEnd` re-reads the store to report the final
+geometry. Without the flush it would report the *previous* frame's geometry
+and `onDateChange` would emit the wrong dates. Mouseup is an event handler,
+which is a legal `flush()` site; no other library site may add one.
 
 **API**:
 ```javascript
@@ -811,8 +965,8 @@ Performance testing demo with pre-generated calendar data and stress tests.
 **To generate test data**:
 ```bash
 pnpm run generate:calendar              # Generate 200 tasks (default)
-node src/scripts/generateCalendar.js --tasks=500  # Custom count
-node src/scripts/generateCalendar.js --tasks=10000 --resources=100 --dense  # Stress test
+pnpm exec tsx src/scripts/generateCalendar.ts --tasks=500  # Custom count
+pnpm exec tsx src/scripts/generateCalendar.ts --tasks=10000 --resources=100 --dense  # Stress test
 ```
 
 **Dense Mode** (December 2025):
@@ -924,13 +1078,19 @@ This iterative approach guarantees correct resolution for DAGs with multi-path c
 
 ### Expected Progress Calculation
 
-**Formula** (`barCalculations.ts:141-149`):
-```javascript
-function computeExpectedProgress(taskStart, taskEnd, unit, step) {
-    const today = date_utils.today();
-    const totalDuration = date_utils.diff(taskEnd, taskStart, 'hour') / step;
-    const elapsed = date_utils.diff(today, taskStart, 'hour') / step;
+**Formula** (`barCalculations.ts` — `computeExpectedProgress`):
+```ts
+export function computeExpectedProgress(
+    taskStart: Date,
+    taskEnd: Date,
+    unit: TimeScale | string,
+    step: number,
+): number {
+    const today = dateUtils.today();
+    const totalDuration = dateUtils.diff(taskEnd, taskStart, 'hour') / step;
+    const elapsed = dateUtils.diff(today, taskStart, 'hour') / step;
 
+    // Clamp to 0-100%
     const progress = Math.min(elapsed, totalDuration);
     return totalDuration > 0 ? (progress * 100) / totalDuration : 0;
 }
@@ -1009,19 +1169,25 @@ pnpm dev
 ### Build
 
 ```bash
-# Production build
-pnpm build
-
-# Development build (watch mode)
-pnpm build-dev
+pnpm build       # Library bundle (ESM only) -> dist/
+pnpm build:demo  # Demo pages -> dist-demo/
 ```
 
 ### Code Quality
 
 ```bash
-pnpm lint        # Lint JavaScript
-pnpm prettier    # Format code
+pnpm typecheck       # tsc --noEmit
+pnpm lint            # ESLint
+pnpm prettier        # Format code
+pnpm prettier-check  # Check formatting only
+pnpm test            # Vitest (client = jsdom, server = node)
 ```
+
+The full gate is `pnpm typecheck && pnpm lint && pnpm prettier-check &&
+pnpm test && pnpm build && pnpm build:demo`. It does **not** cover the
+SolidJS 2.0 dev-build diagnostics (`REACTIVE_WRITE_IN_OWNED_SCOPE`,
+`STRICT_READ_UNTRACKED`), which only appear in a browser console — load the
+demo pages to clear those.
 
 ---
 

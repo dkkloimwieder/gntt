@@ -1,6 +1,46 @@
 # Gantt
 
-A Gantt chart library built with SolidJS.
+A Gantt chart library built with SolidJS 2.0.
+
+## Install
+
+```bash
+pnpm add ganttss solid-js@2.0.0-rc.6 @solidjs/web@2.0.0-rc.6
+```
+
+`solid-js` and `@solidjs/web` are left external in the published bundle, so
+the chart runs on **your** app's runtime instances. Both must be Solid 2.0 —
+this release does not run on Solid 1.x.
+
+**TypeScript.** The components are compiled from TSX against Solid 2.0's JSX
+namespace, so your `tsconfig.json` needs:
+
+```jsonc
+{
+    "compilerOptions": {
+        "jsx": "preserve",
+        "jsxImportSource": "@solidjs/web"
+    }
+}
+```
+
+**Vite.** Compile JSX with Solid 2.0's plugin, and dedupe both runtimes so a
+nested copy can never create a second reactive graph — two instances mean
+signals written through one are invisible to effects created by the other:
+
+```js
+import { defineConfig } from 'vite';
+import solid from '@solidjs/vite-plugin';
+
+export default defineConfig({
+    plugins: [solid()],
+    resolve: { dedupe: ['solid-js', '@solidjs/web'] },
+});
+```
+
+**Packaging.** The package is **ESM-only** (no UMD, no CommonJS build) and
+requires Node `^20.19 || >=22.12`. Neither Solid 2.0 runtime ships a global
+build, so a UMD bundle could never resolve its externals in a browser.
 
 ## Usage
 
@@ -51,6 +91,60 @@ variables.
 | `onProgressChange` | `(taskId, progress: number) => void` | Progress handle is dragged |
 | `onResizeEnd` | `(taskId) => void` | Resize gesture finishes |
 | `onTaskClick` | `(taskId, event: MouseEvent) => void` | Bar is clicked |
+
+Each callback hands you what the gesture produced. Do **not** call back into
+a store from a handler to discover what just happened — reads answer about
+committed state, so inside the handler they still describe the world *before*
+the gesture. See the timing note below.
+
+## Reactivity & timing
+
+The chart runs on Solid 2.0, whose writes are **deferred**: a setter stages
+its value and reads keep returning the previously committed one until the
+microtask flush. Four consequences reach the public API.
+
+**Config setters are void updaters.** Every `set*` on the config store has
+the type `ConfigSetter<T> = (value: Exclude<T, Function> | ((prev: T) => T))
+=> void`. It accepts a value or an updater and returns **nothing** — under
+deferred writes there is no post-write value to hand back. Compose instead of
+chaining:
+
+```js
+config.setColumnWidth((w) => w * 2); // ✅ updater composes against the staged value
+const w = config.setColumnWidth(90); // ❌ always undefined
+```
+
+**Readers answer about committed state.** `taskStore.getTask`,
+`getBarPosition`, `getAllTasks`, `taskCount` and `isTaskCollapsed`, plus
+`resourceStore.isGroupCollapsed`, return what has been committed — not what
+you just staged. Read them inside JSX, a memo, or an effect's compute and
+they track normally. Read one immediately after a write in the same turn and
+it answers with the pre-write value:
+
+```js
+import { flush } from 'solid-js';
+
+taskStore.toggleTaskCollapse('t1');
+taskStore.isTaskCollapsed('t1'); // ❌ still the PRE-toggle answer
+flush();
+taskStore.isTaskCollapsed('t1'); // ✅ committed
+```
+
+`flush()` is legal in event handlers, timers, promise continuations and test
+bodies. It is a silent no-op inside an effect's apply phase and **throws**
+inside `onSettled`. Prefer deriving what you need from the callback arguments
+or from your own local value over reaching for it.
+
+**Bulk collapse takes explicit ids.** `taskStore.collapseAllTasks(ids?)` and
+`resourceStore.collapseAll(ids?)` derive their default target list from
+committed state. If you wrote the task or resource list in the same turn,
+pass the ids you just built — otherwise the read-back sees the pre-write list
+and the wrong rows collapse.
+
+**Column renderers must be pure.** `ColumnDef.render(task, resourceId)` is
+called from inside a tracking scope on every re-render of that cell. Return
+markup; do not write to a store, start a request, or create a reactive
+primitive from it.
 
 ## Keyboard & accessibility
 
@@ -104,11 +198,34 @@ function App() {
 ```
 
 `useGanttStores()` returns `undefined` outside a provider, so callers can
-fall back gracefully. The lower-level `createTaskStore`,
-`createGanttConfigStore`, `createGanttDateStore`, and `createResourceStore`
+fall back gracefully — `useGanttStores() ?? myOwnStores` is the intended
+shape. (Note that in Solid 2.0 a context created without a default *throws*
+in `useContext`; this one is deliberately created with a `null` default so
+that "no provider" stays a supported state.) It yields four stores:
+`taskStore`, `ganttConfig`, `dateStore`, `resourceStore`.
+
+The lower-level `createTaskStore()`, `createGanttConfigStore(options?)`,
+`createGanttDateStore(options?)`, and `createResourceStore(resources?)`
 remain exported for full manual wiring.
 
 ## Breaking changes
+
+### SolidJS 2.0
+
+This release runs on Solid 2.0 and will not run on Solid 1.x. What a
+consumer has to change:
+
+- Install `solid-js@2.0.0-rc.6` **and** `@solidjs/web@2.0.0-rc.6`; set
+  `jsxImportSource: '@solidjs/web'`; build with `@solidjs/vite-plugin`.
+- The package is ESM-only — the UMD output and its globals map are gone.
+- Node `^20.19 || >=22.12`.
+- Config-store setters return `void` instead of the written value
+  (`ConfigSetter<T>`), and store readers answer about committed state. See
+  [Reactivity & timing](#reactivity--timing).
+
+No public prop, option, or task-data field name changed in this release.
+
+### camelCase field names
 
 All public option, prop, and task-data field names use **camelCase**.
 Previous snake_case forms were removed in two passes:
