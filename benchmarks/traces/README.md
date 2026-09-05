@@ -79,3 +79,26 @@ node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs <url> --click "#start
 - [ANALYSIS.md](./ANALYSIS.md) - Current best practices and benchmark summaries
 - [HISTORY.md](./HISTORY.md) - Investigation logs and historical data
 - [CLAUDE.md](../CLAUDE.md) - Full Chrome DevTools CLI reference
+
+
+## Paired A/B between two builds (`ab-blocks.sh`)
+
+Used for the 1.9 → 2.0 comparison (see ANALYSIS.md, "SolidJS 2.0.0-rc.6 vs
+1.9.12") and for memo-laziness experiments (E4.5). Build each variant into its
+own output dir, serve both statically, then run blocks that alternate sides:
+
+```bash
+# 10K dense dataset (generated, not tracked — restore the file afterwards)
+pnpm generate:calendar --tasks=10000 --resources=100 --dense
+npx vite build --config config/vite/demo.js --outDir dist-demo-10k   # per variant / worktree
+git checkout -- src/data/generated/calendar.json
+(cd dist-demo-10k && python3 -m http.server 5178 &)                     # side A
+(cd ../variant-worktree/dist-demo-10k && python3 -m http.server 5179 &) # side B
+benchmarks/scripts/ab-blocks.sh lazy-vs-eager 5178 5179 3
+python3 benchmarks/scripts/ab-compare.py benchmarks/traces/runs/ab/lazy-vs-eager eager lazy
+```
+
+Only one `perf.mjs` may run at a time (it owns Chrome's port 9222); the runner
+waits for an idle profiler before starting. Machine load is logged per block;
+under a load average above ~4 the script-time CV was ~30 %, so read the
+`run.log` load column before trusting a small delta.
