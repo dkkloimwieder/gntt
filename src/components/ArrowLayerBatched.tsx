@@ -32,6 +32,10 @@ import { generateArrow, type ArrowPaths } from '../utils/arrowBatchPaths';
  * outside itself: the per-arrow path cache rides on the index generation
  * that produced it and the visible-set diff rides on `batchedPaths`' own
  * `prev`, so two mounted instances cannot hand each other stale paths.
+ *
+ * There is NO manual invalidation protocol. The `positionVersion` counter
+ * prop and `GanttPerfIsolate`'s matching `triggerArrowUpdate()` bump were
+ * deleted in E4.4 (`gantt-avv.4`); callers move bars and the arrows follow.
  */
 
 interface ArrowConfig {
@@ -49,14 +53,6 @@ interface ArrowLayerBatchedProps {
     endRow?: number;
     startX?: number;
     endX?: number;
-    /**
-     * Vestigial. The layer used to declare its position dependency by
-     * `void`ing this counter and reading every position untracked; it now
-     * subscribes to the positions themselves, so nothing reads this and
-     * bumping it repaints nothing. Kept only so the one caller
-     * (`GanttPerfIsolate`) still typechecks — E4.4 removes both.
-     */
-    positionVersion?: number;
     arrowConfig?: ArrowConfig;
 }
 

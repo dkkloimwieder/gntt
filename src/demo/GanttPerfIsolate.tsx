@@ -1446,9 +1446,6 @@ const BAR_VARIANTS = {
 export function GanttPerfIsolate() {
     const [tasks, setTasks] = createStore(initialTasks);
 
-    // Version signal to trigger arrow re-renders when positions change
-    const [positionVersion, setPositionVersion] = createSignal(0);
-
     // URL params for progressive feature testing
     const params = new URLSearchParams(window.location.search);
     const barVariant = params.get('bar') || 'minimal';
@@ -1492,10 +1489,10 @@ export function GanttPerfIsolate() {
             }),
             // The harness has no ResizeObserver, so it needs the listener.
             windowResize: true,
-            // Trigger arrow re-render when viewport changes (hourWidth changes)
-            onMeasure: () => {
-                setPositionVersion((v) => v + 1);
-            },
+            // No onMeasure hook: a resize moves the bars by changing
+            // `hourWidth()`, which `mockTaskStore.getBarPosition` reads, and
+            // ArrowLayerBatched's spatial index subscribes to that read, so
+            // the arrows re-scale on their own.
             initialWidth: 1200,
             initialHeight: 800,
         },
@@ -1524,8 +1521,9 @@ export function GanttPerfIsolate() {
     const hourWidth = createMemo(() => dayWidth() / 24);
     const totalWidth = createMemo(() => TOTAL_DAYS * dayWidth());
 
-    // Helper for drag position updates - stores hours, not pixels
-    // Note: Arrow re-render is triggered ONCE after batch via setPositionVersion
+    // Helper for drag position updates - stores hours, not pixels.
+    // No arrow bookkeeping: ArrowLayerBatched subscribes to the positions it
+    // draws, so writing the store here is the whole protocol.
     const updateBarPosition = (id, updates) => {
         const hw = hourWidth();
         setTasks((state) => {
@@ -1539,9 +1537,6 @@ export function GanttPerfIsolate() {
             }
         });
     };
-
-    // Separate function to trigger arrow re-render (call once after batch)
-    const triggerArrowUpdate = () => setPositionVersion((v) => v + 1);
 
     // Mock taskStore for ArrowLayerBatched and constraints
     // IMPORTANT: Always calculate pixel positions from hours * hourWidth() to handle viewport resize
@@ -1590,16 +1585,14 @@ export function GanttPerfIsolate() {
         // If blocked (locked or conflicting constraints), don't update
         if (result.blocked) return;
 
-        // Batch ALL updates to avoid multiple reactivity triggers
         updateBarPosition(taskId, { x: result.constrainedX });
 
-        // Apply cascade updates to successors
+        // Apply cascade updates to successors. `resolveConstraints` ran BEFORE
+        // any write, so its cascade was computed from unwritten state — nothing
+        // here reads the store back.
         for (const [succId, update] of result.cascadeUpdates) {
             updateBarPosition(succId, update);
         }
-
-        // Trigger arrow re-render once after all updates
-        triggerArrowUpdate();
     };
 
     // Resize constraint callback - uses constraint engine with resize-specific logic
@@ -1652,16 +1645,32 @@ export function GanttPerfIsolate() {
         const minWidth = getMinWidth(task?.constraints, hw);
         finalWidth = Math.max(minWidth, finalWidth);
 
-        // Batch ALL updates
-        updateBarPosition(taskId, { x: finalX, width: finalWidth });
+        // Cascade FIRST, from an overlay — never from the store after a write.
+        // `calculateCascadeUpdates` reads each predecessor's bar back out of
+        // the store (`constraintEngine.ts:641`) and overlays only `{ x }` from
+        // its own pending map, so the resized task's WIDTH comes from the
+        // store. Computing it after `updateBarPosition` therefore relied on
+        // that write being readable in the same synchronous stack; under 2.0's
+        // deferred writes a store read returns the COMMITTED value, so every FS
+        // successor would have been placed from the PRE-resize geometry.
+        const cascadeContext = {
+            ...context,
+            getBarPosition: (id) => {
+                const bar = mockTaskStore.getBarPosition(id);
+                if (id !== taskId || !bar) return bar;
+                return { ...bar, x: finalX, width: finalWidth };
+            },
+        };
+        const cascadeUpdates = calculateCascadeUpdates(
+            taskId,
+            finalX,
+            cascadeContext,
+        );
 
-        // Calculate and apply cascade updates for the final position
-        const cascadeUpdates = calculateCascadeUpdates(taskId, finalX, context);
+        updateBarPosition(taskId, { x: finalX, width: finalWidth });
         for (const [succId, update] of cascadeUpdates) {
             updateBarPosition(succId, update);
         }
-
-        triggerArrowUpdate();
     };
 
     // Visible ranges
@@ -2008,7 +2017,6 @@ export function GanttPerfIsolate() {
                                 <ArrowLayerBatched
                                     relationships={relationships}
                                     taskStore={mockTaskStore}
-                                    positionVersion={positionVersion()}
                                     startRow={visibleRowRange().start}
                                     endRow={visibleRowRange().end}
                                     startX={scrollX() - 200}
@@ -2075,12 +2083,16 @@ export function GanttPerfIsolate() {
         </div>
     );
 
-    // Wrap in context if needed
-    return useContext ? (
-        <GanttEventsProvider>{content}</GanttEventsProvider>
-    ) : (
-        content
-    );
+    // Mounted unconditionally (E2.12). Eight bar variants call
+    // `useGanttEvents()` and only two of them (`events`, `full`) are covered by
+    // the `context` flag, so `useContext ? ... : content` left six variants
+    // reading the context outside any provider. That survives only because
+    // `GanttEventsContext` carries an explicit `null` default; a default-less
+    // context throws `ContextNotFoundError` under 2.0, and this harness should
+    // not be what re-discovers it. No handler props are passed, so the
+    // provider's bridges are the same no-ops `useGanttEvents` returns without
+    // it, and the `context` flag still labels the run.
+    return <GanttEventsProvider>{content}</GanttEventsProvider>;
 }
 
 export default GanttPerfIsolate;
