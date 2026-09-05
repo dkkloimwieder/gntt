@@ -650,34 +650,31 @@ export default function ShowcaseDemo() {
     });
 
     // Update Task A when config changes
-    const updateTaskA = () => {
-        const taskA = taskStore.getTask('task-a');
-        if (taskA) {
-            taskStore.updateTask('task-a', {
-                ...taskA,
-                name: taskConfig.name,
-                progress: taskConfig.progress,
-                color: taskConfig.color,
-                colorProgress: taskConfig.colorProgress,
-                constraints: { locked: taskConfig.locked },
-                invalid: taskConfig.invalid,
-            });
-        }
+    // `patch` is what the calling handler just staged into taskConfig: the
+    // store proxy still reports the committed (pre-write) value until the
+    // flush, so the new value has to arrive as data, not be read back.
+    const updateTaskA = (patch = {}) => {
+        const cfg = { ...taskConfig, ...patch };
+        taskStore.patchTask('task-a', {
+            name: cfg.name,
+            progress: cfg.progress,
+            color: cfg.color,
+            colorProgress: cfg.colorProgress,
+            constraints: { locked: cfg.locked },
+            invalid: cfg.invalid,
+        });
     };
 
     // Update Task B when config changes
-    const updateTaskB = () => {
-        const taskB = taskStore.getTask('task-b');
-        if (taskB) {
-            taskStore.updateTask('task-b', {
-                ...taskB,
-                name: taskBConfig.name,
-                progress: taskBConfig.progress,
-                color: taskBConfig.color,
-                colorProgress: taskBConfig.colorProgress,
-                constraints: { locked: taskBConfig.locked },
-            });
-        }
+    const updateTaskB = (patch = {}) => {
+        const cfg = { ...taskBConfig, ...patch };
+        taskStore.patchTask('task-b', {
+            name: cfg.name,
+            progress: cfg.progress,
+            color: cfg.color,
+            colorProgress: cfg.colorProgress,
+            constraints: { locked: cfg.locked },
+        });
     };
 
     // Relationships based on constraint config using new dependency type API
@@ -1075,7 +1072,7 @@ export default function ShowcaseDemo() {
                                     setTaskConfig((s) => {
                                         s.name = e.target.value;
                                     });
-                                    updateTaskA();
+                                    updateTaskA({ name: e.target.value });
                                 }}
                                 style={styles.textInput}
                             />
@@ -1090,7 +1087,7 @@ export default function ShowcaseDemo() {
                                     setTaskConfig((s) => {
                                         s.color = e.target.value;
                                     });
-                                    updateTaskA();
+                                    updateTaskA({ color: e.target.value });
                                 }}
                                 style={styles.colorInput}
                             />
@@ -1110,7 +1107,9 @@ export default function ShowcaseDemo() {
                                     setTaskConfig((s) => {
                                         s.colorProgress = e.target.value;
                                     });
-                                    updateTaskA();
+                                    updateTaskA({
+                                        colorProgress: e.target.value,
+                                    });
                                 }}
                                 style={styles.colorInput}
                             />
@@ -1132,7 +1131,9 @@ export default function ShowcaseDemo() {
                                     setTaskConfig((s) => {
                                         s.progress = parseInt(e.target.value);
                                     });
-                                    updateTaskA();
+                                    updateTaskA({
+                                        progress: parseInt(e.target.value),
+                                    });
                                 }}
                                 style={styles.slider}
                             />
@@ -1182,7 +1183,9 @@ export default function ShowcaseDemo() {
                                         setTaskConfig((s) => {
                                             s.locked = e.target.checked;
                                         });
-                                        updateTaskA();
+                                        updateTaskA({
+                                            locked: e.target.checked,
+                                        });
                                     }}
                                     style={styles.checkbox}
                                 />
@@ -1206,7 +1209,9 @@ export default function ShowcaseDemo() {
                                         setTaskConfig((s) => {
                                             s.invalid = e.target.checked;
                                         });
-                                        updateTaskA();
+                                        updateTaskA({
+                                            invalid: e.target.checked,
+                                        });
                                     }}
                                     style={styles.checkbox}
                                 />
@@ -1774,7 +1779,7 @@ export default function ShowcaseDemo() {
                                     setTaskBConfig((s) => {
                                         s.locked = e.target.checked;
                                     });
-                                    updateTaskB();
+                                    updateTaskB({ locked: e.target.checked });
                                 }}
                                 style={styles.checkbox}
                             />
