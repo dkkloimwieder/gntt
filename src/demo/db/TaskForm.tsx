@@ -1,5 +1,4 @@
-// @ts-nocheck
-import { For, Show, createEffect, createSignal } from 'solid-js';
+import { For, Show, createEffect, createSignal, untrack } from 'solid-js';
 import { fromLocalInput, toLocalInput } from './api';
 import type {
     DepApi,
@@ -197,7 +196,11 @@ const dangerButtonStyle = {
 } as const;
 
 export function TaskForm(props: TaskFormProps) {
-    const init = props.initial;
+    // Deliberate one-shot read: `init` only seeds the signals below, and
+    // every later change to `props.initial` arrives through the effect at
+    // the bottom of this block. `untrack` says so and keeps the read out of
+    // the component body's strict-read warning.
+    const init = untrack(() => props.initial);
     const today = new Date();
     const fmtDefault = (d: Date) =>
         `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T09:00`;
@@ -246,27 +249,33 @@ export function TaskForm(props: TaskFormProps) {
         { defer: true },
     );
 
+    // All four mutators compose through the UPDATER form. Reading
+    // `constraints()` / `deps()` back to build the next value returns the
+    // committed array, so two edits inside one turn — a change event that
+    // fires twice, a form reset landing next to a row edit — would silently
+    // discard the first. The updater sees the staged value.
     const updateConstraint = <K extends keyof ConstraintRow>(
         key: K,
         value: ConstraintRow[K],
     ) => {
-        setConstraints({ ...constraints(), [key]: value });
+        setConstraints((prev) => ({ ...prev, [key]: value }));
     };
 
     const addDep = (): void => {
-        setDeps([
-            ...deps(),
+        setDeps((prev) => [
+            ...prev,
             { id: '', type: 'FS', lag: 0, maxMode: 'elastic', maxValue: 0 },
         ]);
     };
 
     const removeDep = (idx: number): void => {
-        setDeps(deps().filter((_, i) => i !== idx));
+        setDeps((prev) => prev.filter((_, i) => i !== idx));
     };
 
     const updateDep = (idx: number, patch: Partial<DepRow>) => {
-        const next = deps().map((d, i) => (i === idx ? { ...d, ...patch } : d));
-        setDeps(next);
+        setDeps((prev) =>
+            prev.map((d, i) => (i === idx ? { ...d, ...patch } : d)),
+        );
     };
 
     const handleSubmit = async (e: Event) => {

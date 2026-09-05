@@ -1,7 +1,7 @@
-// @ts-nocheck
 import { createSignal, createMemo, For, onSettled } from 'solid-js';
-import { createTaskStore } from '../stores/taskStore.js';
+import { createTaskStore, type TaskStore } from '../stores/taskStore.js';
 import { Arrow } from '../components/Arrow';
+import type { BarPosition, ProcessedTask, TaskConstraints } from '../types';
 
 /**
  * Constraint Demo - Interactive Task Constraint Testing
@@ -35,6 +35,59 @@ const COLORS = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// TYPES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** A relationship owns the distance constraints; tasks own only `locked`. */
+interface DemoRelationship {
+    from: string;
+    to: string;
+    minDistance?: number;
+    maxDistance?: number;
+    fixedOffset?: boolean;
+    color?: string;
+}
+
+interface DemoScenario {
+    title: string;
+    description: string;
+    tasks: Array<{
+        id: string;
+        name: string;
+        x: number;
+        y: number;
+        w: number;
+        h: number;
+        constraints: TaskConstraints;
+    }>;
+    relationships: DemoRelationship[];
+}
+
+/** A bar-only synthetic task — this demo never parses dates. */
+interface DemoTask {
+    id: string;
+    name: string;
+    _index: number;
+    constraints: TaskConstraints;
+    scenario: string;
+    _bar: BarPosition;
+}
+
+/** One staged position in a planning pass. */
+interface PlannedPos {
+    x: number;
+    y: number;
+}
+
+/** What one planning pass decided for the task it was asked about. */
+type MovementPlan =
+    | { type: 'single'; taskId: string; x: number; y: number }
+    | {
+          type: 'batch';
+          updates: Array<{ taskId: string; x: number; y: number }>;
+      };
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // CONSTRAINT HELPERS
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -42,11 +95,16 @@ const COLORS = {
  * Find all tasks connected by fixed-offset relationships.
  * Traverses bidirectionally through fixed-offset links.
  */
-function findFixedOffsetLinks(taskId, relationships, visited = new Set()) {
+function findFixedOffsetLinks(
+    taskId: string,
+    relationships: DemoRelationship[],
+    visited: Set<string> = new Set(),
+): Array<{ taskId: string; relationship: DemoRelationship }> {
     if (visited.has(taskId)) return [];
     visited.add(taskId);
 
-    const linked = [];
+    const linked: Array<{ taskId: string; relationship: DemoRelationship }> =
+        [];
 
     relationships.forEach((rel) => {
         if (!rel.fixedOffset) return;
@@ -69,16 +127,50 @@ function findFixedOffsetLinks(taskId, relationships, visited = new Set()) {
 }
 
 /**
- * Calculate distance between two tasks (edge to edge: pred right edge to succ left edge)
+ * Calculate distance between two geometries (edge to edge: pred right edge
+ * to succ left edge). Takes plain geometry, not tasks, so the planner can
+ * feed it staged positions the store has not committed yet.
  */
-function calculateDistance(predTask, succTask, predNewX = null) {
-    const predRightEdge = (predNewX ?? predTask._bar.x) + predTask._bar.width;
-    const succLeftEdge = succTask._bar.x;
-    return succLeftEdge - predRightEdge;
+function calculateDistance(
+    pred: { x: number; width: number },
+    succ: { x: number },
+    predNewX: number | null = null,
+): number {
+    const predRightEdge = (predNewX ?? pred.x) + pred.width;
+    return succ.x - predRightEdge;
 }
 
 /**
- * Resolve task movement with all constraints applied.
+ * Working geometry for `id` during a planning pass: the position already
+ * staged in `plan`, falling back to the store's committed bar.
+ *
+ * The plan — not the store — is the single source of truth while planning.
+ * Under deferred writes the old shape (write `updateBarPosition`, then read
+ * `_bar` back one recursion level up) answered with pre-drag pixels, so a
+ * cascade of two or more hops resolved against stale geometry.
+ */
+function plannedPos(
+    plan: Map<string, PlannedPos>,
+    taskStore: TaskStore,
+    id: string,
+): { x: number; y: number; width: number; height: number } | null {
+    const bar = taskStore.getBarPosition(id);
+    if (!bar) return null;
+    const staged = plan.get(id);
+    return {
+        x: staged ? staged.x : bar.x,
+        y: staged ? staged.y : bar.y,
+        width: bar.width,
+        height: bar.height,
+    };
+}
+
+/**
+ * PURE PLANNER. Resolve a task movement with all constraints applied and
+ * record every resulting position in `plan` (`Map<taskId, {x, y}>`).
+ * Nothing is written to the store — `handleMouseMove` applies the finished
+ * plan in one pass, which is both the correctness fix and the reason a
+ * pointer move now costs one flush instead of N.
  *
  * Constraints are on RELATIONSHIPS, not tasks:
  * - minDistance: minimum gap (push if closer)
@@ -86,15 +178,19 @@ function calculateDistance(predTask, succTask, predNewX = null) {
  * - fixedOffset: exact distance maintained
  *
  * Tasks can be locked to prevent movement.
+ *
+ * The return value is the plan for `taskId` ITSELF; the caller decides
+ * whether to stage it (a nested `batch` is dropped, exactly as before).
  */
 function resolveMovement(
-    taskId,
-    newX,
-    newY,
-    taskStore,
-    relationships,
+    taskId: string,
+    newX: number,
+    newY: number,
+    taskStore: TaskStore,
+    relationships: DemoRelationship[],
+    plan: Map<string, PlannedPos>,
     depth = 0,
-) {
+): MovementPlan | null {
     // Prevent infinite recursion
     if (depth > 10) return null;
 
@@ -105,6 +201,9 @@ function resolveMovement(
     if (task.constraints?.locked) {
         return null;
     }
+
+    const self = plannedPos(plan, taskStore, taskId);
+    if (!self) return null;
 
     // Check fixed-offset relationships first (they override everything)
     const fixedLinks = findFixedOffsetLinks(taskId, relationships);
@@ -120,18 +219,18 @@ function resolveMovement(
         }
 
         // Calculate delta and move all linked tasks
-        const deltaX = newX - task._bar.x;
-        const deltaY = newY - task._bar.y;
+        const deltaX = newX - self.x;
+        const deltaY = newY - self.y;
 
         const updates = [{ taskId, x: newX, y: newY }];
 
         fixedLinks.forEach((link) => {
-            const linkedTask = taskStore.getTask(link.taskId);
-            if (linkedTask) {
+            const linked = plannedPos(plan, taskStore, link.taskId);
+            if (linked) {
                 updates.push({
                     taskId: link.taskId,
-                    x: linkedTask._bar.x + deltaX,
-                    y: linkedTask._bar.y + deltaY,
+                    x: linked.x + deltaX,
+                    y: linked.y + deltaY,
                 });
             }
         });
@@ -148,123 +247,120 @@ function resolveMovement(
         if (!isPredecessor && !isSuccessor) continue;
 
         const otherTaskId = isPredecessor ? rel.to : rel.from;
-        const otherTask = taskStore.getTask(otherTaskId);
-        if (!otherTask) continue;
+        // Re-read per relationship so an earlier iteration's staged move is
+        // visible here. Within ONE iteration the min- and max-distance
+        // branches are mutually exclusive (they need maxDist < minDist to
+        // both fire), so a single snapshot is enough.
+        const other = plannedPos(plan, taskStore, otherTaskId);
+        if (!other) continue;
+        const otherLocked =
+            !!taskStore.getTask(otherTaskId)?.constraints?.locked;
 
         const minDist = rel.minDistance ?? DEFAULT_MIN_DISTANCE;
         const maxDist = rel.maxDistance;
 
         if (isPredecessor) {
             // This task is the PREDECESSOR - check distance to successor
-            const distance = calculateDistance(task, otherTask, newX);
+            const distance = calculateDistance(self, other, newX);
 
             // Check minDistance (push successor if too close)
             if (distance < minDist) {
-                if (otherTask.constraints?.locked) {
+                if (otherLocked) {
                     // Can't push locked task - constrain this task
-                    newX = otherTask._bar.x - minDist - task._bar.width;
+                    newX = other.x - minDist - self.width;
                 } else {
                     // Push successor forward
                     const pushAmount = minDist - distance;
                     const result = resolveMovement(
                         otherTaskId,
-                        otherTask._bar.x + pushAmount,
-                        otherTask._bar.y,
+                        other.x + pushAmount,
+                        other.y,
                         taskStore,
                         relationships,
+                        plan,
                         depth + 1,
                     );
                     if (result?.type === 'single') {
-                        taskStore.updateBarPosition(otherTaskId, {
-                            x: result.x,
-                            y: result.y,
-                        });
+                        plan.set(otherTaskId, { x: result.x, y: result.y });
                     }
                 }
             }
 
             // Check maxDistance (tether - constrain this task if too far)
             if (maxDist !== undefined && distance > maxDist) {
-                if (otherTask.constraints?.locked) {
+                if (otherLocked) {
                     // Successor is locked - constrain predecessor
-                    newX = otherTask._bar.x - maxDist - task._bar.width;
+                    newX = other.x - maxDist - self.width;
                 } else {
                     // Pull successor back
                     const pullAmount = distance - maxDist;
                     const result = resolveMovement(
                         otherTaskId,
-                        otherTask._bar.x - pullAmount,
-                        otherTask._bar.y,
+                        other.x - pullAmount,
+                        other.y,
                         taskStore,
                         relationships,
+                        plan,
                         depth + 1,
                     );
                     if (result?.type === 'single') {
-                        taskStore.updateBarPosition(otherTaskId, {
-                            x: result.x,
-                            y: result.y,
-                        });
+                        plan.set(otherTaskId, { x: result.x, y: result.y });
                     }
                 }
             }
         } else {
             // This task is the SUCCESSOR - check distance from predecessor
-            const predTask = otherTask;
+            const pred = other;
 
             // HARD LIMIT: Successor cannot start before predecessor
-            if (newX < predTask._bar.x) {
-                newX = predTask._bar.x;
+            if (newX < pred.x) {
+                newX = pred.x;
             }
 
-            const distance = calculateDistance(predTask, task, null);
-            const newDistance = newX - (predTask._bar.x + predTask._bar.width);
+            const newDistance = newX - (pred.x + pred.width);
 
             // Check minDistance (can't get too close to predecessor)
             if (newDistance < minDist) {
-                if (predTask.constraints?.locked) {
+                if (otherLocked) {
                     // Predecessor is locked - constrain successor
-                    newX = predTask._bar.x + predTask._bar.width + minDist;
+                    newX = pred.x + pred.width + minDist;
                 } else {
                     // Pull predecessor backward
                     const pullAmount = minDist - newDistance;
                     const result = resolveMovement(
                         otherTaskId,
-                        predTask._bar.x - pullAmount,
-                        predTask._bar.y,
+                        pred.x - pullAmount,
+                        pred.y,
                         taskStore,
                         relationships,
+                        plan,
                         depth + 1,
                     );
                     if (result?.type === 'single') {
-                        taskStore.updateBarPosition(otherTaskId, {
-                            x: result.x,
-                            y: result.y,
-                        });
+                        plan.set(otherTaskId, { x: result.x, y: result.y });
                     }
                 }
             }
 
             // Check maxDistance (tether - constrain this task if too far from predecessor)
             if (maxDist !== undefined && newDistance > maxDist) {
-                if (predTask.constraints?.locked) {
+                if (otherLocked) {
                     // Predecessor is locked - constrain successor
-                    newX = predTask._bar.x + predTask._bar.width + maxDist;
+                    newX = pred.x + pred.width + maxDist;
                 } else {
                     // Push predecessor forward to maintain tether
                     const pushAmount = newDistance - maxDist;
                     const result = resolveMovement(
                         otherTaskId,
-                        predTask._bar.x + pushAmount,
-                        predTask._bar.y,
+                        pred.x + pushAmount,
+                        pred.y,
                         taskStore,
                         relationships,
+                        plan,
                         depth + 1,
                     );
                     if (result?.type === 'single') {
-                        taskStore.updateBarPosition(otherTaskId, {
-                            x: result.x,
-                            y: result.y,
-                        });
+                        plan.set(otherTaskId, { x: result.x, y: result.y });
                     }
                 }
             }
@@ -282,7 +378,7 @@ export function ConstraintDemo() {
     const taskStore = createTaskStore();
 
     // Drag state
-    const [dragging, setDragging] = createSignal(null);
+    const [dragging, setDragging] = createSignal<string | null>(null);
     const [dragOffset, setDragOffset] = createSignal({ x: 0, y: 0 });
 
     // UI state
@@ -293,7 +389,7 @@ export function ConstraintDemo() {
     // SCENARIO DEFINITIONS
     // ═══════════════════════════════════════════════════════════════════════════
 
-    const scenarios = {
+    const scenarios: Record<string, DemoScenario> = {
         push: {
             title: '1. Push (minDistance)',
             description:
@@ -622,14 +718,20 @@ export function ConstraintDemo() {
         },
     };
 
-    // Collect all tasks and relationships
-    const allTasks = createMemo(() => {
-        const tasks = [];
-        const filter = selectedScenario();
+    // Collect all tasks and relationships.
+    //
+    // Both builders take the filter as a PARAMETER instead of reading
+    // `selectedScenario()`: the `<select>` handler stages
+    // `setSelectedScenario(next)` and must load `next`'s tasks in the same
+    // turn, but the signal still answers with the previous scenario until
+    // the flush. The memos below pass the signal; the handler passes the
+    // value it just wrote.
+    const tasksFor = (filter: string): DemoTask[] => {
+        const tasks: DemoTask[] = [];
 
         Object.entries(scenarios).forEach(([key, scenario]) => {
             if (filter === 'all' || filter === key) {
-                scenario.tasks.forEach((t, i) => {
+                scenario.tasks.forEach((t) => {
                     tasks.push({
                         id: t.id,
                         name: t.name,
@@ -643,11 +745,10 @@ export function ConstraintDemo() {
         });
 
         return tasks;
-    });
+    };
 
-    const allRelationships = createMemo(() => {
-        const rels = [];
-        const filter = selectedScenario();
+    const relationshipsFor = (filter: string): DemoRelationship[] => {
+        const rels: DemoRelationship[] = [];
 
         Object.entries(scenarios).forEach(([key, scenario]) => {
             if (filter === 'all' || filter === key) {
@@ -656,71 +757,102 @@ export function ConstraintDemo() {
         });
 
         return rels;
+    };
+
+    const allTasks = createMemo(() => tasksFor(selectedScenario()));
+    const allRelationships = createMemo(() =>
+        relationshipsFor(selectedScenario()),
+    );
+
+    /** The single selected scenario, or null while showing them all. */
+    const activeScenario = createMemo<DemoScenario | null>(() => {
+        const key = selectedScenario();
+        return key === 'all' ? null : (scenarios[key] ?? null);
     });
+
+    /**
+     * Load `key`'s tasks into the store. The demo synthesises bar-only
+     * tasks — the store, `Arrow` and the planner only ever read `_bar` and
+     * `constraints` — so the shape gap to `ProcessedTask` is deliberate.
+     */
+    const updateTasks = (key: string): void => {
+        taskStore.updateTasks(tasksFor(key) as unknown as ProcessedTask[]);
+    };
 
     // Initialize store
     onSettled(() => {
-        taskStore.updateTasks(allTasks());
+        updateTasks(selectedScenario());
     });
-
-    // Re-initialize when scenario changes
-    const updateTasks = () => {
-        taskStore.updateTasks(allTasks());
-    };
 
     // ═══════════════════════════════════════════════════════════════════════════
     // DRAG HANDLERS
     // ═══════════════════════════════════════════════════════════════════════════
 
-    const handleMouseDown = (taskId, event) => {
+    /** Map a client point into the SVG's user space. */
+    const toSvgPoint = (
+        svg: SVGSVGElement,
+        clientX: number,
+        clientY: number,
+    ): { x: number; y: number } => {
+        const pt = svg.createSVGPoint();
+        pt.x = clientX;
+        pt.y = clientY;
+        const ctm = svg.getScreenCTM();
+        return ctm
+            ? pt.matrixTransform(ctm.inverse())
+            : { x: clientX, y: clientY };
+    };
+
+    const handleMouseDown = (taskId: string, event: MouseEvent): void => {
         const task = taskStore.getTask(taskId);
         if (!task) return;
         if (task.constraints?.locked) return;
 
-        const svg = event.currentTarget.ownerSVGElement;
-        const pt = svg.createSVGPoint();
-        pt.x = event.clientX;
-        pt.y = event.clientY;
-        const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
+        const svg = (event.currentTarget as SVGGraphicsElement).ownerSVGElement;
+        if (!svg) return;
+        const svgP = toSvgPoint(svg, event.clientX, event.clientY);
 
         setDragging(taskId);
         setDragOffset({ x: svgP.x - task._bar.x, y: svgP.y - task._bar.y });
         event.preventDefault();
     };
 
-    const handleMouseMove = (event) => {
+    const handleMouseMove = (event: MouseEvent): void => {
         const taskId = dragging();
         if (!taskId) return;
 
-        const svg = event.currentTarget;
-        const pt = svg.createSVGPoint();
-        pt.x = event.clientX;
-        pt.y = event.clientY;
-        const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
+        const svg = event.currentTarget as SVGSVGElement;
+        const svgP = toSvgPoint(svg, event.clientX, event.clientY);
 
         const offset = dragOffset();
         const newX = svgP.x - offset.x;
         const newY = svgP.y - offset.y;
 
+        // ONE planning pass, then ONE application pass. The planner never
+        // touches the store, so no step reads back geometry a previous step
+        // wrote, and every bar this move touches lands in a single flush.
+        const plan = new Map<string, PlannedPos>();
         const result = resolveMovement(
             taskId,
             newX,
             newY,
             taskStore,
             allRelationships(),
+            plan,
         );
 
         if (result) {
             if (result.type === 'single') {
-                taskStore.updateBarPosition(taskId, {
-                    x: result.x,
-                    y: result.y,
-                });
-            } else if (result.type === 'batch') {
+                plan.set(result.taskId, { x: result.x, y: result.y });
+            } else {
                 result.updates.forEach((u) => {
-                    taskStore.updateBarPosition(u.taskId, { x: u.x, y: u.y });
+                    plan.set(u.taskId, { x: u.x, y: u.y });
                 });
             }
+        }
+
+        for (const [id, pos] of plan) {
+            taskStore.updateBarPosition(id, pos);
         }
     };
 
@@ -775,8 +907,12 @@ export function ConstraintDemo() {
                     <select
                         value={selectedScenario()}
                         onChange={(e) => {
-                            setSelectedScenario(e.target.value);
-                            updateTasks();
+                            // Pass the new key straight through: reading
+                            // `selectedScenario()` back here would still
+                            // answer with the OLD scenario.
+                            const key = e.currentTarget.value;
+                            setSelectedScenario(key);
+                            updateTasks(key);
                         }}
                         style={{
                             padding: '6px 10px',
@@ -809,7 +945,7 @@ export function ConstraintDemo() {
                 </label>
 
                 <button
-                    onClick={updateTasks}
+                    onClick={() => updateTasks(selectedScenario())}
                     style={{
                         padding: '6px 12px',
                         'border-radius': '4px',
@@ -860,6 +996,7 @@ export function ConstraintDemo() {
                         <For each={Object.values(scenarios)}>
                             {(scenario) => {
                                 const firstTask = scenario.tasks[0];
+                                if (!firstTask) return null;
                                 return (
                                     <text
                                         x={firstTask.x}
@@ -1133,7 +1270,7 @@ export function ConstraintDemo() {
             </div>
 
             {/* Scenario descriptions */}
-            {selectedScenario() !== 'all' && scenarios[selectedScenario()] && (
+            {activeScenario() && (
                 <div
                     style={{
                         'margin-top': '15px',
@@ -1144,7 +1281,7 @@ export function ConstraintDemo() {
                     }}
                 >
                     <h3 style={{ margin: '0 0 8px 0', 'font-size': '14px' }}>
-                        {scenarios[selectedScenario()].title}
+                        {activeScenario()?.title}
                     </h3>
                     <p
                         style={{
@@ -1153,7 +1290,7 @@ export function ConstraintDemo() {
                             color: '#495057',
                         }}
                     >
-                        {scenarios[selectedScenario()].description}
+                        {activeScenario()?.description}
                     </p>
                 </div>
             )}

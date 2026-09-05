@@ -1,12 +1,27 @@
-// @ts-nocheck
-import { Show, createMemo, createSignal, onSettled } from 'solid-js';
+import { Show, createMemo, createSignal, flush, onSettled } from 'solid-js';
 import { Gantt } from '../components/Gantt';
 import { BlockedManager } from './db/BlockedManager';
 import { Modal } from './db/Modal';
 import { ResourceManager } from './db/ResourceManager';
 import { TaskForm } from './db/TaskForm';
 import { api, fromLocalInput } from './db/api';
-import type { BootstrapBundle, TaskApi } from './db/types';
+import type { BootstrapBundle, TaskApi, TaskConstraintsApi } from './db/types';
+
+/**
+ * PATCH body for a task. An explicit `null` CLEARS the column server-side
+ * (`TaskPatchInput` in `server/db/adapter.ts` distinguishes null from an
+ * absent key), which `Partial<TaskApi>` cannot express — its optional
+ * fields only encode "leave alone". Widening `api.patchTask`'s parameter
+ * belongs in `src/demo/db/api.ts`; until then the edit path builds this
+ * shape and casts once at the call.
+ */
+type TaskPatchBody = Partial<
+    Omit<TaskApi, 'resource' | 'color' | 'constraints'>
+> & {
+    resource?: string | null;
+    color?: string | null;
+    constraints?: TaskConstraintsApi | null;
+};
 
 /**
  * DbDemo — full CRUD over the Drizzle + SQLite + Hono backend.
@@ -60,8 +75,8 @@ export function DbDemo() {
     /** Parse the API's "YYYY-MM-DD HH:MM" into a local Date. */
     const parseDb = (s: string): Date => {
         const [d, t] = s.split(' ');
-        const [y, mo, da] = d.split('-').map(Number);
-        const [h, mi] = (t ?? '00:00').split(':').map(Number);
+        const [y = 1970, mo = 1, da = 1] = (d ?? '').split('-').map(Number);
+        const [h = 0, mi = 0] = (t ?? '00:00').split(':').map(Number);
         return new Date(y, mo - 1, da, h, mi);
     };
 
@@ -172,6 +187,15 @@ export function DbDemo() {
         ).__ganttDateStore;
         if (!taskStore || !dateStore) return;
 
+        // Commit the drag's staged bar writes before measuring them.
+        // `onDragEnd` fires from `useDrag`'s mouseup, which processes one
+        // last pending move immediately beforehand; under deferred writes
+        // that final `_bar.x` / `_bar.width` is still staged, so reading it
+        // here without a flush yields the second-to-last frame's geometry
+        // and persists dates a few pixels short of where the bar landed.
+        // Legal site: this is an event handler (decision D9).
+        flush();
+
         // ms-per-pixel — derive directly from the chart's `unit` + `step` +
         // `columnWidth`. Do NOT use xToDate(100)-xToDate(0) — that calls
         // dateUtils.add which truncates fractional days (e.g. add(start,
@@ -195,7 +219,20 @@ export function DbDemo() {
         //   resize-end:   Δx = 0, Δwidth ≠ 0   → start unchanged, end += Δwidth
         //   resize-start: Δx ≠ 0, Δwidth = -Δx → start += Δx, end unchanged
         // General form: startΔ = Δx, endΔ = Δx + Δwidth.
-        const patches: Array<{ id: string; start: string; end: string }> = [];
+        //
+        // Each patch also carries the EXACT `{ x, width }` its deltas were
+        // measured against. Those become the new baseline after the PATCH
+        // resolves — re-reading `_bar` at that point would re-base against
+        // whatever the chart looks like several awaits later (a second drag,
+        // a cascade, a re-render), silently dropping or double-counting the
+        // difference on the next gesture.
+        const patches: Array<{
+            id: string;
+            start: string;
+            end: string;
+            x: number;
+            width: number;
+        }> = [];
         for (const id of Object.keys(taskStore.tasks)) {
             const bar = taskStore.tasks[id]?._bar;
             const prevX = lastX.get(id);
@@ -224,6 +261,8 @@ export function DbDemo() {
                 id,
                 start: fmtDate(newStart),
                 end: fmtDate(newEnd),
+                x: bar.x,
+                width: bar.width,
             });
         }
 
@@ -239,11 +278,13 @@ export function DbDemo() {
                 ),
             );
             for (const p of patches) {
+                // Re-base from the geometry the deltas were computed from,
+                // NOT from a fresh `_bar` read: dates and pixels must stay
+                // the same pair or the next drag's delta is measured against
+                // a baseline the DB never saw.
                 dbState.set(p.id, { start: p.start, end: p.end });
-                const bar = taskStore.tasks[p.id]?._bar;
-                if (typeof bar?.x === 'number') lastX.set(p.id, bar.x);
-                if (typeof bar?.width === 'number')
-                    lastWidth.set(p.id, bar.width);
+                lastX.set(p.id, p.x);
+                lastWidth.set(p.id, p.width);
             }
             setDragVersion((v) => v + 1);
             const extra = patches.length - 1;
@@ -292,7 +333,7 @@ export function DbDemo() {
                 constraints: t.constraints ?? undefined,
             });
         } else {
-            await api.patchTask(t.id, {
+            const patch: TaskPatchBody = {
                 name: t.name,
                 start: t.start,
                 end: t.end,
@@ -300,7 +341,8 @@ export function DbDemo() {
                 resource: t.resource ?? null,
                 color: t.color ?? null,
                 constraints: t.constraints ?? null,
-            });
+            };
+            await api.patchTask(t.id, patch as Partial<TaskApi>);
         }
         await api.replaceDeps(t.id, value.dependencies);
         await refetch(`${mode === 'create' ? 'Created' : 'Updated'} ${t.id}`);

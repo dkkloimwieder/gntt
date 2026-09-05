@@ -195,16 +195,22 @@ export function BarDemo() {
         ganttConfig.setShowExpectedProgress(newValue);
     };
 
-    // Simulate progress update
+    // Simulate progress update.
+    //
+    // `setTaskProgress` leaf-mutates `progress` inside the store draft.
+    // The old `updateTask(id, { ...task, progress })` spread a store PROXY
+    // and replaced the whole task object, which throws away the fine-grained
+    // paths every Bar subscribes to (and re-parents `_bar` under a fresh
+    // object mid-drag). `task.progress` is a committed read, which is right
+    // here: each click is its own task, so the previous click has flushed.
     const updateProgress = (taskId, delta) => {
         const task = taskStore.getTask(taskId);
-        if (task) {
-            const newProgress = Math.max(
-                0,
-                Math.min(100, (task.progress || 0) + delta),
-            );
-            taskStore.updateTask(taskId, { ...task, progress: newProgress });
-        }
+        if (!task) return;
+        const newProgress = Math.max(
+            0,
+            Math.min(100, (task.progress || 0) + delta),
+        );
+        taskStore.setTaskProgress(taskId, newProgress);
     };
 
     // Reset positions (same as initial)
@@ -459,71 +465,90 @@ export function BarDemo() {
                     <g class="debug">
                         <For each={allTasks()}>
                             {(task) => {
-                                const pos = taskStore.getBarPosition(task.id);
-                                if (!pos) return null;
+                                // THUNKS, not reads. A <For> callback body is
+                                // strict-read labelled: every store read that
+                                // happens here is captured once and never
+                                // updates, so the overlay would freeze at the
+                                // positions the bars had when debug was
+                                // switched on. Deferring each read into the
+                                // JSX below puts it back in a tracking scope.
+                                const pos = () =>
+                                    taskStore.getBarPosition(task.id);
 
-                                // Find relationships involving this task
-                                const asSuccessor = relationships.filter(
-                                    (r) => r.to === task.id,
-                                );
-                                const asPredecessor = relationships.filter(
-                                    (r) => r.from === task.id,
-                                );
+                                const constraintStr = () => {
+                                    const p = pos();
+                                    if (!p) return '';
 
-                                // Build constraint info string
-                                const constraintParts = [];
-
-                                // Show predecessors with constraint type
-                                asSuccessor.forEach((r) => {
-                                    const predPos = taskStore.getBarPosition(
-                                        r.from,
+                                    // Find relationships involving this task
+                                    const asSuccessor = relationships.filter(
+                                        (r) => r.to === task.id,
                                     );
-                                    if (!predPos) return;
+                                    const asPredecessor = relationships.filter(
+                                        (r) => r.from === task.id,
+                                    );
 
-                                    if (r.fixedOffset) {
-                                        constraintParts.push(
-                                            `←${r.from}[fixed]`,
-                                        );
-                                    } else {
-                                        const gap =
-                                            pos.x - (predPos.x + predPos.width);
-                                        const minD = r.minDistance ?? 10;
-                                        const maxD = r.maxDistance;
-                                        const type =
-                                            minD === -Infinity ? 'SS' : 'FS';
-                                        const maxStr =
-                                            maxD !== undefined
-                                                ? ` max:${maxD}`
-                                                : '';
-                                        constraintParts.push(
-                                            `←${r.from}(${type} gap:${gap}${maxStr})`,
-                                        );
-                                    }
-                                });
+                                    // Build constraint info string
+                                    const constraintParts = [];
 
-                                // Show if this task is part of fixed-offset group
-                                asPredecessor.forEach((r) => {
-                                    if (r.fixedOffset) {
-                                        constraintParts.push(`→${r.to}[fixed]`);
-                                    }
-                                });
+                                    // Show predecessors with constraint type
+                                    asSuccessor.forEach((r) => {
+                                        const predPos =
+                                            taskStore.getBarPosition(r.from);
+                                        if (!predPos) return;
 
-                                const constraintStr =
-                                    constraintParts.length > 0
+                                        if (r.fixedOffset) {
+                                            constraintParts.push(
+                                                `←${r.from}[fixed]`,
+                                            );
+                                        } else {
+                                            const gap =
+                                                p.x -
+                                                (predPos.x + predPos.width);
+                                            const minD = r.minDistance ?? 10;
+                                            const maxD = r.maxDistance;
+                                            const type =
+                                                minD === -Infinity
+                                                    ? 'SS'
+                                                    : 'FS';
+                                            const maxStr =
+                                                maxD !== undefined
+                                                    ? ` max:${maxD}`
+                                                    : '';
+                                            constraintParts.push(
+                                                `←${r.from}(${type} gap:${gap}${maxStr})`,
+                                            );
+                                        }
+                                    });
+
+                                    // Show if this task is part of fixed-offset group
+                                    asPredecessor.forEach((r) => {
+                                        if (r.fixedOffset) {
+                                            constraintParts.push(
+                                                `→${r.to}[fixed]`,
+                                            );
+                                        }
+                                    });
+
+                                    return constraintParts.length > 0
                                         ? constraintParts.join(' ')
                                         : 'no deps';
+                                };
 
                                 return (
-                                    <text
-                                        x={pos.x}
-                                        y={pos.y + pos.height + 12}
-                                        font-size="8"
-                                        fill="#666"
-                                        font-family="monospace"
-                                    >
-                                        {task.id} | x:{pos.x} w:{pos.width} |{' '}
-                                        {constraintStr}
-                                    </text>
+                                    <Show when={pos()}>
+                                        {(p) => (
+                                            <text
+                                                x={p().x}
+                                                y={p().y + p().height + 12}
+                                                font-size="8"
+                                                fill="#666"
+                                                font-family="monospace"
+                                            >
+                                                {task.id} | x:{p().x} w:
+                                                {p().width} | {constraintStr()}
+                                            </text>
+                                        )}
+                                    </Show>
                                 );
                             }}
                         </For>
