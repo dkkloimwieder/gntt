@@ -356,12 +356,12 @@ These are DOM operations that cannot be optimized away.
 
 | File | Purpose |
 |------|---------|
-| `src/components/GanttPerfIsolate.jsx` | Feature isolation harness |
-| `src/components/GanttExperiments.jsx` | Reactive pattern comparison |
-| `src/components/ArrowLayerBatched.jsx` | 2D virtualized arrow rendering |
-| `src/components/DateHeaders.jsx` | Original headers (optimal) |
-| `src/components/DateHeadersOptimized.jsx` | Index-based headers (slower) |
-| `perf-traces/runs/` | Benchmark JSON outputs |
+| `src/demo/GanttPerfIsolate.tsx` | Feature isolation harness |
+| `src/demo/GanttExperiments.tsx` | Reactive pattern comparison |
+| `src/components/ArrowLayerBatched.tsx` | 2D virtualized arrow rendering |
+| `src/components/DateHeaders.tsx` | Original headers (optimal) |
+| `src/demo/DateHeadersOptimized.tsx` | Index-based headers (slower) |
+| `benchmarks/traces/runs/` | Benchmark JSON outputs |
 
 ---
 

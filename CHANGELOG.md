@@ -43,6 +43,14 @@ refer to the D1–D13 table in `docs/migration/solid2/PLAN.md`.
   as before. A caller that has just written the task or resource list in the
   same turn should pass the ids it built — otherwise the read-back answers
   with the pre-write list and the wrong rows collapse.
+- **Additive geometry arguments on two `<Gantt>` callbacks.**
+  `onDateChange(taskId, { start, end }, position?)` gains a third argument
+  and `onResizeEnd(taskId, geometry?)` a second — both
+  `{ x: number; width: number }`, the pixel rect the gesture produced and
+  the one the dates were derived from. Existing two- and one-argument
+  consumers are unaffected; a consumer that needs pixels no longer has to
+  read them back off the store, where the producing write may still be
+  staged. (D13)
 
 ### Fixed
 

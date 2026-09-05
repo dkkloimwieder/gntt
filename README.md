@@ -87,9 +87,9 @@ variables.
 
 | Prop | Signature | Fires when |
 |------|-----------|------------|
-| `onDateChange` | `(taskId, { start: Date, end: Date }) => void` | Task is dragged or resized |
+| `onDateChange` | `(taskId, { start: Date, end: Date }, position?: { x: number, width: number }) => void` | Task is dragged or resized; `position` is the pixel rect the dates were derived from |
 | `onProgressChange` | `(taskId, progress: number) => void` | Progress handle is dragged |
-| `onResizeEnd` | `(taskId) => void` | Resize gesture finishes |
+| `onResizeEnd` | `(taskId, geometry?: { x: number, width: number }) => void` | Resize gesture finishes; `geometry` is the post-resize pixel rect |
 | `onTaskClick` | `(taskId, event: MouseEvent) => void` | Bar is clicked |
 
 Each callback hands you what the gesture produced. Do **not** call back into

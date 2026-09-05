@@ -3,7 +3,7 @@
 > **⚠️ Historical Document**
 >
 > This documents an earlier experimental harness using **slot-based grids**. For current best practices with **timeline-based positioning**, see:
-> - [perf-traces/ANALYSIS.md](../perf-traces/ANALYSIS.md) - Current benchmarks and recommendations
+> - [benchmarks/traces/ANALYSIS.md](../benchmarks/traces/ANALYSIS.md) - Current benchmarks and recommendations
 > - [docs/EXPERIMENTS.md](./EXPERIMENTS.md) - GanttExperiments reactive pattern testing
 > - `GanttPerfIsolate.tsx` - Progressive feature testing harness
 >
@@ -443,8 +443,8 @@ This creates reactive subscriptions on EVERY Bar even though it only logs for ta
 
 ## References
 
-- **Main component:** `src/components/GanttMinimalTest.tsx`
-- **Experiment harness:** `src/entries/indexTest.tsx`
+- **Main component:** `src/demo/GanttMinimalTest.tsx`
+- **Experiment harness:** `src/entries/index-test.tsx`
 - **Full-featured bar:** `src/components/Bar.tsx`
 - **Task rendering patterns:** `src/components/TaskLayer.tsx`
 - **Fine-grained store:** `src/stores/taskStore.ts`

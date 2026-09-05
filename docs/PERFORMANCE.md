@@ -88,7 +88,7 @@ GridTicks component removed entirely. Vertical lines now rendered via Grid.tsx p
 
 **Solution**: Cache formatters at module level by locale.
 
-**File**: `src/utils/date_utils.ts`
+**File**: `src/utils/dateUtils.ts`
 
 ```javascript
 // Cache Intl.DateTimeFormat instances
@@ -401,6 +401,17 @@ const batchedPaths = createMemo(() => {
 
 ### 11. Reactivity Fixes for Drag Performance
 
+> **Historical**: all three `untrack()` workarounds were removed in the
+> SolidJS 2.0 migration, and fix 3's shape is no longer legal — a store
+> write inside `untrack` inside a memo body throws
+> `REACTIVE_WRITE_IN_OWNED_SCOPE`, because `untrack` does not clear the
+> owner. Today the Y-sync path writes `taskStore.setBarYs(ys)` from a
+> split effect's *apply* (`Gantt.tsx`), and `TaskLayer` and
+> `ArrowLayerBatched` track their `_bar` / `getBarPosition` reads normally
+> — `ArrowLayerBatched` documents that dependency deliberately, and the
+> `positionVersion` protocol the arrow layer used instead is gone. The
+> code below is kept as a record of the 1.x fix, not as a pattern to copy.
+
 **Problem**: During drag, reactive cascades caused all arrows to re-render on every frame.
 
 **Files**:
@@ -563,8 +574,8 @@ pnpm dev
 | `src/components/GanttContainer.tsx` | Direct scrollLeft assignment, viewport signals |
 | `src/components/Gantt.tsx` | Uses createVirtualViewport, untrack() in Y-sync effect |
 | `src/components/DateHeaders.tsx` | Column virtualization |
-| `src/components/TaskLayer.tsx` | Row/X filtering, untrack() for _bar access |
+| `src/components/TaskLayer.tsx` | Row/X filtering (the untrack() over `_bar` was removed in the SolidJS 2.0 migration) |
 | `src/components/ArrowLayer.tsx` | Row filtering, untrack() in positionMap, cached positions during drag |
 | `src/components/ArrowLayerBatched.tsx` | **ENHANCED** - Spatial row indexing for O(visible_rows) lookup |
 | `src/demo/GanttPerfDemo.tsx` | Default to 'batched' arrow renderer |
-| `src/utils/date_utils.ts` | Cached Intl.DateTimeFormat instances |
+| `src/utils/dateUtils.ts` | Cached Intl.DateTimeFormat instances |

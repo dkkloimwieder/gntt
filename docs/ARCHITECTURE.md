@@ -173,8 +173,11 @@ taskStore.isTaskCollapsed('t1'); // committed
 `flush()` is legal in event handlers, timers, promise continuations and test
 bodies; it is a silent no-op inside an effect's apply and **throws** inside
 `onSettled`. The only sanctioned `flush()` in the library is
-`useDrag.handleMouseUp`, which commits the final drag move before
-`onDragEnd` re-reads the geometry.
+`useDrag.handleMouseUp`, which commits the final drag move so the DOM
+catches up and so the no-move fallback path reads committed geometry — a
+stationary press stages nothing, so `onDragEnd` has only the store to
+report from. Consumers that report from the drag data (`data.lastGeom`)
+no longer depend on it.
 
 The producer-side fix is preferred over `flush()`: a producer returns what it
 computed rather than making the caller read it back. `setupDates`,
@@ -253,11 +256,16 @@ src/
 │   ├── arrow.tsx
 │   ├── bar.tsx
 │   ├── constraint.tsx
-│   └── showcase.tsx
+│   ├── showcase.tsx
+│   └── ...                 # box-select, critical-path, custom-columns,
+│                           # db, experiments, export, filter-search,
+│                           # index-test, minimal-test, multi-select,
+│                           # perf-isolate, profiler
 ├── scripts/
 │   └── generateCalendar.ts # CLI for generating test data
 ├── data/
-│   └── calendar.json       # Generated test data
+│   ├── fixtures/           # Static test fixtures (constraint-test.json)
+│   └── generated/          # CLI-generated data (calendar.json, topology-*.json)
 └── styles/
     └── *.css               # Stylesheets
 ```
@@ -837,10 +845,16 @@ Date manipulation functions.
 **The one sanctioned `flush()`.** `handleMouseUp` calls `flush()` after the
 final `onDragMove` and before `onDragEnd`. Each rAF frame is its own task, so
 every earlier move has already committed — but the last one is still staged
-when the gesture ends, and `onDragEnd` re-reads the store to report the final
-geometry. Without the flush it would report the *previous* frame's geometry
-and `onDateChange` would emit the wrong dates. Mouseup is an event handler,
-which is a legal `flush()` site; no other library site may add one.
+when the gesture ends.
+
+Reporting no longer depends on that flush: every write branch in `useBarDrag`
+records what it wrote (`data.lastGeom`, `data.finalProgress`) and `onDragEnd`
+reports *that*. The flush stays for the two things the drag data cannot
+supply — the DOM has to catch up with the last move before the gesture ends,
+and a stationary press (or one that never crossed the 3px threshold) staged
+nothing, so its fallback store read must see committed geometry. Mouseup is
+an event handler, which is a legal `flush()` site; no other library site may
+add one.
 
 **API**:
 ```javascript
@@ -945,7 +959,7 @@ Demonstrates collapsible resource groups for organizing tasks by team.
 Performance testing demo with pre-generated calendar data and stress tests.
 
 **Features**:
-- Loads pre-generated calendar data from `src/data/calendar.json`
+- Loads pre-generated calendar data from `src/data/generated/calendar.json`
 - FPS counter and frame timing metrics
 - Horizontal scroll stress test (H-Scroll button)
 - Vertical scroll stress test (V-Scroll button)
@@ -1208,8 +1222,7 @@ demo pages to clear those.
 
 1. **Public API Wrapper**: Compatibility layer for imperative API (`new Gantt()`)
 2. **Infinite Padding**: Timeline extension on scroll edges
-3. **View Mode Switching**: Hour/Day/Week/Month/Year support (currently Day only)
-4. **Grid line fix**: Missing horizontal line between row A and B (first row top border issue)
+3. **Grid line fix**: Missing horizontal line between row A and B (first row top border issue)
 
 ### Performance Optimizations Implemented
 
@@ -1292,9 +1305,6 @@ With 10K tasks: 10,000 bars → ~11 rendered, 9,179 arrows → ~11 rendered
 ### Known Limitations
 
 - No SSR support (SVG rendering is client-side only)
-- No TypeScript (JavaScript only)
-- Test coverage pending
-- View mode is fixed to Day view
 
 ---
 

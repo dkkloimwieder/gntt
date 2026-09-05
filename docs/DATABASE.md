@@ -14,7 +14,7 @@ storage-agnostic — none of the server code ships in the npm bundle.
 ```
 
 Two dev processes:
-- **Vite** on `:5173` serves the demo bundle. `vite.config.ts` proxies
+- **Vite** on `:5173` serves the demo bundle. `config/vite/solid.js` proxies
   `/api/*` to `:3001` so the browser sees same-origin requests (no CORS).
 - **Hono** on `:3001` is the API server. One shared `better-sqlite3`
   connection, mounted under `/api`.
@@ -135,14 +135,20 @@ drag introduces a visible snap-back due to precision rounding in the
 chart's date math, so the demo instead:
 
 1. Snapshots every bar's `_bar.x` and `_bar.width` after each bundle load.
-2. On `onDateChange`, walks the chart's task store and computes per-task
-   pixel deltas (`Δx`, `Δwidth`) against the snapshot.
-3. Translates pixel deltas to ms via `unit × step / columnWidth` — exact
+2. On `onDateChange`, calls `flush()` first — Solid 2.0 stages the drag's
+   last `_bar` write, so measuring without it reads the second-to-last
+   frame and persists dates a few pixels short. A mouseup event handler is
+   a legal `flush()` site.
+3. Walks the chart's task store and computes per-task pixel deltas
+   (`Δx`, `Δwidth`) against the snapshot.
+4. Translates pixel deltas to ms via `unit × step / columnWidth` — exact
    arithmetic, bypassing the chart's `xToDate` which floors fractional
    days.
-4. PATCHes each task whose bar drifted, in parallel.
-5. Updates the snapshot in place; bumps a `dragVersion` signal so the
-   edit panel re-derives from `dbState` (no full re-fetch, no flash).
+5. PATCHes each task whose bar drifted, in parallel.
+6. Updates the snapshot from the geometry each patch was measured against
+   — never a fresh `_bar` read, which would re-base against a later
+   render; bumps a `dragVersion` signal so the edit panel re-derives from
+   `dbState` (no full re-fetch, no flash).
 
 Move vs. resize is disambiguated by both deltas:
 

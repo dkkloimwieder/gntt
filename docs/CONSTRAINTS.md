@@ -438,7 +438,7 @@ function calculateCascadeUpdates(taskId, newX, context) {
 | `src/utils/constraintEngine.ts` | Unified constraint resolution engine |
 | `src/utils/absoluteConstraints.ts` | Lock type helpers, absolute time constraints |
 | `src/demo/GanttPerfIsolate.tsx` | Main component using constraint engine |
-| `src/data/constraint-test.json` | Test data with labeled scenarios |
+| `src/data/fixtures/constraint-test.json` | Test data with labeled scenarios |
 | `src/components/ArrowLayerBatched.tsx` | Arrow rendering with style grouping |
 
 ---

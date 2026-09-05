@@ -80,7 +80,6 @@ export {
  * @returns {Object} Benchmark runner API
  */
 export function createBenchmarkRunner(config = {}) {
-
     const frameTracker = createFrameMetrics();
     let startTime = 0;
     let results = null;
