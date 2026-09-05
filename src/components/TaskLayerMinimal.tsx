@@ -1,8 +1,10 @@
-import { createMemo, Index, untrack, JSX } from 'solid-js';
+import { createMemo, For, untrack } from 'solid-js';
+import type { JSX } from '@solidjs/web';
 import { BarMinimal } from './BarMinimal';
 import type { ResourceStore } from '../stores/resourceStore';
 import type { TaskStore } from '../stores/taskStore';
 import type { ProcessedTask } from '../types';
+import { groupTasksByResource } from '../utils/groupTasksByResource';
 
 interface DisplayResource {
     id: string;
@@ -25,7 +27,7 @@ interface TaskLayerMinimalProps {
  * - Simple visibleTasks() memo that returns task OBJECTS
  * - NO pooling (no undefined slots)
  * - NO wrapper div with display: none
- * - Direct <Index> → BarMinimal
+ * - Direct <For keyed={false}> → BarMinimal
  * - NO extra handlers passed to Bar
  */
 export function TaskLayerMinimal(props: TaskLayerMinimalProps): JSX.Element {
@@ -41,36 +43,18 @@ export function TaskLayerMinimal(props: TaskLayerMinimalProps): JSX.Element {
     const startX = (): number => props.startX ?? 0;
     const endX = (): number => props.endX ?? Infinity;
 
-    // Group tasks by resource - simple cached version
-    let cachedGrouping: Map<string, ProcessedTask[]> | null = null;
-    let cachedTaskCount = -1;
-
-    const tasksByResource = (): Map<string, ProcessedTask[]> => {
+    // Group tasks by resource. Shares `groupTasksByResource` with
+    // `useTaskVirtualization` — this file used to carry a byte-for-byte copy
+    // of it, cached on the task COUNT, which went permanently stale on a
+    // same-tick remove+add. `Object.keys` is TRACKED (the store's `ownKeys`
+    // trap), so the memo re-runs on any key add/remove; the per-task leaf
+    // reads stay untracked inside the helper, so a drag's `_bar.x` writes
+    // never rebuild the grouping.
+    const tasksByResource = createMemo((): Map<string, ProcessedTask[]> => {
         const tasksObj = props.taskStore?.tasks;
         if (!tasksObj) return new Map();
-
-        const taskKeys = untrack(() => Object.keys(tasksObj));
-        if (taskKeys.length === cachedTaskCount && cachedGrouping) {
-            return cachedGrouping;
-        }
-
-        cachedTaskCount = taskKeys.length;
-        const grouped = new Map<string, ProcessedTask[]>();
-        untrack(() => {
-            for (const taskId of taskKeys) {
-                const task = tasksObj[taskId] as ProcessedTask | undefined;
-                if (!task || task._isHidden) continue;
-
-                const resource = (task.resource as string) || 'Unassigned';
-                if (!grouped.has(resource)) {
-                    grouped.set(resource, []);
-                }
-                grouped.get(resource)!.push(task);
-            }
-        });
-        cachedGrouping = grouped;
-        return grouped;
-    };
+        return groupTasksByResource(tasksObj, Object.keys(tasksObj));
+    });
 
     // EXACTLY like indexTest visibleTasks() pattern:
     // Simple memo that returns task OBJECTS (not IDs)
@@ -126,10 +110,10 @@ export function TaskLayerMinimal(props: TaskLayerMinimalProps): JSX.Element {
                 height: '100%',
             }}
         >
-            {/* Direct Index → BarMinimal (NO wrapper div, NO display:none) */}
-            <Index each={visibleTasks()}>
+            {/* Direct For keyed={false} → BarMinimal (NO wrapper div, NO display:none) */}
+            <For keyed={false} each={visibleTasks()}>
                 {(task) => <BarMinimal task={task} />}
-            </Index>
+            </For>
         </div>
     );
 }

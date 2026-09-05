@@ -1,6 +1,5 @@
 // @ts-nocheck
-import { createSignal, createMemo, Index } from 'solid-js';
-import { createStore } from 'solid-js/store';
+import { createSignal, createMemo, createStore, For } from 'solid-js';
 import {
     createLatch,
     useDemoMount,
@@ -659,7 +658,7 @@ export function GanttMinimalTest() {
                                     transform: `translate(${-subColOffset()}px, ${-subRowOffset()}px)`,
                                 }}
                             >
-                                <Index each={visibleTasks()}>
+                                <For keyed={false} each={visibleTasks()}>
                                     {(task, slotIndex) => (
                                         <TestBar
                                             task={task}
@@ -667,7 +666,7 @@ export function GanttMinimalTest() {
                                             visibleCols={visibleCols()}
                                         />
                                     )}
-                                </Index>
+                                </For>
                             </div>
                         }
                     >

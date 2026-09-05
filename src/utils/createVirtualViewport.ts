@@ -62,7 +62,6 @@ export function createVirtualViewport(
                 end: Math.ceil((sx + vw) / cw) + overscanCols,
             };
         },
-        { start: 0, end: 100 },
         { equals: rangeEquals },
     );
 
@@ -99,7 +98,6 @@ export function createVirtualViewport(
                 end: Math.min(total, Math.ceil((sy + vh) / rh) + overscanRows),
             };
         },
-        { start: 0, end: 30 },
         { equals: rangeEquals },
     );
 
@@ -117,7 +115,6 @@ export function createVirtualViewport(
                 end: Math.ceil((sx + vw + overscanX) / X_QUANT) * X_QUANT,
             };
         },
-        { start: 0, end: 5000 },
         { equals: rangeEquals },
     );
 
@@ -133,7 +130,6 @@ export function createVirtualViewport(
                 end: sy + vh + overscanY,
             };
         },
-        { start: 0, end: 2000 },
         { equals: rangeEquals },
     );
 

@@ -1,4 +1,4 @@
-import { createSignal, createMemo, Accessor, Setter } from 'solid-js';
+import { Accessor, createMemo, createSignal, Setter, untrack } from 'solid-js';
 import * as dateUtils from '../utils/dateUtils';
 import type { TimeScale } from '../utils/dateUtils';
 import { DEFAULT_VIEW_MODES } from '../utils/defaults';
@@ -175,10 +175,11 @@ export function createGanttDateStore(
     ): DateWindow => {
         // One read of the view mode object supplies padding, step, unit and
         // column width; nothing below reads a signal this call is about to
-        // write.
-        const mode = viewMode();
+        // write. Untracked: this runs from event handlers and effect applies,
+        // where the committed value is exactly what is wanted.
+        const mode = untrack(viewMode);
         const { unit: unitVal, step: stepVal } = scaleOf(mode);
-        const colWidth = columnWidthOf(mode);
+        const colWidth = untrack(() => columnWidthOf(mode));
         const pad = paddingOf(mode);
 
         let start: Date;
@@ -273,13 +274,14 @@ export function createGanttDateStore(
         units = 10,
     ): DateWindow => {
         // Captured before any write; the view mode is untouched here, so the
-        // memos are the correct source for step/unit/columnWidth.
-        const stepVal = step();
-        const unitVal = unit();
-        const colWidth = columnWidth();
+        // memos are the correct source for step/unit/columnWidth. Untracked
+        // one-shot reads of committed state.
+        const stepVal = untrack(step);
+        const unitVal = untrack(unit);
+        const colWidth = untrack(columnWidth);
 
-        let newStart = ganttStart();
-        let newEnd = ganttEnd();
+        let newStart = untrack(ganttStart);
+        let newEnd = untrack(ganttEnd);
 
         if (direction === 'left') {
             newStart = dateUtils.add(newStart, -units * stepVal, unitVal);
@@ -312,7 +314,7 @@ export function createGanttDateStore(
     ): DateWindow | undefined => {
         let resolved: ViewMode | undefined;
         if (typeof mode === 'string') {
-            resolved = viewModes().find((m) => m.name === mode);
+            resolved = untrack(viewModes).find((m) => m.name === mode);
         } else if (mode && mode.name) {
             resolved = mode;
         }
@@ -322,12 +324,12 @@ export function createGanttDateStore(
         // viewMode-derived memos: those still report the OLD mode until the
         // staged setViewModeSignal write commits.
         const { unit: unitVal, step: stepVal } = scaleOf(resolved);
-        const colWidth = columnWidthOf(resolved);
+        const colWidth = untrack(() => columnWidthOf(resolved));
 
         // The window itself is untouched by a mode change — only its
-        // granularity changes.
-        const start = ganttStart();
-        const end = ganttEnd();
+        // granularity changes. Committed reads, untracked on purpose.
+        const start = untrack(ganttStart);
+        const end = untrack(ganttEnd);
 
         setViewModeSignal(resolved);
         const newDates = generateDates(start, end, stepVal, unitVal);

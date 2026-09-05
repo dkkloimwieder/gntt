@@ -6,7 +6,7 @@ The Experiments demo (`examples/experiments.html`) is a performance testing harn
 
 **Core Principle: MEASURE EVERYTHING**
 
-For benchmark results and current best practices, see [perf-traces/ANALYSIS.md](../perf-traces/ANALYSIS.md).
+For benchmark results and current best practices, see [benchmarks/traces/ANALYSIS.md](../benchmarks/traces/ANALYSIS.md).
 
 ---
 
@@ -59,7 +59,7 @@ pnpm dev
 
 ### TestBar Variant
 
-1. Add component to `src/components/GanttExperiments.tsx`:
+1. Add component to `src/demo/GanttExperiments.tsx`:
 ```javascript
 function TestBarNewPattern(props) {
     // ... your pattern implementation
@@ -95,8 +95,8 @@ function useVisibleTasksNewPattern(tasks, allTaskIds, rowOffset, colOffset, visi
 
 | File | Purpose |
 |------|---------|
-| `src/components/GanttExperiments.tsx` | Main component |
+| `src/demo/GanttExperiments.tsx` | Main component |
 | `src/entries/experiments.tsx` | Entry point |
 | `examples/experiments.html` | Demo page |
-| `perf-traces/ANALYSIS.md` | Benchmark results |
-| `perf-traces/HISTORY.md` | Investigation logs |
+| `benchmarks/traces/ANALYSIS.md` | Benchmark results |
+| `benchmarks/traces/HISTORY.md` | Investigation logs |

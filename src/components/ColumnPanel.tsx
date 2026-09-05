@@ -1,4 +1,5 @@
-import { For, createMemo, JSX } from 'solid-js';
+import { For, createMemo } from 'solid-js';
+import type { JSX } from '@solidjs/web';
 import { DEFAULT_BAR_HEIGHT, DEFAULT_PADDING } from '../constants';
 import type { ResourceStore } from '../stores/resourceStore';
 import type { TaskStore } from '../stores/taskStore';
@@ -11,6 +12,14 @@ import type { ProcessedTask } from '../types';
  * - render? receives the first task on the row (or undefined when no
  *   task exists) plus the resource id; default cell text is `task[key]`
  *   stringified.
+ *
+ * `render` MUST BE PURE. It is invoked from inside the cell's tracking
+ * scope (a JSX expression that re-runs whenever the row's task changes),
+ * so it must only derive a value from its two arguments: no writes to a
+ * signal or store, no reactive primitives (`createSignal`/`createMemo`/
+ * `createEffect`/`onCleanup`), and no side effects that must happen once
+ * per row. Writing from it throws `REACTIVE_WRITE_IN_OWNED_SCOPE` in dev;
+ * creating a primitive there leaks one per re-render.
  */
 export interface ColumnDef {
     key: string;
@@ -173,6 +182,19 @@ export function ColumnPanel(props: ColumnPanelProps): JSX.Element {
         };
     };
 
+    // Cell content: the column's own renderer, else the task field named by
+    // `col.key`. Called from JSX so a change to the task re-renders the cell.
+    const cellValue = (
+        col: ColumnDef,
+        task: ProcessedTask | undefined,
+        resourceId: string,
+    ): JSX.Element => {
+        if (col.render) return col.render(task, resourceId) as JSX.Element;
+        const raw =
+            task && (task as unknown as Record<string, unknown>)[col.key];
+        return (raw ?? '') as JSX.Element;
+    };
+
     const cellStyle = (col: ColumnDef): Record<string, string | number> => ({
         width: `${col.width ?? DEFAULT_COLUMN_WIDTH}px`,
         'flex-shrink': 0,
@@ -199,7 +221,14 @@ export function ColumnPanel(props: ColumnPanelProps): JSX.Element {
         >
             <For each={visibleResources()}>
                 {(item) => {
-                    const task = firstTaskForResource(item.id);
+                    // Row-level memo: the store scan runs once per row and
+                    // re-runs only when the task set changes. Reading the
+                    // store directly in this callback body would be a
+                    // one-shot (strict-read) read that never updated — the
+                    // cells used to be non-reactive for exactly that reason.
+                    const task = createMemo(() =>
+                        firstTaskForResource(item.id),
+                    );
                     return (
                         <div
                             class="column-panel-row"
@@ -207,27 +236,15 @@ export function ColumnPanel(props: ColumnPanelProps): JSX.Element {
                             style={rowStyle(item)}
                         >
                             <For each={props.columns}>
-                                {(col) => {
-                                    const value = col.render
-                                        ? col.render(task, item.id)
-                                        : ((task &&
-                                              (
-                                                  task as unknown as Record<
-                                                      string,
-                                                      unknown
-                                                  >
-                                              )[col.key]) ??
-                                          '');
-                                    return (
-                                        <div
-                                            class="column-panel-cell"
-                                            data-col-key={col.key}
-                                            style={cellStyle(col)}
-                                        >
-                                            {value as JSX.Element}
-                                        </div>
-                                    );
-                                }}
+                                {(col) => (
+                                    <div
+                                        class="column-panel-cell"
+                                        data-col-key={col.key}
+                                        style={cellStyle(col)}
+                                    >
+                                        {cellValue(col, task(), item.id)}
+                                    </div>
+                                )}
                             </For>
                         </div>
                     );

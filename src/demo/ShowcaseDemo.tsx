@@ -2,12 +2,10 @@
 import {
     createSignal,
     createMemo,
+    createStore,
     For,
-    onMount,
-    onCleanup,
-    batch,
+    onSettled,
 } from 'solid-js';
-import { createStore } from 'solid-js/store';
 import { Bar } from '../components/Bar';
 import { Arrow } from '../components/Arrow';
 import { TaskDataPopup } from '../components/TaskDataPopup';
@@ -511,6 +509,7 @@ const styles = {
         'font-size': '12px',
     },
     svgContainer: {
+        position: 'relative',
         background: '#fff',
         border: '1px solid #ddd',
         'border-radius': '8px',
@@ -651,39 +650,36 @@ export default function ShowcaseDemo() {
         taskStore.updateTasks(tasks);
     };
 
-    onMount(() => {
+    onSettled(() => {
         initializeTasks();
     });
 
     // Update Task A when config changes
-    const updateTaskA = () => {
-        const taskA = taskStore.getTask('task-a');
-        if (taskA) {
-            taskStore.updateTask('task-a', {
-                ...taskA,
-                name: taskConfig.name,
-                progress: taskConfig.progress,
-                color: taskConfig.color,
-                colorProgress: taskConfig.colorProgress,
-                constraints: { locked: taskConfig.locked },
-                invalid: taskConfig.invalid,
-            });
-        }
+    // `patch` is what the calling handler just staged into taskConfig: the
+    // store proxy still reports the committed (pre-write) value until the
+    // flush, so the new value has to arrive as data, not be read back.
+    const updateTaskA = (patch = {}) => {
+        const cfg = { ...taskConfig, ...patch };
+        taskStore.patchTask('task-a', {
+            name: cfg.name,
+            progress: cfg.progress,
+            color: cfg.color,
+            colorProgress: cfg.colorProgress,
+            constraints: { locked: cfg.locked },
+            invalid: cfg.invalid,
+        });
     };
 
     // Update Task B when config changes
-    const updateTaskB = () => {
-        const taskB = taskStore.getTask('task-b');
-        if (taskB) {
-            taskStore.updateTask('task-b', {
-                ...taskB,
-                name: taskBConfig.name,
-                progress: taskBConfig.progress,
-                color: taskBConfig.color,
-                colorProgress: taskBConfig.colorProgress,
-                constraints: { locked: taskBConfig.locked },
-            });
-        }
+    const updateTaskB = (patch = {}) => {
+        const cfg = { ...taskBConfig, ...patch };
+        taskStore.patchTask('task-b', {
+            name: cfg.name,
+            progress: cfg.progress,
+            color: cfg.color,
+            colorProgress: cfg.colorProgress,
+            constraints: { locked: cfg.locked },
+        });
     };
 
     // Relationships based on constraint config using new dependency type API
@@ -767,36 +763,39 @@ export default function ShowcaseDemo() {
             PRESET_POSITIONS[presetKey] || PRESET_POSITIONS.default;
 
         // Batch all store updates to prevent timing issues
-        batch(() => {
-            setTaskConfig(preset.taskConfig);
-            setArrowConfig(preset.arrowConfig);
-            setConstraintConfig(preset.constraintConfig);
-            setGlobalConfig(preset.globalConfig);
-            setActivePreset(presetKey);
-            // Reset task configs to defaults
-            setTaskBConfig({
+        setTaskConfig((s) => Object.assign(s, preset.taskConfig));
+        setArrowConfig((s) => Object.assign(s, preset.arrowConfig));
+        setConstraintConfig((s) => Object.assign(s, preset.constraintConfig));
+        setGlobalConfig((s) => Object.assign(s, preset.globalConfig));
+        setActivePreset(presetKey);
+        // Reset task configs to defaults
+        setTaskBConfig((s) =>
+            Object.assign(s, {
                 name: 'Task B',
                 color: '#27ae60',
                 colorProgress: '#2ecc71',
                 progress: 50,
                 locked: false,
-            });
-            setTaskCConfig({
+            }),
+        );
+        setTaskCConfig((s) =>
+            Object.assign(s, {
                 name: 'Task C',
                 color: '#3498db',
                 colorProgress: '#2980b9',
                 progress: 50,
                 locked: false,
-            });
-            setTaskDConfig({
+            }),
+        );
+        setTaskDConfig((s) =>
+            Object.assign(s, {
                 name: 'Task D',
                 color: '#9b59b6',
                 colorProgress: '#8e44ad',
                 progress: 50,
                 locked: false,
-            });
-        });
-
+            }),
+        );
         // Reset task positions based on preset
         taskStore.updateBarPosition('task-a', {
             ...positions['task-a'],
@@ -1075,8 +1074,10 @@ export default function ShowcaseDemo() {
                                 type="text"
                                 value={taskConfig.name}
                                 onInput={(e) => {
-                                    setTaskConfig('name', e.target.value);
-                                    updateTaskA();
+                                    setTaskConfig((s) => {
+                                        s.name = e.target.value;
+                                    });
+                                    updateTaskA({ name: e.target.value });
                                 }}
                                 style={styles.textInput}
                             />
@@ -1088,8 +1089,10 @@ export default function ShowcaseDemo() {
                                 type="color"
                                 value={taskConfig.color}
                                 onInput={(e) => {
-                                    setTaskConfig('color', e.target.value);
-                                    updateTaskA();
+                                    setTaskConfig((s) => {
+                                        s.color = e.target.value;
+                                    });
+                                    updateTaskA({ color: e.target.value });
                                 }}
                                 style={styles.colorInput}
                             />
@@ -1106,11 +1109,12 @@ export default function ShowcaseDemo() {
                                 type="color"
                                 value={taskConfig.colorProgress}
                                 onInput={(e) => {
-                                    setTaskConfig(
-                                        'colorProgress',
-                                        e.target.value,
-                                    );
-                                    updateTaskA();
+                                    setTaskConfig((s) => {
+                                        s.colorProgress = e.target.value;
+                                    });
+                                    updateTaskA({
+                                        colorProgress: e.target.value,
+                                    });
                                 }}
                                 style={styles.colorInput}
                             />
@@ -1129,11 +1133,12 @@ export default function ShowcaseDemo() {
                                 max="100"
                                 value={taskConfig.progress}
                                 onInput={(e) => {
-                                    setTaskConfig(
-                                        'progress',
-                                        parseInt(e.target.value),
-                                    );
-                                    updateTaskA();
+                                    setTaskConfig((s) => {
+                                        s.progress = parseInt(e.target.value);
+                                    });
+                                    updateTaskA({
+                                        progress: parseInt(e.target.value),
+                                    });
                                 }}
                                 style={styles.slider}
                             />
@@ -1150,10 +1155,11 @@ export default function ShowcaseDemo() {
                                 max="15"
                                 value={taskConfig.cornerRadius}
                                 onInput={(e) =>
-                                    setTaskConfig(
-                                        'cornerRadius',
-                                        parseInt(e.target.value),
-                                    )
+                                    setTaskConfig((s) => {
+                                        s.cornerRadius = parseInt(
+                                            e.target.value,
+                                        );
+                                    })
                                 }
                                 style={styles.slider}
                             />
@@ -1179,11 +1185,12 @@ export default function ShowcaseDemo() {
                                     type="checkbox"
                                     checked={taskConfig.locked}
                                     onChange={(e) => {
-                                        setTaskConfig(
-                                            'locked',
-                                            e.target.checked,
-                                        );
-                                        updateTaskA();
+                                        setTaskConfig((s) => {
+                                            s.locked = e.target.checked;
+                                        });
+                                        updateTaskA({
+                                            locked: e.target.checked,
+                                        });
                                     }}
                                     style={styles.checkbox}
                                 />
@@ -1204,11 +1211,12 @@ export default function ShowcaseDemo() {
                                     type="checkbox"
                                     checked={taskConfig.invalid}
                                     onChange={(e) => {
-                                        setTaskConfig(
-                                            'invalid',
-                                            e.target.checked,
-                                        );
-                                        updateTaskA();
+                                        setTaskConfig((s) => {
+                                            s.invalid = e.target.checked;
+                                        });
+                                        updateTaskA({
+                                            invalid: e.target.checked,
+                                        });
                                     }}
                                     style={styles.checkbox}
                                 />
@@ -1233,10 +1241,9 @@ export default function ShowcaseDemo() {
                                     type="checkbox"
                                     checked={globalConfig.readonly}
                                     onChange={(e) =>
-                                        setGlobalConfig(
-                                            'readonly',
-                                            e.target.checked,
-                                        )
+                                        setGlobalConfig((s) => {
+                                            s.readonly = e.target.checked;
+                                        })
                                     }
                                     style={styles.checkbox}
                                 />
@@ -1257,10 +1264,9 @@ export default function ShowcaseDemo() {
                                     type="checkbox"
                                     checked={globalConfig.readonlyDates}
                                     onChange={(e) =>
-                                        setGlobalConfig(
-                                            'readonlyDates',
-                                            e.target.checked,
-                                        )
+                                        setGlobalConfig((s) => {
+                                            s.readonlyDates = e.target.checked;
+                                        })
                                     }
                                     style={styles.checkbox}
                                 />
@@ -1281,10 +1287,10 @@ export default function ShowcaseDemo() {
                                     type="checkbox"
                                     checked={globalConfig.readonlyProgress}
                                     onChange={(e) =>
-                                        setGlobalConfig(
-                                            'readonlyProgress',
-                                            e.target.checked,
-                                        )
+                                        setGlobalConfig((s) => {
+                                            s.readonlyProgress =
+                                                e.target.checked;
+                                        })
                                     }
                                     style={styles.checkbox}
                                 />
@@ -1305,10 +1311,10 @@ export default function ShowcaseDemo() {
                                     type="checkbox"
                                     checked={globalConfig.showExpectedProgress}
                                     onChange={(e) =>
-                                        setGlobalConfig(
-                                            'showExpectedProgress',
-                                            e.target.checked,
-                                        )
+                                        setGlobalConfig((s) => {
+                                            s.showExpectedProgress =
+                                                e.target.checked;
+                                        })
                                     }
                                     style={styles.checkbox}
                                 />
@@ -1331,10 +1337,9 @@ export default function ShowcaseDemo() {
                                     type="checkbox"
                                     checked={globalConfig.snapToGrid}
                                     onChange={(e) =>
-                                        setGlobalConfig(
-                                            'snapToGrid',
-                                            e.target.checked,
-                                        )
+                                        setGlobalConfig((s) => {
+                                            s.snapToGrid = e.target.checked;
+                                        })
                                     }
                                     style={styles.checkbox}
                                 />
@@ -1350,10 +1355,11 @@ export default function ShowcaseDemo() {
                                 value={globalConfig.columnWidth}
                                 disabled={!globalConfig.snapToGrid}
                                 onInput={(e) =>
-                                    setGlobalConfig(
-                                        'columnWidth',
-                                        parseInt(e.target.value),
-                                    )
+                                    setGlobalConfig((s) => {
+                                        s.columnWidth = parseInt(
+                                            e.target.value,
+                                        );
+                                    })
                                 }
                                 style={{
                                     ...styles.slider,
@@ -1381,10 +1387,9 @@ export default function ShowcaseDemo() {
                             <select
                                 value={arrowConfig.startAnchor}
                                 onChange={(e) =>
-                                    setArrowConfig(
-                                        'startAnchor',
-                                        e.target.value,
-                                    )
+                                    setArrowConfig((s) => {
+                                        s.startAnchor = e.target.value;
+                                    })
                                 }
                                 style={styles.select}
                             >
@@ -1402,7 +1407,9 @@ export default function ShowcaseDemo() {
                             <select
                                 value={arrowConfig.endAnchor}
                                 onChange={(e) =>
-                                    setArrowConfig('endAnchor', e.target.value)
+                                    setArrowConfig((s) => {
+                                        s.endAnchor = e.target.value;
+                                    })
                                 }
                                 style={styles.select}
                             >
@@ -1430,12 +1437,12 @@ export default function ShowcaseDemo() {
                                     type="checkbox"
                                     checked={arrowConfig.startOffset === null}
                                     onChange={() =>
-                                        setArrowConfig(
-                                            'startOffset',
-                                            arrowConfig.startOffset === null
-                                                ? 0.5
-                                                : null,
-                                        )
+                                        setArrowConfig((s) => {
+                                            s.startOffset =
+                                                arrowConfig.startOffset === null
+                                                    ? 0.5
+                                                    : null;
+                                        })
                                     }
                                     style={styles.checkbox}
                                 />
@@ -1451,10 +1458,11 @@ export default function ShowcaseDemo() {
                                 value={arrowConfig.startOffset ?? 0.9}
                                 disabled={arrowConfig.startOffset === null}
                                 onInput={(e) =>
-                                    setArrowConfig(
-                                        'startOffset',
-                                        parseFloat(e.target.value),
-                                    )
+                                    setArrowConfig((s) => {
+                                        s.startOffset = parseFloat(
+                                            e.target.value,
+                                        );
+                                    })
                                 }
                                 style={{
                                     ...styles.slider,
@@ -1480,10 +1488,11 @@ export default function ShowcaseDemo() {
                                 step="0.05"
                                 value={arrowConfig.endOffset}
                                 onInput={(e) =>
-                                    setArrowConfig(
-                                        'endOffset',
-                                        parseFloat(e.target.value),
-                                    )
+                                    setArrowConfig((s) => {
+                                        s.endOffset = parseFloat(
+                                            e.target.value,
+                                        );
+                                    })
                                 }
                                 style={styles.slider}
                             />
@@ -1501,7 +1510,9 @@ export default function ShowcaseDemo() {
                             <select
                                 value={arrowConfig.routing}
                                 onChange={(e) =>
-                                    setArrowConfig('routing', e.target.value)
+                                    setArrowConfig((s) => {
+                                        s.routing = e.target.value;
+                                    })
                                 }
                                 style={styles.select}
                             >
@@ -1518,10 +1529,11 @@ export default function ShowcaseDemo() {
                                 max="30"
                                 value={arrowConfig.curveRadius}
                                 onInput={(e) =>
-                                    setArrowConfig(
-                                        'curveRadius',
-                                        parseInt(e.target.value),
-                                    )
+                                    setArrowConfig((s) => {
+                                        s.curveRadius = parseInt(
+                                            e.target.value,
+                                        );
+                                    })
                                 }
                                 style={styles.slider}
                             />
@@ -1540,7 +1552,9 @@ export default function ShowcaseDemo() {
                                 type="color"
                                 value={arrowConfig.stroke}
                                 onInput={(e) =>
-                                    setArrowConfig('stroke', e.target.value)
+                                    setArrowConfig((s) => {
+                                        s.stroke = e.target.value;
+                                    })
                                 }
                                 style={styles.colorInput}
                             />
@@ -1560,10 +1574,11 @@ export default function ShowcaseDemo() {
                                 step="0.5"
                                 value={arrowConfig.strokeWidth}
                                 onInput={(e) =>
-                                    setArrowConfig(
-                                        'strokeWidth',
-                                        parseFloat(e.target.value),
-                                    )
+                                    setArrowConfig((s) => {
+                                        s.strokeWidth = parseFloat(
+                                            e.target.value,
+                                        );
+                                    })
                                 }
                                 style={styles.slider}
                             />
@@ -1581,10 +1596,11 @@ export default function ShowcaseDemo() {
                                 step="0.1"
                                 value={arrowConfig.strokeOpacity}
                                 onInput={(e) =>
-                                    setArrowConfig(
-                                        'strokeOpacity',
-                                        parseFloat(e.target.value),
-                                    )
+                                    setArrowConfig((s) => {
+                                        s.strokeOpacity = parseFloat(
+                                            e.target.value,
+                                        );
+                                    })
                                 }
                                 style={styles.slider}
                             />
@@ -1598,10 +1614,9 @@ export default function ShowcaseDemo() {
                             <select
                                 value={arrowConfig.strokeDasharray}
                                 onChange={(e) =>
-                                    setArrowConfig(
-                                        'strokeDasharray',
-                                        e.target.value,
-                                    )
+                                    setArrowConfig((s) => {
+                                        s.strokeDasharray = e.target.value;
+                                    })
                                 }
                                 style={styles.select}
                             >
@@ -1622,7 +1637,9 @@ export default function ShowcaseDemo() {
                             <select
                                 value={arrowConfig.headShape}
                                 onChange={(e) =>
-                                    setArrowConfig('headShape', e.target.value)
+                                    setArrowConfig((s) => {
+                                        s.headShape = e.target.value;
+                                    })
                                 }
                                 style={styles.select}
                             >
@@ -1642,10 +1659,9 @@ export default function ShowcaseDemo() {
                                 max="15"
                                 value={arrowConfig.headSize}
                                 onInput={(e) =>
-                                    setArrowConfig(
-                                        'headSize',
-                                        parseInt(e.target.value),
-                                    )
+                                    setArrowConfig((s) => {
+                                        s.headSize = parseInt(e.target.value);
+                                    })
                                 }
                                 style={styles.slider}
                             />
@@ -1667,10 +1683,9 @@ export default function ShowcaseDemo() {
                                     type="checkbox"
                                     checked={arrowConfig.headFill}
                                     onChange={(e) =>
-                                        setArrowConfig(
-                                            'headFill',
-                                            e.target.checked,
-                                        )
+                                        setArrowConfig((s) => {
+                                            s.headFill = e.target.checked;
+                                        })
                                     }
                                     style={styles.checkbox}
                                 />
@@ -1690,7 +1705,9 @@ export default function ShowcaseDemo() {
                         <select
                             value={constraintConfig.type || 'FS'}
                             onChange={(e) =>
-                                setConstraintConfig('type', e.target.value)
+                                setConstraintConfig((s) => {
+                                    s.type = e.target.value;
+                                })
                             }
                             style={styles.select}
                         >
@@ -1709,12 +1726,11 @@ export default function ShowcaseDemo() {
                             max="200"
                             value={constraintConfig.lag ?? 0}
                             onInput={(e) =>
-                                setConstraintConfig(
-                                    'lag',
-                                    e.target.value
+                                setConstraintConfig((s) => {
+                                    s.lag = e.target.value
                                         ? parseInt(e.target.value)
-                                        : 0,
-                                )
+                                        : 0;
+                                })
                             }
                             style={styles.numberInput}
                         />
@@ -1736,10 +1752,9 @@ export default function ShowcaseDemo() {
                                 type="checkbox"
                                 checked={constraintConfig.elastic !== false}
                                 onChange={(e) =>
-                                    setConstraintConfig(
-                                        'elastic',
-                                        e.target.checked,
-                                    )
+                                    setConstraintConfig((s) => {
+                                        s.elastic = e.target.checked;
+                                    })
                                 }
                                 style={styles.checkbox}
                             />
@@ -1766,8 +1781,10 @@ export default function ShowcaseDemo() {
                                 type="checkbox"
                                 checked={taskBConfig.locked}
                                 onChange={(e) => {
-                                    setTaskBConfig('locked', e.target.checked);
-                                    updateTaskB();
+                                    setTaskBConfig((s) => {
+                                        s.locked = e.target.checked;
+                                    });
+                                    updateTaskB({ locked: e.target.checked });
                                 }}
                                 style={styles.checkbox}
                             />
@@ -1780,7 +1797,7 @@ export default function ShowcaseDemo() {
             {/* Live Preview */}
             <div style={styles.svgContainer}>
                 <svg
-                    width="100%"
+                    width="900"
                     height="300"
                     viewBox="0 0 900 300"
                     style={{ display: 'block' }}
@@ -1884,7 +1901,19 @@ export default function ShowcaseDemo() {
                         headSize={arrowConfig.headSize}
                         headFill={arrowConfig.headFill}
                     />
-
+                </svg>
+                {/* Bars are HTML (Bar renders a positioned <div>), so they live in
+                    an HTML layer over the svg — a div inside <svg> never lays out. */}
+                <div
+                    class="showcase-bars"
+                    style={{
+                        position: 'absolute',
+                        left: '0',
+                        top: '0',
+                        width: '900px',
+                        height: '300px',
+                    }}
+                >
                     {/* Task A */}
                     <Bar
                         task={{
@@ -1994,7 +2023,7 @@ export default function ShowcaseDemo() {
                         onHoverEnd={handleTaskHoverEnd}
                         onTaskClick={handleTaskClick}
                     />
-                </svg>
+                </div>
             </div>
 
             {/* Info Box */}

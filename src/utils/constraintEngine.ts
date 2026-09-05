@@ -684,6 +684,42 @@ export function calculateCascadeUpdates(
     return updates;
 }
 
+/**
+ * Cascade entry for a RESIZE, where the caller already knows the new rect.
+ *
+ * `resolveConstraints` cannot serve this case, for two independent reasons:
+ *
+ *  1. Its "no position change" early-out compares the proposal against
+ *     `getBarPosition(taskId)`. A resize caller that took its proposal from
+ *     that same read always compares a value with itself, so the early-out
+ *     always fires and the cascade is always empty.
+ *  2. Even past that, it only computes cascade updates when the X moved
+ *     (`Math.abs(constrainedX - currentBar.x) > EPSILON_PX`). A resize moves
+ *     the right edge and leaves X alone, so that gate never opens either.
+ *
+ * Both gates are correct for a MOVE and wrong for a RESIZE. This entry takes
+ * the new geometry as a VALUE — never re-reading the store, whose write may
+ * still be staged — overlays it on the resized task's bar so successors are
+ * relaxed against the NEW right edge, and returns the successor updates.
+ * The resized task itself is not in the returned map.
+ */
+export function resolveResizeCascade(
+    taskId: string,
+    geometry: { x: number; width: number },
+    context: CascadeContext,
+): Map<string, { x: number }> {
+    const read = context.getBarPosition;
+    const getBarPosition: GetBarPosition = (id) => {
+        const bar = read(id);
+        if (id !== taskId || !bar) return bar;
+        return { ...bar, x: geometry.x, width: geometry.width };
+    };
+    return calculateCascadeUpdates(taskId, geometry.x, {
+        ...context,
+        getBarPosition,
+    });
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN ENTRY POINT
 // Single function to resolve all constraints

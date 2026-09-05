@@ -3,28 +3,25 @@ import { createGanttDateStore } from '../src/stores/ganttDateStore';
 import * as dateUtils from '../src/utils/dateUtils';
 import { settle } from './helpers/settle';
 
-// CHARACTERIZATION SUITE — solid-js 1.9 (SolidJS 2.0 migration, epic E1.2).
+// BEHAVIOUR SUITE — solid-js 2.0 (SolidJS 2.0 migration, epic E1.2).
 //
-// `ganttDateStore` is the worst offender in the "write then immediately read
-// back" audit (digest-t2 lines 25-28: ganttDateStore.ts:193/195/237/247).
-// Every public method here stages a signal write and then calls a helper that
-// reads the SAME signal back in the same tick:
+// `ganttDateStore` was the worst offender in the "write then immediately read
+// back" audit (digest-t2 lines 25-28). Each of these methods used to stage a
+// signal write and then call a helper that read the SAME signal back in the
+// same tick:
 //
-//   setupDates      -> setGanttStart/setGanttEnd, then generateDates() reads
-//                      ganttStart()/ganttEnd()                        (:193/:195)
-//   extendTimeline  -> setGanttStart/setGanttEnd, then generateDates()      (:237)
-//   changeViewMode  -> setViewModeSignal, then generateDates() reads the
-//                      viewMode-derived unit()/step()                       (:247)
+//   setupDates      -> setGanttStart/setGanttEnd, then generateDates() read
+//                      ganttStart()/ganttEnd()
+//   extendTimeline  -> setGanttStart/setGanttEnd, then generateDates()
+//   changeViewMode  -> setViewModeSignal, then generateDates() read the
+//                      viewMode-derived unit()/step()
 //
-// On 1.9 a setter runs the update cascade synchronously, so the read-back sees
-// the fresh value and everything below is green. Under SolidJS 2.0's deferred
-// writes the read-back returns the PREVIOUS value, so `generateDates` would
-// walk the stale (or `new Date()`-default) window and emit an empty or wrong
-// `dates()` array — a blank first paint with every bar positioned against
-// today. These assertions are the tripwire for that: when the runtime flips in
-// E3, whatever goes red here is the named regression list for E2.1 (the
-// compute-then-apply rewrite that parameterizes `generateDates` and makes
-// setupDates/changeViewMode/extendTimeline return the window they computed).
+// Under 2.0's deferred writes that read-back returns the PREVIOUS value, so
+// `generateDates` would walk the stale (or `new Date()`-default) window and
+// emit an empty or wrong `dates()` array — a blank first paint with every bar
+// positioned against today. E2.1 parameterized `generateDates` and made
+// setupDates/changeViewMode/extendTimeline RETURN the window they computed;
+// these assertions keep the read-backs from coming back.
 //
 // EXPECTED VALUES ARE HAND-DERIVED LITERALS, not re-computations of the
 // implementation's own expression and not snapshots of an observed run: every
@@ -343,7 +340,7 @@ describe('createGanttDateStore.changeViewMode — regenerates the existing windo
 
         // Behavioural, not an identity check against the object literal at
         // ganttDateStore.ts:358: calling the PUBLIC `setViewMode` must also
-        // regenerate the columns. If E2.1 rewires it to the raw
+        // regenerate the columns. If `setViewMode` is ever rewired to the raw
         // `setViewModeSignal`, unit() would still flip to 'month' but dates()
         // would still hold the 93 day columns.
         store.setViewMode('Month');

@@ -1,5 +1,10 @@
-import { createSignal, Accessor, Setter } from 'solid-js';
-import { createStore, reconcile, produce } from 'solid-js/store';
+import {
+    createSignal,
+    createStore,
+    reconcile,
+    Accessor,
+    Setter,
+} from 'solid-js';
 import { prof } from '../utils/profiler';
 import type { BarPosition, ProcessedTask } from '../types';
 
@@ -24,11 +29,15 @@ export interface TaskStore {
     taskCount: () => number;
     updateTask: (id: string, taskData: ProcessedTask) => void;
     updateBarPosition: (id: string, position: Partial<BarPosition>) => void;
+    setBarYs: (ys: Map<string, number>) => void;
+    patchTask: (id: string, patch: Partial<ProcessedTask>) => void;
+    setTaskProgress: (id: string, progress: number) => void;
     updateTasks: (tasksArray: ProcessedTask[]) => void;
+    /** Moves each task by `deltaX`; returns the geometry it applied, by id. */
     batchMovePositions: (
         taskOriginals: Map<string, BatchOriginal>,
         deltaX: number,
-    ) => void;
+    ) => Map<string, BarPosition>;
     removeTask: (id: string) => void;
     clear: () => void;
 
@@ -39,7 +48,7 @@ export interface TaskStore {
     expandTask: (taskId: string) => void;
     collapseTask: (taskId: string) => void;
     expandAllTasks: () => void;
-    collapseAllTasks: () => void;
+    collapseAllTasks: (ids?: string[]) => void;
 
     // Drag state - for deferring expensive calculations
     draggingTaskId: Accessor<string | null>;
@@ -97,7 +106,9 @@ export function createTaskStore(): TaskStore {
 
     // Update task in store (replaces entire task)
     const updateTask = (id: string, taskData: ProcessedTask): void => {
-        setTasks(id, taskData);
+        setTasks((s) => {
+            s[id] = taskData;
+        });
     };
 
     // Update bar position for a task (fine-grained path update)
@@ -105,19 +116,16 @@ export function createTaskStore(): TaskStore {
         id: string,
         position: Partial<BarPosition>,
     ): void => {
-        if (!tasks[id]) return;
-        // Use produce for fine-grained update - only triggers subscribers to changed paths
-        setTasks(
-            produce((state) => {
-                const task = state[id];
-                if (task && task._bar) {
-                    state[id] = {
-                        ...task,
-                        _bar: { ...task._bar, ...position },
-                    };
-                }
-            }),
-        );
+        // Leaf mutation inside the draft: only the touched `_bar.<key>`
+        // subscribers are notified, and the existence guard sees staged state.
+        setTasks((s) => {
+            const task = s[id];
+            if (!task?._bar) return;
+            for (const key of Object.keys(position) as (keyof BarPosition)[]) {
+                const v = position[key];
+                if (v !== undefined) task._bar[key] = v;
+            }
+        });
     };
 
     // Batch update multiple tasks (typically on initial load)
@@ -129,9 +137,29 @@ export function createTaskStore(): TaskStore {
         setTasks(reconcile(tasksObj));
     };
 
+    /**
+     * Shallow-patch a task in place: `Object.assign` on the draft, so only the
+     * touched leaves notify. Use `updateTask` when the whole object changes.
+     */
+    const patchTask = (id: string, patch: Partial<ProcessedTask>): void => {
+        setTasks((s) => {
+            const task = s[id];
+            if (task) Object.assign(task, patch);
+        });
+    };
+
+    const setTaskProgress = (id: string, progress: number): void => {
+        setTasks((s) => {
+            const task = s[id];
+            if (task) task.progress = progress;
+        });
+    };
+
     // Remove task from store
     const removeTask = (id: string): void => {
-        setTasks(id, undefined);
+        setTasks((s) => {
+            delete s[id];
+        });
     };
 
     // Clear all tasks
@@ -146,30 +174,49 @@ export function createTaskStore(): TaskStore {
         );
     };
 
+    /**
+     * Row-sync write-back: set `_bar.y` for many tasks in one draft, skipping
+     * entries whose y already matches so untouched leaves are not notified.
+     */
+    const setBarYs = (ys: Map<string, number>): void => {
+        setTasks((s) => {
+            for (const [id, y] of ys) {
+                const task = s[id];
+                if (task?._bar && task._bar.y !== y) task._bar.y = y;
+            }
+        });
+    };
+
     // Get task count (reads all keys, so subscribes to additions/removals)
     const taskCount = (): number => Object.keys(tasks).length;
 
     /**
-     * Move multiple tasks by deltaX in a single reactive update.
-     * Uses produce for fine-grained updates - only affected Bar components re-render.
+     * Move multiple tasks by deltaX in one draft write, leaf-mutating each
+     * `_bar.x` so only the Bars reading that leaf re-render.
+     *
+     * RETURNS what it applied, keyed by task id. Writes are deferred, so a
+     * caller that needs the new geometry in the same turn (the drag hooks
+     * do, to report it at gesture end) cannot read it back off the store —
+     * it comes from here as data. Tasks with no `_bar` are skipped and
+     * therefore absent from the map.
      */
     const batchMovePositions = (
         taskOriginals: Map<string, BatchOriginal>,
         deltaX: number,
-    ): void => {
-        setTasks(
-            produce((state) => {
-                for (const [id, { originalX }] of taskOriginals) {
-                    const task = state[id];
-                    if (task?._bar) {
-                        state[id] = {
-                            ...task,
-                            _bar: { ...task._bar, x: originalX + deltaX },
-                        };
-                    }
+    ): Map<string, BarPosition> => {
+        const applied = new Map<string, BarPosition>();
+        setTasks((state) => {
+            for (const [id, { originalX }] of taskOriginals) {
+                const task = state[id];
+                if (task?._bar) {
+                    task._bar.x = originalX + deltaX;
+                    // Read off the DRAFT: it carries this turn's staged
+                    // writes, which the outer store proxy does not.
+                    applied.set(id, { ...task._bar });
                 }
-            }),
-        );
+            }
+        });
+        return applied;
     };
 
     // --- Subtask Collapse State ---
@@ -228,8 +275,17 @@ export function createTaskStore(): TaskStore {
 
     /**
      * Collapse all summary tasks.
+     *
+     * @param ids Task ids to collapse. When omitted the ids are derived from
+     * the COMMITTED task map. A caller that has just written the task list in
+     * the same turn must pass the ids it built, otherwise the read-back yields
+     * the pre-write tasks. Mirrors `resourceStore.collapseAll(ids?)`.
      */
-    const collapseAllTasks = (): void => {
+    const collapseAllTasks = (ids?: string[]): void => {
+        if (ids) {
+            setCollapsedTasks(new Set(ids));
+            return;
+        }
         const summaryIds: string[] = [];
         for (const task of Object.values(tasks)) {
             if (
@@ -251,6 +307,9 @@ export function createTaskStore(): TaskStore {
         taskCount,
         updateTask,
         updateBarPosition,
+        setBarYs,
+        patchTask,
+        setTaskProgress,
         updateTasks,
         batchMovePositions,
         removeTask,

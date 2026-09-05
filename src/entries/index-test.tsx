@@ -1,17 +1,15 @@
 // @ts-nocheck
-import { render, Dynamic } from 'solid-js/web';
+import { render, Dynamic } from '@solidjs/web';
 import {
     createSignal,
     createMemo,
-    Index,
+    createStore,
+    For,
     Show,
-    onMount,
     onCleanup,
     createContext,
     useContext,
-    createEffect,
 } from 'solid-js';
-import { createStore } from 'solid-js/store';
 import { createRAF } from '@solid-primitives/raf';
 import calendarData from '../data/generated/calendar.json';
 import { useDrag } from '../hooks/useDrag';
@@ -29,8 +27,8 @@ const useTestEvents = () => useContext(TestEventsContext);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // INDEX RECYCLING DIAGNOSTIC DEMO
-// Purpose: Test <Index> DOM recycling WITHOUT scroll complexity
-// Question: How fast can <Index> update 340 DOM nodes when task IDs change?
+// Purpose: Test <For keyed={false}> DOM recycling WITHOUT scroll complexity
+// Question: How fast can <For keyed={false}> update 340 DOM nodes when task IDs change?
 // ═══════════════════════════════════════════════════════════════════════════
 
 // Inject optimized CSS for V7b
@@ -2297,34 +2295,34 @@ function IndexTestDemo() {
                 )}
 
                 {variant() === 'directTask' ? (
-                    <Index each={visibleTasks()}>
+                    <For keyed={false} each={visibleTasks()}>
                         {(task, slotIndex) => (
                             <TestBarDirectTask
                                 task={task}
                                 slotIndex={slotIndex}
                             />
                         )}
-                    </Index>
+                    </For>
                 ) : variant() === 'directTaskFull' ? (
-                    <Index each={visibleTasks()}>
+                    <For keyed={false} each={visibleTasks()}>
                         {(task, slotIndex) => (
                             <TestBarDirectTaskFull
                                 task={task}
                                 slotIndex={slotIndex}
                             />
                         )}
-                    </Index>
+                    </For>
                 ) : variant() === 'minimalCSS' ? (
-                    <Index each={visibleTasks()}>
+                    <For keyed={false} each={visibleTasks()}>
                         {(task, slotIndex) => (
                             <TestBarMinimalCSS
                                 task={task}
                                 slotIndex={slotIndex}
                             />
                         )}
-                    </Index>
+                    </For>
                 ) : (
-                    <Index each={visibleTaskIds()}>
+                    <For keyed={false} each={visibleTaskIds()}>
                         {(taskId, slotIndex) => (
                             <Dynamic
                                 component={BAR_VARIANTS[variant()]}
@@ -2333,7 +2331,7 @@ function IndexTestDemo() {
                                 tasks={tasks}
                             />
                         )}
-                    </Index>
+                    </For>
                 )}
             </div>
         </div>
@@ -2342,7 +2340,7 @@ function IndexTestDemo() {
 
 render(
     () => (
-        <TestEventsContext.Provider
+        <TestEventsContext
             value={{
                 onHover: (id, e) => {
                     /* noop */
@@ -2356,7 +2354,7 @@ render(
             }}
         >
             <IndexTestDemo />
-        </TestEventsContext.Provider>
+        </TestEventsContext>
     ),
     document.getElementById('app'),
 );

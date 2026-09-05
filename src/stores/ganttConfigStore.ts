@@ -1,5 +1,4 @@
-import { Accessor, batch, createSignal } from 'solid-js';
-import { createStore, produce } from 'solid-js/store';
+import { Accessor, createSignal, createStore } from 'solid-js';
 import {
     DEFAULT_COLUMN_WIDTH,
     DEFAULT_BAR_HEIGHT,
@@ -186,7 +185,7 @@ export function createGanttConfigStore(
 
     // `expandedTasks` lives OUTSIDE the store (decision D6). A `Set` is not
     // wrappable, so it is never proxied: mutating one in place notifies
-    // nothing, and `produce` will not even invoke its callback on it. So it is
+    // nothing, and a store draft hands back the raw `Set`, not a proxy. So it is
     // a signal over an IMMUTABLE Set — every mutator below builds a NEW Set
     // and replaces it, which is a plain reference write and always notifies.
     // `ReadonlySet` keeps that honest inside this module; the public accessor
@@ -205,18 +204,16 @@ export function createGanttConfigStore(
         key: K,
     ): ConfigSetter<GanttConfigState[K]> {
         return (value) => {
-            setState(
-                produce((draft: GanttConfigState) => {
-                    draft[key] =
-                        typeof value === 'function'
-                            ? (
-                                  value as (
-                                      prev: GanttConfigState[K],
-                                  ) => GanttConfigState[K]
-                              )(draft[key])
-                            : (value as GanttConfigState[K]);
-                }),
-            );
+            setState((draft: GanttConfigState) => {
+                draft[key] =
+                    typeof value === 'function'
+                        ? (
+                              value as (
+                                  prev: GanttConfigState[K],
+                              ) => GanttConfigState[K]
+                          )(draft[key])
+                        : (value as GanttConfigState[K]);
+            });
         };
     }
 
@@ -273,57 +270,50 @@ export function createGanttConfigStore(
         );
     };
 
-    // Update many options atomically (single reactivity flush).
-    //
-    // Two reactive cells are written now that `expandedTasks` is a signal, so
-    // the `batch` is what keeps the whole update one flush. E3 deletes the
-    // wrapper: 2.0 batches every write to the microtask flush by default.
+    // Update many options atomically. Two reactive cells are written now that
+    // `expandedTasks` is a signal; SolidJS 2.0 stages every write until the
+    // microtask flush, so no explicit batch is needed to keep them one flush.
     const updateOptions = (newOptions: Partial<GanttConfigOptions>): void => {
-        batch(() => {
-            if (newOptions.expandedTasks !== undefined) {
-                setExpandedTasks(new Set(newOptions.expandedTasks));
-            }
-            setState(
-                produce((s: GanttConfigState) => {
-                    if (newOptions.ganttStart !== undefined)
-                        s.ganttStart = newOptions.ganttStart;
-                    if (newOptions.ganttEnd !== undefined)
-                        s.ganttEnd = newOptions.ganttEnd;
-                    if (newOptions.unit !== undefined) s.unit = newOptions.unit;
-                    if (newOptions.step !== undefined) s.step = newOptions.step;
-                    if (newOptions.columnWidth !== undefined)
-                        s.columnWidth = newOptions.columnWidth;
-                    if (newOptions.barHeight !== undefined)
-                        s.barHeight = newOptions.barHeight;
-                    if (newOptions.headerHeight !== undefined)
-                        s.headerHeight = newOptions.headerHeight;
-                    if (newOptions.padding !== undefined)
-                        s.padding = newOptions.padding;
-                    if (newOptions.barCornerRadius !== undefined)
-                        s.barCornerRadius = newOptions.barCornerRadius;
-                    if (newOptions.readonly !== undefined)
-                        s.readonly = newOptions.readonly;
-                    if (newOptions.readonlyDates !== undefined)
-                        s.readonlyDates = newOptions.readonlyDates;
-                    if (newOptions.readonlyProgress !== undefined)
-                        s.readonlyProgress = newOptions.readonlyProgress;
-                    if (newOptions.showExpectedProgress !== undefined)
-                        s.showExpectedProgress =
-                            newOptions.showExpectedProgress;
-                    if (newOptions.autoMoveLabel !== undefined)
-                        s.autoMoveLabel = newOptions.autoMoveLabel;
-                    if (newOptions.ignoredDates !== undefined)
-                        s.ignoredDates = newOptions.ignoredDates;
-                    if (newOptions.ignoredFunction !== undefined)
-                        s.ignoredFunction = newOptions.ignoredFunction;
-                    if (newOptions.ignoredPositions !== undefined)
-                        s.ignoredPositions = newOptions.ignoredPositions;
-                    if (newOptions.subtaskHeightRatio !== undefined)
-                        s.subtaskHeightRatio = newOptions.subtaskHeightRatio;
-                    if (newOptions.renderMode !== undefined)
-                        s.renderMode = newOptions.renderMode;
-                }),
-            );
+        if (newOptions.expandedTasks !== undefined) {
+            setExpandedTasks(new Set(newOptions.expandedTasks));
+        }
+        setState((s: GanttConfigState) => {
+            if (newOptions.ganttStart !== undefined)
+                s.ganttStart = newOptions.ganttStart;
+            if (newOptions.ganttEnd !== undefined)
+                s.ganttEnd = newOptions.ganttEnd;
+            if (newOptions.unit !== undefined) s.unit = newOptions.unit;
+            if (newOptions.step !== undefined) s.step = newOptions.step;
+            if (newOptions.columnWidth !== undefined)
+                s.columnWidth = newOptions.columnWidth;
+            if (newOptions.barHeight !== undefined)
+                s.barHeight = newOptions.barHeight;
+            if (newOptions.headerHeight !== undefined)
+                s.headerHeight = newOptions.headerHeight;
+            if (newOptions.padding !== undefined)
+                s.padding = newOptions.padding;
+            if (newOptions.barCornerRadius !== undefined)
+                s.barCornerRadius = newOptions.barCornerRadius;
+            if (newOptions.readonly !== undefined)
+                s.readonly = newOptions.readonly;
+            if (newOptions.readonlyDates !== undefined)
+                s.readonlyDates = newOptions.readonlyDates;
+            if (newOptions.readonlyProgress !== undefined)
+                s.readonlyProgress = newOptions.readonlyProgress;
+            if (newOptions.showExpectedProgress !== undefined)
+                s.showExpectedProgress = newOptions.showExpectedProgress;
+            if (newOptions.autoMoveLabel !== undefined)
+                s.autoMoveLabel = newOptions.autoMoveLabel;
+            if (newOptions.ignoredDates !== undefined)
+                s.ignoredDates = newOptions.ignoredDates;
+            if (newOptions.ignoredFunction !== undefined)
+                s.ignoredFunction = newOptions.ignoredFunction;
+            if (newOptions.ignoredPositions !== undefined)
+                s.ignoredPositions = newOptions.ignoredPositions;
+            if (newOptions.subtaskHeightRatio !== undefined)
+                s.subtaskHeightRatio = newOptions.subtaskHeightRatio;
+            if (newOptions.renderMode !== undefined)
+                s.renderMode = newOptions.renderMode;
         });
     };
 

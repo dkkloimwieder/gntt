@@ -7,6 +7,7 @@
  */
 import {
     resolveConstraints,
+    resolveResizeCascade,
     collectDependentTasks,
     clampBatchDeltaX,
 } from './constraintEngine';
@@ -79,28 +80,30 @@ export function constrainTaskPosition(
 /**
  * After a resize ends, push dependent tasks forward if needed.
  * Side effect: applies cascade updates.
+ *
+ * `geometry` is the rect the gesture WROTE, handed over as data. Passing it
+ * is what makes the cascade real: reading the bar back here would hand the
+ * engine a value the resize write has not committed yet (deferred writes),
+ * and — even on a synchronous store — would compare the proposal against the
+ * read it came from. The store read is kept only as the fallback for callers
+ * that have no geometry to offer.
  */
 export function resolveResizeConstraints(
     taskId: string,
     ctx: ConstraintCtx,
+    geometry?: { x: number; width: number },
 ): void {
-    const taskBar = ctx.taskStore.getBarPosition?.(taskId);
-    if (!taskBar) return;
+    const bar = geometry ?? ctx.taskStore.getBarPosition?.(taskId);
+    if (!bar) return;
 
-    const result = resolveConstraints(
+    const cascadeUpdates = resolveResizeCascade(
         taskId,
-        taskBar.x,
-        taskBar.width,
+        { x: bar.x, width: bar.width },
         buildContext(ctx),
     );
 
-    if (result.cascadeUpdates) {
-        for (const [succId, update] of result.cascadeUpdates) {
-            ctx.taskStore.updateBarPosition(
-                succId,
-                update as Partial<BarPosition>,
-            );
-        }
+    for (const [succId, update] of cascadeUpdates) {
+        ctx.taskStore.updateBarPosition(succId, update as Partial<BarPosition>);
     }
 }
 

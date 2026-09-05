@@ -114,6 +114,23 @@ export function extractResourcesFromTasks(
 }
 
 /**
+ * Display index per resource id, for Y positioning. Pure: takes the display
+ * list `computeDisplayResources` produced, so a caller that has just written
+ * the resources can build the map from its own locals instead of reading a
+ * memo back in the same turn.
+ */
+export function computeResourceIndexMap(
+    display: readonly { id: string }[],
+): Map<string, number> {
+    const map = new Map<string, number>();
+    for (let i = 0; i < display.length; i++) {
+        const item = display[i];
+        if (item) map.set(item.id, i);
+    }
+    return map;
+}
+
+/**
  * Build a lookup map for groups by ID.
  */
 export function buildGroupMap(resources: Resource[]): Map<string, Resource> {

@@ -91,11 +91,11 @@
  *     exists. It catches "the component threw before publishing", not "the
  *     chart mounted but rendered nothing". Assert on rendered nodes for that.
  *
- * SolidJS 2.0 note: `render` moves to `@solidjs/web` at the flip (E3.1). Do
- * not import it from there yet — this tree is still on solid-js 1.9.
+ * `render` comes from `@solidjs/web` under SolidJS 2.0 — `solid-js` no
+ * longer exports it.
  */
 import type { ComponentProps } from 'solid-js';
-import { render } from 'solid-js/web';
+import { render } from '@solidjs/web';
 import { Gantt } from '../../src/components/Gantt';
 import { GanttProvider } from '../../src/contexts/GanttStores';
 import type { TaskStore } from '../../src/stores/taskStore';
@@ -293,7 +293,8 @@ function makeResizeObserverEntry(target: Element): ResizeObserverEntry {
 /**
  * Synchronous ResizeObserver: fires the callback once on `observe` with the
  * modelled size. Real observers are async, but the component reads the size
- * in `onMount` and hands it straight to `onContainerReady`, so firing inline
+ * in `onSettled` (GanttContainer.tsx:142) and hands it straight to
+ * `onContainerReady`, so firing inline
  * is what makes the viewport non-zero before the first paint is measured.
  */
 // Spelled out rather than using lib.dom's `ResizeObserverCallback`: that name

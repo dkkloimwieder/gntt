@@ -1,4 +1,5 @@
-import { createContext, useContext, JSX } from 'solid-js';
+import { createContext, useContext } from 'solid-js';
+import type { JSX } from '@solidjs/web';
 import { createTaskStore, type TaskStore } from '../stores/taskStore';
 import {
     createGanttConfigStore,
@@ -54,9 +55,7 @@ export function GanttProvider(props: GanttProviderProps): JSX.Element {
     };
 
     return (
-        <GanttStoresContext.Provider value={stores}>
-            {props.children}
-        </GanttStoresContext.Provider>
+        <GanttStoresContext value={stores}>{props.children}</GanttStoresContext>
     );
 }
 

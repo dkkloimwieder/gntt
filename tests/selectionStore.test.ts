@@ -14,9 +14,11 @@ describe('createSelectionStore — direct API', () => {
     it('replace sets the selection from any iterable', () => {
         const s = createSelectionStore();
         s.replace(['a', 'b', 'c']);
+        settle();
         expect(s.selectionCount()).toBe(3);
         expect(s.isSelected('b')).toBe(true);
         s.replace(new Set(['x']));
+        settle();
         expect(s.selectionCount()).toBe(1);
         expect(s.isSelected('x')).toBe(true);
         expect(s.isSelected('a')).toBe(false);
@@ -25,8 +27,10 @@ describe('createSelectionStore — direct API', () => {
     it('add inserts and is idempotent on duplicates', () => {
         const s = createSelectionStore();
         s.add('a');
+        settle();
         const ref1 = s.selectedIds();
         s.add('a');
+        settle();
         // Identity stays the same — no allocation on no-op
         expect(s.selectedIds()).toBe(ref1);
         expect(s.selectionCount()).toBe(1);
@@ -35,18 +39,23 @@ describe('createSelectionStore — direct API', () => {
     it('remove removes; idempotent on missing', () => {
         const s = createSelectionStore();
         s.replace(['a', 'b']);
+        settle();
         s.remove('a');
+        settle();
         expect(s.isSelected('a')).toBe(false);
         const ref = s.selectedIds();
         s.remove('not-there');
+        settle();
         expect(s.selectedIds()).toBe(ref);
     });
 
     it('toggle adds when missing, removes when present', () => {
         const s = createSelectionStore();
         s.toggle('a');
+        settle();
         expect(s.isSelected('a')).toBe(true);
         s.toggle('a');
+        settle();
         expect(s.isSelected('a')).toBe(false);
     });
 
@@ -54,9 +63,12 @@ describe('createSelectionStore — direct API', () => {
         const s = createSelectionStore();
         const empty = s.selectedIds();
         s.clear();
+        settle();
         expect(s.selectedIds()).toBe(empty);
         s.replace(['a']);
+        settle();
         s.clear();
+        settle();
         expect(s.selectionCount()).toBe(0);
     });
 });
@@ -65,7 +77,7 @@ describe('createSelectionStore — direct API', () => {
 // REACTIVE_WRITE_IN_OWNED_SCOPE for a signal write inside a createRoot body
 // — store setters are exempt there, signal setters are not — so the store is
 // built and driven from the test scope and the root body holds nothing but
-// the memo. `settle()` is a no-op on 1.9 and becomes the real flush at E3.1.
+// the memo. `settle()` is `flush` from solid-js.
 describe('createSelectionStore — reactivity', () => {
     it('memo subscribers re-compute when selection changes', () => {
         let observedSize = -1;

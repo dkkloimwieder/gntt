@@ -8,24 +8,26 @@ A Gantt chart library built with SolidJS using reactive stores and fine-grained 
 
 The library provides drag & drop task management, dependency visualization, constraint enforcement (FS/SS/FF/SF), and theme support.
 
-## SolidJS 2.0 migration rules (in progress until E3 lands)
+## SolidJS 2.0 rules
 
-This repo is still on `solid-js` 1.9.x. The migration to SolidJS 2.0 is tracked as beads epics E0–E7: E0–E2 land on `main` and **must be 100% behaviour-preserving on 1.9**, the flip to 2.0 happens in E3 on the `solid-2` branch. Until E3 lands, do **not** import from `@solidjs/web` or `@solidjs/signals` and do not use `onSettled` or `flush()` — none of it exists yet here. Instead write every new or refactored site in the shape 2.0 requires (each rule below is a no-op or a plain refactor on 1.9), keep `onMount`/`createEffect` shapes that E3 can rewrite mechanically, and use the `settle()` test helper in place of `flush()`.
+This repo runs **SolidJS 2.0**: `solid-js` and `@solidjs/web` at `2.0.0-rc.6`, compiled by `@solidjs/vite-plugin` 3.0.0-next.39 with `jsxImportSource: '@solidjs/web'`. The E0–E7 migration flipped in E3, so the rules below are no longer a checklist for a port that has yet to happen — they describe how this code already works, and every new or refactored site must be written this way. Reactivity, stores and control flow import from `solid-js`; DOM APIs (`render`, `Dynamic`, `Portal`, the `JSX` type) import from `@solidjs/web`. The 1.x subpath entry points no longer exist. Node is `^20.19 || >=22.12`, and the published package is ESM-only.
 
 Source of truth: `docs/migration/solid2/PLAN.md` — sections "Runtime facts that shape every issue", "Working rules", and the D1–D13 decision table. Per-site rewrites for the 820 audited sites: `docs/migration/solid2/digest-t1.md` and `docs/migration/solid2/digest-t2.md`. API reference: `docs/migration/solid2/reference/CHEATSHEET.md` and `reference/08-dev-diagnostics.md`.
 
 1. **Deferred writes.** Setters stage the write; reads return the committed value until the microtask flush or an explicit `flush()`. Functional updaters compose against the staged value, and store draft callbacks see staged state — the outer store proxy does not.
 2. **Write guard.** Writes throw `REACTIVE_WRITE_IN_OWNED_SCOPE` (dev) inside component bodies, memo bodies, effect *compute* phases and anything they call — `untrack` does **not** clear the owner. Store setters are exempt inside `createRoot` bodies; plain signal setters are **not**. Allowed write sites: event handlers, timers, promise continuations, effect *apply*, `onSettled` bodies, and signals created with `{ ownedWrite: true }`.
-3. **`onSettled` replaces `onMount`.** Its body is untracked and children-forbidden (no `onCleanup`, no primitive creation, directly or via a callee); it must return `undefined` or a cleanup *function* — a concise arrow returning a setter result or a Promise throws. `flush()` inside it throws. Never call a consumer callback (`onReady`, `onContainerReady`) synchronously from it; defer with `queueMicrotask`.
-4. **Split effects only.** `createEffect(compute, apply, { defer? })` is the only form. `compute` tracks and must return plain values, never store proxies; `apply` is untracked, may write, and may return only a cleanup function. `flush()` inside apply is a silent no-op.
-5. **`flush()` legality table.** Legal in event handlers, timers, promise continuations and test bodies · silent no-op in effect apply · throws in `onSettled` and `createTrackedEffect`. The only sanctioned library site is `useDrag`'s mouseup.
-6. **Stores.** One draft setter: path setters, `produce` and `unwrap` are gone — `storePath` is the compat helper, `snapshot` replaces `unwrap`, and `reconcile(v, key='id')` now returns a draft function. `delete draft[k]` removes a key — assigning `undefined` keeps it. `Set`/`Map`/`Date` inside a store are **not** proxied: replace them, never mutate in place, and prefer a signal holding an immutable collection. Leaf-mutate `task._bar.x`, never replace the task object. A memo returning a store sub-proxy never invalidates, so bindings must read their own leaf.
-7. **Memos are eager.** `{ lazy: true }` also opts into autodisposal; `loadingValue` replaces the 1.x initial value; `createMemo(fn, options)` is the only form.
-8. **Control flow.** `<Index>` becomes `<For keyed={false}>` — same callback shape, but the callback body now carries a strict-read label, so store reads stay in JSX or memos.
+3. **`onSettled` is the mount hook.** Its body is untracked and children-forbidden (no `onCleanup`, no primitive creation, directly or via a callee); it must return `undefined` or a cleanup *function* — a concise arrow returning a setter result or a Promise throws. `flush()` inside it throws. Never call a consumer callback (`onReady`, `onContainerReady`) synchronously from it; defer with `queueMicrotask`.
+4. **Split effects only.** `createEffect(compute, apply, { defer? })` is the only form. `compute` tracks and must return plain values, never store proxies; `apply` is untracked, may write, and may return only a cleanup function. When `apply` has to run on *every* tracked change, `compute` must return a **fresh** value — an equal return is swallowed. `flush()` inside apply is a silent no-op.
+5. **`flush()` legality table.** Legal in event handlers, timers, promise continuations and test bodies · silent no-op in effect apply · throws in `onSettled` and `createTrackedEffect`. The only sanctioned library site is `useDrag.handleMouseUp` (`src/hooks/useDrag.ts`), where the final drag move must commit before `onDragEnd` re-reads the geometry. Do not add another.
+6. **Stores.** One draft setter: `setX((s) => { s.k = v; })`. Path setters and object-merge forms are gone and **silently no-op** if you write them — that is the failure mode that broke the showcase demo. `storePath` is the compat helper, `snapshot` replaces the 1.x unwrap, and `reconcile(v, key='id')` returns a draft function. `delete draft[k]` removes a key — assigning `undefined` keeps it. `Set`/`Map`/`Date` inside a store are **not** proxied: replace them, never mutate in place, and prefer a signal holding an immutable collection (as `ganttConfigStore.expandedTasks` and `taskStore.collapsedTasks` now do). Leaf-mutate `task._bar.x`, never replace the task object. A memo returning a store sub-proxy never invalidates, so bindings must read their own leaf.
+7. **Memos are eager.** They recompute whether or not anything reads them. `{ lazy: true }` also opts into autodisposal; `loadingValue` replaces the 1.x initial value; `createMemo(fn, options)` is the only form. No memo in `src/` is lazy today — the laziness policy is E4.5, and the one measured candidate is flagged in `ganttDateStore.getAllDateInfos`.
+8. **Control flow.** Index-keyed lists are `<For keyed={false}>` — the callback body carries a strict-read label, so store reads stay in JSX or in a memo.
 9. **Context.** The context object is itself the provider: `<Ctx value={...}>`. A default-less context makes `useContext` throw, so optional-provider APIs use `createContext<T | null>(null)`.
-10. **Tests.** Call `settle()` after every write (a no-op on 1.9, `flush` after the flip). Store writes may sit in `createRoot` bodies; signal writes may not. Once E0.4 lands, Vitest runs two projects: `client` = jsdom (`tests/*.test.{ts,tsx}`), `server` = node (`tests/server/**`).
+10. **Tests.** `settle()` (`tests/helpers/settle.ts`) re-exports `flush`; call it after every write, before reading anything back. Store writes may sit in `createRoot` bodies; plain signal writes may not. Vitest runs two projects: `client` = jsdom over `tests/**/*.test.{ts,tsx}` minus `tests/server/**`, `server` = node over `tests/server/**/*.test.ts`. Component suites mount through `tests/helpers/mountGantt.tsx`, which models the layout jsdom does not, allows one live mount at a time, and throws if a previous mount was never disposed.
 11. **Block bodies.** Every callback handed to `onSettled` or to an effect's apply, or crossing a component boundary, gets a block body. Grep for candidates with `grep -rnE '=> set[A-Z]|=> props\.on[A-Z]' src` — most hits are inline JSX event handlers, which rule 2 declares legal write sites; only the ones handed to a lifecycle primitive or across a component boundary are violations.
 12. **Data flow.** Producers return their computed values; consumers never read back state they just wrote; store existence guards move inside the draft. Do **not** "fix" what the audit verified safe: functional updaters within one tick (`selectionStore`, the `useBoxSelect` hit loop), `batchMovePositions` reading the draft, and per-frame rAF drag loops (each frame is a separate task).
+
+**Diagnostics gate.** The 2.0 dev build reports these mistakes as console diagnostics rather than as failures, so a green `pnpm test` does not clear them — a browser does. Two codes matter here: `REACTIVE_WRITE_IN_OWNED_SCOPE` (error; rule 2) and `STRICT_READ_UNTRACKED` (warn — a reactive read in a component body, an effect apply or an `onSettled` body). The library path is clean and every demo page loads console-clean apart from the app's own fixture-validation warnings; **adding a diagnostic is a regression**. Fix a strict read either by moving it where it should track (JSX, a memo, an effect compute) or, when it is a deliberate one-shot, by wrapping it in `untrack(() => ...)`, which clears the label. `src/utils/diagnostics.ts` and `setDiagnosticHandler()` are a separate, app-level channel for data-validation messages and are unrelated to the runtime's own diagnostics.
 
 ## Essential Commands
 
@@ -61,12 +63,37 @@ http://localhost:5174/examples/perf-isolate?bar=nochildren&test=horizontal
 This affects all benchmark URLs. Always omit the `.html` extension when using `serve`.
 
 ### Code Quality
-- `pnpm lint` - Lint JavaScript files
+- `pnpm typecheck` - `tsc --noEmit` over `src/`, `tests/`, `benchmarks/constraint/`
+- `pnpm lint` - ESLint over the same set plus `server/` and the Vite configs
 - `pnpm prettier` - Format code
 - `pnpm prettier-check` - Check formatting without modifying
 
-### Note on Testing
-Only one test file exists (`tests/date_utils.test.js`) but no test runner is configured in package.json.
+### Testing
+
+`pnpm test` runs Vitest once; `pnpm test:watch` keeps it open. The suite is
+`tests/` — component, store, and pure-function suites plus `tests/server/`
+for the SQLite-backed API. `vitest.config.ts` defines two projects:
+
+| Project | Environment | Include |
+|---------|-------------|---------|
+| `client` | jsdom | `tests/**/*.test.{ts,tsx}` minus `tests/server/**` |
+| `server` | node | `tests/server/**/*.test.ts` |
+
+Both include globs are anchored at the repo root on purpose: an unanchored
+default would also sweep any git worktree parked under `.claude/` and run
+every suite once per worktree.
+
+Helpers live in `tests/helpers/`: `settle()` re-exports Solid 2.0's `flush`
+(call it after every write — see rule 10), and `mountGantt()` mounts a real
+`<Gantt>` with the layout jsdom does not model.
+
+Run one project with `pnpm exec vitest run --project client`. Do **not**
+write `pnpm test -- --project client`: the extra `--` makes vitest ignore the
+flag and silently run both projects.
+
+**The full gate is** `pnpm typecheck && pnpm lint && pnpm prettier-check &&
+pnpm test && pnpm build && pnpm build:demo`. It does not cover the runtime
+diagnostics gate above — that needs a browser.
 
 ## Architecture
 
@@ -75,14 +102,16 @@ Only one test file exists (`tests/date_utils.test.js`) but no test runner is con
 ```
 gantt/
 ├── src/
+│   ├── index.ts                # Public entry point — the package's whole API
+│   ├── types.ts                # Shared task/constraint types
 │   ├── components/             # Production UI components (Gantt, Bar, Arrow, Grid, etc.)
 │   ├── demo/                   # Demo-only components (not shipped in npm package)
-│   ├── stores/                 # Reactive stores (taskStore, ganttConfigStore, ganttDateStore)
+│   ├── stores/                 # Reactive stores (task, config, date, resource, selection)
 │   ├── utils/                  # Utilities (barCalculations, constraintEngine, etc.)
-│   ├── hooks/                  # useDrag
-│   ├── contexts/               # React-style contexts (GanttEvents)
+│   ├── hooks/                  # useDrag, useBarDrag, useBoxSelect, useGanttScroll, ...
+│   ├── contexts/               # GanttEvents, GanttStores
 │   ├── entries/                # Entry points for each demo
-│   ├── scripts/                # CLI tools (generateCalendar.js, generateTopology.js)
+│   ├── scripts/                # CLI tools (generateCalendar.ts, generateTopology.ts)
 │   ├── data/
 │   │   ├── fixtures/           # Static test fixtures
 │   │   └── generated/          # CLI-generated test data
@@ -100,10 +129,17 @@ gantt/
 │   ├── constraint/             # Constraint system benchmarks
 │   ├── profiler/               # Runtime profiling infrastructure
 │   └── traces/                 # Performance trace analysis and history
+├── tests/
+│   ├── helpers/                # settle(), mountGantt()
+│   ├── server/                 # node-project suites (SQLite/Drizzle/Hono)
+│   └── *.test.{ts,tsx}         # client-project suites
+├── server/                     # DB demo backend (never shipped in the bundle)
 ├── docs/
 │   ├── ARCHITECTURE.md         # Detailed architecture documentation
 │   ├── SUBTASKS.md             # Subtask feature documentation
-│   └── PERFORMANCE.md          # Performance optimization history
+│   ├── DATABASE.md             # DB-backed demo: schema, REST, drag-PATCH
+│   ├── PERFORMANCE.md          # Performance optimization history
+│   └── migration/solid2/       # SolidJS 2.0 plan, audit digests, API reference
 └── [config files]
 ```
 
@@ -112,37 +148,47 @@ gantt/
 The SolidJS implementation uses reactive stores for state management:
 
 **Stores:**
-- `taskStore.js` - Task data and operations (uses `createStore` for fine-grained reactivity)
-- `ganttConfigStore.js` - Configuration (view mode, dimensions, features)
-- `ganttDateStore.js` - Timeline calculations and date utilities
-- `resourceStore.js` - Resource groups with collapse/expand state
+- `taskStore.ts` - Task data and operations (uses `createStore` for fine-grained reactivity)
+- `ganttConfigStore.ts` - Configuration (view mode, dimensions, features)
+- `ganttDateStore.ts` - Timeline calculations and date utilities
+- `resourceStore.ts` - Resource groups with collapse/expand state
+- `selectionStore.ts` - Multi-select state
 
-**Performance Note:** The `taskStore` uses SolidJS `createStore({})` instead of `createSignal(Map)` to enable path-level dependency tracking. This allows dragging a task to only update that specific task's Bar component and connected Arrows, achieving 60 FPS with 10K+ tasks.
+**Performance Note:** The `taskStore` uses SolidJS `createStore({})` instead of `createSignal(Map)` to enable path-level dependency tracking. This allows dragging a task to only update that specific task's Bar component and connected Arrows, achieving 60 FPS with 10K+ tasks. Under Solid 2.0 that tracking only survives **leaf mutation**: write `task._bar.x = n` inside a draft, never replace the task object, or every subscriber to every other field of that task re-runs (rule 6).
 
 **Components:**
-- `Gantt.jsx` - Main container component
-- `Bar.jsx` - Task bars with drag/resize/progress handles
-- `SummaryBar.jsx` - Parent/summary task bars (simplified Bar)
-- `Arrow.jsx` - Dependency visualization (single arrow)
-- `ArrowLayerBatched.jsx` - Batched arrow rendering for performance
-- `Grid.jsx` - Background grid and time scale
-- `TaskLayer.jsx` - Orchestrates task bar rendering
-- `ResourceColumn.jsx` - Resource names column
-- `ExpandedTaskContainer.jsx` - Parent task with subtasks (see [SUBTASKS.md](docs/SUBTASKS.md))
-- `SubtaskBar.jsx` - Individual subtask bars
+- `Gantt.tsx` - Main container component
+- `GanttContainer.tsx` - Scroll container with sticky headers
+- `Bar.tsx` / `BarMinimal.tsx` - Task bars with drag/resize/progress handles
+- `SummaryBar.tsx` - Parent/summary task bars (simplified Bar)
+- `Arrow.tsx` - Dependency visualization (single arrow)
+- `ArrowLayerBatched.tsx` - Batched arrow rendering for performance
+- `Grid.tsx` - Background grid and time scale
+- `DateHeaders.tsx` - Month/day header rows
+- `TaskLayer.tsx` / `TaskLayerMinimal.tsx` - Orchestrates task bar rendering
+- `ResourceColumn.tsx` - Resource names column
+- `ColumnPanel.tsx` - Configurable left-hand column panel (`ColumnDef`)
+- `ExpandedTaskContainer.tsx` - Parent task with subtasks (see [SUBTASKS.md](docs/SUBTASKS.md))
+- `SubtaskBar.tsx` - Individual subtask bars
+- `TaskDataModal.tsx` / `TaskDataPopup.tsx` - Task detail surfaces
 
 **Utilities:**
-- `barCalculations.js` - Position/size calculations from dates
-- `constraintEngine.js` - Dependency constraint enforcement (FS/SS/FF/SF)
-- `hierarchyProcessor.js` - Task hierarchy building and traversal
-- `rowLayoutCalculator.js` - Variable row heights for expanded subtasks
-- `createVirtualViewport.js` - Simple 2D viewport virtualization
-- `resourceProcessor.js` - Resource normalization and group display logic
-- `taskProcessor.js` - Task normalization and dependency parsing
-- `taskGenerator.js` - Test data generation
-- `subtaskGenerator.js` - Generates test data with subtasks
-- `date_utils.js` - Date parsing, formatting, and calculations
-- `defaults.js` - Default view mode configurations
+- `barCalculations.ts` - Position/size calculations from dates
+- `constraintEngine.ts` - Dependency constraint enforcement (FS/SS/FF/SF)
+- `absoluteConstraints.ts` - Absolute (calendar-anchored) constraint checks
+- `criticalPath.ts` - Critical-path computation
+- `hierarchyProcessor.ts` - Task hierarchy building and traversal
+- `rowLayoutCalculator.ts` - Variable row heights for expanded subtasks
+- `createVirtualViewport.ts` - Simple 2D viewport virtualization
+- `resourceProcessor.ts` - Resource normalization and group display logic
+- `taskProcessor.ts` - Task normalization and dependency parsing
+- `taskGenerator.ts` - Test data generation
+- `subtaskGenerator.ts` - Generates test data with subtasks
+- `dateUtils.ts` - Date parsing, formatting, and calculations
+- `ganttSetup.ts` - One-shot store seeding from props
+- `svgExport.ts` - SVG/PNG export
+- `diagnostics.ts` - Routable validation warnings (`setDiagnosticHandler`)
+- `defaults.ts` - Default view mode configurations
 
 See `docs/ARCHITECTURE.md` for detailed documentation.
 
@@ -159,7 +205,9 @@ pnpm dev                        # Start dev server
 
 ### Task Generator
 
-Located at `src/scripts/generateCalendar.js`, generates `src/data/generated/calendar.json`.
+Located at `src/scripts/generateCalendar.ts`, generates `src/data/generated/calendar.json`.
+It is TypeScript, so run it through `tsx` (or the `pnpm generate:calendar` script)
+rather than bare `node`.
 
 **Features:**
 - Cross-resource dependency chains (tasks in a group span different resources A-Z)
@@ -170,9 +218,9 @@ Located at `src/scripts/generateCalendar.js`, generates `src/data/generated/cale
 
 **CLI Options:**
 ```bash
-node src/scripts/generateCalendar.js --help
-node src/scripts/generateCalendar.js --tasks=300 --seed=54321 --ss=30
-node src/scripts/generateCalendar.js --tasks=10000 --resources=100 --dense  # Stress test
+pnpm exec tsx src/scripts/generateCalendar.ts --help
+pnpm exec tsx src/scripts/generateCalendar.ts --tasks=300 --seed=54321 --ss=30
+pnpm exec tsx src/scripts/generateCalendar.ts --tasks=10000 --resources=100 --dense  # Stress test
 ```
 
 | Option | Default | Description |
@@ -204,10 +252,10 @@ node src/scripts/generateCalendar.js --tasks=10000 --resources=100 --dense  # St
 ```
 
 **Key Files:**
-- `src/utils/taskGenerator.js` - Shared generation logic
-- `src/scripts/generateCalendar.js` - CLI script
+- `src/utils/taskGenerator.ts` - Shared generation logic
+- `src/scripts/generateCalendar.ts` - CLI script
 - `src/data/generated/calendar.json` - Generated test data
-- `src/demo/GanttPerfDemo.jsx` - Performance test UI
+- `src/demo/GanttPerfDemo.tsx` - Performance test UI
 
 ### Perf-Isolate (Feature Isolation Testing)
 
@@ -292,17 +340,21 @@ Full schema + REST surface + algorithm details are in
 
 ## Development Workflow
 
-1. Clone and run `pnpm i`
+1. Clone and run `pnpm i` (Node `^20.19 || >=22.12`)
 2. Run `pnpm dev` to start the development server
 3. Open http://localhost:5173/examples/ to see the demo hub
 4. Edit source files in `src/` - Vite automatically reloads
+5. Keep the browser console open — the Solid 2.0 dev build reports
+   reactivity mistakes there, not in `pnpm test` (see the diagnostics gate)
 
 ## Code Style
 
-- ES6 modules with import/export
+- ESM only, `import`/`export`; no CommonJS and no UMD output
+- TypeScript throughout `src/`, `tests/`, `server/`, `benchmarks/constraint/`
 - 4-space indentation, single quotes
-- ESLint + Prettier configured
-- JSX for SolidJS components
+- ESLint + Prettier configured (`pnpm lint`, `pnpm prettier-check`)
+- TSX for SolidJS components, compiled with `jsxImportSource: '@solidjs/web'`
+- `Array.prototype.at` does not typecheck — `tsconfig` targets `lib: ES2021`
 
 ---
 

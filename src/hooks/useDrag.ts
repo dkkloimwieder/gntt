@@ -1,4 +1,4 @@
-import { createSignal, onCleanup, Accessor } from 'solid-js';
+import { createSignal, createMemo, flush, onCleanup, Accessor } from 'solid-js';
 
 type DragState =
     | 'idle'
@@ -65,23 +65,34 @@ interface UseDragResult {
 export function useDrag(options: UseDragOptions = {}): UseDragResult {
     const { onDragStart, onDragMove, onDragEnd, getSvgPoint } = options;
 
-    // Drag state
+    // Drag state, published to renderers. Reads of this accessor answer with
+    // COMMITTED state, so nothing in the state machine below may consult it —
+    // see `dragStateNow`.
     const [dragState, setDragState] = createSignal<DragState>('idle');
-    const [isDragging, setIsDragging] = createSignal(false);
+    const isDragging = createMemo(() => dragState() !== 'idle');
 
     // Internal state (not reactive - for performance)
     let rafId: number | null = null;
     let pendingMove: DragMove | null = null;
     let dragData: DragData | null = null;
+    /**
+     * The gesture's current phase as DATA, mirrored beside every
+     * `setDragState`. The signal is deferred — a write staged by
+     * `startDrag` is invisible to a `dragState()` read until the next
+     * flush — so every internal guard, and the state handed to the
+     * callbacks, reads this local instead. Without it a mousedown and a
+     * mouseup dispatched in one task would both see 'idle'.
+     */
+    let dragStateNow: DragState = 'idle';
 
     // RAF loop for 60fps updates
     const rafLoop = (): void => {
-        if (pendingMove && dragData && dragState() !== 'idle') {
-            onDragMove?.(pendingMove, dragData, dragState());
+        if (pendingMove && dragData && dragStateNow !== 'idle') {
+            onDragMove?.(pendingMove, dragData, dragStateNow);
             pendingMove = null;
         }
 
-        if (dragState() !== 'idle') {
+        if (dragStateNow !== 'idle') {
             rafId = requestAnimationFrame(rafLoop);
         }
     };
@@ -127,7 +138,7 @@ export function useDrag(options: UseDragOptions = {}): UseDragResult {
 
     // Global mouse move handler
     const handleMouseMove = (e: MouseEvent): void => {
-        if (dragState() === 'idle' || !dragData) return;
+        if (dragStateNow === 'idle' || !dragData) return;
 
         const svg = dragData.svg;
         const svgCoords = toSvgCoords(e.clientX, e.clientY, svg);
@@ -152,15 +163,22 @@ export function useDrag(options: UseDragOptions = {}): UseDragResult {
 
     // Global mouse up handler
     const handleMouseUp = (e: MouseEvent): void => {
-        if (dragState() === 'idle' || !dragData) return;
+        if (dragStateNow === 'idle' || !dragData) return;
 
         stopRaf();
 
-        // Process any pending move one last time
+        // Process any pending move one last time, then commit it. Consumers
+        // that report FROM the drag data (see useBarDrag) no longer need this
+        // to be correct, but the DOM still has to catch up with the last move
+        // before the gesture ends, and a consumer that legitimately re-reads
+        // the store (a stationary press wrote nothing to report from) must
+        // see the committed value. This is the one sanctioned library flush
+        // site — mouseup is an event handler, so it is legal.
         if (pendingMove) {
-            onDragMove?.(pendingMove, dragData, dragState());
+            onDragMove?.(pendingMove, dragData, dragStateNow);
             pendingMove = null;
         }
+        flush();
 
         const svg = dragData.svg;
         const svgCoords = toSvgCoords(e.clientX, e.clientY, svg);
@@ -174,14 +192,14 @@ export function useDrag(options: UseDragOptions = {}): UseDragResult {
             deltaY: svgCoords.y - dragData.startSvgY,
         };
 
-        onDragEnd?.(finalMove, dragData, dragState());
+        onDragEnd?.(finalMove, dragData, dragStateNow);
 
         // Cleanup
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
 
+        dragStateNow = 'idle';
         setDragState('idle');
-        setIsDragging(false);
         dragData = null;
     };
 
@@ -193,7 +211,10 @@ export function useDrag(options: UseDragOptions = {}): UseDragResult {
         state: DragState,
         data: Record<string, unknown> = {},
     ): void => {
-        if (dragState() !== 'idle') {
+        // Re-entrancy guard on the DATA, not the signal: `dragData` is
+        // assigned synchronously below, so a second mousedown in the same
+        // task is rejected. `dragState()` would still read 'idle' there.
+        if (dragData) {
             return;
         }
 
@@ -215,8 +236,8 @@ export function useDrag(options: UseDragOptions = {}): UseDragResult {
             startSvgY: svgCoords.y,
         };
 
+        dragStateNow = state;
         setDragState(state);
-        setIsDragging(true);
 
         onDragStart?.(dragData, state);
 

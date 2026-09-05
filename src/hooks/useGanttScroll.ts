@@ -8,8 +8,8 @@
  *
  * The hook owns every primitive it needs. Nothing is created inside
  * `onContainerReady` — that callback fires from `GanttContainer`'s
- * `onMount`, which becomes a children-forbidden `onSettled` under SolidJS
- * 2.0, where creating an effect or a memo throws.
+ * `onSettled`, whose body is children-forbidden: creating an effect or a
+ * memo there throws.
  */
 import { createMemo, type Accessor } from 'solid-js';
 

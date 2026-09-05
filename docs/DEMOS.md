@@ -1,6 +1,6 @@
 # Gantt Demos Reference
 
-Comprehensive reference for all demo pages. Last updated: 2025-12-23.
+Comprehensive reference for all demo pages. Last updated: 2026-09-05.
 
 ---
 
@@ -32,6 +32,12 @@ pnpm build:demo && npx serve dist-demo -l 5174
 | [constraint.html](../examples/constraint.html) | ConstraintDemo.tsx | FS/SS/FF/SF dependency constraints |
 | [showcase.html](../examples/showcase.html) | ShowcaseDemo.tsx | Props and configuration showcase |
 | [db.html](../examples/db.html) | DbDemo.tsx | DB-backed CRUD over Drizzle + SQLite + Hono (needs `pnpm dev:all`; see [DATABASE.md](./DATABASE.md)) |
+| [multi-select.html](../examples/multi-select.html) | MultiSelectDemo.tsx | Click/Ctrl-click/Shift-click selection and bulk drag |
+| [box-select.html](../examples/box-select.html) | BoxSelectDemo.tsx | Rubber-band selection dragged from empty grid space |
+| [critical-path.html](../examples/critical-path.html) | CriticalPathDemo.tsx | Critical chain highlighted in red; slack branches stay themed |
+| [custom-columns.html](../examples/custom-columns.html) | CustomColumnsDemo.tsx | `columns` prop: name / owner / progress with a custom renderer |
+| [filter-search.html](../examples/filter-search.html) | FilterSearchDemo.tsx | Live name search plus preset filter predicates |
+| [export.html](../examples/export.html) | ExportDemo.tsx | SVG (full / visible) and 2x PNG download |
 
 ### Component Demos
 
@@ -106,7 +112,7 @@ Progressive feature isolation to find overhead sources. Start minimal, add featu
 
 #### Results
 
-See [perf-traces/ANALYSIS.md](../perf-traces/ANALYSIS.md) for benchmark data.
+See [benchmarks/traces/ANALYSIS.md](../benchmarks/traces/ANALYSIS.md) for benchmark data.
 
 ---
 
@@ -141,7 +147,7 @@ Reactive pattern and virtualization strategy comparison with interactive UI.
 
 #### Results
 
-See [perf-traces/ANALYSIS.md](../perf-traces/ANALYSIS.md) and [docs/EXPERIMENTS.md](./EXPERIMENTS.md).
+See [benchmarks/traces/ANALYSIS.md](../benchmarks/traces/ANALYSIS.md) and [docs/EXPERIMENTS.md](./EXPERIMENTS.md).
 
 ---
 
@@ -207,7 +213,7 @@ Based on benchmarking results:
 | Virtualization | `combined` (single memo) | 3% faster than `xySplit` |
 | Headers | Original `DateHeaders` | "Optimizations" were slower |
 
-See [perf-traces/ANALYSIS.md](../perf-traces/ANALYSIS.md) for details.
+See [benchmarks/traces/ANALYSIS.md](../benchmarks/traces/ANALYSIS.md) for details.
 
 ---
 
@@ -232,7 +238,7 @@ See [perf-traces/ANALYSIS.md](../perf-traces/ANALYSIS.md) for details.
 
 ## Related Documentation
 
-- [perf-traces/ANALYSIS.md](../perf-traces/ANALYSIS.md) - Current best practices and benchmarks
-- [perf-traces/HISTORY.md](../perf-traces/HISTORY.md) - Investigation logs
+- [benchmarks/traces/ANALYSIS.md](../benchmarks/traces/ANALYSIS.md) - Current best practices and benchmarks
+- [benchmarks/traces/HISTORY.md](../benchmarks/traces/HISTORY.md) - Investigation logs
 - [docs/EXPERIMENTS.md](./EXPERIMENTS.md) - GanttExperiments details
 - [docs/MINIMAL_TEST.md](./MINIMAL_TEST.md) - Historical slot-based approach

@@ -1,4 +1,5 @@
-import { createMemo, JSX, Accessor } from 'solid-js';
+import { createMemo, Accessor } from 'solid-js';
+import type { JSX } from '@solidjs/web';
 import type { ProcessedTask } from '../types';
 import { DEFAULT_BAR_HEIGHT } from '../constants';
 

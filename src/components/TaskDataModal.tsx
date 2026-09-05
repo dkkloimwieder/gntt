@@ -1,4 +1,5 @@
-import { Show, createMemo, createSignal, JSX, Accessor } from 'solid-js';
+import { Show, createMemo, createSignal, Accessor } from 'solid-js';
+import type { JSX } from '@solidjs/web';
 import { formatTaskFull, highlightJSON } from '../utils/jsonFormatter';
 import type { GanttTask, BarPosition, Relationship } from '../types';
 
@@ -69,7 +70,7 @@ export function TaskDataModal(props: TaskDataModalProps): JSX.Element {
                 }}
                 onClick={handleBackdropClick}
                 onKeyDown={handleKeyDown}
-                tabIndex={-1}
+                tabindex={-1}
             >
                 <div
                     style={{

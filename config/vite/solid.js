@@ -1,26 +1,25 @@
 import { resolve } from 'path';
 import { defineConfig } from 'vite';
-import solidPlugin from 'vite-plugin-solid';
+import solid from '@solidjs/vite-plugin';
 
 const root = resolve(__dirname, '../..');
 
 export default defineConfig({
     root,
-    plugins: [solidPlugin()],
+    plugins: [solid()],
     build: {
         lib: {
             entry: resolve(root, 'src/index.ts'),
             name: 'Ganttss',
-            formats: ['es', 'umd'],
+            // ESM only (migration decision D3): neither solid-js 2 nor
+            // @solidjs/web ships a global build, so a UMD output could never
+            // resolve its externals in a browser anyway.
+            formats: ['es'],
             fileName: (format) => `ganttss.${format}.js`,
         },
         rollupOptions: {
-            external: ['solid-js', 'solid-js/web'],
+            external: ['solid-js', '@solidjs/web'],
             output: {
-                globals: {
-                    'solid-js': 'SolidJS',
-                    'solid-js/web': 'SolidJSWeb',
-                },
                 assetFileNames: 'ganttss[extname]',
             },
         },

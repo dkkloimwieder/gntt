@@ -1,4 +1,5 @@
-import { For, Index, createMemo, Accessor, JSX } from 'solid-js';
+import { For, createMemo, Accessor } from 'solid-js';
+import type { JSX } from '@solidjs/web';
 import { Bar } from './Bar';
 import { SummaryBar } from './SummaryBar';
 import { ExpandedTaskContainer } from './ExpandedTaskContainer';
@@ -13,6 +14,7 @@ import {
 } from '../utils/taskLayerConstraints';
 import { useTaskVirtualization } from '../hooks/useTaskVirtualization';
 import { useBoxSelect } from '../hooks/useBoxSelect';
+import type { DragGeometry } from '../hooks/useBarDrag';
 import type { TaskStore } from '../stores/taskStore';
 import type { GanttConfigStore } from '../stores/ganttConfigStore';
 import type { ResourceStore } from '../stores/resourceStore';
@@ -52,7 +54,11 @@ interface TaskLayerProps {
         position: { x: number; width: number },
     ) => void;
     onProgressChange?: (taskId: string, progress: number) => void;
-    onResizeEnd?: (taskId: string) => void;
+    /**
+     * `geometry` is the rect the gesture wrote, forwarded as data so a
+     * consumer never has to read a still-staged store write back.
+     */
+    onResizeEnd?: (taskId: string, geometry?: DragGeometry) => void;
     onHover?: (taskId: string, clientX: number, clientY: number) => void;
     onHoverEnd?: () => void;
     /**
@@ -110,10 +116,26 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
         return constrainTaskPosition(taskId, newX, newY, ctx);
     };
 
-    const handleResizeEnd = (taskId: string): void => {
+    const handleResizeEnd = (taskId: string, geometry?: DragGeometry): void => {
         const ctx = buildCtx(taskId);
-        if (ctx) resolveResizeConstraints(taskId, ctx);
-        props.onResizeEnd?.(taskId);
+        if (ctx) resolveResizeConstraints(taskId, ctx, geometry);
+        props.onResizeEnd?.(taskId, geometry);
+    };
+
+    /**
+     * Summary bars report a MOVE through the same consumer callback, but
+     * must not go through `resolveResizeConstraints`. They did call it
+     * before, and it was dead: the proposal came from the same store read
+     * the engine compared it against, so the cascade was always empty. Now
+     * that the geometry arrives as data that early-out is gone, and routing
+     * summaries through it would newly push their successors — a behaviour
+     * change this refactor has no business making.
+     */
+    const handleSummaryDragEnd = (
+        taskId: string,
+        geometry?: DragGeometry,
+    ): void => {
+        props.onResizeEnd?.(taskId, geometry);
     };
 
     const handleCollectDependents = (taskId: string): Set<string> => {
@@ -224,7 +246,7 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
     };
 
     // Virtualization: tasks-by-resource grouping, viewport filtering,
-    // pooled <Index> arrays, per-task position lookup.
+    // pooled <For keyed={false}> arrays, per-task position lookup.
     const {
         splitTaskIds,
         pooledRegularTasks,
@@ -257,7 +279,7 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
         >
             {/* Summary bars render BEHIND everything */}
             <div class="summary-layer" style={{ contain: 'layout style' }}>
-                <Index each={pooledSummaryIds()}>
+                <For keyed={false} each={pooledSummaryIds()}>
                     {(taskId: Accessor<string | undefined>) => (
                         <div style={{ display: taskId() ? 'block' : 'none' }}>
                             <SummaryBar
@@ -266,11 +288,11 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
                                 ganttConfig={props.ganttConfig}
                                 onCollectDescendants={handleCollectDescendants}
                                 onClampBatchDelta={handleClampBatchDelta}
-                                onDragEnd={handleResizeEnd}
+                                onDragEnd={handleSummaryDragEnd}
                             />
                         </div>
                     )}
-                </Index>
+                </For>
             </div>
 
             {/* Expanded task containers (parent + subtasks) */}
@@ -289,7 +311,7 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
 
             {/* Regular task bars render ON TOP */}
             <div class="task-bars-layer" style={{ contain: 'layout style' }}>
-                <Index each={pooledRegularTasks()}>
+                <For keyed={false} each={pooledRegularTasks()}>
                     {(task: Accessor<ProcessedTask | undefined>) => (
                         <div
                             style={{
@@ -329,7 +351,7 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
                             />
                         </div>
                     )}
-                </Index>
+                </For>
             </div>
 
             {/* Box-select overlay (only rendered while dragging the box) */}

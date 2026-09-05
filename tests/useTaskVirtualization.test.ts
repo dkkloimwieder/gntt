@@ -1,49 +1,31 @@
 /**
- * Characterization tests for `useTaskVirtualization` on solid-js 1.9.
- *
- * These pin down what the hook does TODAY so the 2.0 flip (E3) produces a
- * named regression list instead of a mystery. They drive the REAL hook
+ * Behaviour tests for `useTaskVirtualization`. They drive the REAL hook
  * inside a `createRoot`, wired to the real task/config/resource stores.
  *
- * The invalidation story has TWO independent causes, not the one the
- * issue names:
+ * These began (E1.5) as characterization tests for two independent
+ * invalidation defects, both closed by E2.8:
  *
- *   1. `tasksByResource` wraps every store read in `untrack` — the key
- *      scan at useTaskVirtualization.ts:77 and the whole grouping loop at
- *      :84-93. A bare `Object.keys()` on a store proxy WOULD subscribe
- *      (the `ownKeys` trap calls `trackSelf`, and `setProperty` notifies
- *      that same node on every write), so the `untrack` is precisely what
- *      deletes the edge. The `visibleTaskIds` memo at :101 therefore
- *      subscribes to nothing in `taskStore` at all — only to
- *      `displayResources()` and the four viewport props.
- *   2. Even when something else forces the memo to re-run, the grouping is
- *      cached on task COUNT (:78), so a same-count key swap serves a stale
- *      Map. The stale Map holds the store PROXY captured for a since-
- *      deleted task: that proxy stays truthy and its `.id` still reads the
- *      old id (measured), so `visibleTaskIds` re-emits a dangling id.
- *      `splitTaskIds` is what drops it, at :167-168 — `tasksObj[taskId]`
- *      is `undefined` there — so the dangling id never reaches
- *      `pooledRegularTasks` and both derives read the same short list.
+ *   1. `tasksByResource` wrapped EVERY store read in `untrack` — the key
+ *      scan and the whole grouping loop — so `visibleTaskIds` subscribed to
+ *      nothing in `taskStore` at all, only to `displayResources()` and the
+ *      four viewport props. A `taskStore` write on its own moved nothing.
+ *   2. Even when something else forced a re-run, the grouping was cached on
+ *      task COUNT, so a same-count key swap served a stale Map — one still
+ *      holding the store proxy captured for a since-deleted task.
  *
- * The two causes produce different measured symptoms, so the invalidation
- * describe-block below runs each scenario TWICE, as a pair:
+ * The fix makes the grouping a tracked memo: `Object.keys(tasks)` is read in
+ * the memo's tracked scope, which subscribes it to the store's key-set node
+ * (bumped only on a key add/remove), while the per-task leaf reads stay
+ * inside `untrack` in `groupTasksByResource`. Both halves of the invalidation
+ * block below therefore assert the CORRECTED values, and the three
+ * "TODAY on 1.9" tests that pinned the stale ones are gone.
  *
- *   - a GREEN `it` pinning the value 1.9 produces today, so the E3 flip
- *     goes red with a name instead of passing in silence (per the scout,
- *     `removeTask` stops deleting the key on 2.0, so these will move);
- *   - a skipped `it` stating the value E2.8 must produce.
- *
- * E2.8 (gantt-b4m.8) rewrites both halves ("`Object.keys(tasks)` tracked,
- * leaf reads under `untrack`"); it deletes each green TODAY-on-1.9 test
- * and un-skips its AFTER-E2.8 partner.
- *
- * TODO(E2.8 / gantt-b4m.8): add a second grouping case over the shared
- * `groupTasksByResource(tasks, keys)` helper that E2.8 extracts, so the
- * duplicated copy in TaskLayerMinimal.tsx:45-73 is covered too. It cannot
- * be reached at the hook level today — that copy lives inside a component.
+ * `TaskLayerMinimal` no longer carries a private copy of the grouping — it
+ * calls the same `groupTasksByResource` helper — so the cases here cover
+ * both call sites' shared behaviour.
  */
 import { describe, it, expect, afterEach } from 'vitest';
-import { createRoot, createSignal, mergeProps } from 'solid-js';
+import { createRoot, createSignal, merge } from 'solid-js';
 import {
     useTaskVirtualization,
     type TaskVirtualization,
@@ -117,7 +99,7 @@ afterEach(() => {
  *    permits for store writes. Every signal write (`updateResources`,
  *    the reactive `endRow` below) stays in the test body.
  *
- * `mergeProps` — not a spread — merges `extra`, so a caller can hand in a
+ * `merge` — not a spread — merges `extra`, so a caller can hand in a
  * getter-backed reactive prop the way JSX does.
  */
 function createHarness(
@@ -132,7 +114,7 @@ function createHarness(
         const resourceStore = createResourceStore(resources);
         const ganttConfig = createGanttConfigStore(configOptions);
         taskStore.updateTasks(tasks);
-        const props = mergeProps(
+        const props = merge(
             { taskStore, ganttConfig, resourceStore, startRow: 0, endRow: 10 },
             extra,
         );
@@ -326,47 +308,11 @@ describe('useTaskVirtualization — grouping cache invalidation', () => {
         resourceStore.updateResources(['R1']);
         settle();
 
-        // `displayResources()` is the only dependency `visibleTaskIds` has
-        // that a caller can move, and the count did change (2 -> 3) so the
-        // grouping cache rebuilt too. This is why the shipped chart appears
-        // to work at all: ganttSetup.initializeTasks writes the resources
-        // and the tasks in the same call.
         expect(pooledIds(virt)).toEqual(['a', 'b', 'c']);
     });
 
-    // CAUSE 1 — the missing `taskStore` edge. Green/skip pair: this one
-    // pins today's value so the E3 flip cannot pass silently, the skip
-    // below states the post-E2.8 value. E2.8 deletes this test.
-    it('TODAY on 1.9: a same-turn remove+add that keeps the count is invisible to both derives', () => {
-        const { virt, taskStore } = createHarness(
-            ['R1'],
-            [makeTask('a'), makeTask('b')],
-        );
-        expect(pooledIds(virt)).toEqual(['a', 'b']);
-
-        taskStore.removeTask('a');
-        taskStore.updateTask('c', makeTask('c'));
-        settle();
-
-        // The store did the right thing — same count, different key set,
-        // and 'c' appended after 'b'.
-        expect(taskStore.taskCount()).toBe(2);
-        expect(Object.keys(taskStore.tasks)).toEqual(['b', 'c']);
-        expect(taskStore.getTask('a')).toBeUndefined();
-
-        // The hook did not: `visibleTaskIds` subscribes to nothing in
-        // `taskStore`, so no memo re-ran and every derive hands back the
-        // array it built before the swap — 'a' included, 'c' absent.
-        expect(pooledIds(virt)).toEqual(['a', 'b']);
-        expect(virt.splitTaskIds().regularIds).toEqual(['a', 'b']);
-    });
-
-    // RED on 1.9 (measured): the pool still reads ['a', 'b'] even though
-    // 'a' is gone from the store. Nothing re-runs at all — `visibleTaskIds`
-    // has no dependency on `taskStore` — so `pooledRegularTasks` hands back
-    // the array it built before the swap, still holding the store proxy
-    // captured for the now-deleted 'a'.
-    it.skip('AFTER E2.8: reflects a same-turn remove+add that leaves the task count unchanged — TODO(E2.8 / gantt-b4m.8)', () => {
+    // CAUSE 1 — the `taskStore` dependency edge the old `untrack` deleted.
+    it('reflects a same-turn remove+add that leaves the task count unchanged', () => {
         const { virt, taskStore } = createHarness(
             ['R1'],
             [makeTask('a'), makeTask('b')],
@@ -381,12 +327,17 @@ describe('useTaskVirtualization — grouping cache invalidation', () => {
         expect(taskStore.taskCount()).toBe(2);
         expect(taskStore.getTask('a')).toBeUndefined();
 
+        // And so is the hook, with no resourceStore write to pull it along:
+        // the grouping memo's tracked `Object.keys` rides the store's key-set
+        // node, which the delete+add bumped.
         expect(pooledIds(virt)).toEqual(['b', 'c']);
         expect(virt.splitTaskIds().regularIds).toEqual(['b', 'c']);
     });
 
-    // CAUSE 2 — the count-keyed grouping cache. Green/skip pair again.
-    it('TODAY on 1.9: a forced re-run still serves the count-keyed stale grouping', () => {
+    // CAUSE 2 — the grouping cache that was keyed on the task COUNT. Here the
+    // memo is forced to re-run by `displayResources()` as well, so this fails
+    // for the count cache alone even if the dependency edge were restored.
+    it('rebuilds the grouping on a same-count key swap even when displayResources changes', () => {
         const { virt, taskStore, resourceStore } = createHarness(
             ['R1'],
             [makeTask('a'), makeTask('b')],
@@ -399,67 +350,16 @@ describe('useTaskVirtualization — grouping cache invalidation', () => {
         resourceStore.updateResources(['R1']);
         settle();
 
-        // `displayResources()` changed, so `visibleTaskIds` DID re-run —
-        // but `tasksByResource` keys its cache on the task COUNT
-        // (useTaskVirtualization.ts:78), still 2, so it returns the Map
-        // built before the swap. That Map holds the proxy captured for the
-        // deleted 'a' (still truthy, `.id` still 'a' — measured), so
-        // `visibleTaskIds` re-emits ['a', 'b'] and never sees 'c'.
-        //
-        // `splitTaskIds` is where the dangling 'a' dies: `tasksObj['a']` is
-        // `undefined` at useTaskVirtualization.ts:167-168, so it is skipped
-        // there and never reaches `pooledRegularTasks`. Both derives
-        // therefore read ['b'] — assert BOTH, because the two halves of the
-        // bug surface one memo apart and a fix to only one of them must not
-        // read as green.
-        expect(pooledIds(virt)).toEqual(['b']);
-        expect(virt.splitTaskIds().regularIds).toEqual(['b']);
-    });
-
-    // RED on 1.9 (measured) for the SECOND, independent reason: here the
-    // memo IS forced to re-run, but the count-keyed cache serves the stale
-    // Map, so the measured value is ['b'] — 'c' never appears and the
-    // dangling 'a' is dropped by `splitTaskIds`.
-    it.skip('AFTER E2.8: rebuilds the grouping on a same-count key swap even when displayResources changes — TODO(E2.8 / gantt-b4m.8)', () => {
-        const { virt, taskStore, resourceStore } = createHarness(
-            ['R1'],
-            [makeTask('a'), makeTask('b')],
-        );
-        expect(pooledIds(virt)).toEqual(['a', 'b']);
-
-        taskStore.removeTask('a');
-        taskStore.updateTask('c', makeTask('c'));
-        settle();
-        resourceStore.updateResources(['R1']);
-        settle();
-
-        // Both derives, matching the sibling skip: `pooledRegularTasks`
-        // filters holes, so a `regularIds` that still carried a dangling id
-        // would pool as ['b', 'c'] and pass on the pooled line alone.
+        // Assert BOTH derives: `pooledRegularTasks` filters holes, so a
+        // `regularIds` that still carried the dangling 'a' would pool as
+        // ['b', 'c'] and pass on the pooled line alone.
         expect(pooledIds(virt)).toEqual(['b', 'c']);
         expect(virt.splitTaskIds().regularIds).toEqual(['b', 'c']);
     });
 
-    // CAUSE 1 again, isolated from the count cache. Green/skip pair.
-    it('TODAY on 1.9: tasks written after the hook was created never reach the pool', () => {
-        const { virt, taskStore } = createHarness(['R1'], []);
-        expect(pooledIds(virt)).toEqual([]);
-
-        taskStore.updateTasks([makeTask('a'), makeTask('b')]);
-        settle();
-
-        // The store has them; the hook never hears about it.
-        expect(taskStore.taskCount()).toBe(2);
-        expect(pooledIds(virt)).toEqual([]);
-        expect(virt.splitTaskIds().regularIds).toEqual([]);
-        // The pool never grew either — 0 seen + POOL_BUFFER, not 2 + 5.
-        expect(virt.pooledRegularTasks()).toHaveLength(5);
-    });
-
-    // RED on 1.9 (measured): the pool stays empty forever. Same missing
-    // dependency edge as the first skip, stated without the count cache
-    // muddying it — a `taskStore` write on its own moves nothing.
-    it.skip('AFTER E2.8: picks up tasks written after the hook was created, with no resourceStore write — TODO(E2.8 / gantt-b4m.8)', () => {
+    // CAUSE 1 again, isolated from the count cache: a `taskStore` write on
+    // its own must move the pool.
+    it('picks up tasks written after the hook was created, with no resourceStore write', () => {
         const { virt, taskStore } = createHarness(['R1'], []);
         expect(pooledIds(virt)).toEqual([]);
 
@@ -468,6 +368,39 @@ describe('useTaskVirtualization — grouping cache invalidation', () => {
 
         expect(pooledIds(virt)).toEqual(['a', 'b']);
         expect(virt.splitTaskIds().regularIds).toEqual(['a', 'b']);
+    });
+
+    // The third deleted edge: `splitTaskIds` used to ask
+    // `ganttConfig.isTaskExpanded(id)` from INSIDE its `untrack`, so
+    // expanding a parent moved nothing until some unrelated dependency
+    // fired. It now reads `expandedTasks()` in its tracked scope — one
+    // dependency covering the whole (immutable) Set.
+    it('re-splits when ganttConfig.expandedTasks changes, with no store write', () => {
+        const { virt, ganttConfig } = createHarness(
+            ['R1'],
+            [
+                makeTask('parent', { _children: ['kid'] }),
+                makeTask('kid', { parentId: 'parent' }),
+            ],
+            {},
+            { renderMode: 'detailed' },
+        );
+        expect(virt.splitTaskIds()).toEqual({
+            regularIds: ['parent', 'kid'],
+            summaryIds: [],
+            expandedIds: [],
+        });
+
+        ganttConfig.toggleTaskExpansion('parent');
+        settle();
+
+        // 'parent' moves to expandedIds, and 'kid' leaves regularIds because
+        // ExpandedTaskContainer draws it now.
+        expect(virt.splitTaskIds()).toEqual({
+            regularIds: [],
+            summaryIds: [],
+            expandedIds: ['parent'],
+        });
     });
 });
 

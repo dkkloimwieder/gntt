@@ -1,8 +1,15 @@
 # Plan: migrate `ganttss` to SolidJS 2.0 (rc.6) — as a tree of beads epics/issues
 
+> **Status (2026-09-05).** E0–E7 have been executed; the work sits on
+> `solid-2`, awaiting the E7.5 merge. The repo now runs `solid-js` and
+> `@solidjs/web` at 2.0.0-rc.6 with `@solidjs/vite-plugin` 3.0.0-next.39.
+> Everything below is the plan **as approved on 2026-09-03**; per-issue
+> completion is recorded inline, and what is still open is listed under
+> [Status at merge](#status-at-merge) at the end of this file.
+
 ## Context
 
-The repo runs solid-js 1.9.12 with vite-plugin-solid 2.11. The user wants it on the latest SolidJS 2 release candidate, delivered as beads epics/issues. The latest RC is **2.0.0-rc.6** (published 2026-09-02; the user guessed rc.5). Solid 2.0 is a new reactive core (`@solidjs/signals`) with a new package layout and behavioural changes that hit this codebase directly, so the migration is a data-flow refactor first and a syntax sweep second.
+The repo ran solid-js 1.9.12 with vite-plugin-solid 2.11 when this plan was written. The user wants it on the latest SolidJS 2 release candidate, delivered as beads epics/issues. The latest RC is **2.0.0-rc.6** (published 2026-09-02; the user guessed rc.5). Solid 2.0 is a new reactive core (`@solidjs/signals`) with a new package layout and behavioural changes that hit this codebase directly, so the migration is a data-flow refactor first and a syntax sweep second.
 
 **Deliverable of executing this plan:** create the beads tree below (8 epics, 48 child issues, dependencies wired) and save the audit artifacts. Implementation then proceeds issue by issue (one issue → one commit → one push).
 
@@ -25,7 +32,7 @@ How this plan was built: package/version facts verified on npm; official MIGRATI
 |---|---|---|---|
 | solid-js | ^1.9.12 | **2.0.0-rc.6** (exact) | exports only `.`/`./refresh`; stores from root; ships `CHEATSHEET.md` + `skills/reactivity-diagnostics/SKILL.md` |
 | @solidjs/web | — | **2.0.0-rc.6** (exact) | new: `render`, `Dynamic`, `dynamic`, `Portal`, `isServer`, JSX namespace |
-| @solidjs/vite-plugin | — | **3.0.0-next.38** (exact) | replaces vite-plugin-solid; default import; native OXC compiler (`compiler:'babel'` fallback); Node ^20.19||>=22.12; official templates pin .38 (`next` tag lags at .35) |
+| @solidjs/vite-plugin | — | **3.0.0-next.39** (exact, shipped) | replaces vite-plugin-solid; default import; native OXC compiler (`compiler:'babel'` fallback); Node ^20.19||>=22.12; planned against .38, landed on .39 (`next` tag lags) |
 | vite-plugin-solid, babel-preset-solid | present | remove | shim / unused |
 | @solid-primitives/raf | ^2.3.4 (dep) | 4.0.0-next.2 (**devDep**) | demo-only importer; `createRAF` tuple unchanged; pulls utils 7.0.0-next.4 |
 | @solid-primitives/memo, resize-observer, scheduled, scroll | present | remove | never imported |
@@ -78,7 +85,7 @@ Pin the RC line exactly; caret only at 2.0.0 stable (E7.6). All `@solidjs/*` mus
 | D10 | Row-sync (`_bar.y` write-back) | Keep as a split effect with one draft write (E3.2); "rowLayouts as y source of truth" is optional follow-up. |
 | D11 | Testing tools | Vitest projects + `render` from `@solidjs/web` + `DEV.diagnostics.capture()`; `@solidjs/diagnostics` matchers if they load under Vitest 4.1; `@solidjs/testing-library` not required. |
 | D12 | dist-demo | Keep tracked; refresh once as the final commit (existing convention). |
-| D13 | Public API delta (documented in E4.7/E7.2) | `GanttConfigStore` setters become void-returning updater functions (no in-repo caller uses the return value); `onResizeEnd(taskId, geom?)`, `onDateChange(taskId, dates, geom?)` gain additive args; `taskStore.patchTask`, `setTaskProgress`, `collapseAllTasks(ids?)`, `resourceStore.collapseAll(ids?)`, `createTaskStore(initial?)`; `useGanttStores()` keeps returning `undefined` outside a provider; `ColumnDef.render` must be pure. |
+| D13 | Public API delta (documented in E4.7/E7.2) | `GanttConfigStore` setters become void-returning updater functions (no in-repo caller uses the return value); `onResizeEnd(taskId, geom?)`, `onDateChange(taskId, dates, geom?)` gain additive args; `taskStore.patchTask`, `setTaskProgress`, `collapseAllTasks(ids?)`, `resourceStore.collapseAll(ids?)`, `createTaskStore(initial?)`; `useGanttStores()` keeps returning `undefined` outside a provider; `ColumnDef.render` must be pure. **Status (E4.8, recorded against `08561b9`):** landed — `ConfigSetter<T>` (void, `Exclude<Function>` guard), `taskStore.patchTask` / `setTaskProgress` / `setBarYs` / `collapseAllTasks(ids?)`, `resourceStore.collapseAll(ids?)`, `useGanttStores()` → `undefined`, `ColumnDef.render` purity, committed-state readers. **Also landed (E2.7, recorded against `7d161fa`):** the additive `geom` arguments — `src/components/Gantt.tsx` declares `onDateChange(taskId, range, position?)` and `onResizeEnd(taskId, geometry?)`, both wired through `handleDateChange` / `handleResizeEnd`; `TaskLayer`'s internal `onTaskClick` also carries a third `selection` argument. **Not implemented, so not documented:** `createTaskStore(initial?)` (still zero-arity). The CHANGELOG and README entries the note above demands were added in the pre-merge docs sweep, not in `7d161fa` itself. |
 
 ## Working rules (go into CLAUDE.md/AGENTS.md in E0.2, before any code)
 
@@ -156,7 +163,7 @@ Gate: `pnpm dev` with the console open: gantt, subtask, resource-groups, custom-
 - **E4.5** `decision` P2 M — **Memo laziness measured (D7).** Measure perf.html 10K mount and scroll frame time with chrome-devtools-cli for: all eager; `lazy` on `useBarConfig` rarely-read memos (`showExpectedProgress`, `ignoredPositions`, `readonlyProgress`), `getAllDateInfos`, modal/popup formatters; record numbers; apply only what measured better. Deps: E4.2.
 - **E4.6** `task` P1 M — **Diagnostics gate test.** `tests/diagnostics.gate.test.tsx`: `DEV.diagnostics.capture()` (or `@solidjs/diagnostics` matchers) around mount (50 tasks/5 resources), a full drag, expand/collapse, view-mode switch, custom columns; assert no `error`/`warn` events (allow `NO_OWNER_EFFECT` for unowned test stores). Deps: E4.3, E4.4.
 - **E4.7** `task` P1 S — **`<For keyed={false}>` pooling proof + Repeat evaluation.** `tests/forPooling.test.tsx`: holes render as `undefined` rows; row i is reused (no remount) when the pooled array changes; a drag survives pool reuse. Record whether `<Repeat count from>` should replace the pools (optional E7.7). Deps: E4.2.
-- **E4.8** `task` P1 S — **API delta record.** Document D13 changes in `docs/ARCHITECTURE.md` + a CHANGELOG entry (types: `ConfigSetter`, `onResizeEnd(taskId, geom?)`, `onDateChange` third arg, `patchTask`, `setTaskProgress`, `collapseAllTasks(ids?)`, `collapseAll(ids?)`, `useGanttStores`, `ColumnDef.render` purity, TaskStore readers are committed-state). Deps: E4.2.
+- **E4.8** `task` P1 S — **API delta record.** Document D13 changes in `docs/ARCHITECTURE.md` + a CHANGELOG entry (types: `ConfigSetter`, `onResizeEnd(taskId, geom?)`, `onDateChange` third arg, `patchTask`, `setTaskProgress`, `collapseAllTasks(ids?)`, `collapseAll(ids?)`, `useGanttStores`, `ColumnDef.render` purity, TaskStore readers are committed-state). Deps: E4.2. **Done** — `CHANGELOG.md` created; `docs/ARCHITECTURE.md` gained a "Reactivity contract (SolidJS 2.0)" section and a Public API section rebuilt against `src/index.ts`. See the D13 status note for the two items that do not exist in the code and were therefore not documented.
 
 ### E5 — Demos on 2.0 + smoke matrix (branch) — P1
 
@@ -166,6 +173,16 @@ Gate: `pnpm build:demo` green; every page in the matrix opened with the console 
 - **E5.2** `task` P2 S — **Feature/main demo hygiene.** `CriticalPathDemo.tsx:112` → `setCriticalPath(v => !v)`, `:135` per-key getter; `FilterSearchDemo.tsx:105` predicate memo; strip `@ts-nocheck` from component/feature demos (D8); `CustomColumnsDemo` verified. Deps: E4.2.
 - **E5.3** `chore` P1 M — **Smoke matrix** (all 21 examples; record results in the issue): index (links) · gantt (bars on first paint at correct dates; drag/resize/progress log final geometry; view-mode switch; keyboard) · subtask + resource-groups (expand/collapse) · showcase (presets, locked toggles invert drag, arrows) · constraint (cascade) · bar · arrow · box-select · multi-select (bulk drag) · export (svg/png) · filter-search · critical-path · custom-columns (cells update) · db + `dev:server` (drag PATCH persists exact dates; reload matches) · perf (10K scroll, drag mid-scroll) · perf-isolate (each `?bar=` variant incl. dragconst) · experiments · index-test · minimal-test · profiler. Deps: E5.1, E5.2, E4.6, E4.7.
 
+  **Status:** `gantt-g22.3` was closed on 2026-09-05 while two of its four
+  declared prerequisites (E5.1, E5.2) and E4.7 were still open, and no
+  commit on `main..solid-2` claims it. The matrix WAS executed — driven
+  through Chrome over CDP rather than by hand (all 20 examples + `db.html`
+  loaded with zero exceptions/errors; drag, keyboard, progress, multi-select,
+  box-select, group collapse, export, DB drag-PATCH, view-mode and the perf
+  stress controls exercised) — and the results live in the issue's notes,
+  not in the repo. The automated `tests/diagnostics.gate.test.tsx` (E4.6)
+  guards the same console-clean property in CI.
+
 ### E6 — Performance re-baseline + built artifacts (branch) — P1
 
 - **E6.1** `chore` P2 M — **Re-baseline on rc.6.** `pnpm build:demo && npx serve dist-demo -l 5174` then `benchmarks/scripts/run-comprehensive.sh`, `run-virt.sh`, `run-virt-comprehensive.sh` (+ perf.mjs on perf.html); date-stamp every 1.9.12 table (PERFORMANCE.md, DEMOS.md, EXPERIMENTS.md, ANALYSIS.md) and append rc.6 tables; note the `Index`→`For` and flush-timing caveats next to affected findings. Deps: E5.3, E4.5.
@@ -173,8 +190,8 @@ Gate: `pnpm build:demo` green; every page in the matrix opened with the console 
 
 ### E7 — Docs, memory, follow-ups — P2
 
-- **E7.1** `task` P1 M — **CLAUDE.md + AGENTS.md final pass**: promote the E0.2 section from "in progress" to the house rules; fix file-name drift (.js/.jsx → .ts/.tsx lists, `perf-traces/` → `benchmarks/traces/`, "no test runner" line, DateHeadersOptimized path); test posture (projects, settle, createRoot rule); diagnostics gate. Deps: E5.3.
-- **E7.2** `task` P1 S — **README**: install section (`pnpm add ganttss solid-js@2.0.0-rc.6 @solidjs/web@2.0.0-rc.6`, `jsxImportSource`, `resolve.dedupe` note), `useGanttStores` contract (unchanged), setter/reader timing note, ESM-only packaging, callback signatures. Deps: E4.8.
+- **E7.1** `task` P1 M — **CLAUDE.md + AGENTS.md final pass**: promote the E0.2 section from "in progress" to the house rules; fix file-name drift (.js/.jsx → .ts/.tsx lists, `perf-traces/` → `benchmarks/traces/`, "no test runner" line, DateHeadersOptimized path); test posture (projects, settle, createRoot rule); diagnostics gate. Deps: E5.3. **Done** — the shared block is now "## SolidJS 2.0 rules", byte-identical in both files, 12 rules plus a diagnostics-gate paragraph. `perf-traces/` and the `DateHeadersOptimized` path were already correct in both files; the DB-demo drag-PATCH paragraph still describes the pixel-delta algorithm because `DbDemo.tsx` still uses it (it measures deltas after a `flush()` rather than consuming the geometry payload that E2.7 added — see D13).
+- **E7.2** `task` P1 S — **README**: install section (`pnpm add ganttss solid-js@2.0.0-rc.6 @solidjs/web@2.0.0-rc.6`, `jsxImportSource`, `resolve.dedupe` note), `useGanttStores` contract (unchanged), setter/reader timing note, ESM-only packaging, callback signatures. Deps: E4.8. **Done** — README gained Install, "Reactivity & timing", and a SolidJS 2.0 breaking-changes subsection. The callback table documents the signatures that exist today (no `geom` arguments).
 - **E7.3** `task` P2 M — **docs/* sweep**: ARCHITECTURE (config store section :398-431, `updateTasks` via reconcile, Set inventory safe/broken table, provider), PERFORMANCE (:407 untrack-write advice → split effect; :421 untrack sample), MINIMAL_TEST (`Index`), DATABASE (drag-PATCH algorithm + `vite.config.ts` reference), DEMOS, EXPERIMENTS, RFC-undo-redo (provider API claims), AUDIT. Deps: E6.1, E4.8.
 - **E7.4** `chore` P2 S — **bd memory rewrite**: replace `solidjs-createstore-produce-state-id-newobj-never-wrap` with the 2.0 rule (leaf-mutate in the draft; never replace the task object; Bar reads leaves; a memo over the `_bar` proxy never invalidates) and finalize the E0.2 rulebook memory. Deps: E4.2.
 - **E7.5** `chore` P1 S — **Merge `solid-2` into `main`** (merge commit) after the end-of-migration gate; keep the branch until E7.6. Deps: E6.2, E7.1.
@@ -193,7 +210,7 @@ Rough effort: E0 ~2d · E1 ~3d · E2 ~7d · E3 ~3d · E4 ~4d · E5 ~3d · E6 ~1.
 ## Verification
 
 Per issue: the per-commit gate above (+ the issue's own acceptance). From E3.1: `pnpm test` must list both projects (client jsdom: 14 existing + new suites; server node: 4).
-End of migration (before E6.2 and again on the merge commit): clean install on Node 22; full gate; `dist/ganttss.es.js` externalizes both runtimes; smoke matrix (E5.3) with zero diagnostics; bench scripts complete against fresh `dist-demo`; `git grep` sweeps for removed APIs return nothing outside dated doc history.
+End of migration (before E6.2 and again on the merge commit): clean install on Node 22; full gate; `dist/ganttss.es.js` externalizes both runtimes; smoke matrix (E5.3) with zero diagnostics — **executed via CDP on 2026-09-05, results in `gantt-g22.3`; `tests/diagnostics.gate.test.tsx` guards the same property in CI**; bench scripts complete against fresh `dist-demo`; `git grep` sweeps for removed APIs return nothing outside dated doc history.
 
 ## Creating the beads tree (what executing this plan does)
 
@@ -269,3 +286,30 @@ Regenerate/extend with `python3 docs/migration/solid2/beads-spec.py` (idempotent
 | E7.7 | `gantt-b4z.7` |
 
 Start with `bd ready` → `gantt-ola.1` (E0.1). Epics depend on the previous epic; children depend on their prerequisites; `bd blocked` shows the rest.
+
+## Status at merge
+
+Everything above is the plan as approved. What executing it left behind, as
+of 2026-09-05 (issue state read from `.beads/interactions.jsonl`):
+
+**Closed:** every E0, E1, E2 and E3 issue; E4 except E4.5 and E4.7; E5.3;
+both E6 issues; E7.1, E7.2, E7.4. Epics `gantt-ola` (E0), `gantt-rci` (E1),
+`gantt-b4m` (E2) and `gantt-5rc` (E3) are closed.
+
+**Still open at the merge:**
+
+| Issue | id | What is left |
+|---|---|---|
+| E4.5 | `gantt-avv.5` | Memo-laziness measurement — the experiments.html +14% script regression recorded in `dae57f3` is deferred to it |
+| E4.7 | `gantt-avv.7` | `<For keyed={false}>` pooling proof — `tests/forPooling.test.tsx` was never written |
+| E5.1 | `gantt-g22.1` | Perf-harness timing semantics and the `splitEquals` question |
+| E5.2 | `gantt-g22.2` | Demo hygiene — owns the remaining `@ts-nocheck` headers on the demo files |
+| E7.3 | `gantt-b4z.3` | The `docs/*` sweep (this pre-merge pass covers part of it) |
+| E7.5 | `gantt-b4z.5` | The merge itself |
+| E7.6 | `gantt-b4z.6` | Re-bump when a newer RC or 2.0.0 stable ships |
+| E7.7 | `gantt-b4z.7` | Optional modernizations |
+
+The epics `gantt-avv` (E4), `gantt-g22` (E5), `gantt-l03` (E6) and
+`gantt-b4z` (E7) stay open until their children are. E5.3 (`gantt-g22.3`)
+is closed; its matrix was run via CDP and recorded in the issue — see its
+status note above.

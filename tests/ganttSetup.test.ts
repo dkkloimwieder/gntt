@@ -12,9 +12,7 @@ import type { GanttTask } from '../src/types';
 // rule 10: store writes may sit inside a createRoot body, plain signal writes
 // may not, and `createGanttDateStore` / `createResourceStore` are signal-based,
 // so wrapping this factory would make every setter throw
-// REACTIVE_WRITE_IN_OWNED_SCOPE once the runtime flips. Solid 1.9 logs one
-// "computations created outside a createRoot" warning per memo here; that noise
-// is expected and is never asserted on.
+// REACTIVE_WRITE_IN_OWNED_SCOPE.
 function makeStores() {
     return {
         taskStore: createTaskStore(),
@@ -137,29 +135,29 @@ describe('initializeTasks — relationships and tasks', () => {
     });
 });
 
-// CHARACTERIZATION BLOCK — solid-js 1.9 (SolidJS 2.0 migration, epic E1.2).
+// CHAIN A — the date pipeline, post-flip (SolidJS 2.0 migration, epic E1.2).
 //
-// `initializeTasks` is chain A of the audit, and it is a read-back pipeline
-// from end to end (src/utils/ganttSetup.ts:64-101):
+// `initializeTasks` is chain A of the audit, and it used to be a read-back
+// pipeline from end to end:
 //
 //   1. dateStore.setupDates(rawTasks)      — stages ganttStart/ganttEnd/dates
-//   2. ganttConfig.setGanttStart(dateStore.ganttStart()) ... x5 — READS BACK
-//      the five values step 1 just wrote
-//   3. `config` is built from those same accessors and handed to processTasks,
-//      which is what turns a date into `_bar.x`
+//   2. ganttConfig.setGanttStart(dateStore.ganttStart()) ... x5 — READ BACK
+//      the five values step 1 had just written
+//   3. `config` was built from those same accessors and handed to
+//      processTasks, which is what turns a date into `_bar.x`
 //   4. resourceStore.updateResources(extracted), then
-//      resourceStore.resourceIndexMap() — READS BACK the map derived from the
+//      resourceStore.resourceIndexMap() — READ BACK the map derived from the
 //      resources just written, and that map is what gives a task its
 //      `_resourceIndex` / `_isHidden`
 //
-// On 1.9 each setter runs the update cascade synchronously, so every read-back
-// sees fresh state and all of this holds. Under SolidJS 2.0's deferred writes
-// steps 2-4 would read the PREVIOUS values: an empty `dates()`, a `ganttStart`
-// still at the `new Date()` default, and an empty resourceIndexMap giving every
-// task `_resourceIndex === -1` / `_isHidden === true` — which
-// useTaskVirtualization then drops, i.e. a blank chart. These assertions are
-// what turns that into a named regression when the runtime flips in E3; the
-// fixes are E2.1 (compute-then-apply in ganttDateStore) and E2.2 (config sync).
+// Under 2.0's deferred writes those read-backs return the PREVIOUS values: an
+// empty `dates()`, a `ganttStart` still at the `new Date()` default, and an
+// empty resourceIndexMap giving every task `_resourceIndex === -1` /
+// `_isHidden === true` — which useTaskVirtualization then drops, i.e. a blank
+// chart. E2.1 (compute-then-apply in ganttDateStore, `setupDates` returning
+// the window it computed) and E2.2 (config sync via that returned window,
+// ganttSetup.ts:85-91) removed every read-back; these assertions keep it that
+// way.
 describe('initializeTasks — the date pipeline commits before it is read (chain A)', () => {
     const EARLY = span('a', 'R1', '2025-01-01 08:00', '2025-01-01 16:00');
     const MID = span('c', 'R1', '2025-01-03 08:00', '2025-01-04 16:00');
@@ -194,9 +192,9 @@ describe('initializeTasks — the date pipeline commits before it is read (chain
 
         // The config store's own defaults for these two are `new Date()`
         // (ganttConfigStore.ts:127-128), so pinning them to the fixture-derived
-        // window is what proves ganttSetup.ts:69-70 ran AND read back a
+        // window is what proves the config mirror ran AND carried a
         // committed value. Compared by value, not identity, so the assertion
-        // survives E2.2 collapsing the five setters into one updateOptions().
+        // survived E2.2 collapsing the five setters into one updateOptions().
         expect(ganttConfig.ganttStart().getTime()).toBe(WINDOW_START.getTime());
         expect(ganttConfig.ganttEnd().getTime()).toBe(WINDOW_END.getTime());
         expect(ganttConfig.ganttStart().getTime()).toBe(
@@ -208,17 +206,17 @@ describe('initializeTasks — the date pipeline commits before it is read (chain
         // unit/step/columnWidth are NOT asserted here: in Day mode the date
         // store's values ('day', 1, 45) are byte-for-byte the config store's
         // own defaults, so any comparison between the two stores holds with
-        // ganttSetup.ts:71-73 deleted. They are pinned in the next case, on a
-        // view mode where the two disagree.
+        // those three fields dropped from the mirror. They are pinned in the
+        // next case, on a view mode where the two disagree.
     });
 
     it('mirrors unit/step/columnWidth from a date store whose view mode differs from the config defaults', () => {
         // Quarter Hour declares step '15min' and columnWidth 30, so the date
         // store reports unit 'minute', step 15, columnWidth 30 — all three
         // different from createGanttConfigStore({})'s defaults of 'day', 1, 45.
-        // That is what makes these three real tripwires for ganttSetup.ts:71-73
-        // (and for E2.2's planned collapse into one updateOptions() call):
-        // drop any one setter and the config keeps its own default.
+        // That is what makes these three real tripwires for the config mirror
+        // (now one updateOptions() call, ganttSetup.ts:85-91): drop any one
+        // field and the config keeps its own default.
         const stores = {
             taskStore: createTaskStore(),
             ganttConfig: createGanttConfigStore({}),

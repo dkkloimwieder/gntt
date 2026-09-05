@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
     normalizeResources,
     computeDisplayResources,
+    computeResourceIndexMap,
     extractResourcesFromTasks,
     buildGroupMap,
     getResourcesInGroup,
@@ -86,6 +87,60 @@ describe('computeDisplayResources', () => {
         ];
         const out = computeDisplayResources(resources, new Set(['G']));
         expect(out.map((r) => r.id)).toEqual(['G', 'lonely']);
+    });
+});
+
+/**
+ * Extracted out of `resourceStore`'s memo so a caller that has just written
+ * the resource list can build the map from its own locals instead of reading
+ * the memo back in the same turn (the write is still staged). It indexes by
+ * DISPLAY position, so a collapsed group's hidden members are simply absent.
+ */
+describe('computeResourceIndexMap', () => {
+    it('indexes by display position, not by the id order of the input', () => {
+        const map = computeResourceIndexMap([
+            { id: 'B' },
+            { id: 'A' },
+            { id: 'C' },
+        ]);
+        expect(map.get('B')).toBe(0);
+        expect(map.get('A')).toBe(1);
+        expect(map.get('C')).toBe(2);
+        expect(map.size).toBe(3);
+    });
+
+    it('takes its positions from the DISPLAY list, so hidden members are absent', () => {
+        const resources: Resource[] = [
+            { id: 'G1', type: 'group' },
+            { id: 'A', type: 'resource', group: 'G1' },
+            { id: 'B', type: 'resource', group: 'G1' },
+            { id: 'C', type: 'resource' },
+        ];
+        const map = computeResourceIndexMap(
+            computeDisplayResources(resources, new Set(['G1'])),
+        );
+        // G1 collapsed: A and B never reach the display list, so `C` moves up
+        // to row 1 rather than keeping its position in the source array.
+        expect(map.get('G1')).toBe(0);
+        expect(map.get('C')).toBe(1);
+        expect(map.has('A')).toBe(false);
+        expect(map.has('B')).toBe(false);
+    });
+
+    it('skips a sparse hole instead of indexing undefined', () => {
+        // The `if (item)` guard: a sparse array must not put `undefined` in
+        // the map, and must not shift the entries that follow it either.
+        const sparse: { id: string }[] = [];
+        sparse[0] = { id: 'A' };
+        sparse[2] = { id: 'C' };
+        const map = computeResourceIndexMap(sparse);
+        expect(map.get('A')).toBe(0);
+        expect(map.get('C')).toBe(2);
+        expect(map.size).toBe(2);
+    });
+
+    it('returns an empty map for an empty list', () => {
+        expect(computeResourceIndexMap([]).size).toBe(0);
     });
 });
 

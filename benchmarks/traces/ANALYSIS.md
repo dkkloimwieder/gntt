@@ -242,6 +242,69 @@ Virt mode (variant=baseline):
 
 ---
 
+### SolidJS 2.0.0-rc.6 vs 1.9.12 (2026-09-05, paired A/B)
+
+Same machine, same day, same scripts; the two builds served side by side
+(`main`'s 1.9.12 `dist-demo` next to `solid-2`'s rc.6 build) and profiled
+in alternating blocks of 3 iterations (order flipped each round, 3 rounds,
+9 samples per side per scenario, `perf.mjs --duration 3000`). Medians with
+interquartile range; load average sampled every 5 s during the run.
+Traces in `runs/solid2-rc6-2026-09-05/`.
+
+**10K tasks** (`--tasks=10000 --resources=100 --dense`; every block ran at
+load ≤ 3.7 — this is the reliable pass):
+
+| Scenario | Metric | 1.9.12 | rc.6 | Δ |
+|---|---|---:|---:|---:|
+| perf-isolate `nochildren` H-scroll | script ms | 839 (IQR 401) | 798 (IQR 410) | −4.9 % |
+| | task ms | 2127 | 2073 | −2.6 % |
+| | layout ms | 143 | 141 | −1.9 % |
+| | FPS | 101.0 | 106.5 | +5.4 % |
+| | long tasks | 1 | 1 | 0 |
+| experiments `baseline` H-scroll | script ms | 1307 (IQR 193) | 1491 (IQR 320) | **+14.0 %** |
+| | task ms | 3900 | 4051 | +3.9 % |
+| | layout ms | 532 | 503 | −5.4 % |
+| | FPS | 66.6 | 65.0 | −2.4 % |
+| | janky / long tasks | 4 / 27 | 4 / 27 | 0 |
+
+**200 tasks** (tracked `calendar.json`; only blocks whose peak load stayed
+under 4 are used — the 1.9 rounds 1–2 of perf-isolate were hit by load
+spikes of 5.5–8.0 and are excluded):
+
+| Scenario | Metric | 1.9.12 | rc.6 | Δ |
+|---|---|---:|---:|---:|
+| perf-isolate `nochildren` H-scroll (n=3/3) | script ms | 100 | 106 | +5.7 % |
+| | task ms | 264 | 253 | −4.2 % |
+| | FPS | 120 (pinned) | 120 (pinned) | 0 |
+| experiments `baseline` H-scroll (n=6/6) | script ms | 348 | 522 | **+49.9 %** |
+| | task ms | 1040 | 1439 | +38.4 % |
+| | FPS | 120.6 (pinned) | 119.8 (pinned) | −0.6 % |
+
+Reading:
+
+- **Library scroll path (perf-isolate, the shipped `Bar`): parity to
+  slightly better on rc.6.** At 10K every metric leans rc.6's way and FPS —
+  below the 120 Hz pin at this workload, so discriminating — is +5 %. All
+  deltas sit inside the interquartile overlap; no regression.
+- **The `experiments` harness spends more script time on rc.6** (+14 % at
+  10K, +50 % at 200 tasks) while task time, layout, FPS and jank barely
+  move. That harness is the demo's own `baseline` reactive pattern — one
+  `createMemo` per pooled bar — and rc.6 memos are **eager** (decision D7),
+  so every pooled row's memo recomputes on each scroll update whether or
+  not it is read. It is the pattern E4.5 exists to measure; the candidate
+  fix is `{ lazy: true }` on the per-bar memos. It is not a library-path
+  regression.
+- Absolute numbers are **not** comparable with the 2026-05-10 baseline
+  above (today's 1.9 run is ~40 % slower than that table on the same
+  URL): the machine carried a background load of 1–3 even in "quiet"
+  blocks and the 10K calendar was regenerated with `--dense
+  --resources=100`, which may differ from the May dataset. Compare
+  within a day, paired, or not at all.
+- FPS is pinned at the 120 Hz display on the light workloads; use
+  script/task ms there.
+
+---
+
 ## Performance Floor
 
 Unavoidable browser costs (~26% of total):
@@ -293,12 +356,12 @@ These are DOM operations that cannot be optimized away.
 
 | File | Purpose |
 |------|---------|
-| `src/components/GanttPerfIsolate.jsx` | Feature isolation harness |
-| `src/components/GanttExperiments.jsx` | Reactive pattern comparison |
-| `src/components/ArrowLayerBatched.jsx` | 2D virtualized arrow rendering |
-| `src/components/DateHeaders.jsx` | Original headers (optimal) |
-| `src/components/DateHeadersOptimized.jsx` | Index-based headers (slower) |
-| `perf-traces/runs/` | Benchmark JSON outputs |
+| `src/demo/GanttPerfIsolate.tsx` | Feature isolation harness |
+| `src/demo/GanttExperiments.tsx` | Reactive pattern comparison |
+| `src/components/ArrowLayerBatched.tsx` | 2D virtualized arrow rendering |
+| `src/components/DateHeaders.tsx` | Original headers (optimal) |
+| `src/demo/DateHeadersOptimized.tsx` | Index-based headers (slower) |
+| `benchmarks/traces/runs/` | Benchmark JSON outputs |
 
 ---
 

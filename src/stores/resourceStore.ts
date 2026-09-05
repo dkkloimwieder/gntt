@@ -2,6 +2,7 @@ import { createSignal, createMemo, Accessor } from 'solid-js';
 import {
     normalizeResources,
     computeDisplayResources,
+    computeResourceIndexMap,
 } from '../utils/resourceProcessor';
 import type { Resource, ResourceInput } from '../types';
 
@@ -72,17 +73,9 @@ export function createResourceStore(
     );
 
     // Computed: Map of resource ID to display index (for Y positioning)
-    const resourceIndexMap = createMemo<Map<string, number>>(() => {
-        const map = new Map<string, number>();
-        const display = displayResources();
-        for (let i = 0; i < display.length; i++) {
-            const item = display[i];
-            if (item) {
-                map.set(item.id, i);
-            }
-        }
-        return map;
-    });
+    const resourceIndexMap = createMemo<Map<string, number>>(() =>
+        computeResourceIndexMap(displayResources()),
+    );
 
     // Computed: count of visible rows
     const displayCount = createMemo(() => displayResources().length);

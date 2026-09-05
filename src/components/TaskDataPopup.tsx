@@ -1,4 +1,5 @@
-import { Show, createMemo, JSX, Accessor } from 'solid-js';
+import { Show, createMemo, Accessor } from 'solid-js';
+import type { JSX } from '@solidjs/web';
 import { formatTaskCompact } from '../utils/jsonFormatter';
 import type { GanttTask, BarPosition } from '../types';
 

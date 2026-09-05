@@ -1,13 +1,13 @@
 import {
-    createSignal,
-    createMemo,
-    createEffect,
-    onMount,
-    onCleanup,
-    untrack,
     Accessor,
-    JSX,
+    createEffect,
+    createMemo,
+    createSignal,
+    onCleanup,
+    onSettled,
+    untrack,
 } from 'solid-js';
+import type { JSX } from '@solidjs/web';
 import {
     DEFAULT_UPPER_HEADER_HEIGHT,
     DEFAULT_LOWER_HEADER_HEIGHT,
@@ -15,6 +15,7 @@ import {
 import { createTaskStore } from '../stores/taskStore';
 import { createGanttConfigStore } from '../stores/ganttConfigStore';
 import { createGanttDateStore } from '../stores/ganttDateStore';
+import type { DateWindow } from '../stores/ganttDateStore';
 import { createResourceStore } from '../stores/resourceStore';
 import { createSelectionStore } from '../stores/selectionStore';
 import { createVirtualViewport } from '../utils/createVirtualViewport';
@@ -104,9 +105,24 @@ interface GanttProps {
     overscanCols?: number;
     overscanRows?: number;
     overscanX?: number;
-    onDateChange?: (taskId: string, range: { start: Date; end: Date }) => void;
+    /**
+     * `position` is the bar rect the gesture produced, in pixels — the same
+     * value the dates were derived from. Additive third argument: existing
+     * two-argument consumers are unaffected, and one that needs pixels no
+     * longer has to read them back off the store (the write that produced
+     * them may still be staged).
+     */
+    onDateChange?: (
+        taskId: string,
+        range: { start: Date; end: Date },
+        position?: { x: number; width: number },
+    ) => void;
     onProgressChange?: (taskId: string, progress: number) => void;
-    onResizeEnd?: (taskId: string) => void;
+    /** `geometry` is the post-resize bar rect in pixels (additive). */
+    onResizeEnd?: (
+        taskId: string,
+        geometry?: { x: number; width: number },
+    ) => void;
     onTaskClick?: (taskId: string, event: MouseEvent) => void;
     /**
      * When true, the built-in read-only `TaskDataModal` does NOT open on
@@ -168,13 +184,18 @@ declare global {
 export function Gantt(props: GanttProps): JSX.Element {
     // Stores: prefer those from a surrounding <GanttProvider>; otherwise
     // create our own so the bare <Gantt tasks={...} /> form keeps working.
+    // The initial options/resources are read ONCE to seed the stores; later
+    // changes reach them through the effects below, so these reads are
+    // deliberately untracked (a bare read in a component body is flagged).
     const provided = useGanttStores();
-    const stores = provided ?? {
-        taskStore: createTaskStore(),
-        ganttConfig: createGanttConfigStore(props.options || {}),
-        dateStore: createGanttDateStore(props.options || {}),
-        resourceStore: createResourceStore(props.resources || []),
-    };
+    const stores =
+        provided ??
+        untrack(() => ({
+            taskStore: createTaskStore(),
+            ganttConfig: createGanttConfigStore(props.options || {}),
+            dateStore: createGanttDateStore(props.options || {}),
+            resourceStore: createResourceStore(props.resources || []),
+        }));
     const { taskStore, ganttConfig, dateStore, resourceStore } = stores;
 
     // Selection store is component-local — provider doesn't need to share
@@ -182,11 +203,12 @@ export function Gantt(props: GanttProps): JSX.Element {
     const selectionStore = createSelectionStore();
 
     // Notify the parent on every selection change.
-    createEffect(() => {
-        const ids = selectionStore.selectedIds();
-        const cb = props.onSelectionChange;
-        if (cb) untrack(() => cb(new Set(ids)));
-    });
+    createEffect(
+        () => new Set(selectionStore.selectedIds()),
+        (ids) => {
+            props.onSelectionChange?.(ids);
+        },
+    );
 
     // Imperative export API. Built once at mount; reads taskStore /
     // relationships / scroll state lazily so the parent can call it
@@ -233,20 +255,20 @@ export function Gantt(props: GanttProps): JSX.Element {
     };
     // Fire onReady once after mount so the parent gets a stable handle.
     // The consumer callback is deferred by a microtask so it never runs
-    // inside the mount scope itself: in Solid 2.0 this `onMount` becomes
-    // `onSettled`, whose scope is children-forbidden (no primitive
-    // creation, no `onCleanup`) and whose return value is validated.
-    // Deferring restores the unrestricted scope consumers had on 1.x.
+    // inside the mount scope itself: `onSettled`'s scope is
+    // children-forbidden (no primitive creation, no `onCleanup`) and its
+    // return value is validated. Deferring gives the consumer an
+    // unrestricted scope.
     // Both bodies are blocks so no callback return value escapes.
     // The microtask can outlive the component, which the synchronous call
-    // could not; `disposed` restores that guarantee. Registered in the
-    // component body, not inside the lifecycle callback, so it stays legal
-    // when E3.1 turns this into a children-forbidden `onSettled`.
+    // could not; `disposed` restores that guarantee. `onCleanup` is
+    // registered in the component body, not inside the children-forbidden
+    // `onSettled` body, so it stays legal.
     let disposed = false;
     onCleanup(() => {
         disposed = true;
     });
-    onMount(() => {
+    onSettled(() => {
         queueMicrotask(() => {
             if (!disposed) props.onReady?.(api);
         });
@@ -281,15 +303,21 @@ export function Gantt(props: GanttProps): JSX.Element {
     // This decides whether re-runs (e.g. after a filter change) should
     // re-extract resources from the current task list or leave the
     // store as the parent populated it.
-    const hasExplicitResources = (props.resources?.length ?? 0) > 0;
+    const hasExplicitResources = untrack(
+        () => (props.resources?.length ?? 0) > 0,
+    );
 
     // Run the setup pipeline; commit results into local signals.
-    const runSetup = (rawTasks: GanttTask[]): void => {
+    // `dateWindow`, when the caller already has one (a view-mode change gets
+    // it back from `changeViewMode`), is handed down instead of letting
+    // `initializeTasks` re-derive the same window from the date store.
+    const runSetup = (rawTasks: GanttTask[], dateWindow?: DateWindow): void => {
         const result = initializeTasks(
             rawTasks,
             stores,
             true,
             hasExplicitResources,
+            dateWindow,
         );
         setRelationships(result.relationships);
         setLegacyResources(result.legacyResources);
@@ -306,45 +334,50 @@ export function Gantt(props: GanttProps): JSX.Element {
     });
 
     // Initial mount + reactive reinit on tasks / filter / collapse changes.
-    // This effect also covers the first run, so no separate onMount is needed.
-    createEffect(() => {
-        // Track all dependencies that require task reinitialization
-        const tasks = effectiveTasks();
-        const _collapsed = resourceStore.collapsedGroups();
-        const _collapsedTasks = taskStore.collapsedTasks();
-
-        if (tasks && tasks.length > 0) {
-            // untrack so initializeTasks doesn't create reactive deps
-            untrack(() => runSetup(tasks));
-        } else {
+    // The first run of this effect IS the initial setup; no separate
+    // lifecycle hook is needed.
+    createEffect(
+        // compute: track everything that requires task reinitialization and
+        // hand it over as a fresh object so apply runs on every change.
+        () => ({
+            tasks: effectiveTasks(),
+            collapsedGroups: resourceStore.collapsedGroups(),
+            collapsedTasks: taskStore.collapsedTasks(),
+        }),
+        ({ tasks }) => {
             // Filter wiped out everything — clear the store so the empty
             // state renders correctly instead of showing stale rows.
-            untrack(() => runSetup([]));
-        }
-    });
+            runSetup(tasks.length > 0 ? tasks : []);
+        },
+    );
 
     // Sync config store when parent passes new options
-    createEffect(() => {
-        const opts = props.options;
-        if (opts) ganttConfig.updateOptions(opts);
-    });
+    createEffect(
+        () => props.options,
+        (opts) => {
+            if (opts) ganttConfig.updateOptions(opts);
+        },
+    );
 
     // View-mode change: dateStore swaps mode; tasks must reinit
-    const [prevViewMode, setPrevViewMode] = createSignal(
-        props.options?.viewMode,
-    );
-    createEffect(() => {
-        const viewMode = props.options?.viewMode;
-        const prev = prevViewMode();
-        if (viewMode && viewMode !== prev) {
-            setPrevViewMode(viewMode);
-            dateStore.changeViewMode(viewMode);
-            const tasks = effectiveTasks();
-            if (tasks && tasks.length > 0) {
-                untrack(() => runSetup(tasks));
+    let prevViewMode = untrack(() => props.options?.viewMode);
+    createEffect(
+        () => props.options?.viewMode,
+        (viewMode) => {
+            if (viewMode && viewMode !== prevViewMode) {
+                prevViewMode = viewMode;
+                // `changeViewMode` RETURNS the regenerated window; pass it
+                // on so `initializeTasks` never re-runs `setupDates` against
+                // a date store whose mode write is still staged. `undefined`
+                // means an unknown mode name — a documented silent no-op, in
+                // which case setup falls back to deriving the window itself.
+                const window = dateStore.changeViewMode(viewMode);
+                const tasks = untrack(effectiveTasks);
+                if (tasks.length > 0) runSetup(tasks, window);
             }
-        }
-    });
+        },
+        { defer: true },
+    );
 
     // Computed dimensions
     const taskCount = createMemo(() => {
@@ -399,25 +432,22 @@ export function Gantt(props: GanttProps): JSX.Element {
 
     // Sync _bar.y to row layout positions so Arrow (reads _bar.y) and
     // Bar (uses taskPosition.y) stay aligned.
-    createEffect(() => {
-        const layouts = rowLayouts();
-        if (!layouts || layouts.size === 0) return;
-
-        // Don't subscribe to per-task changes — only react to layout changes.
-        untrack(() => {
+    createEffect(
+        () => rowLayouts(),
+        (layouts) => {
+            if (!layouts || layouts.size === 0) return;
+            const ys = new Map<string, number>();
             for (const [resourceId, layout] of layouts) {
                 if (resourceId === '__total__') continue;
                 if (!layout.taskPositions) continue;
-
                 for (const [taskId, taskPos] of layout.taskPositions) {
-                    const task = taskStore.tasks[taskId];
-                    if (task && task._bar && task._bar.y !== taskPos.y) {
-                        taskStore.updateBarPosition(taskId, { y: taskPos.y });
-                    }
+                    ys.set(taskId, taskPos.y);
                 }
             }
-        });
-    });
+            // One draft write; the store skips entries whose y already matches.
+            taskStore.setBarYs(ys);
+        },
+    );
 
     // Critical-path overlay: empty set when feature is off so downstream
     // components can read it unconditionally. Uses columnWidth as the
@@ -479,9 +509,11 @@ export function Gantt(props: GanttProps): JSX.Element {
         rowHeight,
         totalRows: () => resourceCount() || taskCount(),
         sortedRowLayouts,
-        overscanCols: props.overscanCols ?? 5,
-        overscanRows: props.overscanRows ?? 5,
-        overscanX: props.overscanX ?? 600,
+        // Plain numbers, read once at creation (the viewport takes values,
+        // not accessors, for these), so the reads are untracked on purpose.
+        overscanCols: untrack(() => props.overscanCols ?? 5),
+        overscanRows: untrack(() => props.overscanRows ?? 5),
+        overscanX: untrack(() => props.overscanX ?? 600),
     });
 
     // Event handlers — bridge to props
@@ -492,15 +524,22 @@ export function Gantt(props: GanttProps): JSX.Element {
         if (position.x !== undefined && position.width !== undefined) {
             const start = dateStore.xToDate(position.x);
             const end = dateStore.xToDate(position.x + position.width);
-            props.onDateChange?.(taskId, { start, end });
+            props.onDateChange?.(
+                taskId,
+                { start, end },
+                { x: position.x, width: position.width },
+            );
         }
     };
 
     const handleProgressChange = (taskId: string, progress: number): void => {
         props.onProgressChange?.(taskId, progress);
     };
-    const handleResizeEnd = (taskId: string): void => {
-        props.onResizeEnd?.(taskId);
+    const handleResizeEnd = (
+        taskId: string,
+        geometry?: { x: number; width: number },
+    ): void => {
+        props.onResizeEnd?.(taskId, geometry);
     };
 
     const handleTaskClick = (taskId: string, event: MouseEvent): void => {
@@ -508,42 +547,56 @@ export function Gantt(props: GanttProps): JSX.Element {
         props.onTaskClick?.(taskId, event);
     };
 
-    // Runs inside GanttContainer's mount scope, which becomes a
-    // children-forbidden `onSettled` in 2.0: no primitive creation here,
-    // and nothing that reads back a signal that scope just wrote.
+    // Publishes the container API; the scroll effects below react to it.
     const handleContainerReady = (api: ContainerAPILike): void => {
         setContainerApi(api);
-
-        // Handle 'today' scroll immediately (doesn't depend on tasks).
-        // `containerWidth` is the width GanttContainer measured, handed
-        // over as data — not a `getContainerWidth()` signal read-back.
-        if (props.options?.scrollTo === 'today') {
-            const todayX = dateStore.dateToX(new Date());
-            api.scrollTo(todayX - api.containerWidth / 4, false);
-        }
     };
+
+    // Effect: scroll so today sits one quarter in (scrollTo: 'today').
+    // `dateToX` reads the date window, which the setup effect stages in the
+    // same flush the container becomes ready — so this is an effect over
+    // both, not a read inside `onContainerReady`, and it waits until the
+    // window has landed (tasks committed, or there were none to wait for).
+    // `containerWidth` is the width GanttContainer measured, handed over as
+    // data — not a `getContainerWidth()` signal read-back.
+    let todayScrollDone = false;
+    createEffect(
+        () => ({
+            api: containerApi(),
+            wanted: props.options?.scrollTo === 'today',
+            ready: taskStore.taskCount() > 0 || effectiveTasks().length === 0,
+            todayX: dateStore.dateToX(new Date()),
+        }),
+        ({ api, wanted, ready, todayX }) => {
+            if (!todayScrollDone && api && wanted && ready) {
+                api.scrollTo(todayX - api.containerWidth / 4, false);
+                todayScrollDone = true;
+            }
+        },
+    );
 
     // Effect: scroll to first task once tasks are ready (scrollTo: 'start')
     let initialScrollDone = false;
-    createEffect(() => {
-        const tasks = taskStore.tasks;
-        const api = containerApi();
-        const taskIds = Object.keys(tasks);
-        if (
-            !initialScrollDone &&
-            api &&
-            props.options?.scrollTo === 'start' &&
-            tasks &&
-            taskIds.length > 0
-        ) {
+    createEffect(
+        () => {
+            const taskIds = Object.keys(taskStore.tasks);
             const firstTaskId = taskIds[0];
-            const firstTask = firstTaskId ? tasks[firstTaskId] : undefined;
-            if (firstTask?._bar?.x) {
-                api.scrollTo(Math.max(0, firstTask._bar.x - 50), false);
+            const firstTask = firstTaskId
+                ? taskStore.tasks[firstTaskId]
+                : undefined;
+            return {
+                api: containerApi(),
+                wanted: props.options?.scrollTo === 'start',
+                x: firstTask?._bar?.x,
+            };
+        },
+        ({ api, wanted, x }) => {
+            if (!initialScrollDone && api && wanted && x) {
+                api.scrollTo(Math.max(0, x - 50), false);
                 initialScrollDone = true;
             }
-        }
-    });
+        },
+    );
 
     // Header / resource-column dimensions
     const upperHeaderHeight = (): number =>

@@ -15,8 +15,13 @@ node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs \
 # Save results to file
 node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs \
   'http://localhost:5174/examples/perf-isolate?bar=nochildren&headers=1&test=horizontal' \
-  --iterations 3 --output perf-traces/runs/my-test.json
+  --iterations 3 --output benchmarks/traces/runs/my-test.json
 ```
+
+> `benchmarks/profiler/**/*.js` is deliberately outside the lint/prettier
+> globs (`package.json` covers `benchmarks/constraint/**/*.ts` only): it is
+> browser-injected instrumentation kept in plain JS. `node --check` it after
+> editing.
 
 ---
 
