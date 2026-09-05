@@ -35,7 +35,7 @@ import { generateArrow, type ArrowPaths } from '../utils/arrowBatchPaths';
  *
  * There is NO manual invalidation protocol. The `positionVersion` counter
  * prop and `GanttPerfIsolate`'s matching `triggerArrowUpdate()` bump were
- * deleted in E4.4 (`gantt-avv.4`); callers move bars and the arrows follow.
+ * deleted; callers move bars and the arrows follow.
  */
 
 interface ArrowConfig {

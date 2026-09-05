@@ -1,5 +1,10 @@
-import { createSignal, Accessor, Setter } from 'solid-js';
-import { createStore, reconcile } from 'solid-js';
+import {
+    createSignal,
+    createStore,
+    reconcile,
+    Accessor,
+    Setter,
+} from 'solid-js';
 import { prof } from '../utils/profiler';
 import type { BarPosition, ProcessedTask } from '../types';
 
@@ -270,6 +275,11 @@ export function createTaskStore(): TaskStore {
 
     /**
      * Collapse all summary tasks.
+     *
+     * @param ids Task ids to collapse. When omitted the ids are derived from
+     * the COMMITTED task map. A caller that has just written the task list in
+     * the same turn must pass the ids it built, otherwise the read-back yields
+     * the pre-write tasks. Mirrors `resourceStore.collapseAll(ids?)`.
      */
     const collapseAllTasks = (ids?: string[]): void => {
         if (ids) {

@@ -1,11 +1,12 @@
 import { createContext, useContext } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 import type { BarPosition } from '../types';
+import type { DragGeometry } from '../hooks/useBarDrag';
 
 interface GanttEventHandlers {
     onDateChange: (taskId: string, position: Partial<BarPosition>) => void;
     onProgressChange: (taskId: string, progress: number) => void;
-    onResizeEnd: (taskId: string) => void;
+    onResizeEnd: (taskId: string, geometry?: DragGeometry) => void;
     onTaskClick: (taskId: string, event: MouseEvent) => void;
     onHover: (taskId: string, clientX: number, clientY: number) => void;
     onHoverEnd: () => void;
@@ -14,7 +15,7 @@ interface GanttEventHandlers {
 interface GanttEventsProviderProps {
     onDateChange?: (taskId: string, position: Partial<BarPosition>) => void;
     onProgressChange?: (taskId: string, progress: number) => void;
-    onResizeEnd?: (taskId: string) => void;
+    onResizeEnd?: (taskId: string, geometry?: DragGeometry) => void;
     onTaskClick?: (taskId: string, event: MouseEvent) => void;
     onHover?: (taskId: string, clientX: number, clientY: number) => void;
     onHoverEnd?: () => void;
@@ -49,8 +50,8 @@ export function GanttEventsProvider(
         onProgressChange: (taskId, progress) => {
             props.onProgressChange?.(taskId, progress);
         },
-        onResizeEnd: (taskId) => {
-            props.onResizeEnd?.(taskId);
+        onResizeEnd: (taskId, geometry) => {
+            props.onResizeEnd?.(taskId, geometry);
         },
         onTaskClick: (taskId, event) => {
             props.onTaskClick?.(taskId, event);

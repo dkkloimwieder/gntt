@@ -2,13 +2,12 @@
  * Shared lifecycle helpers for the performance harnesses under `src/demo`.
  *
  * Five harnesses used to copy-paste the same
- * `onMount` + measure + ResizeObserver + RAF/interval + `onCleanup` body, and
+ * mount + measure + ResizeObserver + RAF/interval + cleanup body, and
  * seven start/stop toggles guarded themselves by reading back the very signal
  * they had just written. Both patterns live here now:
  *
- * - one place registers `onMount`/`onCleanup`, so the Solid 2.0 migration flips
- *   the lifecycle internals to `onSettled` + a single returned disposer exactly
- *   once (see `docs/migration/solid2/PLAN.md`, issues E0.7 and E3.2);
+ * - one place registers `onSettled` + a single returned disposer, so every
+ *   harness inherits the lifecycle shape from one file;
  * - every RAF loop is cancelled on cleanup instead of running until the page
  *   goes away;
  * - `createLatch` keeps a plain closure boolean as the synchronous truth and
@@ -24,12 +23,10 @@ import type { Accessor } from 'solid-js';
 export type Cleanup = () => void;
 
 /**
- * `onMount` plus a single merged cleanup.
+ * `onSettled` plus a single merged cleanup.
  *
  * `setup` runs once after mount and may return one disposer that tears down
  * everything it registered — listeners, timers and animation frames together.
- * Keeping the whole demo tree on this one seam is what makes the 2.0 flip
- * (`onSettled` with a returned cleanup) a single-file edit.
  */
 export function useDemoMount(setup: () => Cleanup | void): void {
     onSettled(() => {
@@ -204,7 +201,9 @@ export function useRafLoop(tick?: RafTick): RafLoop {
         frame = requestAnimationFrame(step);
     };
 
-    onSettled(() => stop);
+    onSettled(() => {
+        return stop;
+    });
 
     return { start, stop, isRunning: () => running };
 }

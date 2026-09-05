@@ -44,12 +44,12 @@ interface GanttContainerProps {
     overlay?: JSX.Element;
     onScroll?: (scrollLeft: number, scrollTop: number) => void;
     /**
-     * Fired once from `onMount` with the container's imperative API.
+     * Fired once from `onSettled` with the container's imperative API.
      *
      * MUST NOT create reactive primitives — no `createSignal`,
      * `createMemo`, `createEffect` or `onCleanup`, directly or through a
-     * callee. Under SolidJS 2.0 this `onMount` becomes `onSettled`, whose
-     * body is children-forbidden and throws on primitive creation.
+     * callee: `onSettled`'s body is children-forbidden and throws on
+     * primitive creation.
      * Derive from the accessors on the API object from an owner that
      * outlives the callback instead — see `useGanttScroll`.
      */

@@ -1,5 +1,4 @@
-import { Accessor, createSignal } from 'solid-js';
-import { createStore } from 'solid-js';
+import { Accessor, createSignal, createStore } from 'solid-js';
 import {
     DEFAULT_COLUMN_WIDTH,
     DEFAULT_BAR_HEIGHT,
@@ -186,7 +185,7 @@ export function createGanttConfigStore(
 
     // `expandedTasks` lives OUTSIDE the store (decision D6). A `Set` is not
     // wrappable, so it is never proxied: mutating one in place notifies
-    // nothing, and `produce` will not even invoke its callback on it. So it is
+    // nothing, and a store draft hands back the raw `Set`, not a proxy. So it is
     // a signal over an IMMUTABLE Set — every mutator below builds a NEW Set
     // and replaces it, which is a plain reference write and always notifies.
     // `ReadonlySet` keeps that honest inside this module; the public accessor

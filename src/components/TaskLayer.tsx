@@ -246,7 +246,7 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
     };
 
     // Virtualization: tasks-by-resource grouping, viewport filtering,
-    // pooled <Index> arrays, per-task position lookup.
+    // pooled <For keyed={false}> arrays, per-task position lookup.
     const {
         splitTaskIds,
         pooledRegularTasks,

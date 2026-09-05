@@ -2,7 +2,7 @@
 import { createMemo, For, Show } from 'solid-js';
 
 /**
- * DateHeadersOptimized - Uses <Index> with fixed slot pool for zero DOM churn.
+ * DateHeadersOptimized - Uses <For keyed={false}> with fixed slot pool for zero DOM churn.
  *
  * Instead of rebuilding arrays on scroll, we maintain a fixed number of DOM nodes
  * (visible columns + overscan) and update their content reactively.

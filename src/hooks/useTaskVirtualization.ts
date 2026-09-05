@@ -93,7 +93,7 @@ export function useTaskVirtualization(
     });
 
     // FLAT VIRTUALIZATION with both row AND X filtering.
-    // Returns IDs (strings) so <For>/<Index> keep stable references —
+    // Returns IDs (strings) so <For> (keyed or not) keeps stable references —
     // critical for keeping document event listeners alive during drag.
     const visibleTaskIds = createMemo((): string[] => {
         const result: string[] = [];

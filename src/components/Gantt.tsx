@@ -255,15 +255,15 @@ export function Gantt(props: GanttProps): JSX.Element {
     };
     // Fire onReady once after mount so the parent gets a stable handle.
     // The consumer callback is deferred by a microtask so it never runs
-    // inside the mount scope itself: in Solid 2.0 this `onMount` becomes
-    // `onSettled`, whose scope is children-forbidden (no primitive
-    // creation, no `onCleanup`) and whose return value is validated.
-    // Deferring restores the unrestricted scope consumers had on 1.x.
+    // inside the mount scope itself: `onSettled`'s scope is
+    // children-forbidden (no primitive creation, no `onCleanup`) and its
+    // return value is validated. Deferring gives the consumer an
+    // unrestricted scope.
     // Both bodies are blocks so no callback return value escapes.
     // The microtask can outlive the component, which the synchronous call
-    // could not; `disposed` restores that guarantee. Registered in the
-    // component body, not inside the lifecycle callback, so it stays legal
-    // when E3.1 turns this into a children-forbidden `onSettled`.
+    // could not; `disposed` restores that guarantee. `onCleanup` is
+    // registered in the component body, not inside the children-forbidden
+    // `onSettled` body, so it stays legal.
     let disposed = false;
     onCleanup(() => {
         disposed = true;
@@ -346,7 +346,7 @@ export function Gantt(props: GanttProps): JSX.Element {
         ({ tasks }) => {
             // Filter wiped out everything — clear the store so the empty
             // state renders correctly instead of showing stale rows.
-            runSetup(tasks && tasks.length > 0 ? tasks : []);
+            runSetup(tasks.length > 0 ? tasks : []);
         },
     );
 
@@ -372,7 +372,7 @@ export function Gantt(props: GanttProps): JSX.Element {
                 // which case setup falls back to deriving the window itself.
                 const window = dateStore.changeViewMode(viewMode);
                 const tasks = untrack(effectiveTasks);
-                if (tasks && tasks.length > 0) runSetup(tasks, window);
+                if (tasks.length > 0) runSetup(tasks, window);
             }
         },
         { defer: true },
@@ -546,9 +546,7 @@ export function Gantt(props: GanttProps): JSX.Element {
         props.onTaskClick?.(taskId, event);
     };
 
-    // Runs inside GanttContainer's mount scope, which becomes a
-    // children-forbidden `onSettled` in 2.0: no primitive creation here,
-    // and nothing that reads back a signal that scope just wrote.
+    // Publishes the container API; the scroll effects below react to it.
     const handleContainerReady = (api: ContainerAPILike): void => {
         setContainerApi(api);
     };

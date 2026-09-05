@@ -107,8 +107,9 @@ export function Bar(props: BarProps): JSX.Element {
     // Get event handlers from context (fallback to props for backwards compatibility)
     const events = useGanttEvents();
 
-    // Get task - props.task can be a value OR an accessor function (for <Index> pooling).
-    // Re-look up via taskStore to avoid <Index> handing us a snapshot ref
+    // Get task - props.task can be a value OR an accessor function (for
+    // <For keyed={false}> pooling). Re-look up via taskStore to avoid
+    // <For keyed={false}> handing us a snapshot ref
     // that doesn't track _bar.{x,width,…} mutations during drag.
     const getTask = (): ProcessedTask | undefined => {
         const t = props.task;
@@ -174,7 +175,7 @@ export function Bar(props: BarProps): JSX.Element {
     // underlying _bar.{x,width,…} mutate during drag.
     const x = (): number => getTask()?._bar?.x ?? props.x ?? 0;
     // Use taskPosition Y if provided (for variable row heights), else fall back to _bar.y
-    // taskPosition can be a value OR accessor (for <Index> pooling reactivity)
+    // taskPosition can be a value OR accessor (for <For keyed={false}> pooling reactivity)
     const y = (): number => {
         const pos =
             typeof props.taskPosition === 'function'
@@ -292,8 +293,6 @@ export function Bar(props: BarProps): JSX.Element {
         const dir = e.key === 'ArrowLeft' ? -1 : 1;
         const delta = dir * colW;
         const onDateChange = props.onDateChange ?? events.onDateChange;
-        // Typed as the two-argument shape so the context fallback (which
-        // takes one) still accepts the geometry call below.
         const onResizeEnd: (taskId: string, geometry?: DragGeometry) => void =
             props.onResizeEnd ?? events.onResizeEnd;
 
@@ -309,7 +308,7 @@ export function Bar(props: BarProps): JSX.Element {
                 width: geometry.width,
             });
             onDateChange?.(taskId, geometry);
-            onResizeEnd(taskId, geometry);
+            onResizeEnd?.(taskId, geometry);
         } else {
             // Move; honour the same constraint check drag uses.
             let newX = x() + delta;

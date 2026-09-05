@@ -90,19 +90,23 @@ export function initializeTasks(
         columnWidth: window.columnWidth,
     });
 
-    // Not written in this turn, so the committed values are the right ones.
-    // This runs from an effect's apply, where a bare reactive read is flagged
-    // as a strict-read mistake; `untrack` states that these are one-shot.
-    const config = untrack(() => ({
+    // The window fields are plain locals — no reactive read there. The three
+    // config accessors are, and they were not written in this turn, so the
+    // committed values are the right ones. This runs from an effect's apply,
+    // where a bare reactive read is flagged as a strict-read mistake, so
+    // `untrack` states that those three are one-shot.
+    const config = {
         ganttStart: window.ganttStart,
         ganttEnd: window.ganttEnd,
         unit: window.unit,
         step: window.step,
         columnWidth: window.columnWidth,
-        headerHeight: ganttConfig.headerHeight(),
-        barHeight: ganttConfig.barHeight(),
-        padding: ganttConfig.padding(),
-    }));
+        ...untrack(() => ({
+            headerHeight: ganttConfig.headerHeight(),
+            barHeight: ganttConfig.barHeight(),
+            padding: ganttConfig.padding(),
+        })),
+    };
 
     // Resource index map: when explicit resources were passed the store was
     // populated by the caller in an earlier turn, so its memo is current and

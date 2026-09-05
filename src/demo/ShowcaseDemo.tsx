@@ -1,6 +1,11 @@
 // @ts-nocheck
-import { createSignal, createMemo, For, onSettled, onCleanup } from 'solid-js';
-import { createStore } from 'solid-js';
+import {
+    createSignal,
+    createMemo,
+    createStore,
+    For,
+    onSettled,
+} from 'solid-js';
 import { Bar } from '../components/Bar';
 import { Arrow } from '../components/Arrow';
 import { TaskDataPopup } from '../components/TaskDataPopup';

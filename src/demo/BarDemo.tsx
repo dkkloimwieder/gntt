@@ -398,7 +398,7 @@ export function BarDemo() {
                     </For>
                 </g>
 
-                {/* Bars layer - use Index instead of For to prevent component recreation on position updates */}
+                {/* Bars layer - keyed={false} so slots are recycled, not recreated, on position updates */}
                 <g class="bars">
                     <For keyed={false} each={allTasks()}>
                         {(task) => (

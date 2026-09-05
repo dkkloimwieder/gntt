@@ -27,7 +27,7 @@ interface TaskLayerMinimalProps {
  * - Simple visibleTasks() memo that returns task OBJECTS
  * - NO pooling (no undefined slots)
  * - NO wrapper div with display: none
- * - Direct <Index> → BarMinimal
+ * - Direct <For keyed={false}> → BarMinimal
  * - NO extra handlers passed to Bar
  */
 export function TaskLayerMinimal(props: TaskLayerMinimalProps): JSX.Element {
@@ -110,7 +110,7 @@ export function TaskLayerMinimal(props: TaskLayerMinimalProps): JSX.Element {
                 height: '100%',
             }}
         >
-            {/* Direct Index → BarMinimal (NO wrapper div, NO display:none) */}
+            {/* Direct For keyed={false} → BarMinimal (NO wrapper div, NO display:none) */}
             <For keyed={false} each={visibleTasks()}>
                 {(task) => <BarMinimal task={task} />}
             </For>

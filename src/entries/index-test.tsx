@@ -3,15 +3,13 @@ import { render, Dynamic } from '@solidjs/web';
 import {
     createSignal,
     createMemo,
+    createStore,
     For,
     Show,
-    onSettled,
     onCleanup,
     createContext,
     useContext,
-    createEffect,
 } from 'solid-js';
-import { createStore } from 'solid-js';
 import { createRAF } from '@solid-primitives/raf';
 import calendarData from '../data/generated/calendar.json';
 import { useDrag } from '../hooks/useDrag';
