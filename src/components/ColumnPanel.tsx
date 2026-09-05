@@ -12,6 +12,14 @@ import type { ProcessedTask } from '../types';
  * - render? receives the first task on the row (or undefined when no
  *   task exists) plus the resource id; default cell text is `task[key]`
  *   stringified.
+ *
+ * `render` MUST BE PURE. It is invoked from inside the cell's tracking
+ * scope (a JSX expression that re-runs whenever the row's task changes),
+ * so it must only derive a value from its two arguments: no writes to a
+ * signal or store, no reactive primitives (`createSignal`/`createMemo`/
+ * `createEffect`/`onCleanup`), and no side effects that must happen once
+ * per row. Writing from it throws `REACTIVE_WRITE_IN_OWNED_SCOPE` in dev;
+ * creating a primitive there leaks one per re-render.
  */
 export interface ColumnDef {
     key: string;
