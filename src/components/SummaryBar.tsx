@@ -26,7 +26,16 @@ interface SummaryBarProps {
         batchOriginals: Map<string, BatchOriginal>,
         deltaX: number,
     ) => number;
-    onDragEnd?: (taskId: string) => void;
+    /**
+     * `geometry` is the summary bar's own rect as the batch applied it —
+     * taken from the map `batchMovePositions` returns, never read back off
+     * a store whose write is still staged. Absent when the gesture moved
+     * nothing.
+     */
+    onDragEnd?: (
+        taskId: string,
+        geometry?: { x: number; width: number },
+    ) => void;
 }
 
 /**
@@ -39,16 +48,14 @@ export function SummaryBar(props: SummaryBarProps): JSX.Element {
         return typeof id === 'function' ? id() : id;
     };
 
-    // Get position directly from taskStore
-    const getPosition = (): BarPosition => {
+    // Get the bar sub-object directly from taskStore. Deliberately NOT
+    // memoized: a memo returning a store sub-proxy is computed once and
+    // never invalidates, so every reader below must reach its OWN leaf
+    // through this accessor for a drag's `_bar.x` mutation to propagate.
+    const bar = (): BarPosition | undefined => {
         const id = taskId();
-        if (props.taskStore && id) {
-            const task = props.taskStore.tasks[id] as ProcessedTask | undefined;
-            if (task?._bar) {
-                return task._bar;
-            }
-        }
-        return { x: 0, y: 0, width: 100, height: 30 };
+        if (!props.taskStore || !id) return undefined;
+        return (props.taskStore.tasks[id] as ProcessedTask | undefined)?._bar;
     };
 
     // Task data
@@ -60,18 +67,17 @@ export function SummaryBar(props: SummaryBarProps): JSX.Element {
         return undefined;
     };
 
-    // OPTIMIZATION: Single memoized position read
-    const position = createMemo(() => getPosition());
-    const x = (): number => position()?.x ?? 0;
+    // One leaf read per accessor (see `bar` above).
+    const x = (): number => bar()?.x ?? 0;
     const y = (): number => {
         const pos =
             typeof props.taskPosition === 'function'
                 ? props.taskPosition()
                 : props.taskPosition;
-        return pos?.y ?? position()?.y ?? 0;
+        return pos?.y ?? bar()?.y ?? 0;
     };
-    const width = (): number => position()?.width ?? 100;
-    const height = (): number => position()?.height ?? DEFAULT_BAR_HEIGHT;
+    const width = (): number => bar()?.width ?? 100;
+    const height = (): number => bar()?.height ?? DEFAULT_BAR_HEIGHT;
 
     // Configuration
     const columnWidth = createMemo(
@@ -140,13 +146,22 @@ export function SummaryBar(props: SummaryBarProps): JSX.Element {
                 if (props.onClampBatchDelta && deltaX < 0) {
                     deltaX = props.onClampBatchDelta(batchOriginals, deltaX);
                 }
-                props.taskStore.batchMovePositions(batchOriginals, deltaX);
+                const applied = props.taskStore.batchMovePositions(
+                    batchOriginals,
+                    deltaX,
+                );
+                data['lastGeom'] = applied.get(taskId());
             }
         },
 
-        onDragEnd: (_move, _data, state) => {
+        onDragEnd: (_move, data, state) => {
             if (state === 'dragging_bar') {
-                props.onDragEnd?.(taskId());
+                props.onDragEnd?.(
+                    taskId(),
+                    data['lastGeom'] as
+                        | { x: number; width: number }
+                        | undefined,
+                );
             }
         },
     });

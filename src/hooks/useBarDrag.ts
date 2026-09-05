@@ -22,6 +22,12 @@ interface ConstrainedResult {
     x?: number;
 }
 
+/** Bar geometry as a value, carried from the last move to the gesture end. */
+export interface DragGeometry {
+    x: number;
+    width: number;
+}
+
 export interface BarDragHandlers {
     onCollectDependents?: (taskId: string) => Set<string>;
     onCollectDescendants?: (taskId: string) => Set<string>;
@@ -34,11 +40,13 @@ export interface BarDragHandlers {
         x: number,
         y: number,
     ) => ConstrainedResult | null;
-    onDateChange?: (
-        taskId: string,
-        position: { x: number; width: number },
-    ) => void;
-    onResizeEnd?: (taskId: string) => void;
+    onDateChange?: (taskId: string, position: DragGeometry) => void;
+    /**
+     * `geometry` is the bar's post-resize rect as a VALUE — what the last
+     * move wrote, not what the store has committed. Optional so the
+     * one-argument consumers that pre-date it still typecheck.
+     */
+    onResizeEnd?: (taskId: string, geometry?: DragGeometry) => void;
     onProgressChange?: (taskId: string, progress: number) => void;
 }
 
@@ -120,6 +128,7 @@ export function useBarDrag(deps: UseBarDragDeps) {
 
             const colWidth = deps.columnWidth();
             const ignored = deps.ignoredPositions();
+            const originalWidth = data['originalWidth'] as number;
 
             if (state === 'dragging_bar') {
                 const originalX = data['originalX'] as number;
@@ -146,10 +155,20 @@ export function useBarDrag(deps: UseBarDragDeps) {
                             deltaX,
                         );
                     }
-                    deps.taskStore.batchMovePositions(
+                    // The store hands back what it applied, so the gesture
+                    // end reports the batch's own numbers instead of
+                    // re-reading a store whose write has not committed yet.
+                    const applied = deps.taskStore.batchMovePositions(
                         dependentOriginals,
                         deltaX,
                     );
+                    const own = applied?.get(t.id);
+                    data['lastGeom'] = own ?? {
+                        x:
+                            (dependentOriginals.get(t.id)?.originalX ??
+                                originalX) + deltaX,
+                        width: originalWidth,
+                    };
                 } else {
                     // Fallback: per-task constraint resolution
                     if (deps.handlers.onConstrainPosition) {
@@ -162,10 +181,10 @@ export function useBarDrag(deps: UseBarDragDeps) {
                         newX = constrained.x ?? newX;
                     }
                     deps.taskStore.updateBarPosition(t.id, { x: newX });
+                    data['lastGeom'] = { x: newX, width: originalWidth };
                 }
             } else if (state === 'dragging_left') {
                 const originalX = data['originalX'] as number;
-                const originalWidth = data['originalWidth'] as number;
                 const snappedDelta =
                     Math.round(move.deltaX / colWidth) * colWidth;
 
@@ -197,8 +216,8 @@ export function useBarDrag(deps: UseBarDragDeps) {
                     x: newX,
                     width: newWidth,
                 });
+                data['lastGeom'] = { x: newX, width: newWidth };
             } else if (state === 'dragging_right') {
-                const originalWidth = data['originalWidth'] as number;
                 const snappedDelta =
                     Math.round(move.deltaX / colWidth) * colWidth;
                 const newWidth = Math.max(
@@ -206,6 +225,11 @@ export function useBarDrag(deps: UseBarDragDeps) {
                     originalWidth + snappedDelta,
                 );
                 deps.taskStore.updateBarPosition(t.id, { width: newWidth });
+                // A right-edge resize never moves the left edge.
+                data['lastGeom'] = {
+                    x: data['originalX'] as number,
+                    width: newWidth,
+                };
             } else if (state === 'dragging_progress') {
                 const barX = deps.x();
                 const barWidth = deps.width();
@@ -248,10 +272,11 @@ export function useBarDrag(deps: UseBarDragDeps) {
                         : 0;
 
                 deps.taskStore.setTaskProgress(t.id, newProgress);
+                data['finalProgress'] = newProgress;
             }
         },
 
-        onDragEnd: (_move, _data, state) => {
+        onDragEnd: (_move, data, state) => {
             const t = deps.taskInfo();
             // Allow deferred recalculations to resume
             deps.taskStore?.setDraggingTaskId?.(null);
@@ -261,18 +286,30 @@ export function useBarDrag(deps: UseBarDragDeps) {
                 state === 'dragging_left' ||
                 state === 'dragging_right'
             ) {
-                // Read directly from store to avoid reactive timing issues
-                const pos = deps.taskStore?.getBarPosition(t.id);
-                deps.handlers.onDateChange?.(t.id, {
+                // Report what the last move WROTE, carried on the drag data.
+                // The store read below is the no-move fallback only: a
+                // stationary press (or one that never crossed the 3px
+                // threshold) staged nothing, so the committed geometry is
+                // the right answer and is the only one available.
+                const moved = data['lastGeom'] as DragGeometry | undefined;
+                const pos = moved ?? deps.taskStore?.getBarPosition(t.id);
+                const geometry: DragGeometry = {
                     x: pos?.x ?? deps.x(),
                     width: pos?.width ?? deps.width(),
-                });
+                };
+                deps.handlers.onDateChange?.(t.id, geometry);
 
                 if (state === 'dragging_left' || state === 'dragging_right') {
-                    deps.handlers.onResizeEnd?.(t.id);
+                    deps.handlers.onResizeEnd?.(t.id, geometry);
                 }
             } else if (state === 'dragging_progress') {
-                deps.handlers.onProgressChange?.(t.id, t.progress);
+                const finalProgress = data['finalProgress'] as
+                    | number
+                    | undefined;
+                deps.handlers.onProgressChange?.(
+                    t.id,
+                    finalProgress ?? t.progress,
+                );
             }
         },
     });

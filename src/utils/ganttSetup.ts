@@ -23,7 +23,7 @@ import {
 import { recomputeAllSummaryBounds } from './barCalculations';
 import type { TaskStore } from '../stores/taskStore';
 import type { GanttConfigStore } from '../stores/ganttConfigStore';
-import type { GanttDateStore } from '../stores/ganttDateStore';
+import type { DateWindow, GanttDateStore } from '../stores/ganttDateStore';
 import type { ResourceStore } from '../stores/resourceStore';
 import type { GanttTask, ProcessedTask, Relationship } from '../types';
 
@@ -50,12 +50,19 @@ export interface GanttSetupResult {
  *   `resources` prop (so we leave the resource store alone). When false,
  *   resources are re-extracted from `rawTasks` on every call so filter/
  *   add/remove changes the resource set (and the row layout) accordingly.
+ * @param dateWindow - a window the CALLER already computed (a view-mode
+ *   change gets one back from `changeViewMode`). Supplying it skips the
+ *   `setupDates` call: re-running it would recompute the same bounds from
+ *   the same tasks and re-stage the same writes, and — since writes are
+ *   deferred — would do so against a date store that has not yet committed
+ *   the caller's mode change.
  */
 export function initializeTasks(
     rawTasks: GanttTask[],
     stores: GanttSetupStores,
     useResourceStore = true,
     hasExplicitResources?: boolean,
+    dateWindow?: DateWindow,
 ): GanttSetupResult {
     const { taskStore, ganttConfig, dateStore, resourceStore } = stores;
 
@@ -72,7 +79,7 @@ export function initializeTasks(
     // window it computed. Nothing below reads the date store back — writes
     // are deferred until the next flush, so a read-back here would still see
     // the previous window.
-    const window = dateStore.setupDates(rawTasks);
+    const window = dateWindow ?? dateStore.setupDates(rawTasks);
 
     // Mirror the window into the config store in one write.
     ganttConfig.updateOptions({

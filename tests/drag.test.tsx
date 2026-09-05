@@ -54,7 +54,9 @@ import { mountGantt, type MountedGantt } from './helpers/mountGantt';
 import { settle } from './helpers/settle';
 import { createTaskStore, type TaskStore } from '../src/stores/taskStore';
 import { useBarDrag } from '../src/hooks/useBarDrag';
+import type { DragState } from '../src/hooks/useDrag';
 import type {
+    BarPosition,
     GanttTask,
     NormalizedConstraints,
     ProcessedTask,
@@ -141,6 +143,8 @@ interface DateChange {
     id: string;
     start: Date;
     end: Date;
+    /** The additive third argument: the pixel rect the dates came from. */
+    position?: { x: number; width: number };
 }
 
 const mouse = (type: string, clientX: number, clientY: number): MouseEvent =>
@@ -249,8 +253,13 @@ describe('bar drag — the geometry that reaches the consumer', () => {
         const changes: DateChange[] = [];
         mounted = mountGantt({
             tasks: TASKS,
-            onDateChange: (id, range) => {
-                changes.push({ id, start: range.start, end: range.end });
+            onDateChange: (id, range, position) => {
+                changes.push({
+                    id,
+                    start: range.start,
+                    end: range.end,
+                    position,
+                });
             },
         });
         settle();
@@ -302,6 +311,12 @@ describe('bar drag — the geometry that reaches the consumer', () => {
         expect(changes[0]!.start.getTime()).not.toBe(
             dateStore.xToDate(expectedMid).getTime(),
         );
+        // D13: the same geometry also arrives as pixels, so a consumer that
+        // needs them does not re-read a store write that may still be staged.
+        expect(changes[0]!.position).toEqual({
+            x: expectedFinal,
+            width: before.width,
+        });
     });
 
     it('batch-moves the dragged bar’s dependents by the same snapped delta', () => {
@@ -623,16 +638,10 @@ describe('keyboard gestures', () => {
         expect(after.x).toBe(before.x);
         expect(after.width).toBe(before.width + columnWidth);
 
-        // TODAY'S behaviour, pinned green so it fails the moment it changes:
-        // the FS successor does NOT move. `handleResizeEnd`
-        // (TaskLayer.tsx:98-102) does call resolveResizeConstraints, but that
-        // reads getBarPosition(taskId) (taskLayerConstraints.ts:86-92) and
-        // feeds it into resolveConstraints, whose "no position change"
-        // early-out (constraintEngine.ts:762-774) compares the proposal
-        // against the SAME read — so cascadeUpdates is always empty. The
-        // inverse (what the FS contract asks for) is the skipped test below;
-        // the two are a matched pair and exactly one of them can hold.
-        expect(barPos(mounted, 't2').x).toBe(successorBefore.x);
+        // The successor's behaviour is the sibling test below (it cascades
+        // now that the geometry reaches the engine as data). This test owns
+        // only the resized bar and the report; it still pins that the
+        // successor is not RESIZED by the cascade, which only moves x.
         expect(barPos(mounted, 't2').width).toBe(successorBefore.width);
 
         expect(changes).toHaveLength(1);
@@ -646,36 +655,17 @@ describe('keyboard gestures', () => {
         expect(resizeEnds).toEqual(['t1']);
     });
 
-    // MEASURED RED on 1.9 (run un-skipped: t2.x stays at 464.85 where the FS
-    // contract wants 479.7), and not for a timing reason — the cascade never
-    // fires at all. `handleResizeEnd` (TaskLayer.tsx:98-102) calls
-    // resolveResizeConstraints, which reads getBarPosition(taskId)
-    // (taskLayerConstraints.ts:86-92) and feeds that straight into
-    // resolveConstraints — whose "no position change" early-out
-    // (constraintEngine.ts:762-774) compares the proposal against the SAME
-    // read, so cascadeUpdates is always empty. The right-edge DRAG resize
-    // has the same hole: useBarDrag.ts:200-208 never calls
-    // onConstrainPosition.
-    //
-    // SECOND, INDEPENDENT BLOCKER — measured while mutation-proving this
-    // file, and not in the E1.6 scout brief: even with the early-out
-    // defeated, resolveConstraints only computes cascadeUpdates when the X
-    // moved (`Math.abs(constrainedX - currentBar.x) > EPSILON_PX`,
-    // constraintEngine.ts:868). A resize changes only the width, so a
-    // width-aware early-out alone still cascades nothing. Both gates have to
-    // go. Verified: patching the early-out AND that condition turns this test
-    // green and turns its green twin above red — so the pair really is
-    // testing the one behaviour, and the fix is a two-site change.
-    //
-    // SKIP MARKER, deliberately not E2.7 alone: threading the final geometry
-    // into resolveResizeConstraints (gantt-b4m.7) does NOT make this green
-    // while writes are synchronous, because the threaded value still equals
-    // what getBarPosition returns. It needs that threading AND the deferred
-    // writes the flip brings, so the store read is stale by the time the
-    // comparison happens. Attempt the un-skip at gantt-5rc.2 (E3.1, the
-    // flip), not before; an earlier attempt will still be red. Both
-    // corrections belong on gantt-b4m.7.
-    it.skip('shift+ArrowRight cascades successors from the new width — TODO(gantt-b4m.7 + gantt-5rc.2)', () => {
+    // Un-skipped by E2.7 (gantt-b4m.7). Two gates in `resolveConstraints`
+    // used to make this impossible, and neither was a timing problem:
+    // its "no position change" early-out compared the proposal against
+    // `getBarPosition(taskId)` — the very read the proposal came from — and
+    // past that it only computed cascade updates when the X moved, which a
+    // resize never does. Both are right for a MOVE and wrong for a RESIZE,
+    // so the resize path now has its own entry (`resolveResizeCascade`) that
+    // takes the new rect as a VALUE, threaded Bar → TaskLayer →
+    // resolveResizeConstraints. Its matched twin above lost the two
+    // assertions that pinned the successor standing still.
+    it('shift+ArrowRight cascades successors from the new width', () => {
         mounted = mountGantt({ tasks: TASKS });
         settle();
 
@@ -709,13 +699,15 @@ describe('summary bar drag', () => {
     it('moves the summary and its descendants, reports no date change, and fires onResizeEnd', () => {
         const changes: string[] = [];
         const resizeEnds: string[] = [];
+        const resizeGeometry: Array<{ x: number; width: number }> = [];
         mounted = mountGantt({
             tasks: TASKS,
             onDateChange: (id) => {
                 changes.push(id);
             },
-            onResizeEnd: (id) => {
+            onResizeEnd: (id, geometry) => {
                 resizeEnds.push(id);
+                if (geometry) resizeGeometry.push(geometry);
             },
         });
         settle();
@@ -766,6 +758,11 @@ describe('summary bar drag', () => {
         // (digest chain D), pinned so the flip does not hide it.
         expect(changes).toEqual([]);
         expect(resizeEnds).toEqual(['p1']);
+        // …and it carries the summary's own rect, taken from the map
+        // `batchMovePositions` returns rather than read back off the store.
+        expect(resizeGeometry).toHaveLength(1);
+        expect(resizeGeometry[0]!.x).toBe(summaryBefore.x + snappedDelta);
+        expect(resizeGeometry[0]!.width).toBe(summaryBefore.width);
     });
 });
 
@@ -824,10 +821,12 @@ interface DeferredHarness {
     commit: () => void;
     /** The geometry each onDateChange call reported. */
     reported: Array<{ x: number; width: number }>;
+    /** The progress each onProgressChange call reported. */
+    progressReports: number[];
     /** Which taskStore method each queued write came from, in order. */
     writes: string[];
     /** Run the whole gesture: press at 100, release at 100 + delta. */
-    drag: (delta: number) => void;
+    drag: (delta: number, state?: DragState) => void;
     /** The committed geometry of the dragged bar. */
     committed: () => { x: number; width: number };
 }
@@ -840,6 +839,12 @@ interface DeferredHarness {
 function mountDeferredDrag(): DeferredHarness {
     const real = createTaskStore();
     real.updateTask('t1', makeTask('t1'));
+    // The FIXTURE must be committed before the gesture starts — a mounted
+    // chart seeds its store many turns before a mousedown. Without this the
+    // bar would still be invisible at `onDragStart`, and the gesture would
+    // capture width 0 as its original geometry, testing the harness rather
+    // than the hook. Only the DRAG's writes are meant to stay uncommitted.
+    settle();
 
     const queued: Array<() => void> = [];
     const writes: string[] = [];
@@ -853,13 +858,29 @@ function mountDeferredDrag(): DeferredHarness {
             writes.push('updateTask');
             queued.push(() => real.updateTask(id, taskData));
         },
+        setTaskProgress: (id, progress) => {
+            writes.push('setTaskProgress');
+            queued.push(() => real.setTaskProgress(id, progress));
+        },
         batchMovePositions: (originals, deltaX) => {
             writes.push('batchMovePositions');
             queued.push(() => real.batchMovePositions(originals, deltaX));
+            // The real store builds this off its DRAFT and returns it — the
+            // whole point being that the caller cannot read the result back.
+            // The double owes the same contract: report what the queued
+            // write will apply, while the committed store still says
+            // otherwise.
+            const applied = new Map<string, BarPosition>();
+            for (const [id, { originalX }] of originals) {
+                const bar = real.getBarPosition(id);
+                if (bar) applied.set(id, { ...bar, x: originalX + deltaX });
+            }
+            return applied;
         },
     };
 
     const reported: Array<{ x: number; width: number }> = [];
+    const progressReports: number[] = [];
     const { drag, dispose } = createRoot((d) => ({
         drag: useBarDrag({
             taskStore,
@@ -878,6 +899,9 @@ function mountDeferredDrag(): DeferredHarness {
                 onCollectDependents: (taskId) => new Set([taskId]),
                 onDateChange: (_id, position) => {
                     reported.push(position);
+                },
+                onProgressChange: (_id, progress) => {
+                    progressReports.push(progress);
                 },
             },
             taskInfo: () => ({
@@ -901,13 +925,14 @@ function mountDeferredDrag(): DeferredHarness {
             queued.splice(0).forEach((write) => write());
         },
         reported,
+        progressReports,
         writes,
-        drag: (delta: number) => {
+        drag: (delta: number, state: DragState = 'dragging_bar') => {
             // startDrag is called directly: the event is never dispatched,
             // so currentTarget/target are null and useDrag falls through to
             // identity coordinates (useDrag.ts:115). mousemove/mouseup still
             // go through the real document listeners it registered.
-            drag.startDrag(mouse('mousedown', 100, 0), 'dragging_bar', {
+            drag.startDrag(mouse('mousedown', 100, 0), state, {
                 taskId: 't1',
             });
             settle();
@@ -925,18 +950,15 @@ function mountDeferredDrag(): DeferredHarness {
 }
 
 describe('drag-end geometry against a deferred-write store', () => {
-    // MEASURED RED on 1.9 (run un-skipped: reported is {x: 0, width: 100},
-    // the geometry from BEFORE the gesture, while the committed value is 60).
-    // useDrag.handleMouseUp runs the final onDragMove and then onDragEnd in
-    // one synchronous stack (useDrag.ts:160-177), and useBarDrag.onDragEnd
-    // re-reads the store at useBarDrag.ts:271 instead of using what the move
-    // applied. E2.7 stashes the move's geometry on the drag data and reports
-    // from there; that is also what makes this survive 2.0's deferred writes.
-    // Verified by prototyping exactly that (stash `data.lastGeom` in the
-    // batch-move branch, report from it in onDragEnd): this test turns green
-    // and its green twin above turns red, which is the whole point of the
-    // pair — exactly one of them can hold.
-    it.skip('onDateChange reports the geometry the FINAL move wrote — TODO(E2.7 / gantt-b4m.7)', () => {
+    // Un-skipped by E2.7 (gantt-b4m.7). The store here NEVER commits — the
+    // harness queues every write and `commit()` is not called — so nothing
+    // the drag wrote is readable from the store at any point in the gesture.
+    // Passing therefore proves the report comes from the drag data
+    // (`data.lastGeom`, recorded by the batch-move branch out of the map
+    // `batchMovePositions` returns) and not from `getBarPosition`, which
+    // still answers with the pre-gesture rect. No flush can rescue this
+    // shape, which is exactly why it is the one that pins the design.
+    it('onDateChange reports the geometry the FINAL move wrote', () => {
         const harness = mountDeferredDrag();
 
         harness.drag(HOOK_DRAG_DELTA);
@@ -944,5 +966,36 @@ describe('drag-end geometry against a deferred-write store', () => {
         expect(harness.reported).toEqual([
             { x: HOOK_SNAPPED_X, width: HOOK_BAR_WIDTH },
         ]);
+    });
+
+    // The other two write branches, against the same never-committing store.
+    // A mounted chart cannot tell these apart — `useDrag.handleMouseUp`
+    // flushes before `onDragEnd`, so a store re-read happens to give the
+    // same answer — which is exactly why they are pinned here instead.
+    it('a right-edge resize reports the width the move wrote', () => {
+        const harness = mountDeferredDrag();
+
+        harness.drag(HOOK_DRAG_DELTA, 'dragging_right');
+
+        expect(harness.writes).toEqual(['updateBarPosition']);
+        expect(harness.reported).toEqual([
+            { x: HOOK_BAR_X, width: HOOK_BAR_WIDTH + HOOK_SNAPPED_X },
+        ]);
+        // Still uncommitted: the report cannot have come from the store.
+        expect(harness.committed()).toEqual({
+            x: HOOK_BAR_X,
+            width: HOOK_BAR_WIDTH,
+        });
+    });
+
+    it('a progress drag reports the progress the move wrote', () => {
+        const harness = mountDeferredDrag();
+
+        // Release past the bar's right edge, so the clamp pins progress at
+        // 100 — distinct from the fixture's committed 0 either way.
+        harness.drag(HOOK_DRAG_DELTA, 'dragging_progress');
+
+        expect(harness.writes).toEqual(['setTaskProgress']);
+        expect(harness.progressReports).toEqual([100]);
     });
 });

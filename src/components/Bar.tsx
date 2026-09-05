@@ -6,6 +6,7 @@ import {
     computeLabelPosition,
 } from '../utils/barCalculations';
 import { useBarDrag } from '../hooks/useBarDrag';
+import type { DragGeometry } from '../hooks/useBarDrag';
 import { useBarConfig } from '../hooks/useBarConfig';
 import { useGanttEvents } from '../contexts/GanttEvents';
 import type { TaskStore } from '../stores/taskStore';
@@ -65,11 +66,9 @@ interface BarProps {
         x: number,
         y: number,
     ) => ConstrainedResult | null;
-    onDateChange?: (
-        taskId: string,
-        position: { x: number; width: number },
-    ) => void;
-    onResizeEnd?: (taskId: string) => void;
+    onDateChange?: (taskId: string, position: DragGeometry) => void;
+    /** `geometry` is the post-resize rect, handed over as data. */
+    onResizeEnd?: (taskId: string, geometry?: DragGeometry) => void;
     onProgressChange?: (taskId: string, progress: number) => void;
     onHover?: (taskId: string, clientX: number, clientY: number) => void;
     onHoverEnd?: () => void;
@@ -293,14 +292,24 @@ export function Bar(props: BarProps): JSX.Element {
         const dir = e.key === 'ArrowLeft' ? -1 : 1;
         const delta = dir * colW;
         const onDateChange = props.onDateChange ?? events.onDateChange;
-        const onResizeEnd = props.onResizeEnd ?? events.onResizeEnd;
+        // Typed as the two-argument shape so the context fallback (which
+        // takes one) still accepts the geometry call below.
+        const onResizeEnd: (taskId: string, geometry?: DragGeometry) => void =
+            props.onResizeEnd ?? events.onResizeEnd;
 
         if (e.shiftKey) {
-            // Resize from the right edge.
-            const newWidth = Math.max(minWidth(), width() + delta);
-            props.taskStore?.updateBarPosition(taskId, { width: newWidth });
-            onDateChange?.(taskId, { x: x(), width: newWidth });
-            onResizeEnd?.(taskId);
+            // Resize from the right edge. The new rect travels to both
+            // consumers as a value — `width()` would still read the
+            // pre-write width until the store write commits.
+            const geometry: DragGeometry = {
+                x: x(),
+                width: Math.max(minWidth(), width() + delta),
+            };
+            props.taskStore?.updateBarPosition(taskId, {
+                width: geometry.width,
+            });
+            onDateChange?.(taskId, geometry);
+            onResizeEnd(taskId, geometry);
         } else {
             // Move; honour the same constraint check drag uses.
             let newX = x() + delta;

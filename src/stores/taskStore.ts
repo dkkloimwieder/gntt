@@ -28,10 +28,11 @@ export interface TaskStore {
     patchTask: (id: string, patch: Partial<ProcessedTask>) => void;
     setTaskProgress: (id: string, progress: number) => void;
     updateTasks: (tasksArray: ProcessedTask[]) => void;
+    /** Moves each task by `deltaX`; returns the geometry it applied, by id. */
     batchMovePositions: (
         taskOriginals: Map<string, BatchOriginal>,
         deltaX: number,
-    ) => void;
+    ) => Map<string, BarPosition>;
     removeTask: (id: string) => void;
     clear: () => void;
 
@@ -185,19 +186,32 @@ export function createTaskStore(): TaskStore {
     const taskCount = (): number => Object.keys(tasks).length;
 
     /**
-     * Move multiple tasks by deltaX in a single reactive update.
-     * Uses produce for fine-grained updates - only affected Bar components re-render.
+     * Move multiple tasks by deltaX in one draft write, leaf-mutating each
+     * `_bar.x` so only the Bars reading that leaf re-render.
+     *
+     * RETURNS what it applied, keyed by task id. Writes are deferred, so a
+     * caller that needs the new geometry in the same turn (the drag hooks
+     * do, to report it at gesture end) cannot read it back off the store —
+     * it comes from here as data. Tasks with no `_bar` are skipped and
+     * therefore absent from the map.
      */
     const batchMovePositions = (
         taskOriginals: Map<string, BatchOriginal>,
         deltaX: number,
-    ): void => {
+    ): Map<string, BarPosition> => {
+        const applied = new Map<string, BarPosition>();
         setTasks((state) => {
             for (const [id, { originalX }] of taskOriginals) {
                 const task = state[id];
-                if (task?._bar) task._bar.x = originalX + deltaX;
+                if (task?._bar) {
+                    task._bar.x = originalX + deltaX;
+                    // Read off the DRAFT: it carries this turn's staged
+                    // writes, which the outer store proxy does not.
+                    applied.set(id, { ...task._bar });
+                }
             }
         });
+        return applied;
     };
 
     // --- Subtask Collapse State ---

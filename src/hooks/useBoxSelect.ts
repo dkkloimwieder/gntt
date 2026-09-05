@@ -96,6 +96,15 @@ export function useBoxSelect(deps: UseBoxSelectDeps): UseBoxSelectResult {
     let startY = 0;
     let startShift = false;
     let startCtrl = false;
+    /**
+     * The gesture's own record of what it drew. `overlay` is a signal, so
+     * reading it back on mouseup answers with COMMITTED state — the last
+     * mousemove's write may still be staged, and on a fast drag-and-release
+     * inside one task it always is. These two locals are the truth; the
+     * signal exists only to render the rectangle.
+     */
+    let passedThreshold = false;
+    let box: BoxRect = { x: 0, y: 0, width: 0, height: 0 };
 
     const layerCoords = (e: MouseEvent): { x: number; y: number } | null => {
         const el = deps.getLayerEl();
@@ -111,19 +120,20 @@ export function useBoxSelect(deps: UseBoxSelectDeps): UseBoxSelectResult {
 
         const dx = Math.abs(pt.x - startX);
         const dy = Math.abs(pt.y - startY);
-        const passedThreshold =
-            dx > DRAG_THRESHOLD_PX || dy > DRAG_THRESHOLD_PX;
 
-        if (!passedThreshold) {
+        if (dx <= DRAG_THRESHOLD_PX && dy <= DRAG_THRESHOLD_PX) {
             // Stay invisible until the user actually moves enough to box-select.
             return;
         }
 
-        const x = Math.min(startX, pt.x);
-        const y = Math.min(startY, pt.y);
-        const width = Math.abs(pt.x - startX);
-        const height = Math.abs(pt.y - startY);
-        setOverlay({ visible: true, x, y, width, height });
+        passedThreshold = true;
+        box = {
+            x: Math.min(startX, pt.x),
+            y: Math.min(startY, pt.y),
+            width: dx,
+            height: dy,
+        };
+        setOverlay({ visible: true, ...box });
     };
 
     const handleMouseUp = (e: MouseEvent): void => {
@@ -132,8 +142,8 @@ export function useBoxSelect(deps: UseBoxSelectDeps): UseBoxSelectResult {
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
 
-        const current = overlay();
-        const wasDragged = current.visible;
+        const wasDragged = passedThreshold;
+        const current = box;
         setOverlay(HIDDEN);
 
         const sel = deps.selectionStore;
@@ -176,6 +186,8 @@ export function useBoxSelect(deps: UseBoxSelectDeps): UseBoxSelectResult {
         startY = pt.y;
         startShift = e.shiftKey;
         startCtrl = e.ctrlKey || e.metaKey;
+        passedThreshold = false;
+        box = { x: pt.x, y: pt.y, width: 0, height: 0 };
         setOverlay(HIDDEN);
 
         document.addEventListener('mousemove', handleMouseMove);

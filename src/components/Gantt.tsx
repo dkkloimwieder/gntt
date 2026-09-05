@@ -15,6 +15,7 @@ import {
 import { createTaskStore } from '../stores/taskStore';
 import { createGanttConfigStore } from '../stores/ganttConfigStore';
 import { createGanttDateStore } from '../stores/ganttDateStore';
+import type { DateWindow } from '../stores/ganttDateStore';
 import { createResourceStore } from '../stores/resourceStore';
 import { createSelectionStore } from '../stores/selectionStore';
 import { createVirtualViewport } from '../utils/createVirtualViewport';
@@ -104,9 +105,24 @@ interface GanttProps {
     overscanCols?: number;
     overscanRows?: number;
     overscanX?: number;
-    onDateChange?: (taskId: string, range: { start: Date; end: Date }) => void;
+    /**
+     * `position` is the bar rect the gesture produced, in pixels — the same
+     * value the dates were derived from. Additive third argument: existing
+     * two-argument consumers are unaffected, and one that needs pixels no
+     * longer has to read them back off the store (the write that produced
+     * them may still be staged).
+     */
+    onDateChange?: (
+        taskId: string,
+        range: { start: Date; end: Date },
+        position?: { x: number; width: number },
+    ) => void;
     onProgressChange?: (taskId: string, progress: number) => void;
-    onResizeEnd?: (taskId: string) => void;
+    /** `geometry` is the post-resize bar rect in pixels (additive). */
+    onResizeEnd?: (
+        taskId: string,
+        geometry?: { x: number; width: number },
+    ) => void;
     onTaskClick?: (taskId: string, event: MouseEvent) => void;
     /**
      * When true, the built-in read-only `TaskDataModal` does NOT open on
@@ -292,12 +308,16 @@ export function Gantt(props: GanttProps): JSX.Element {
     );
 
     // Run the setup pipeline; commit results into local signals.
-    const runSetup = (rawTasks: GanttTask[]): void => {
+    // `dateWindow`, when the caller already has one (a view-mode change gets
+    // it back from `changeViewMode`), is handed down instead of letting
+    // `initializeTasks` re-derive the same window from the date store.
+    const runSetup = (rawTasks: GanttTask[], dateWindow?: DateWindow): void => {
         const result = initializeTasks(
             rawTasks,
             stores,
             true,
             hasExplicitResources,
+            dateWindow,
         );
         setRelationships(result.relationships);
         setLegacyResources(result.legacyResources);
@@ -345,9 +365,14 @@ export function Gantt(props: GanttProps): JSX.Element {
         (viewMode) => {
             if (viewMode && viewMode !== prevViewMode) {
                 prevViewMode = viewMode;
-                dateStore.changeViewMode(viewMode);
+                // `changeViewMode` RETURNS the regenerated window; pass it
+                // on so `initializeTasks` never re-runs `setupDates` against
+                // a date store whose mode write is still staged. `undefined`
+                // means an unknown mode name — a documented silent no-op, in
+                // which case setup falls back to deriving the window itself.
+                const window = dateStore.changeViewMode(viewMode);
                 const tasks = effectiveTasks();
-                if (tasks && tasks.length > 0) runSetup(tasks);
+                if (tasks && tasks.length > 0) runSetup(tasks, window);
             }
         },
         { defer: true },
@@ -498,15 +523,22 @@ export function Gantt(props: GanttProps): JSX.Element {
         if (position.x !== undefined && position.width !== undefined) {
             const start = dateStore.xToDate(position.x);
             const end = dateStore.xToDate(position.x + position.width);
-            props.onDateChange?.(taskId, { start, end });
+            props.onDateChange?.(
+                taskId,
+                { start, end },
+                { x: position.x, width: position.width },
+            );
         }
     };
 
     const handleProgressChange = (taskId: string, progress: number): void => {
         props.onProgressChange?.(taskId, progress);
     };
-    const handleResizeEnd = (taskId: string): void => {
-        props.onResizeEnd?.(taskId);
+    const handleResizeEnd = (
+        taskId: string,
+        geometry?: { x: number; width: number },
+    ): void => {
+        props.onResizeEnd?.(taskId, geometry);
     };
 
     const handleTaskClick = (taskId: string, event: MouseEvent): void => {
