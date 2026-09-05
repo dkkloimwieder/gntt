@@ -83,7 +83,13 @@ function sameBarPosition(
  * never reflects a later edit.
  */
 function copyTask(task: ReturnType<TaskStore['getTask']>): GanttTask | null {
-    return task ? ({ ...task } as GanttTask) : null;
+    if (!task) return null;
+    // `_bar` is the leaf that drags mutate; copy it so the published object
+    // is not a live sub-proxy of the store.
+    return {
+        ...task,
+        _bar: task._bar ? { ...task._bar } : task._bar,
+    } as GanttTask;
 }
 
 export function useGanttModals(

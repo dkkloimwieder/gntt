@@ -103,9 +103,7 @@ import type { GanttTask, ProcessedTask } from '../src/types';
  *   subtraction is "at most once", so the gate stays green either way, but
  *   a stale entry means tolerating a diagnostic that no longer exists.
  */
-const KNOWN_OPEN: Readonly<Record<string, readonly string[]>> = {
-    'view-mode switch': ['STRICT_READ_UNTRACKED'],
-};
+const KNOWN_OPEN: Readonly<Record<string, readonly string[]>> = {};
 
 const RESOURCES = ['R1', 'R2', 'R3', 'R4', 'R5'] as const;
 

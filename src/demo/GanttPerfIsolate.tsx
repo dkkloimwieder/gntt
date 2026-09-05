@@ -1876,7 +1876,7 @@ export function GanttPerfIsolate() {
         ? DateHeadersOptimized
         : DateHeaders;
 
-    const content = (
+    const content = () => (
         <div
             ref={(el) => (containerRef = el)}
             style={{
@@ -2092,7 +2092,10 @@ export function GanttPerfIsolate() {
     // not be what re-discovers it. No handler props are passed, so the
     // provider's bridges are the same no-ops `useGanttEvents` returns without
     // it, and the `context` flag still labels the run.
-    return <GanttEventsProvider>{content}</GanttEventsProvider>;
+    // `content` is a function so the tree — and every variant's
+    // `useGanttEvents()` — is created INSIDE the provider; an element built
+    // beforehand would have resolved the context before the provider existed.
+    return <GanttEventsProvider>{content()}</GanttEventsProvider>;
 }
 
 export default GanttPerfIsolate;

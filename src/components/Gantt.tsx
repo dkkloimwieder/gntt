@@ -371,7 +371,7 @@ export function Gantt(props: GanttProps): JSX.Element {
                 // means an unknown mode name — a documented silent no-op, in
                 // which case setup falls back to deriving the window itself.
                 const window = dateStore.changeViewMode(viewMode);
-                const tasks = effectiveTasks();
+                const tasks = untrack(effectiveTasks);
                 if (tasks && tasks.length > 0) runSetup(tasks, window);
             }
         },

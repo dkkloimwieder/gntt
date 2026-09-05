@@ -149,12 +149,21 @@ export interface DiagnosticsRun<T> {
  */
 export function withDiagnostics<T>(fn: () => T): DiagnosticsRun<T> {
     const session = startDiagnostics();
+    let result: T;
     try {
-        const result = fn();
-        return { result, events: session.stop(), source: session.source };
-    } finally {
-        session.stop();
+        result = fn();
+    } catch (error) {
+        // The diagnostics emitted before the throw are usually the reason for
+        // it; hand them to the caller on the error instead of discarding them.
+        const events = session.stop();
+        if (error instanceof Error) {
+            (
+                error as Error & { diagnostics?: DiagnosticRecord[] }
+            ).diagnostics = events;
+        }
+        throw error;
     }
+    return { result, events: session.stop(), source: session.source };
 }
 
 /** One line per diagnostic, for an assertion message. */
