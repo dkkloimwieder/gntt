@@ -28,8 +28,8 @@
         "test": "vitest run",
         "test:watch": "vitest",
         "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\" \"tests/**/*.{ts,tsx}\" \"server/**/*.ts\" \"benchmarks/constraint/**/*.ts\" \"config/vite/**/*.js\" vitest.config.ts eslint.config.mjs",
-        "prettier": "prettier --write \"src/**/*.{js,jsx,ts,tsx}\" \"tests/**/*.{ts,tsx}\" \"server/**/*.ts\" \"benchmarks/constraint/**/*.ts\" \"config/vite/**/*.js\" vitest.config.ts eslint.config.mjs",
-        "prettier-check": "prettier --check \"src/**/*.{js,jsx,ts,tsx}\" \"tests/**/*.{ts,tsx}\" \"server/**/*.ts\" \"benchmarks/constraint/**/*.ts\" \"config/vite/**/*.js\" vitest.config.ts eslint.config.mjs"
+        "prettier": "prettier --write \"src/**/*.{js,jsx,ts,tsx}\" \"tests/**/*.{ts,tsx}\" \"server/**/*.ts\" \"benchmarks/constraint/**/*.ts\" \"benchmarks/scripts/**/*.mjs\" \"config/vite/**/*.js\" vitest.config.ts eslint.config.mjs",
+        "prettier-check": "prettier --check \"src/**/*.{js,jsx,ts,tsx}\" \"tests/**/*.{ts,tsx}\" \"server/**/*.ts\" \"benchmarks/constraint/**/*.ts\" \"benchmarks/scripts/**/*.mjs\" \"config/vite/**/*.js\" vitest.config.ts eslint.config.mjs"
     },
     "repository": {
         "type": "git",

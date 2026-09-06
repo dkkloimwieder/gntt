@@ -51,3 +51,6 @@ feedback*.md
 /data/gantt.db-journal
 /data/gantt.db-wal
 /data/gantt.db-shm
+# E4.5 harness outputs written to the cwd by default
+/memo-recompute-probe.json
+/drag*.json

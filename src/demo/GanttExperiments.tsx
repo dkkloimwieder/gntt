@@ -215,16 +215,45 @@ const taskIds2D = (() => {
 })();
 
 // ═══════════════════════════════════════════════════════════════════════════
+// E4.5 MEMO RECOMPUTE PROBE (measurement only — demo-only instrumentation)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ?lazy=1 makes TestBarBaseline's `t` memo lazy so one build serves both arms.
+const LAZY_MEMO =
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('lazy') === '1';
+
+let memoRecomputes = 0;
+let barsCreated = 0;
+
+if (typeof window !== 'undefined') {
+    window.__memoStats = {
+        lazy: LAZY_MEMO,
+        get recomputes() {
+            return memoRecomputes;
+        },
+        get bars() {
+            return barsCreated;
+        },
+        reset() {
+            memoRecomputes = 0;
+        },
+    };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // TESTBAR VARIANTS
 // ═══════════════════════════════════════════════════════════════════════════
 
 /** Baseline - Single memo for all props, uses _bar for position */
 function TestBarBaseline(props) {
+    barsCreated++;
     const events = useGanttEvents();
     const getTask = () =>
         typeof props.task === 'function' ? props.task() : props.task;
 
-    const t = createMemo(() => {
+    const tFn = () => {
+        memoRecomputes++;
         const task = getTask();
         const bar = task?._bar;
         const progress = task?.progress ?? 0;
@@ -241,7 +270,8 @@ function TestBarBaseline(props) {
             height: bar?.height ?? ROW_HEIGHT,
             pw: (width * progress) / 100,
         };
-    });
+    };
+    const t = createMemo(tFn, LAZY_MEMO ? { lazy: true } : undefined);
 
     const bg = () => {
         const data = t();
@@ -257,6 +287,7 @@ function TestBarBaseline(props) {
 
     return (
         <div
+            data-testbar="baseline"
             onMouseEnter={(e) => events.onHover?.(t().id, e.clientX, e.clientY)}
             onMouseLeave={() => events.onHoverEnd?.()}
             onClick={(e) => events.onTaskClick?.(t().id, e)}

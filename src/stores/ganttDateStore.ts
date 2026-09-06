@@ -391,10 +391,13 @@ export function createGanttDateStore(
     /**
      * Get all date infos for rendering headers.
      *
-     * NOTE (E4.5): under 2.0 memos are eager, so this formats a string pair per
-     * timeline column whether or not a header is mounted. `{ lazy: true }` is
-     * the candidate fix, but that is E4.5's measured decision — not applied
-     * here.
+     * Eager on purpose (D7, measured in E4.5): `Gantt.tsx` wraps this in its
+     * own eager `dateInfos` memo, whose creation-time compute subscribes to
+     * this one before any JSX runs, so this memo always has a tracked
+     * subscriber and `{ lazy: true }` here would change nothing — the wrapper
+     * pulls it in the tick it is created (tests/memoLaziness.test.ts case 9).
+     * Saving the per-column formatting for header-less consumers would need
+     * the whole chain restructured, not an option flag.
      */
     const getAllDateInfos = createMemo<DateInfo[]>(() => {
         const allDates = dates();

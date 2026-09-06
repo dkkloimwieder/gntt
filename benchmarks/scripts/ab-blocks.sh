@@ -4,8 +4,11 @@
 # the two builds alternate per block, the order flips every round.
 #
 # usage: benchmarks/scripts/ab-blocks.sh <label> <portA> <portB> [rounds=3]
-#   env SCENARIOS  — "name|path" pairs separated by ';' (default: the two
-#                    canonical horizontal-scroll workloads)
+#   env SCENARIOS  — "name|path[|click-selector]" entries separated by ';'
+#                    (default: the two canonical horizontal-scroll workloads).
+#                    A third field is passed to perf.mjs as --click, for pages
+#                    whose stress test is a button (perf.html: the 2nd button
+#                    is H-Scroll) rather than a ?test= parameter.
 #   env DURATION   — ms per iteration (default 3000)
 # Serve each build statically first, e.g.
 #   (cd dist-demo-10k && python3 -m http.server 5178 &)   # build A
@@ -27,14 +30,15 @@ while pgrep -f "node .*chrome-devtools-cli/scripts/perf\.mjs" > /dev/null; do sl
 IFS=';' read -ra SPECS <<< "$SCENARIOS"
 for r in $(seq 1 "$ROUNDS"); do
   for spec in "${SPECS[@]}"; do
-    name=${spec%%|*}; path=${spec##*|}
+    IFS='|' read -r name path click <<< "$spec"
+    clickArgs=(); [ -n "${click:-}" ] && clickArgs=(--click "$click")
     if (( r % 2 )); then order="A:$PA B:$PB"; else order="B:$PB A:$PA"; fi
     for side in $order; do
       tag=${side%%:*}; port=${side##*:}
       out="$OUT/$tag-$name-r$r.json"
       [ -s "$out" ] && continue
       echo "[$(date +%H:%M:%S)] $LABEL round $r $tag $name load=$(cut -d' ' -f1 /proc/loadavg)" | tee -a "$OUT/run.log"
-      node "$PERF" "http://localhost:$port/examples/$path" --iterations 3 --warmup 1 --duration "$DURATION" --output "$out" > "$OUT/last.log" 2>&1 || { echo "  FAILED $tag $name r$r" | tee -a "$OUT/run.log"; tail -3 "$OUT/last.log"; }
+      node "$PERF" "http://localhost:$port/examples/$path" "${clickArgs[@]}" --iterations 3 --warmup 1 --duration "$DURATION" --output "$out" > "$OUT/last.log" 2>&1 || { echo "  FAILED $tag $name r$r" | tee -a "$OUT/run.log"; tail -3 "$OUT/last.log"; }
       echo "$(date +%s) $(cut -d' ' -f1 /proc/loadavg)" >> "$OUT/load.log"
     done
   done

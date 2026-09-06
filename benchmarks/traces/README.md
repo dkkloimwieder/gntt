@@ -98,7 +98,21 @@ benchmarks/scripts/ab-blocks.sh lazy-vs-eager 5178 5179 3
 python3 benchmarks/scripts/ab-compare.py benchmarks/traces/runs/ab/lazy-vs-eager eager lazy
 ```
 
+A scenario is `name|path` or `name|path|click-selector`; the third field is
+passed to `perf.mjs --click`, for pages whose stress test is a button rather
+than a `?test=` parameter (perf.html: `button:nth-of-type(2)` is H-Scroll,
+`button:nth-of-type(1)` is Reload, which re-mounts the 10K set inside the
+trace window):
+
+```bash
+SCENARIOS='perf-h|perf.html|button:nth-of-type(2);exp-h|experiments.html?variant=baseline&virt=combined&test=horizontal' \
+  benchmarks/scripts/ab-blocks.sh perf-pair 5178 5179 3
+```
+
 Only one `perf.mjs` may run at a time (it owns Chrome's port 9222); the runner
-waits for an idle profiler before starting. Machine load is logged per block;
+waits for an idle profiler before starting. `memo-recompute-probe.mjs` and
+`drag-bench.mjs` launch their own Chrome on a private port and are **not**
+covered by that guard — do not run them while an `ab-blocks.sh` round is in
+flight, they would load the machine the blocks are measuring on. Machine load is logged per block;
 under a load average above ~4 the script-time CV was ~30 %, so read the
 `run.log` load column before trusting a small delta.

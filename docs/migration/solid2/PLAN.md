@@ -50,7 +50,7 @@ Pin the RC line exactly; caret only at 2.0.0 stable (E7.6). All `@solidjs/*` mus
 4. **`createEffect(compute, apply, {defer?})`** is the only form (the 1-arg overload is a type error since rc.5). Apply is untracked, may write, may return only a cleanup function; `flush()` inside apply is a silent no-op; reading a store proxy in apply warns `STRICT_READ_UNTRACKED` — compute returns plain values.
 5. **`flush()`** is legal only in event handlers, timers, promise continuations and test bodies.
 6. **Stores:** single draft setter; path setters/`produce`/`unwrap` removed (`storePath` compat helper, `snapshot`); `delete draft[k]` (assigning `undefined` keeps the key); `reconcile(v, key='id')` returns a draft fn; Set/Map/Date inside stores are **not proxied** (replace, never mutate; signal-held immutable Sets are fine). Leaf mutation `draft[id]._bar.x = v` notifies only `_bar.x` subscribers (measured) — faster than the 1.x object-replacement hack; a memo returning the `_bar` proxy still never invalidates, so Bar's per-leaf reads stay load-bearing.
-7. **Memos** eager by default; `{ lazy: true }` also opts into autodisposal; `loadingValue` replaces the 1.x initial value; `createMemo(fn, options)` only.
+7. **Memos** eager by default; `{ lazy: true }` skips only the creation compute and opts into autodisposal (torn down when the last tracked subscriber leaves, and on every flush after an ownerless read — handler, timer, rAF, effect apply); with a tracked subscriber it recomputes exactly like an eager memo; `loadingValue` replaces the 1.x initial value; `createMemo(fn, options)` only. Measured and pinned in E4.5.
 8. **Control flow:** `<Index>` → `<For keyed={false}>` (same callback shape, but the callback body now carries a strict-read label); `<Repeat count from>` is the store-backed pool primitive; `Show/Match` element children unchanged.
 9. **Context:** `<Ctx value>` is the provider; default-less context makes `useContext` throw — use `createContext<T | null>(null)` for optional-provider APIs. `Gantt.tsx` mounts `GanttEventsProvider` itself; `GanttStores` is the library-path showstopper.
 10. **JSX/DOM:** `import type { JSX } from '@solidjs/web'`; `jsxImportSource: '@solidjs/web'`; `tabIndex` → `tabindex` (3 sites); ref callbacks unowned.
@@ -79,7 +79,7 @@ Pin the RC line exactly; caret only at 2.0.0 stable (E7.6). All `@solidjs/*` mus
 | D4 | peerDependencies | Not in this migration (E7.7 optional). Keep exact pins in `dependencies`; README gets a `resolve.dedupe` note. |
 | D5 | Dead code | Delete isScrolling, dead ContainerAPI surface, duplicate `onMount` initializer, `ArrowLayer.tsx`, `GanttSubtaskDemo.tsx`. **Keep** the taskStore collapse API (public `TaskStore` type; `collapsedTasks()` is read by Gantt/ganttSetup) and give `collapseAllTasks` an explicit id-list parameter. |
 | D6 | `expandedTasks` | Signal-held immutable `ReadonlySet<string>` (matches `collapsedTasks`/`collapsedGroups`/`selectedIds`); public option/accessor types unchanged. |
-| D7 | Memo laziness | Eager by default; `{ lazy: true }` only for measured rarely-read memos (E4.5). |
+| D7 | Memo laziness | **Resolved by E4.5 (2026-09-05): eager everywhere, nothing lazy.** `{ lazy: true }` = skip the creation compute + auto-dispose; with a tracked subscriber the recompute count is identical (browser probe: byte-identical per-bar recomputes on the 10K experiments page), and a lazy memo read only from an ownerless scope (handler, timer, rAF, effect apply) recomputes once per tick. Every candidate has a permanent tracked reader; the four handler-only library memos would churn. Rule + qualifying shape in CLAUDE.md rule 7; semantics pinned by `tests/memoLaziness.test.ts`; numbers in `benchmarks/traces/ANALYSIS.md` "Memo laziness (E4.5)". |
 | D8 | `@ts-nocheck` | Strip from component/feature/db demos as each is touched; perf harnesses keep it (smoke matrix verifies them). |
 | D9 | DbDemo | Migration scope = correct persistence via the new geometry payload + `flush()` at the top of `onDateChange`; actions/optimistic-store rewrite is optional E7.7. |
 | D10 | Row-sync (`_bar.y` write-back) | Keep as a split effect with one draft write (E3.2); "rowLayouts as y source of truth" is optional follow-up. |
@@ -292,15 +292,15 @@ Start with `bd ready` → `gantt-ola.1` (E0.1). Epics depend on the previous epi
 Everything above is the plan as approved. What executing it left behind, as
 of 2026-09-05 (issue state read from `.beads/interactions.jsonl`):
 
-**Closed:** every E0, E1, E2 and E3 issue; E4 except E4.5 and E4.7; E5.3;
+**Closed:** every E0, E1, E2 and E3 issue; E4 except E4.7 (E4.5 closed 2026-09-05, after the merge); E5.3;
 both E6 issues; E7.1, E7.2, E7.4. Epics `gantt-ola` (E0), `gantt-rci` (E1),
 `gantt-b4m` (E2) and `gantt-5rc` (E3) are closed.
 
-**Still open at the merge:**
+**Open at the merge (status as of 2026-09-05):**
 
 | Issue | id | What is left |
 |---|---|---|
-| E4.5 | `gantt-avv.5` | Memo-laziness measurement — the experiments.html +14% script regression recorded in `dae57f3` is deferred to it |
+| E4.5 | `gantt-avv.5` | **Closed 2026-09-05** — measured; D7 resolved as eager everywhere. The experiments.html +14 % is per-row invalidation under `<For keyed={false}>` (every on-screen bar's memo recomputes per scroll step, lazy or not), not eager waste — follow-up belongs to E4.7/E5.1. The lazy-A pair was measured only under load and is unresolved; the decision rests on the mechanism, the probe and the three quiet pairs |
 | E4.7 | `gantt-avv.7` | `<For keyed={false}>` pooling proof — `tests/forPooling.test.tsx` was never written |
 | E5.1 | `gantt-g22.1` | Perf-harness timing semantics and the `splitEquals` question |
 | E5.2 | `gantt-g22.2` | Demo hygiene — owns the remaining `@ts-nocheck` headers on the demo files |

@@ -1,0 +1,476 @@
+{
+  "config": {
+    "url": "http://localhost:5178/examples/perf.html",
+    "duration": 3000,
+    "click": "button:nth-of-type(2)",
+    "iterations": 3,
+    "warmup": 1
+  },
+  "stats": {
+    "fps": {
+      "count": 3,
+      "min": 71.7,
+      "max": 80.1,
+      "mean": 76.26666666666667,
+      "median": 77,
+      "stddev": 3.468268860525214,
+      "p95": 80.1,
+      "p99": 80.1,
+      "values": [
+        71.7,
+        77,
+        80.1
+      ]
+    },
+    "jankyFrames": {
+      "count": 3,
+      "min": 0,
+      "max": 0,
+      "mean": 0,
+      "median": 0,
+      "stddev": 0,
+      "p95": 0,
+      "p99": 0,
+      "values": [
+        0,
+        0,
+        0
+      ]
+    },
+    "frameCount": {
+      "count": 3,
+      "min": 230,
+      "max": 257,
+      "mean": 247,
+      "median": 254,
+      "stddev": 12.083045973594572,
+      "p95": 257,
+      "p99": 257,
+      "values": [
+        230,
+        254,
+        257
+      ]
+    },
+    "scriptDuration": {
+      "count": 3,
+      "min": 1593.88,
+      "max": 2033.7,
+      "mean": 1785.3833333333332,
+      "median": 1728.57,
+      "stddev": 183.99497136848302,
+      "p95": 2033.7,
+      "p99": 2033.7,
+      "values": [
+        1593.88,
+        1728.57,
+        2033.7
+      ]
+    },
+    "layoutDuration": {
+      "count": 3,
+      "min": 140.72,
+      "max": 200.63,
+      "mean": 164.61666666666667,
+      "median": 152.5,
+      "stddev": 25.915403827753785,
+      "p95": 200.63,
+      "p99": 200.63,
+      "values": [
+        140.72,
+        152.5,
+        200.63
+      ]
+    },
+    "recalcStyleDuration": {
+      "count": 3,
+      "min": 269.49,
+      "max": 407.6,
+      "mean": 317.5733333333333,
+      "median": 275.63,
+      "stddev": 63.70779875511493,
+      "p95": 407.6,
+      "p99": 407.6,
+      "values": [
+        269.49,
+        275.63,
+        407.6
+      ]
+    },
+    "taskDuration": {
+      "count": 3,
+      "min": 3481.59,
+      "max": 4534.04,
+      "mean": 3908.3233333333337,
+      "median": 3709.34,
+      "stddev": 452.1124681856151,
+      "p95": 4534.04,
+      "p99": 4534.04,
+      "values": [
+        3481.59,
+        3709.34,
+        4534.04
+      ]
+    },
+    "paintTime": {
+      "count": 3,
+      "min": 403.27,
+      "max": 554.57,
+      "mean": 494.2266666666667,
+      "median": 524.84,
+      "stddev": 65.45127772286466,
+      "p95": 554.57,
+      "p99": 554.57,
+      "values": [
+        403.27,
+        524.84,
+        554.57
+      ]
+    },
+    "layoutTime": {
+      "count": 3,
+      "min": 410.95,
+      "max": 660.77,
+      "mean": 533.42,
+      "median": 528.54,
+      "stddev": 102.0469463858016,
+      "p95": 660.77,
+      "p99": 660.77,
+      "values": [
+        410.95,
+        528.54,
+        660.77
+      ]
+    },
+    "longTaskCount": {
+      "count": 3,
+      "min": 7,
+      "max": 15,
+      "mean": 12,
+      "median": 14,
+      "stddev": 3.559026084010437,
+      "p95": 15,
+      "p99": 15,
+      "values": [
+        7,
+        14,
+        15
+      ]
+    },
+    "longTaskTime": {
+      "count": 3,
+      "min": 1463.84,
+      "max": 2002.26,
+      "mean": 1710.0466666666669,
+      "median": 1664.04,
+      "stddev": 222.20333650860323,
+      "p95": 2002.26,
+      "p99": 2002.26,
+      "values": [
+        1463.84,
+        1664.04,
+        2002.26
+      ]
+    },
+    "gcCount": {
+      "count": 3,
+      "min": 1,
+      "max": 2,
+      "mean": 1.3333333333333333,
+      "median": 1,
+      "stddev": 0.4714045207910317,
+      "p95": 2,
+      "p99": 2,
+      "values": [
+        1,
+        1,
+        2
+      ]
+    },
+    "gcTime": {
+      "count": 3,
+      "min": 15.53,
+      "max": 97.74,
+      "mean": 48.60666666666666,
+      "median": 32.55,
+      "stddev": 35.43052764056568,
+      "p95": 97.74,
+      "p99": 97.74,
+      "values": [
+        15.53,
+        32.55,
+        97.74
+      ]
+    },
+    "jsHeapUsedMB": {
+      "count": 3,
+      "min": 410.45,
+      "max": 816.11,
+      "mean": 612.1833333333334,
+      "median": 609.99,
+      "stddev": 165.61726345872148,
+      "p95": 816.11,
+      "p99": 816.11,
+      "values": [
+        410.45,
+        609.99,
+        816.11
+      ]
+    },
+    "domNodes": {
+      "count": 3,
+      "min": 139652,
+      "max": 175088,
+      "mean": 158294,
+      "median": 160142,
+      "stddev": 14525.58322409121,
+      "p95": 175088,
+      "p99": 175088,
+      "values": [
+        139652,
+        160142,
+        175088
+      ]
+    },
+    "hotFunctions": [
+      {
+        "function": "(program)",
+        "location": "(native)",
+        "stats": {
+          "count": 3,
+          "min": 1300.7,
+          "max": 1945.08,
+          "mean": 1611.9833333333333,
+          "median": 1590.17,
+          "stddev": 263.51883200678884,
+          "p95": 1945.08,
+          "p99": 1945.08,
+          "values": [
+            1300.7,
+            1590.17,
+            1945.08
+          ]
+        }
+      },
+      {
+        "function": "R",
+        "location": "http://localhost:5178/assets/calendar-BhCkSv4h.js:0:21697",
+        "stats": {
+          "count": 1,
+          "min": 1204.88,
+          "max": 1204.88,
+          "mean": 1204.88,
+          "median": 1204.88,
+          "stddev": 0,
+          "p95": 1204.88,
+          "p99": 1204.88,
+          "values": [
+            1204.88
+          ]
+        }
+      },
+      {
+        "function": "D",
+        "location": "http://localhost:5178/assets/GanttContainer-8jO2gJw9.js:0:1573",
+        "stats": {
+          "count": 2,
+          "min": 600.86,
+          "max": 926.63,
+          "mean": 763.745,
+          "median": 763.745,
+          "stddev": 162.885,
+          "p95": 926.63,
+          "p99": 926.63,
+          "values": [
+            600.86,
+            926.63
+          ]
+        }
+      },
+      {
+        "function": "get scrollWidth",
+        "location": "(native)",
+        "stats": {
+          "count": 3,
+          "min": 177.43,
+          "max": 378.38,
+          "mean": 303.31333333333333,
+          "median": 354.13,
+          "stddev": 89.56180671593344,
+          "p95": 378.38,
+          "p99": 378.38,
+          "values": [
+            177.43,
+            354.13,
+            378.38
+          ]
+        }
+      },
+      {
+        "function": "get scrollLeft",
+        "location": "(native)",
+        "stats": {
+          "count": 3,
+          "min": 83.12,
+          "max": 376.92,
+          "mean": 260.28000000000003,
+          "median": 320.8,
+          "stddev": 127.34889817609992,
+          "p95": 376.92,
+          "p99": 376.92,
+          "values": [
+            83.12,
+            320.8,
+            376.92
+          ]
+        }
+      },
+      {
+        "function": "setProperty",
+        "location": "(native)",
+        "stats": {
+          "count": 3,
+          "min": 54.61,
+          "max": 75.72,
+          "mean": 62.300000000000004,
+          "median": 56.57,
+          "stddev": 9.523049231557435,
+          "p95": 75.72,
+          "p99": 75.72,
+          "values": [
+            54.61,
+            56.57,
+            75.72
+          ]
+        }
+      },
+      {
+        "function": "(garbage collector)",
+        "location": "(native)",
+        "stats": {
+          "count": 3,
+          "min": 27.02,
+          "max": 111.42,
+          "mean": 59.78333333333333,
+          "median": 40.91,
+          "stddev": 36.950345359985775,
+          "p95": 111.42,
+          "p99": 111.42,
+          "values": [
+            27.02,
+            40.91,
+            111.42
+          ]
+        }
+      },
+      {
+        "function": "(anonymous)",
+        "location": "http://localhost:5178/assets/perf-D0M2yMyX.js:1:25468",
+        "stats": {
+          "count": 1,
+          "min": 45.49,
+          "max": 45.49,
+          "mean": 45.49,
+          "median": 45.49,
+          "stddev": 0,
+          "p95": 45.49,
+          "p99": 45.49,
+          "values": [
+            45.49
+          ]
+        }
+      },
+      {
+        "function": "Mt.z.e",
+        "location": "http://localhost:5178/assets/perf-D0M2yMyX.js:1:14093",
+        "stats": {
+          "count": 3,
+          "min": 35.37,
+          "max": 51.97,
+          "mean": 43.97,
+          "median": 44.57,
+          "stddev": 6.790189000805992,
+          "p95": 51.97,
+          "p99": 51.97,
+          "values": [
+            35.37,
+            44.57,
+            51.97
+          ]
+        }
+      },
+      {
+        "function": "zt",
+        "location": "http://localhost:5178/assets/calendar-BhCkSv4h.js:0:16382",
+        "stats": {
+          "count": 3,
+          "min": 27.2,
+          "max": 38,
+          "mean": 33.949999999999996,
+          "median": 36.65,
+          "stddev": 4.80468521341409,
+          "p95": 38,
+          "p99": 38,
+          "values": [
+            27.2,
+            36.65,
+            38
+          ]
+        }
+      }
+    ]
+  },
+  "runs": [
+    {
+      "scriptDuration": 1593.88,
+      "layoutDuration": 200.63,
+      "recalcStyleDuration": 407.6,
+      "taskDuration": 3481.59,
+      "jsHeapUsedMB": 609.99,
+      "domNodes": 139652,
+      "fps": 80.1,
+      "jankyFrames": 0,
+      "frameCount": 257,
+      "paintTime": 524.84,
+      "layoutTime": 660.77,
+      "longTaskCount": 14,
+      "longTaskTime": 2002.26,
+      "gcCount": 1,
+      "gcTime": 15.53
+    },
+    {
+      "scriptDuration": 1728.57,
+      "layoutDuration": 152.5,
+      "recalcStyleDuration": 269.49,
+      "taskDuration": 3709.34,
+      "jsHeapUsedMB": 816.11,
+      "domNodes": 160142,
+      "fps": 77,
+      "jankyFrames": 0,
+      "frameCount": 254,
+      "paintTime": 554.57,
+      "layoutTime": 528.54,
+      "longTaskCount": 15,
+      "longTaskTime": 1664.04,
+      "gcCount": 2,
+      "gcTime": 32.55
+    },
+    {
+      "scriptDuration": 2033.7,
+      "layoutDuration": 140.72,
+      "recalcStyleDuration": 275.63,
+      "taskDuration": 4534.04,
+      "jsHeapUsedMB": 410.45,
+      "domNodes": 175088,
+      "fps": 71.7,
+      "jankyFrames": 0,
+      "frameCount": 230,
+      "paintTime": 403.27,
+      "layoutTime": 410.95,
+      "longTaskCount": 7,
+      "longTaskTime": 1463.84,
+      "gcCount": 1,
+      "gcTime": 97.74
+    }
+  ]
+}
