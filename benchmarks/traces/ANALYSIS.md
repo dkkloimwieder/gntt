@@ -391,9 +391,9 @@ Every memo in `src/` that has a live consumer and still spends time with
 zero tracked subscribers is read from an ownerless scope while
 unsubscribed — the shape lazy makes *worse* (next paragraph). None has the
 shape lazy is for — periods with no subscriber **and** no ownerless read
-(test case 8) — except `createVirtualViewport.ts:121` `yRange`, which has
-it only because nothing reads it at all; the fix there is deletion, not an
-option flag (follow-up `gantt-avv.9`).
+(test case 8). The one memo that had that shape at measurement time,
+`createVirtualViewport.ts:121` `yRange`, had it only because nothing read
+it at all; `gantt-avv.9` deleted it rather than flag it.
 
 **What "lazy everywhere" would cost.** Flipping every `createMemo` outside
 `src/demo/` — 165 sites, 75 in the library proper and 90 in the
@@ -409,9 +409,9 @@ in-repo: `resourceStore.ts:76` `resourceIndexMap` is read once per setup
 from the setup effect's *apply* (`ganttSetup.ts:127`), where lazy trades
 one recompute per setup for eager's recompute per group toggle, and `:133`
 `getGroups` is read only by the public `collapseAll`, which nothing in-repo
-calls — lazy, it never computes. The one pure win is
-`createVirtualViewport.ts:121` `yRange`, which has no reader at all and
-should simply be deleted.
+calls — lazy, it never computes. The one pure win was
+`createVirtualViewport.ts:121` `yRange`, which had no reader at all; it is
+counted in the 165 sites above and was deleted afterwards (`gantt-avv.9`).
 
 **Paired A/B, browser, 10K dense** (`benchmarks/scripts/ab-blocks.sh`, 3
 rounds × 3 iterations × 3 s per side per scenario, order flipped per round,

@@ -24,7 +24,6 @@ interface VirtualViewportResult {
     colRange: Accessor<Range>;
     rowRange: Accessor<Range>;
     xRange: Accessor<Range>;
-    yRange: Accessor<Range>;
 }
 
 const rangeEquals = (a: Range | undefined, b: Range | undefined): boolean =>
@@ -118,22 +117,7 @@ export function createVirtualViewport(
         { equals: rangeEquals },
     );
 
-    const yRange = createMemo<Range>(
-        () => {
-            const sy = scrollY();
-            const vh = viewportHeight();
-            const rh = rowHeight?.() || 48;
-            const overscanY = overscanRows * rh;
-
-            return {
-                start: Math.max(0, sy - overscanY),
-                end: sy + vh + overscanY,
-            };
-        },
-        { equals: rangeEquals },
-    );
-
-    return { colRange, rowRange, xRange, yRange };
+    return { colRange, rowRange, xRange };
 }
 
 export type { Range, VirtualViewportConfig, VirtualViewportResult };
