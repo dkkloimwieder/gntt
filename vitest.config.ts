@@ -9,6 +9,8 @@ export default defineConfig({
     plugins: [solid()],
     test: {
         globals: false,
+        // Limit concurrent jsdom suites so chart mounts meet the default timeout on Node 22.
+        maxWorkers: 2,
         projects: [
             {
                 extends: true,
