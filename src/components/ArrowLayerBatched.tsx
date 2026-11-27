@@ -185,14 +185,12 @@ export function ArrowLayerBatched(props: ArrowLayerBatchedProps): JSX.Element {
 
     // Style geometry and endpoint positions jointly determine the cached
     // paths. Keep the generation stable when only the viewport changes.
-    const arrowGeometry = createMemo(
-        (): ArrowGeometry => ({
-            source: spatialIndex(),
-            pathCache: new Map<number, ArrowPaths>(),
-            curve: curve(),
-            headSize: headSize(),
-        }),
-    );
+    const arrowGeometry = createMemo((): ArrowGeometry => ({
+        source: spatialIndex(),
+        pathCache: new Map<number, ArrowPaths>(),
+        curve: curve(),
+        headSize: headSize(),
+    }));
 
     /**
      * Build batched paths for visible arrows using spatial index.

@@ -1196,7 +1196,7 @@ pnpm build:demo  # Demo pages -> dist-demo/
 
 ```bash
 pnpm typecheck       # tsc --noEmit
-pnpm lint            # ESLint
+pnpm lint            # Oxlint
 pnpm prettier        # Format code
 pnpm prettier-check  # Check formatting only
 pnpm test            # Vitest (client = jsdom, server = node)

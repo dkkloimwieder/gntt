@@ -1,6 +1,10 @@
-# Single source of truth for pnpm 10 build-script approval.
-# Keep this list here only — a `pnpm.onlyBuiltDependencies` block in
-# package.json silently overrides this file rather than merging with it.
-onlyBuiltDependencies:
-  - better-sqlite3
-  - esbuild
+allowBuilds:
+  esbuild: true
+
+minimumReleaseAgeExclude:
+  - hono@4.13.23
+
+# Kit 0.31.11 loads TypeScript through tsx. Its unused legacy loader pulls in esbuild 0.18.
+overrides:
+  'drizzle-kit@0.31.11>@esbuild-kit/esm-loader': '-'
+  'drizzle-kit@0.31.11>esbuild': 0.28.2

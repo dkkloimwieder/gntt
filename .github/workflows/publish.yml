@@ -7,11 +7,10 @@ jobs:
     publish:
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
-            # No `version:` pin — pnpm/action-setup@v4 reads `packageManager`
-            # from package.json (pnpm@10.23.0), so CI and local agree.
-            - uses: pnpm/action-setup@v4
-            - uses: actions/setup-node@v4
+            - uses: actions/checkout@v7.0.1
+            # Read the pnpm version from package.json so CI and local agree.
+            - uses: pnpm/action-setup@v6.1.1
+            - uses: actions/setup-node@v7.1.0
               with:
                   node-version: '22'
                   cache: 'pnpm'
@@ -21,6 +20,6 @@ jobs:
             - run: pnpm prettier-check
             - run: pnpm test
             - run: pnpm build
-            - uses: JS-DevTools/npm-publish@v1
+            - uses: JS-DevTools/npm-publish@v4.1.5
               with:
                   token: ${{ secrets.NPM_TOKEN }}

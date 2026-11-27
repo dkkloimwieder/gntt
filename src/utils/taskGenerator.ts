@@ -650,8 +650,7 @@ function generateRealisticCalendar(
             // Determine dependency type based on probability
             // Always use array format for type stability
             let dependencies:
-                | { id: string; type: DependencyType }[]
-                | undefined = undefined;
+                { id: string; type: DependencyType }[] | undefined = undefined;
             const roll = random();
 
             if (roll < 0.75 && prevTaskId) {

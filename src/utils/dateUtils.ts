@@ -1,11 +1,5 @@
 type TimeScale =
-    | 'year'
-    | 'month'
-    | 'day'
-    | 'hour'
-    | 'minute'
-    | 'second'
-    | 'millisecond';
+    'year' | 'month' | 'day' | 'hour' | 'minute' | 'second' | 'millisecond';
 
 interface DurationResult {
     duration: number;

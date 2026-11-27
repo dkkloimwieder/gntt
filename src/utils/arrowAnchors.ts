@@ -6,12 +6,7 @@ export interface Point {
 }
 
 export type AnchorType =
-    | 'auto'
-    | 'top'
-    | 'bottom'
-    | 'left'
-    | 'right'
-    | 'center';
+    'auto' | 'top' | 'bottom' | 'left' | 'right' | 'center';
 
 // Threshold (px) for "same-row" detection in auto-anchor selection.
 const ALIGNMENT_THRESHOLD = 8;

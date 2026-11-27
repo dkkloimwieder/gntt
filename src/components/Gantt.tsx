@@ -227,8 +227,7 @@ export function Gantt(props: GanttProps): JSX.Element {
     ): Parameters<typeof buildExportSvg>[0] => {
         const range = opts?.range ?? 'all';
         let visibleRect:
-            | { x: number; y: number; width: number; height: number }
-            | undefined;
+            { x: number; y: number; width: number; height: number } | undefined;
         if (range === 'visible') {
             visibleRect = {
                 x: container.getScrollLeft(),

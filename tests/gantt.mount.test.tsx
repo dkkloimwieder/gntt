@@ -410,7 +410,9 @@ describe('<Gantt> first paint (chain A, chain I)', () => {
             expect(wrapper.style.transform).toBe(
                 `translate(${want.x}px, ${want.y}px)`,
             );
-            expect(wrapper.style.width).toBe(`${want.width}px`);
+            expect(wrapper.style.width).toMatch(/px$/);
+            const width = Number.parseFloat(wrapper.style.width);
+            expect(width).toBeCloseTo(want.width, 8);
 
             // …and it is THIS task's geometry, not a neighbour's. Bar.tsx
             // reads `_bar.x`/`_bar.width` straight off the task object, so a
@@ -419,7 +421,7 @@ describe('<Gantt> first paint (chain A, chain I)', () => {
             expect(wrapper.style.transform).toBe(
                 `translate(${task._bar.x}px, ${task._bar.y}px)`,
             );
-            expect(wrapper.style.width).toBe(`${task._bar.width}px`);
+            expect(width).toBeCloseTo(task._bar.width, 8);
         }
     });
 });

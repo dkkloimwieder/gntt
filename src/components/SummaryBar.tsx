@@ -136,8 +136,7 @@ export function SummaryBar(props: SummaryBarProps): JSX.Element {
             let deltaX = newX - originalX;
 
             const batchOriginals = data['batchOriginals'] as
-                | Map<string, BatchOriginal>
-                | undefined;
+                Map<string, BatchOriginal> | undefined;
             if (
                 batchOriginals &&
                 batchOriginals.size > 0 &&
@@ -159,8 +158,7 @@ export function SummaryBar(props: SummaryBarProps): JSX.Element {
                 props.onDragEnd?.(
                     taskId(),
                     data['lastGeom'] as
-                        | { x: number; width: number }
-                        | undefined,
+                        { x: number; width: number } | undefined,
                 );
             }
         },

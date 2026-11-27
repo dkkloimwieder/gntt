@@ -31,8 +31,7 @@ export function ExpandedTaskContainer(
     // Get task from store
     const task = (): ProcessedTask | undefined => {
         return props.taskStore?.tasks[props.taskId] as
-            | ProcessedTask
-            | undefined;
+            ProcessedTask | undefined;
     };
 
     // Get subtasks

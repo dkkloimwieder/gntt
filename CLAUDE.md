@@ -67,7 +67,7 @@ This affects all benchmark URLs. Always omit the `.html` extension when using `s
 
 ### Code Quality
 - `pnpm typecheck` - `tsc --noEmit` over `src/`, `tests/`, `benchmarks/constraint/`
-- `pnpm lint` - ESLint over the same set plus `server/` and the Vite configs
+- `pnpm lint` - Oxlint over source, tests, server, constraint benchmarks, and Vite/Vitest configs
 - `pnpm prettier` - Format code
 - `pnpm prettier-check` - Check formatting without modifying
 
@@ -355,7 +355,7 @@ Full schema + REST surface + algorithm details are in
 - ESM only, `import`/`export`; no CommonJS and no UMD output
 - TypeScript throughout `src/`, `tests/`, `server/`, `benchmarks/constraint/`
 - 4-space indentation, single quotes
-- ESLint + Prettier configured (`pnpm lint`, `pnpm prettier-check`)
+- Oxlint + Prettier configured (`pnpm lint`, `pnpm prettier-check`)
 - TSX for SolidJS components, compiled with `jsxImportSource: '@solidjs/web'`
 - TypeScript targets ES2022 and includes `Array.prototype.at`.
 

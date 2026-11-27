@@ -83,7 +83,7 @@ interface GanttConfigState {
 export type ConfigSetter<T> = (
     // Mirrors solid's own `Setter<T>`, which excludes the bare `Function`
     // type so that any function argument is unambiguously an updater.
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
+    // oxlint-disable-next-line typescript/no-unsafe-function-type
     value: Exclude<T, Function> | ((prev: T) => T),
 ) => void;
 

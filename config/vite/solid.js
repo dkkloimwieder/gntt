@@ -2,7 +2,7 @@ import { resolve } from 'path';
 import { defineConfig } from 'vite';
 import solid from '@solidjs/vite-plugin';
 
-const root = resolve(__dirname, '../..');
+const root = resolve(import.meta.dirname, '../..');
 
 export default defineConfig({
     root,
@@ -17,7 +17,7 @@ export default defineConfig({
             formats: ['es'],
             fileName: (format) => `ganttss.${format}.js`,
         },
-        rollupOptions: {
+        rolldownOptions: {
             external: ['solid-js', '@solidjs/web'],
             output: {
                 assetFileNames: 'ganttss[extname]',

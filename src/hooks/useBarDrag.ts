@@ -140,8 +140,7 @@ export function useBarDrag(deps: UseBarDragDeps) {
                 let deltaX = newX - originalX;
 
                 const dependentOriginals = data['dependentOriginals'] as
-                    | Map<string, BatchOriginal>
-                    | undefined;
+                    Map<string, BatchOriginal> | undefined;
 
                 if (
                     dependentOriginals &&
@@ -304,8 +303,7 @@ export function useBarDrag(deps: UseBarDragDeps) {
                 }
             } else if (state === 'dragging_progress') {
                 const finalProgress = data['finalProgress'] as
-                    | number
-                    | undefined;
+                    number | undefined;
                 deps.handlers.onProgressChange?.(
                     t.id,
                     finalProgress ?? t.progress,

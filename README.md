@@ -249,6 +249,10 @@ code accordingly. There is no compatibility shim.
 
 ## Development
 
+The test suite uses jsdom. Use Node 22.22.2 or later on the 22.x line,
+24.15.0 or later on the 24.x line, or Node 26 or later.
+Use the pnpm version in `package.json`.
+
 ```bash
 pnpm i
 pnpm dev
