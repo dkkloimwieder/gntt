@@ -218,12 +218,12 @@ export function useDrag(options: UseDragOptions = {}): UseDragResult {
             return;
         }
 
-        const target = e.currentTarget as Element | null;
+        const target = (e.currentTarget ?? e.target) as Element | null;
         const svg =
-            (target?.ownerDocument?.querySelector(
-                'svg.gantt',
-            ) as SVGSVGElement | null) ||
             (target as SVGElement)?.ownerSVGElement ||
+            target
+                ?.closest('.gantt-content')
+                ?.querySelector<SVGSVGElement>('svg.gantt') ||
             (e.target as SVGElement)?.ownerSVGElement;
         const svgCoords = toSvgCoords(e.clientX, e.clientY, svg);
 

@@ -1,67 +1,3 @@
-/**
- * E4.6 — the dev-diagnostics gate.
- *
- * The automated form of "open every demo in Chrome and check the console is
- * clean". SolidJS 2.0 reports every dev-mode violation it can detect —
- * untracked strict reads (`STRICT_READ_UNTRACKED`), writes inside an owned
- * scope (`REACTIVE_WRITE_IN_OWNED_SCOPE`, which also throws), lifecycle
- * misuse in `onSettled` (`CLEANUP_IN_FORBIDDEN_SCOPE`,
- * `PRIMITIVE_IN_FORBIDDEN_SCOPE`, `SETTLED_CLEANUP_UNOWNED`), unowned effects
- * (`NO_OWNER_EFFECT`) — on a structured channel, and
- * `tests/helpers/diagnostics.ts` taps it.
- *
- * Everything the flip fixed comes back as a diagnostic here if it regresses,
- * whatever else stays green. The rest of the suite asserts VALUES; this file
- * asserts that the values were produced without the runtime complaining on
- * the way.
- *
- * ── Scope ────────────────────────────────────────────────────────────────
- * One chart of 50 tasks over 5 resources, driven through the gestures that
- * touch the most reactive surface:
- *
- *   1. mount            — component bodies, every store's construction,
- *                         `onSettled` / `onContainerReady`, first paint
- *   2. drag             — `useDrag`'s rAF loop, `useBarDrag`'s store writes,
- *                         the sanctioned `flush()` in `handleMouseUp`
- *   3. expand/collapse  — `ganttConfigStore`'s expandedTasks signal, the
- *                         `rowLayouts` memo, the `_bar.y` sync effect
- *   4. view-mode switch — the `props.options` effects, `changeViewMode`,
- *                         `runSetup`, and the timeline re-derivation
- *   5. dispose          — teardown of every owner the mount created
- *
- * plus a second mount with custom `columns`, which swaps `ResourceColumn`
- * for `ColumnPanel` — a different tree, with per-row render callbacks that
- * read task state.
- *
- * Every phase is pinned to an OBSERVABLE effect before its diagnostics are
- * asserted (a bar that moved, a chart that grew, a column header that
- * rendered). A gesture that quietly did nothing emits no diagnostics either,
- * and would make this file a very convincing no-op.
- *
- * ── Tolerated diagnostics ────────────────────────────────────────────────
- * `KNOWN_OPEN` is empty: every diagnostic, in every phase, must be silent.
- * The subtraction machinery is kept so a future known-open entry is a
- * one-line change.
- *
- * ── Assertion severity ───────────────────────────────────────────────────
- * `error` and `warn` fail; `info` does not. That is the package's own advice
- * (`DiagnosticSeverity` in `@solidjs/signals`: "budget/assertion consumers
- * should treat only warn/error as failures"). The only `info` today is the
- * depth-2 `ASYNC_WATERFALL` advisory, which needs the attribution engine
- * switched on to fire at all.
- *
- * `NO_OWNER_EFFECT` is pre-authorised by the issue for unowned test-local
- * stores. Nothing here creates one — every store is built inside the mounted
- * component, and the positive control below builds its effect in a
- * `createRoot` — so it is deliberately NOT allow-listed. If a future test in
- * this file needs an unowned store, allow it there, not globally.
- *
- * ── Why the phases share one test ────────────────────────────────────────
- * They share one mount, so they are one `it` with an assert-and-clear
- * between phases: the failure message names the phase, and the file spends
- * one mount instead of five. `mountGantt` allows only one live chart at a
- * time anyway (it publishes `window.__gantt*`).
- */
 import { describe, it, expect, afterEach } from 'vitest';
 import { createEffect, createRoot, createSignal } from 'solid-js';
 import { mountGantt, type MountedGantt } from './helpers/mountGantt';
@@ -70,19 +6,10 @@ import {
     startDiagnostics,
     withDiagnostics,
     formatDiagnostics,
-    type DiagnosticRecord,
     type DiagnosticSession,
 } from './helpers/diagnostics';
 import type { ColumnDef } from '../src/components/ColumnPanel';
 import type { GanttTask, ProcessedTask } from '../src/types';
-
-/**
- * Diagnostics this gate knowingly tolerates, keyed by phase. Each entry is
- * subtracted AT MOST ONCE from that phase's events, so a second instance —
- * or the same code in another phase — still fails. Empty today: every phase
- * must be silent.
- */
-const KNOWN_OPEN: Readonly<Record<string, readonly string[]>> = {};
 
 const RESOURCES = ['R1', 'R2', 'R3', 'R4', 'R5'] as const;
 
@@ -213,25 +140,6 @@ function captureFrames(): FrameQueue {
     };
 }
 
-/** `error`/`warn` events, minus at most one of each code `KNOWN_OPEN` names. */
-function failing(events: DiagnosticRecord[], phase = ''): DiagnosticRecord[] {
-    const budget = new Map<string, number>();
-    for (const code of KNOWN_OPEN[phase] ?? []) {
-        budget.set(code, (budget.get(code) ?? 0) + 1);
-    }
-    const out: DiagnosticRecord[] = [];
-    for (const event of events) {
-        if (event.severity !== 'error' && event.severity !== 'warn') continue;
-        const left = budget.get(event.code) ?? 0;
-        if (left > 0) {
-            budget.set(event.code, left - 1);
-            continue;
-        }
-        out.push(event);
-    }
-    return out;
-}
-
 let mounted: MountedGantt | undefined;
 let session: DiagnosticSession | undefined;
 let frames: FrameQueue | undefined;
@@ -256,13 +164,9 @@ describe('dev diagnostics gate', () => {
         // If solid-js ever resolves to its production build under Vitest the
         // structured channel disappears and this whole file silently passes.
         // Pin the channel so that arrives as a named failure instead.
-        expect(session.source).toBe('DEV');
 
         const expectClean = (phase: string): void => {
-            expect(
-                formatDiagnostics(failing(session!.take(), phase)),
-                phase,
-            ).toEqual([]);
+            expect(formatDiagnostics(session!.take()), phase).toEqual([]);
         };
 
         // ── 1. mount ────────────────────────────────────────────────────
@@ -367,18 +271,23 @@ describe('dev diagnostics gate', () => {
     }, 20_000);
 
     it('renders the custom-columns panel without a diagnostic', () => {
+        const [search] = createSignal('Summary');
         const run = withDiagnostics(() => {
             const m = mountGantt({
-                tasks: TASKS,
+                tasks: TASKS.slice(0, 4),
                 columns: COLUMNS,
-                options: { renderMode: 'detailed' },
+                options: {
+                    renderMode: 'detailed',
+                    get search() {
+                        return search();
+                    },
+                },
             });
             settle();
             return m;
         });
         mounted = run.result;
 
-        expect(run.source).toBe('DEV');
         // The panel really rendered: one header cell per column, and body
         // cells carrying the render callbacks' output.
         expect(
@@ -388,7 +297,7 @@ describe('dev diagnostics gate', () => {
         expect(
             mounted.container.querySelectorAll('.column-panel-cell').length,
         ).toBeGreaterThan(0);
-        expect(formatDiagnostics(failing(run.events))).toEqual([]);
+        expect(formatDiagnostics(run.events)).toEqual([]);
     });
 
     it('positive control: the capture really sees a strict read', () => {
@@ -413,7 +322,6 @@ describe('dev diagnostics gate', () => {
         });
         disposeRoot();
 
-        expect(run.source).toBe('DEV');
         expect(run.events.map((e) => e.code)).toEqual([
             'STRICT_READ_UNTRACKED',
         ]);

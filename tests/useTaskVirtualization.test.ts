@@ -2,27 +2,9 @@
  * Behaviour tests for `useTaskVirtualization`. They drive the REAL hook
  * inside a `createRoot`, wired to the real task/config/resource stores.
  *
- * These began (E1.5) as characterization tests for two independent
- * invalidation defects, both closed by E2.8:
- *
- *   1. `tasksByResource` wrapped EVERY store read in `untrack` — the key
- *      scan and the whole grouping loop — so `visibleTaskIds` subscribed to
- *      nothing in `taskStore` at all, only to `displayResources()` and the
- *      four viewport props. A `taskStore` write on its own moved nothing.
- *   2. Even when something else forced a re-run, the grouping was cached on
- *      task COUNT, so a same-count key swap served a stale Map — one still
- *      holding the store proxy captured for a since-deleted task.
- *
- * The fix makes the grouping a tracked memo: `Object.keys(tasks)` is read in
- * the memo's tracked scope, which subscribes it to the store's key-set node
- * (bumped only on a key add/remove), while the per-task leaf reads stay
- * inside `untrack` in `groupTasksByResource`. Both halves of the invalidation
- * block below therefore assert the CORRECTED values, and the three
- * "TODAY on 1.9" tests that pinned the stale ones are gone.
- *
- * `TaskLayerMinimal` no longer carries a private copy of the grouping — it
- * calls the same `groupTasksByResource` helper — so the cases here cover
- * both call sites' shared behaviour.
+ * The task store's content revision refreshes grouping and visibility after
+ * edits that keep IDs stable. Both rendering paths use the same grouping
+ * helper.
  */
 import { describe, it, expect, afterEach } from 'vitest';
 import { createRoot, createSignal, merge } from 'solid-js';
@@ -91,14 +73,6 @@ afterEach(() => {
 /**
  * Build the stores and the hook under one owner.
  *
- * Two ordering facts are baked in on purpose:
- *  - the tasks are written BEFORE the hook is created, because
- *    `visibleTaskIds` takes no dependency on `taskStore` and would
- *    otherwise compute an empty list forever (that is the third skip);
- *  - the writes sit inside the `createRoot` body, which migration rule 10
- *    permits for store writes. Every signal write (`updateResources`,
- *    the reactive `endRow` below) stays in the test body.
- *
  * `merge` — not a spread — merges `extra`, so a caller can hand in a
  * getter-backed reactive prop the way JSX does.
  */
@@ -108,12 +82,11 @@ function createHarness(
     extra: Partial<TaskVirtualizationProps> = {},
     configOptions: Parameters<typeof createGanttConfigStore>[0] = {},
 ): Harness {
-    return createRoot((dispose) => {
+    const harness = createRoot((dispose) => {
         disposers.push(dispose);
         const taskStore = createTaskStore();
         const resourceStore = createResourceStore(resources);
         const ganttConfig = createGanttConfigStore(configOptions);
-        taskStore.updateTasks(tasks);
         const props = merge(
             { taskStore, ganttConfig, resourceStore, startRow: 0, endRow: 10 },
             extra,
@@ -125,6 +98,9 @@ function createHarness(
             virt: useTaskVirtualization(props),
         };
     });
+    harness.taskStore.updateTasks(tasks);
+    settle();
+    return harness;
 }
 
 // `pooledRegularTasks` is a SPARSE pool (`new Array(max + POOL_BUFFER)`),
@@ -143,7 +119,7 @@ function pooledSummaries(virt: TaskVirtualization): string[] {
 }
 
 describe('useTaskVirtualization — pool contents', () => {
-    it('pools the tasks present when the hook is created', () => {
+    it('pools the tasks written during setup', () => {
         const { virt } = createHarness(['R1'], [makeTask('a'), makeTask('b')]);
 
         expect(pooledIds(virt)).toEqual(['a', 'b']);
@@ -296,6 +272,42 @@ describe('useTaskVirtualization — grouping and bucketing', () => {
 });
 
 describe('useTaskVirtualization — grouping cache invalidation', () => {
+    it('moves same-ID tasks between rows and removes newly hidden tasks', () => {
+        const { virt, taskStore } = createHarness(
+            ['R1', 'R2'],
+            [makeTask('a'), makeTask('b', { resource: 'R2' })],
+            { startRow: 1, endRow: 2 },
+        );
+        expect(pooledIds(virt)).toEqual(['b']);
+
+        taskStore.updateTasks([
+            makeTask('a', { resource: 'R2' }),
+            makeTask('b', { resource: 'R2', _isHidden: true }),
+        ]);
+        settle();
+
+        expect(pooledIds(virt)).toEqual(['a']);
+    });
+
+    it('refreshes horizontal visibility and bar types after content edits', () => {
+        const { virt, taskStore } = createHarness(
+            ['R1'],
+            [makeTask('a'), makeTask('b')],
+            { startX: 0, endX: 200 },
+        );
+        expect(pooledIds(virt)).toEqual(['a', 'b']);
+
+        taskStore.updateTask('a', makeTask('a', { type: 'summary' }));
+        taskStore.updateTask(
+            'b',
+            makeTask('b', { _bar: { x: 1000, y: 0, width: 100, height: 30 } }),
+        );
+        settle();
+
+        expect(pooledIds(virt)).toEqual([]);
+        expect(pooledSummaries(virt)).toEqual(['a']);
+    });
+
     it('picks up a new task once resourceStore.updateResources() invalidates displayResources', () => {
         const { virt, taskStore, resourceStore } = createHarness(
             ['R1'],
@@ -328,8 +340,7 @@ describe('useTaskVirtualization — grouping cache invalidation', () => {
         expect(taskStore.getTask('a')).toBeUndefined();
 
         // And so is the hook, with no resourceStore write to pull it along:
-        // the grouping memo's tracked `Object.keys` rides the store's key-set
-        // node, which the delete+add bumped.
+        // the store's content revision invalidates the grouping.
         expect(pooledIds(virt)).toEqual(['b', 'c']);
         expect(virt.splitTaskIds().regularIds).toEqual(['b', 'c']);
     });

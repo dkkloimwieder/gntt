@@ -6,10 +6,7 @@
  * accessors below track the container's own signals and read 0 until a
  * container exists.
  *
- * The hook owns every primitive it needs. Nothing is created inside
- * `onContainerReady` — that callback fires from `GanttContainer`'s
- * `onSettled`, whose body is children-forbidden: creating an effect or a
- * memo there throws.
+ * The hook owns the derived accessors for the lifetime of the Gantt.
  */
 import { createMemo, type Accessor } from 'solid-js';
 
@@ -20,9 +17,7 @@ export interface ContainerAPILike {
     getContainerWidth: () => number;
     getContainerHeight: () => number;
     /**
-     * Viewport size measured once when the container mounted, carried as
-     * plain data so a consumer running inside the container's own mount
-     * scope can use it without reading a signal that scope just wrote.
+     * Viewport size measured once when the container mounted.
      */
     containerWidth: number;
     containerHeight: number;

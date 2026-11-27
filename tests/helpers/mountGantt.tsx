@@ -78,9 +78,8 @@
  *     again, so a viewport CHANGE cannot be driven through this helper —
  *     size the mount up front via `options`, and re-mount to test another
  *     size.
- *  2. One mount at a time. `useDrag.ts` resolves the drag svg with a
- *     document-wide `querySelector('svg.gantt')`, and `<Gantt>` publishes its
- *     stores on `window.__gantt*` — a second live chart would steal both.
+ *  2. One mount at a time. `<Gantt>` publishes its stores on
+ *     `window.__gantt*`, and this helper installs shared DOM stubs.
  *     `mountGantt` therefore THROWS if a previous mount has not been
  *     disposed. Dispose (or `afterEach`) between mounts.
  *  3. No real layout: `getBoundingClientRect`, `offsetWidth`, `scrollWidth`

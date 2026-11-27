@@ -4,10 +4,11 @@
     "description": "",
     "main": "dist/ganttss.es.js",
     "module": "dist/ganttss.es.js",
+    "types": "./dist/types/index.d.ts",
     "type": "module",
     "scripts": {
         "dev": "vite --config config/vite/solid.js",
-        "build": "vite build --config config/vite/solid.js",
+        "build": "vite build --config config/vite/solid.js && tsc -p tsconfig.build.json",
         "build:demo": "vite build --config config/vite/demo.js",
         "preview:demo": "vite preview --config config/vite/demo.js --port 4173",
         "generate:calendar": "tsx src/scripts/generateCalendar.ts",
@@ -47,8 +48,8 @@
     ],
     "exports": {
         ".": {
-            "import": "./dist/ganttss.es.js",
-            "require": "./dist/ganttss.es.js"
+            "types": "./dist/types/index.d.ts",
+            "import": "./dist/ganttss.es.js"
         }
     },
     "keywords": [
@@ -67,8 +68,9 @@
     "homepage": "",
     "devDependencies": {
         "@hono/node-server": "^2.0.2",
-        "@solid-primitives/raf": "4.0.0-next.2",
-        "@solidjs/vite-plugin": "3.0.0-next.39",
+        "@solid-primitives/raf": "^4.0.0",
+        "@solidjs/vite-plugin": "^3.0.1",
+        "@solidjs/web": "^2.0.4",
         "@types/better-sqlite3": "^7.6.13",
         "@types/node": "^25.6.2",
         "@typescript-eslint/eslint-plugin": "^8.59.2",
@@ -85,6 +87,7 @@
         "jsdom": "^25.0.1",
         "postcss-nesting": "^14.0.0",
         "prettier": "3.8.3",
+        "solid-js": "^2.0.4",
         "tsx": "^4.21.0",
         "typescript": "^6.0.3",
         "vite": "^8.0.11",
@@ -92,10 +95,10 @@
     },
     "packageManager": "pnpm@10.23.0+sha512.21c4e5698002ade97e4efe8b8b4a89a8de3c85a37919f957e7a0f30f38fbc5bbdd05980ffe29179b2fb6e6e691242e098d945d1601772cad0fef5fb6411e2a4b",
     "engines": {
-        "node": "^20.19.0 || >=22.12.0"
+        "node": ">=22.12.0"
     },
-    "dependencies": {
-        "@solidjs/web": "2.0.0-rc.6",
-        "solid-js": "2.0.0-rc.6"
+    "peerDependencies": {
+        "@solidjs/web": "^2.0.4",
+        "solid-js": "^2.0.4"
     }
 }

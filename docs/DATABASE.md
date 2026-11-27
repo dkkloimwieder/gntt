@@ -128,27 +128,13 @@ across reseeds.
 (add / edit / delete tasks, manage resources, manage blocked slots,
 reload).
 
-Drag mutations are the interesting bit — the chart only fires
-`onDateChange` for the bar the user grabbed, but constraint-driven
-batch-moves can shift dependents too. Naïvely re-fetching after each
-drag introduces a visible snap-back due to precision rounding in the
-chart's date math, so the demo instead:
+A drag can also move dependent tasks. `DbDemo` reads the task and date stores from its chart provider.
 
-1. Snapshots every bar's `_bar.x` and `_bar.width` after each bundle load.
-2. On `onDateChange`, calls `flush()` first — Solid 2.0 stages the drag's
-   last `_bar` write, so measuring without it reads the second-to-last
-   frame and persists dates a few pixels short. A mouseup event handler is
-   a legal `flush()` site.
-3. Walks the chart's task store and computes per-task pixel deltas
-   (`Δx`, `Δwidth`) against the snapshot.
-4. Translates pixel deltas to ms via `unit × step / columnWidth` — exact
-   arithmetic, bypassing the chart's `xToDate` which floors fractional
-   days.
-5. PATCHes each task whose bar drifted, in parallel.
-6. Updates the snapshot from the geometry each patch was measured against
-   — never a fresh `_bar` read, which would re-base against a later
-   render; bumps a `dragVersion` signal so the edit panel re-derives from
-   `dbState` (no full re-fetch, no flash).
+1. After loading tasks, the demo records their dates and bar positions.
+2. For the edited task, `onDateChange` receives the final position and width from the gesture.
+3. For dependent tasks, the demo reads the positions that the drag handler committed on mouseup.
+4. The demo converts each change in position and width to a time difference. This preserves the time of day.
+5. It sends a PATCH for each changed task. After the requests succeed, it records the new dates and positions.
 
 Move vs. resize is disambiguated by both deltas:
 

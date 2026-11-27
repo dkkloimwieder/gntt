@@ -5,12 +5,11 @@ A Gantt chart library built with SolidJS 2.0.
 ## Install
 
 ```bash
-pnpm add ganttss solid-js@2.0.0-rc.6 @solidjs/web@2.0.0-rc.6
+pnpm add ganttss solid-js@^2.0.4 @solidjs/web@^2.0.4
 ```
 
-`solid-js` and `@solidjs/web` are left external in the published bundle, so
-the chart runs on **your** app's runtime instances. Both must be Solid 2.0 —
-this release does not run on Solid 1.x.
+The chart uses the application's copies of `solid-js` and `@solidjs/web`.
+Both are peer dependencies. Install the same Solid 2 release for each package.
 
 **TypeScript.** The components are compiled from TSX against Solid 2.0's JSX
 namespace, so your `tsconfig.json` needs:
@@ -38,9 +37,8 @@ export default defineConfig({
 });
 ```
 
-**Packaging.** The package is **ESM-only** (no UMD, no CommonJS build) and
-requires Node `^20.19 || >=22.12`. Neither Solid 2.0 runtime ships a global
-build, so a UMD bundle could never resolve its externals in a browser.
+The package exports an ES module and its TypeScript declarations.
+It requires Node 22.12 or later.
 
 ## Usage
 
@@ -215,10 +213,10 @@ remain exported for full manual wiring.
 This release runs on Solid 2.0 and will not run on Solid 1.x. What a
 consumer has to change:
 
-- Install `solid-js@2.0.0-rc.6` **and** `@solidjs/web@2.0.0-rc.6`; set
+- Install `solid-js@^2.0.4` **and** `@solidjs/web@^2.0.4`; set
   `jsxImportSource: '@solidjs/web'`; build with `@solidjs/vite-plugin`.
 - The package is ESM-only — the UMD output and its globals map are gone.
-- Node `^20.19 || >=22.12`.
+- Node `>=22.12.0`.
 - Config-store setters return `void` instead of the written value
   (`ConfigSetter<T>`), and store readers answer about committed state. See
   [Reactivity & timing](#reactivity--timing).

@@ -24,8 +24,7 @@
 // two writes" IS the behaviour under test — no settle() may be added there.
 // The call site repeats this warning.
 //
-// Store writes may stay inside a createRoot body; signal writes may not
-// (CLAUDE.md migration rule 10).
+// Mutate stores after leaving createRoot. The root owns the observers.
 import { describe, it, expect } from 'vitest';
 import { createRoot, createMemo, createEffect } from 'solid-js';
 import { createTaskStore } from '../src/stores/taskStore';
@@ -120,25 +119,26 @@ describe('createTaskStore — pure accessors', () => {
 describe('createTaskStore — draft-setter reactivity (gantt-6hx regression guard)', () => {
     it('updateBarPosition: memo subscriber re-computes when _bar.x changes', () => {
         let runs = 0;
-        createRoot((dispose) => {
-            const store = createTaskStore();
-            store.updateTask('t1', makeTask('t1'));
-            settle();
+        const store = createTaskStore();
+        store.updateTask('t1', makeTask('t1'));
+        settle();
+        const { x, dispose } = createRoot((dispose) => {
             const x = createMemo(() => {
                 runs++;
                 return store.tasks['t1']?._bar?.x;
             });
-            // Initial read primes the memo.
-            expect(x()).toBe(0);
-            expect(runs).toBe(1);
-            // Mutate through the draft setter — the path-level subscriber
-            // must invalidate.
-            store.updateBarPosition('t1', { x: 999 });
-            settle();
-            expect(x()).toBe(999);
-            expect(runs).toBe(2);
-            dispose();
+            return { x, dispose };
         });
+        // Initial read primes the memo.
+        expect(x()).toBe(0);
+        expect(runs).toBe(1);
+        // Mutate through the draft setter — the path-level subscriber
+        // must invalidate.
+        store.updateBarPosition('t1', { x: 999 });
+        settle();
+        expect(x()).toBe(999);
+        expect(runs).toBe(2);
+        dispose();
     });
 
     // Was RED on solid-js 1.9.12 (nameRuns went 1 -> 2): `updateBarPosition`
@@ -195,55 +195,58 @@ describe('createTaskStore — draft-setter reactivity (gantt-6hx regression guar
     });
 
     it('updateBarPosition: subscribers see _bar.width changes', () => {
-        createRoot((dispose) => {
-            const store = createTaskStore();
-            store.updateTask('t1', makeTask('t1'));
-            settle();
+        const store = createTaskStore();
+        store.updateTask('t1', makeTask('t1'));
+        settle();
+        const { w, dispose } = createRoot((dispose) => {
             const w = createMemo(() => store.tasks['t1']?._bar?.width);
-            expect(w()).toBe(100);
-            store.updateBarPosition('t1', { width: 250 });
-            settle();
-            expect(w()).toBe(250);
-            dispose();
+            return { w, dispose };
         });
+        expect(w()).toBe(100);
+        store.updateBarPosition('t1', { width: 250 });
+        settle();
+        expect(w()).toBe(250);
+        dispose();
     });
 
     it('updateBarPosition: subscribers see _bar.y changes', () => {
-        createRoot((dispose) => {
-            const store = createTaskStore();
-            store.updateTask('t1', makeTask('t1'));
-            settle();
+        const store = createTaskStore();
+        store.updateTask('t1', makeTask('t1'));
+        settle();
+        const { y, dispose } = createRoot((dispose) => {
             const y = createMemo(() => store.tasks['t1']?._bar?.y);
-            expect(y()).toBe(0);
-            store.updateBarPosition('t1', { y: 50 });
-            settle();
-            expect(y()).toBe(50);
-            dispose();
+            return { y, dispose };
         });
+        expect(y()).toBe(0);
+        store.updateBarPosition('t1', { y: 50 });
+        settle();
+        expect(y()).toBe(50);
+        dispose();
     });
 
     it('updateBarPosition: subscribers see _bar.height changes', () => {
-        createRoot((dispose) => {
-            const store = createTaskStore();
-            store.updateTask('t1', makeTask('t1'));
-            settle();
+        const store = createTaskStore();
+        store.updateTask('t1', makeTask('t1'));
+        settle();
+        const { h, dispose } = createRoot((dispose) => {
             const h = createMemo(() => store.tasks['t1']?._bar?.height);
-            expect(h()).toBe(30);
-            store.updateBarPosition('t1', { height: 60 });
-            settle();
-            expect(h()).toBe(60);
-            dispose();
+            return { h, dispose };
         });
+        expect(h()).toBe(30);
+        store.updateBarPosition('t1', { height: 60 });
+        settle();
+        expect(h()).toBe(60);
+        dispose();
     });
 
     it('updateBarPosition: only the touched task re-runs its memo', () => {
         let aRuns = 0;
         let bRuns = 0;
-        createRoot((dispose) => {
-            const store = createTaskStore();
-            store.updateTask('a', makeTask('a'));
-            store.updateTask('b', makeTask('b'));
-            settle();
+        const store = createTaskStore();
+        store.updateTask('a', makeTask('a'));
+        store.updateTask('b', makeTask('b'));
+        settle();
+        const { ax, bx, dispose } = createRoot((dispose) => {
             const ax = createMemo(() => {
                 aRuns++;
                 return store.tasks['a']?._bar?.x;
@@ -252,19 +255,20 @@ describe('createTaskStore — draft-setter reactivity (gantt-6hx regression guar
                 bRuns++;
                 return store.tasks['b']?._bar?.x;
             });
-            ax();
-            bx();
-            expect(aRuns).toBe(1);
-            expect(bRuns).toBe(1);
-            store.updateBarPosition('a', { x: 100 });
-            settle();
-            // Pull both — only a's memo should re-compute.
-            expect(ax()).toBe(100);
-            expect(bx()).toBe(0);
-            expect(aRuns).toBe(2);
-            expect(bRuns).toBe(1);
-            dispose();
+            return { ax, bx, dispose };
         });
+        ax();
+        bx();
+        expect(aRuns).toBe(1);
+        expect(bRuns).toBe(1);
+        store.updateBarPosition('a', { x: 100 });
+        settle();
+        // Pull both — only a's memo should re-compute.
+        expect(ax()).toBe(100);
+        expect(bx()).toBe(0);
+        expect(aRuns).toBe(2);
+        expect(bRuns).toBe(1);
+        dispose();
     });
 
     it('updateBarPosition: no-op when task does not exist', () => {
@@ -316,44 +320,45 @@ describe('createTaskStore — draft-setter reactivity (gantt-6hx regression guar
     });
 
     it('batchMovePositions: subscribers see each moved task update', () => {
-        createRoot((dispose) => {
-            const store = createTaskStore();
-            store.updateTask(
-                'a',
-                makeTask('a', {
-                    _bar: { x: 10, y: 0, width: 100, height: 30 },
-                }),
-            );
-            store.updateTask(
-                'b',
-                makeTask('b', {
-                    _bar: { x: 20, y: 0, width: 100, height: 30 },
-                }),
-            );
-            store.updateTask(
-                'c',
-                makeTask('c', {
-                    _bar: { x: 30, y: 0, width: 100, height: 30 },
-                }),
-            );
-            settle();
+        const store = createTaskStore();
+        store.updateTask(
+            'a',
+            makeTask('a', {
+                _bar: { x: 10, y: 0, width: 100, height: 30 },
+            }),
+        );
+        store.updateTask(
+            'b',
+            makeTask('b', {
+                _bar: { x: 20, y: 0, width: 100, height: 30 },
+            }),
+        );
+        store.updateTask(
+            'c',
+            makeTask('c', {
+                _bar: { x: 30, y: 0, width: 100, height: 30 },
+            }),
+        );
+        settle();
+        const { ax, bx, cx, dispose } = createRoot((dispose) => {
             const ax = createMemo(() => store.tasks['a']?._bar?.x);
             const bx = createMemo(() => store.tasks['b']?._bar?.x);
             const cx = createMemo(() => store.tasks['c']?._bar?.x);
-
-            expect([ax(), bx(), cx()]).toEqual([10, 20, 30]);
-
-            const originals = new Map([
-                ['a', { originalX: 10 }],
-                ['b', { originalX: 20 }],
-                // c intentionally omitted from batch
-            ]);
-            store.batchMovePositions(originals, 100);
-            settle();
-
-            expect([ax(), bx(), cx()]).toEqual([110, 120, 30]);
-            dispose();
+            return { ax, bx, cx, dispose };
         });
+
+        expect([ax(), bx(), cx()]).toEqual([10, 20, 30]);
+
+        const originals = new Map([
+            ['a', { originalX: 10 }],
+            ['b', { originalX: 20 }],
+            // c intentionally omitted from batch
+        ]);
+        store.batchMovePositions(originals, 100);
+        settle();
+
+        expect([ax(), bx(), cx()]).toEqual([110, 120, 30]);
+        dispose();
     });
 
     it('batchMovePositions: skips entries whose tasks have no _bar', () => {
@@ -370,33 +375,35 @@ describe('createTaskStore — draft-setter reactivity (gantt-6hx regression guar
 
 describe('createTaskStore — whole-value mutations', () => {
     it('updateTask: subscriber sees new task value when whole task replaced', () => {
-        createRoot((dispose) => {
-            const store = createTaskStore();
-            store.updateTask('a', makeTask('a', { name: 'first' }));
-            settle();
+        const store = createTaskStore();
+        store.updateTask('a', makeTask('a', { name: 'first' }));
+        settle();
+        const { name, dispose } = createRoot((dispose) => {
             const name = createMemo(() => store.tasks['a']?.name);
-            expect(name()).toBe('first');
-            store.updateTask('a', makeTask('a', { name: 'second' }));
-            settle();
-            expect(name()).toBe('second');
-            dispose();
+            return { name, dispose };
         });
+        expect(name()).toBe('first');
+        store.updateTask('a', makeTask('a', { name: 'second' }));
+        settle();
+        expect(name()).toBe('second');
+        dispose();
     });
 
     it('updateTasks: reconcile populates and replaces', () => {
-        createRoot((dispose) => {
-            const store = createTaskStore();
+        const store = createTaskStore();
+        const { count, dispose } = createRoot((dispose) => {
             const count = createMemo(() => Object.keys(store.tasks).length);
-            expect(count()).toBe(0);
-            store.updateTasks([makeTask('a'), makeTask('b'), makeTask('c')]);
-            settle();
-            expect(count()).toBe(3);
-            // Replace with smaller set
-            store.updateTasks([makeTask('a')]);
-            settle();
-            expect(count()).toBe(1);
-            dispose();
+            return { count, dispose };
         });
+        expect(count()).toBe(0);
+        store.updateTasks([makeTask('a'), makeTask('b'), makeTask('c')]);
+        settle();
+        expect(count()).toBe(3);
+        // Replace with smaller set
+        store.updateTasks([makeTask('a')]);
+        settle();
+        expect(count()).toBe(1);
+        dispose();
     });
 
     it('removeTask: removed slot becomes undefined', () => {
@@ -601,5 +608,26 @@ describe('createTaskStore — drag state signal', () => {
         settle();
         expect(observed).toBe('task-9');
         dispose();
+    });
+});
+
+describe('createTaskStore.contentRevision', () => {
+    it('advances for same-id content changes and ignores live geometry edits', () => {
+        const store = createTaskStore();
+        store.updateTasks([makeTask('a', { resource: 'left' })]);
+        settle();
+        const initial = store.contentRevision();
+
+        store.updateBarPosition('a', { x: 25 });
+        store.setBarYs(new Map([['a', 40]]));
+        store.setTaskProgress('a', 50);
+        settle();
+        expect(store.contentRevision()).toBe(initial);
+
+        store.patchTask('a', { resource: 'right' });
+        store.updateTasks([makeTask('a', { resource: 'middle' })]);
+        settle();
+        expect(store.contentRevision()).toBe(initial + 2);
+        expect(store.getTask('a')?.resource).toBe('middle');
     });
 });

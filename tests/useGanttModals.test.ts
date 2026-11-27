@@ -9,10 +9,7 @@
 //      geometry leaves, so a recompute driven by a leaf the popup does not
 //      render (`_index`) notifies nobody.
 //
-// Store writes may sit in a createRoot body; the signal writes behind
-// showHover/showModal may not (CLAUDE.md migration rule 2), so every
-// modal-state write happens in the test body. `settle()` after each write.
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect } from 'vitest';
 import { createRoot, createEffect } from 'solid-js';
 import { createTaskStore } from '../src/stores/taskStore';
 import { useGanttModals, type GanttModals } from '../src/hooks/useGanttModals';
@@ -51,14 +48,21 @@ interface Harness {
     modalPos: (BarPosition | null)[];
 }
 
+const disposers: (() => void)[] = [];
+
+afterEach(() => {
+    while (disposers.length > 0) disposers.pop()?.();
+});
+
 /** One task, the hook, and a consumer subscribed to each position memo. */
 function setup(): Harness {
     const taskStore = createTaskStore();
     let modals!: GanttModals;
     const hoverPos: (BarPosition | null)[] = [];
     const modalPos: (BarPosition | null)[] = [];
-    createRoot(() => {
-        taskStore.updateTask('t1', makeTask('t1'));
+    taskStore.updateTask('t1', makeTask('t1'));
+    createRoot((dispose) => {
+        disposers.push(dispose);
         modals = useGanttModals(taskStore, () => []);
         createEffect(
             () => modals.hoveredBarPosition(),

@@ -8,11 +8,7 @@ import * as dateUtils from '../src/utils/dateUtils';
 import { settle } from './helpers/settle';
 import type { GanttTask } from '../src/types';
 
-// The stores are built UNOWNED on purpose — no `createRoot` wrapper. Migration
-// rule 10: store writes may sit inside a createRoot body, plain signal writes
-// may not, and `createGanttDateStore` / `createResourceStore` are signal-based,
-// so wrapping this factory would make every setter throw
-// REACTIVE_WRITE_IN_OWNED_SCOPE.
+// Run store actions from the test body so the Solid write guard stays active.
 function makeStores() {
     return {
         taskStore: createTaskStore(),
@@ -53,12 +49,7 @@ describe('initializeTasks — resource extraction signal', () => {
     it('re-extracts resources on subsequent runs (filter use case)', () => {
         const stores = makeStores();
         // Initial set: 3 resources
-        initializeTasks(
-            [t('a', 'R1'), t('b', 'R2'), t('c', 'R3')],
-            stores,
-            true,
-            false, // hasExplicitResources = false
-        );
+        initializeTasks([t('a', 'R1'), t('b', 'R2'), t('c', 'R3')], stores);
         settle();
         expect(stores.resourceStore.resources().map((r) => r.id)).toEqual([
             'R1',
@@ -66,14 +57,14 @@ describe('initializeTasks — resource extraction signal', () => {
             'R3',
         ]);
         // Filter narrows the task set to just R2
-        initializeTasks([t('b', 'R2')], stores, true, false);
+        initializeTasks([t('b', 'R2')], stores);
         settle();
         expect(stores.resourceStore.resources().map((r) => r.id)).toEqual([
             'R2',
         ]);
     });
 
-    it('preserves explicit resources when hasExplicitResources=true', () => {
+    it('preserves the configured resources', () => {
         const stores = makeStores();
         stores.resourceStore.updateResources([
             { id: 'R1', type: 'resource' },
@@ -82,7 +73,7 @@ describe('initializeTasks — resource extraction signal', () => {
         ]);
         settle();
         // Pass tasks for only R1 — explicit resources stay intact.
-        initializeTasks([t('a', 'R1')], stores, true, true);
+        initializeTasks([t('a', 'R1')], stores);
         settle();
         expect(stores.resourceStore.resources().map((r) => r.id)).toEqual([
             'R1',
@@ -93,10 +84,10 @@ describe('initializeTasks — resource extraction signal', () => {
 
     it('clears resources to empty on empty input when not explicit', () => {
         const stores = makeStores();
-        initializeTasks([t('a', 'R1')], stores, true, false);
+        initializeTasks([t('a', 'R1')], stores);
         settle();
         expect(stores.resourceStore.resources()).toHaveLength(1);
-        initializeTasks([], stores, true, false);
+        initializeTasks([], stores);
         settle();
         expect(stores.resourceStore.resources()).toHaveLength(0);
     });
@@ -105,7 +96,7 @@ describe('initializeTasks — resource extraction signal', () => {
         const stores = makeStores();
         stores.resourceStore.updateResources([{ id: 'R1', type: 'resource' }]);
         settle();
-        initializeTasks([], stores, true, true);
+        initializeTasks([], stores);
         settle();
         expect(stores.resourceStore.resources()).toHaveLength(1);
     });
@@ -327,7 +318,7 @@ describe('initializeTasks — the date pipeline commits before it is read (chain
         );
     });
 
-    it('resets the date window to today ± padding on empty input, WITHOUT re-syncing the config store', () => {
+    it('resets the date and config windows to today ± padding on empty input', () => {
         // `setupDates([])` reads `today()` at call time. Freeze the clock so a
         // run that straddles local midnight cannot compare a window built
         // before midnight against a `today()` evaluated after it.
@@ -360,15 +351,11 @@ describe('initializeTasks — the date pipeline commits before it is read (chain
                 new Date(2025, 5, 8).getTime(),
             );
 
-            // The empty branch returns before the config sync, so ganttConfig
-            // is left pointing at the OLD window. Pinned as current behaviour,
-            // not endorsed — the two stores disagree until the next non-empty
-            // run.
             expect(ganttConfig.ganttStart().getTime()).toBe(
-                WINDOW_START.getTime(),
-            );
-            expect(ganttConfig.ganttStart().getTime()).not.toBe(
                 dateStore.ganttStart().getTime(),
+            );
+            expect(ganttConfig.ganttEnd().getTime()).toBe(
+                dateStore.ganttEnd().getTime(),
             );
         } finally {
             vi.useRealTimers();

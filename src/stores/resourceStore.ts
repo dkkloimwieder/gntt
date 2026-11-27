@@ -14,6 +14,8 @@ interface DisplayResource extends Resource {
 export interface ResourceStore {
     // Signals
     resources: Accessor<Resource[]>;
+    /** Resources supplied by the store owner. */
+    configuredResources: Accessor<Resource[]>;
     collapsedGroups: Accessor<Set<string>>;
 
     // Computed
@@ -24,6 +26,8 @@ export interface ResourceStore {
 
     // Actions
     updateResources: (newResources: ResourceInput[]) => void;
+    /** Display chart rows, or use configured resources when given null. */
+    setDisplayResources: (resources: Resource[] | null) => void;
     toggleGroup: (groupId: string) => void;
     expandGroup: (groupId: string) => void;
     collapseGroup: (groupId: string) => void;
@@ -57,8 +61,14 @@ export function createResourceStore(
     initialResources: ResourceInput[] = [],
 ): ResourceStore {
     // Normalized resources (all converted to typed objects)
-    const [resources, setResources] = createSignal<Resource[]>(
-        normalizeResources(initialResources),
+    const [configuredResources, setConfiguredResources] = createSignal<
+        Resource[]
+    >(normalizeResources(initialResources));
+    const [displayResourcesOverride, setDisplayResources] = createSignal<
+        Resource[] | null
+    >(null);
+    const resources = createMemo(
+        () => displayResourcesOverride() ?? configuredResources(),
     );
 
     // Set of collapsed group IDs
@@ -126,7 +136,7 @@ export function createResourceStore(
 
     // Update resources (normalizes input)
     const updateResources = (newResources: ResourceInput[]): void => {
-        setResources(normalizeResources(newResources));
+        setConfiguredResources(normalizeResources(newResources));
     };
 
     // Get all groups
@@ -157,6 +167,7 @@ export function createResourceStore(
     return {
         // Signals
         resources,
+        configuredResources,
         collapsedGroups,
 
         // Computed
@@ -167,6 +178,7 @@ export function createResourceStore(
 
         // Actions
         updateResources,
+        setDisplayResources,
         toggleGroup,
         expandGroup,
         collapseGroup,

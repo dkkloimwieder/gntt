@@ -9,10 +9,9 @@
  * a real drag end to end, and that dispose puts the DOM back. The chart's own
  * behaviour (positions, dates, hidden flags) belongs to E1.1.
  */
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { mountGantt, type MountedGantt } from './helpers/mountGantt';
 import { settle } from './helpers/settle';
-import type { GanttAPI } from '../src/components/Gantt';
 import type { BarPosition, GanttTask } from '../src/types';
 
 /**
@@ -143,7 +142,7 @@ describe('mountGantt', () => {
         expect(dateHeaders.clientHeight).toBe(headerHeight);
     });
 
-    it('gives the component the inset WIDTH (scrollTo: today derives from it)', () => {
+    it('gives the component the inset WIDTH (scrollTo: today derives from it)', async () => {
         const clientWidth = 900;
         mounted = mountGantt(
             {
@@ -155,6 +154,7 @@ describe('mountGantt', () => {
             },
             { clientWidth, clientHeight: 500 },
         );
+        await Promise.resolve();
         settle();
 
         // Gantt.handleContainerReady runs
@@ -185,19 +185,19 @@ describe('mountGantt', () => {
 
         const clientHeight = lastRowY + headerHeight;
         const clientWidth = 100000; // wide enough that width never crops
-        let api: GanttAPI | undefined;
+        let svg = '';
         mounted = mountGantt(
             {
                 tasks: TASKS,
                 onReady: (ready) => {
-                    api = ready;
+                    svg = ready.exportSvg({ range: 'visible' });
                 },
             },
             { clientWidth, clientHeight },
         );
         settle();
         await Promise.resolve(); // Gantt defers onReady by a microtask
-        expect(api).toBeDefined();
+        settle();
 
         const bars = barsOf(mounted);
         const inset = {
@@ -219,7 +219,6 @@ describe('mountGantt', () => {
         expect(expected).not.toEqual(naive);
 
         // buildExportInput fills visibleRect from getContainerWidth/Height.
-        const svg = api!.exportSvg({ range: 'visible' });
         const painted = bars
             .filter((b) =>
                 svg.includes(
@@ -276,13 +275,34 @@ describe('mountGantt', () => {
         );
     });
 
-    it('lands the scrollTo: start option on the stubbed scroll offset', () => {
+    it('lands the scrollTo: start option on the stubbed scroll offset', async () => {
         mounted = mountGantt({ tasks: TASKS, options: { scrollTo: 'start' } });
+        await Promise.resolve();
         settle();
 
         const firstX = mounted.stores.taskStore.tasks['t1']!._bar.x;
         const scrollArea = elementOf(mounted, '.gantt-scroll-area');
         expect(scrollArea.scrollLeft).toBe(Math.max(0, firstX - 50));
+    });
+
+    it('clears a pending throttled scroll update when the chart is disposed', () => {
+        const now = vi.spyOn(performance, 'now').mockReturnValue(0);
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+        try {
+            mounted = mountGantt({ tasks: TASKS });
+            const scrollArea = elementOf(mounted, '.gantt-scroll-area');
+            const timerCount = vi.getTimerCount();
+
+            scrollArea.scrollLeft = 50;
+            scrollArea.dispatchEvent(new Event('scroll'));
+            expect(vi.getTimerCount()).toBe(timerCount + 1);
+
+            mounted.dispose();
+            expect(vi.getTimerCount()).toBe(timerCount);
+        } finally {
+            vi.useRealTimers();
+            now.mockRestore();
+        }
     });
 
     it('publishes the task/config/date stores', () => {

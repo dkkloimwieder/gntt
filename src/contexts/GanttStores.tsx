@@ -1,4 +1,10 @@
-import { createContext, useContext } from 'solid-js';
+import {
+    createContext,
+    createEffect,
+    deep,
+    untrack,
+    useContext,
+} from 'solid-js';
 import type { JSX } from '@solidjs/web';
 import { createTaskStore, type TaskStore } from '../stores/taskStore';
 import {
@@ -47,12 +53,23 @@ const GanttStoresContext = createContext<GanttStores | null>(null);
  * form still works without a provider.
  */
 export function GanttProvider(props: GanttProviderProps): JSX.Element {
-    const stores: GanttStores = {
-        taskStore: createTaskStore(),
-        ganttConfig: createGanttConfigStore(props.options || {}),
-        dateStore: createGanttDateStore(props.options || {}),
-        resourceStore: createResourceStore(props.resources || []),
-    };
+    const stores = untrack((): GanttStores => {
+        const options = props.options;
+        return {
+            taskStore: createTaskStore(),
+            ganttConfig: createGanttConfigStore(options),
+            dateStore: createGanttDateStore(options),
+            resourceStore: createResourceStore(props.resources),
+        };
+    });
+
+    createEffect(
+        () => deep(props.resources ?? []),
+        (resources) => {
+            stores.resourceStore.updateResources(resources);
+        },
+        { defer: true },
+    );
 
     return (
         <GanttStoresContext value={stores}>{props.children}</GanttStoresContext>

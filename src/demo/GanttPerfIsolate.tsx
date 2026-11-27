@@ -1,5 +1,12 @@
 // @ts-nocheck
-import { createSignal, createMemo, createStore, For, Show } from 'solid-js';
+import {
+    createSignal,
+    createMemo,
+    createStore,
+    For,
+    Show,
+    untrack,
+} from 'solid-js';
 import {
     useDemoMount,
     useRafLoop,
@@ -231,8 +238,12 @@ console.log(
 
 // V1: Absolutely minimal - just a div with inline position
 function BarMinimal(props) {
-    const task = props.task;
-    const bar = task._bar;
+    // The keyed loop mounts a new bar for each task. These variants use a
+    // fixed task reference to measure the cost of direct property reads.
+    const { task, bar } = untrack(() => {
+        const task = props.task;
+        return { task, bar: task._bar };
+    });
     return (
         <div
             style={{
@@ -249,8 +260,10 @@ function BarMinimal(props) {
 
 // V2: Add text
 function BarWithText(props) {
-    const task = props.task;
-    const bar = task._bar;
+    const { task, bar } = untrack(() => {
+        const task = props.task;
+        return { task, bar: task._bar };
+    });
     return (
         <div
             style={{
@@ -274,8 +287,10 @@ function BarWithText(props) {
 
 // V3: Add resize handles (like GanttExperiments)
 function BarWithHandles(props) {
-    const task = props.task;
-    const bar = task._bar;
+    const { task, bar } = untrack(() => {
+        const task = props.task;
+        return { task, bar: task._bar };
+    });
     return (
         <div
             style={{
@@ -569,11 +584,9 @@ function BarFull(props) {
 // V8: Exact copy of GanttExperiments TestBarBaseline
 function BarExperiments(props) {
     const events = useGanttEvents();
-    const getTask = () =>
-        typeof props.task === 'function' ? props.task() : props.task;
 
     const t = createMemo(() => {
-        const task = getTask();
+        const task = props.task;
         const bar = task?._bar;
         const progress = task?.progress ?? 0;
         const width = bar?.width ?? 40;
@@ -665,11 +678,9 @@ function BarExperiments(props) {
 // V9: No child divs - detect resize zones from click position
 function BarNoChildren(props) {
     const events = useGanttEvents();
-    const getTask = () =>
-        typeof props.task === 'function' ? props.task() : props.task;
 
     const t = createMemo(() => {
-        const task = getTask();
+        const task = props.task;
         const bar = task?._bar;
         const progress = task?.progress ?? 0;
         const hw = props.hourWidth || 7; // fallback
@@ -747,11 +758,9 @@ function BarNoChildren(props) {
 // V10: NoChildren + CSS containment
 function BarContained(props) {
     const events = useGanttEvents();
-    const getTask = () =>
-        typeof props.task === 'function' ? props.task() : props.task;
 
     const t = createMemo(() => {
-        const task = getTask();
+        const task = props.task;
         const bar = task?._bar;
         const progress = task?.progress ?? 0;
         const hw = props.hourWidth || 7;
@@ -829,11 +838,9 @@ function BarContained(props) {
 // V11: NoChildren + will-change: transform
 function BarWillChange(props) {
     const events = useGanttEvents();
-    const getTask = () =>
-        typeof props.task === 'function' ? props.task() : props.task;
 
     const t = createMemo(() => {
-        const task = getTask();
+        const task = props.task;
         const bar = task?._bar;
         const progress = task?.progress ?? 0;
         const hw = props.hourWidth || 7;
@@ -911,11 +918,9 @@ function BarWillChange(props) {
 // V12: NoChildren + will-change + contain (combined)
 function BarCombined(props) {
     const events = useGanttEvents();
-    const getTask = () =>
-        typeof props.task === 'function' ? props.task() : props.task;
 
     const t = createMemo(() => {
-        const task = getTask();
+        const task = props.task;
         const bar = task?._bar;
         const progress = task?.progress ?? 0;
         const hw = props.hourWidth || 7;
@@ -993,11 +998,8 @@ function BarCombined(props) {
 
 // V13: Hover popup - measures cost of onMouseEnter/Leave handlers
 function BarHoverPopup(props) {
-    const getTask = () =>
-        typeof props.task === 'function' ? props.task() : props.task;
-
     const t = createMemo(() => {
-        const task = getTask();
+        const task = props.task;
         const bar = task?._bar;
         const hw = props.hourWidth || 7;
         const x = (task?.startHours ?? 0) * hw;
@@ -1054,11 +1056,8 @@ function BarHoverPopup(props) {
 
 // V14: Click modal - measures cost of onClick handler
 function BarClickModal(props) {
-    const getTask = () =>
-        typeof props.task === 'function' ? props.task() : props.task;
-
     const t = createMemo(() => {
-        const task = getTask();
+        const task = props.task;
         const bar = task?._bar;
         const hw = props.hourWidth || 7;
         const x = (task?.startHours ?? 0) * hw;
@@ -1102,11 +1101,8 @@ function BarClickModal(props) {
 
 // V15: Baseline for drag comparison - same as dragfunc but NO handlers
 function BarDragBaseline(props) {
-    const getTask = () =>
-        typeof props.task === 'function' ? props.task() : props.task;
-
     const t = createMemo(() => {
-        const task = getTask();
+        const task = props.task;
         const hw = props.hourWidth || 7;
         // Always calculate from hours to handle viewport resize correctly
         const x = (task?.startHours ?? 0) * hw;
@@ -1150,12 +1146,10 @@ function BarDragBaseline(props) {
 
 // V16: Functional drag - actually updates store positions
 function BarDragFunctional(props) {
-    const getTask = () =>
-        typeof props.task === 'function' ? props.task() : props.task;
     const [hoverZone, setHoverZone] = createSignal('move'); // 'left', 'right', 'move'
 
     const t = createMemo(() => {
-        const task = getTask();
+        const task = props.task;
         const bar = task?._bar;
         const hw = props.hourWidth || 7;
         // Use _bar.x/width if set (from drag), else compute from startHours/durationHours
@@ -1275,12 +1269,10 @@ function BarDragFunctional(props) {
 // BarDragConstrained: Identical to BarNoChildren + constraint logic in drag handlers
 function BarDragConstrained(props) {
     const events = useGanttEvents();
-    const getTask = () =>
-        typeof props.task === 'function' ? props.task() : props.task;
     const [hoverZone, setHoverZone] = createSignal('move');
 
     const t = createMemo(() => {
-        const task = getTask();
+        const task = props.task;
         const bar = task?._bar;
         const progress = task?.progress ?? 0;
         const hw = props.hourWidth || 7;
@@ -2016,6 +2008,7 @@ export function GanttPerfIsolate() {
                                 <ArrowLayerBatched
                                     relationships={relationships}
                                     taskStore={mockTaskStore}
+                                    rowHeight={ROW_HEIGHT + GAP}
                                     startRow={visibleRowRange().start}
                                     endRow={visibleRowRange().end}
                                     startX={scrollX() - 200}
@@ -2035,7 +2028,7 @@ export function GanttPerfIsolate() {
                         <For each={visibleTasks()}>
                             {(task) => (
                                 <BarComponent
-                                    task={() => tasks[task.id]}
+                                    task={task}
                                     hourWidth={hourWidth()}
                                     setPopupState={setPopupState}
                                     setModalState={setModalState}
@@ -2082,19 +2075,11 @@ export function GanttPerfIsolate() {
         </div>
     );
 
-    // Mounted unconditionally (E2.12). Eight bar variants call
-    // `useGanttEvents()` and only two of them (`events`, `full`) are covered by
-    // the `context` flag, so `useContext ? ... : content` left six variants
-    // reading the context outside any provider. That survives only because
-    // `GanttEventsContext` carries an explicit `null` default; a default-less
-    // context throws `ContextNotFoundError` under 2.0, and this harness should
-    // not be what re-discovers it. No handler props are passed, so the
-    // provider's bridges are the same no-ops `useGanttEvents` returns without
-    // it, and the `context` flag still labels the run.
-    // `content` is a function so the tree — and every variant's
-    // `useGanttEvents()` — is created INSIDE the provider; an element built
-    // beforehand would have resolved the context before the provider existed.
-    return <GanttEventsProvider>{content()}</GanttEventsProvider>;
+    return useContext ? (
+        <GanttEventsProvider>{content()}</GanttEventsProvider>
+    ) : (
+        content()
+    );
 }
 
 export default GanttPerfIsolate;

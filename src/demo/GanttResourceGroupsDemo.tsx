@@ -1,13 +1,13 @@
-// @ts-nocheck
 import { createSignal } from 'solid-js';
 import { Gantt } from '../components/Gantt';
+import type { GanttTask, ResourceInput } from '../types';
 
 /**
  * GanttResourceGroupsDemo - Demo for resource groups with collapse/expand.
  */
 export function GanttResourceGroupsDemo() {
     // Grouped resources: Engineering and Design teams
-    const [resources] = createSignal([
+    const [resources] = createSignal<ResourceInput[]>([
         { id: 'Engineering', type: 'group' },
         { id: 'Alice', type: 'resource', group: 'Engineering' },
         { id: 'Bob', type: 'resource', group: 'Engineering' },
@@ -21,7 +21,7 @@ export function GanttResourceGroupsDemo() {
     ]);
 
     // Tasks assigned to different resources
-    const [tasks] = createSignal([
+    const [tasks] = createSignal<GanttTask[]>([
         // Engineering tasks
         {
             id: 'task-1',
@@ -40,7 +40,7 @@ export function GanttResourceGroupsDemo() {
             progress: 80,
             color: '#3b82f6',
             resource: 'Bob',
-            dependencies: 'task-1',
+            dependencies: [{ id: 'task-1' }],
         },
         {
             id: 'task-3',
@@ -50,7 +50,7 @@ export function GanttResourceGroupsDemo() {
             progress: 45,
             color: '#3b82f6',
             resource: 'Charlie',
-            dependencies: 'task-2',
+            dependencies: [{ id: 'task-2' }],
         },
         {
             id: 'task-4',
@@ -60,7 +60,7 @@ export function GanttResourceGroupsDemo() {
             progress: 20,
             color: '#3b82f6',
             resource: 'Alice',
-            dependencies: 'task-3',
+            dependencies: [{ id: 'task-3' }],
         },
         // Design tasks
         {
@@ -80,7 +80,7 @@ export function GanttResourceGroupsDemo() {
             progress: 60,
             color: '#8b5cf6',
             resource: 'Eve',
-            dependencies: 'task-5',
+            dependencies: [{ id: 'task-5' }],
         },
         {
             id: 'task-7',
@@ -90,7 +90,7 @@ export function GanttResourceGroupsDemo() {
             progress: 30,
             color: '#8b5cf6',
             resource: 'Diana',
-            dependencies: 'task-5',
+            dependencies: [{ id: 'task-5' }],
         },
         // QA tasks
         {
@@ -110,7 +110,7 @@ export function GanttResourceGroupsDemo() {
             progress: 10,
             color: '#10b981',
             resource: 'Grace',
-            dependencies: 'task-3,task-8',
+            dependencies: [{ id: 'task-3' }, { id: 'task-8' }],
         },
         {
             id: 'task-10',
@@ -120,7 +120,7 @@ export function GanttResourceGroupsDemo() {
             progress: 0,
             color: '#10b981',
             resource: 'Frank',
-            dependencies: 'task-9',
+            dependencies: [{ id: 'task-9' }],
         },
     ]);
 
@@ -134,7 +134,7 @@ export function GanttResourceGroupsDemo() {
         lowerHeaderHeight: 30,
         lines: 'both',
         scrollTo: 'start',
-    });
+    } as const);
 
     // Event handlers (no-op for demo)
     const handleDateChange = () => {};

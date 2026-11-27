@@ -10,9 +10,7 @@
  * Every derive below is a memo whose whole state is its return value: there
  * is no mutable state inside a compute, so a compute that re-runs cannot
  * observe a leftover from an earlier pass. The pool high-water marks ride the
- * memo's `prev` argument instead of closure counters, and the grouping is a
- * tracked memo rather than a count-keyed cache. The one dependency it takes
- * on `taskStore` is the key set; see `groupTasksByResource`.
+ * memo's `prev` argument instead of closure counters.
  */
 import { createMemo, untrack, type Accessor } from 'solid-js';
 import { DEFAULT_BAR_HEIGHT } from '../constants';
@@ -75,21 +73,14 @@ export function useTaskVirtualization(
     const isSimpleMode = (): boolean =>
         props.ganttConfig?.renderMode?.() === 'simple';
 
-    // Group tasks by resource. TRACKED on exactly one store node: the
-    // `Object.keys` read below goes through the store's `ownKeys` trap, which
-    // subscribes this memo to the key-set node — bumped only on a key add or
-    // remove, never on the `_bar.x` leaf writes a drag emits. Per-task leaf
-    // reads stay untracked inside the helper, so the dependency count is O(1)
-    // in the task count rather than O(N).
-    //
-    // This replaces a closure cache keyed on the task COUNT, which served a
-    // permanently stale Map after a same-tick remove+add — and which never
-    // ran at all, because the key scan used to sit under `untrack` too and so
-    // left this derive with no dependency on `taskStore` whatsoever.
+    // A content edit can change resource, visibility, type, or X range
+    // without changing task IDs. The revision refreshes all viewport derives
+    // together while leaving per-frame drag geometry out of their dependencies.
     const tasksByResource = createMemo((): Map<string, ProcessedTask[]> => {
-        const tasksObj = props.taskStore?.tasks;
-        if (!tasksObj) return new Map();
-        return groupTasksByResource(tasksObj, Object.keys(tasksObj));
+        const store = props.taskStore;
+        if (!store) return new Map();
+        store.contentRevision();
+        return groupTasksByResource(store.tasks);
     });
 
     // FLAT VIRTUALIZATION with both row AND X filtering.

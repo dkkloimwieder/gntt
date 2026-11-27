@@ -2,19 +2,23 @@
 import { createSignal, createMemo, Show } from 'solid-js';
 import { createLatch, useDemoMount, useRafLoop } from './shared/demoLifecycle';
 import { Gantt } from '../components/Gantt';
+import { GanttProvider, useGanttStores } from '../contexts/GanttStores';
 import calendarData from '../data/generated/calendar.json';
 import {
     startRecording,
     stopRecording,
     clearRecording,
-    analyzeCallTree,
     formatAnalysis,
     formatCallTree,
-    instrument,
+    instrumentObject,
 } from '../../benchmarks/profiler/instrumentation/callTree.js';
 
-// Import Arrow functions to instrument
-import * as ArrowModule from '../components/Arrow';
+const initialOptions = {
+    viewMode: 'Hour',
+    barHeight: 20,
+    padding: 8,
+    columnWidth: 25,
+};
 
 /**
  * GanttProfiler - Dedicated profiling component with function call instrumentation.
@@ -22,57 +26,38 @@ import * as ArrowModule from '../components/Arrow';
  * Instruments hot paths and shows exactly where time is spent.
  */
 export function GanttProfiler() {
-    const [tasks, setTasks] = createSignal([]);
+    return (
+        <GanttProvider options={initialOptions}>
+            <ProfilerContent />
+        </GanttProvider>
+    );
+}
+
+function ProfilerContent() {
+    const { taskStore, dateStore, resourceStore } = useGanttStores();
+    const tasks = calendarData.tasks;
     const [recording, setRecording, isRecording] = createLatch();
     const [analysisText, setAnalysisText] = createSignal('');
     const [callTreeText, setCallTreeText] = createSignal('');
-    const [viewMode, setViewMode] = createSignal('Hour');
+    const [viewMode, setViewMode] = createSignal(initialOptions.viewMode);
     const [showCallTree, setShowCallTree] = createSignal(false);
     const [frameCount, setFrameCount] = createSignal(0);
     const [scrollEvents, setScrollEvents] = createSignal(0);
 
-    // Refs for instrumented store
-    let ganttRef = null;
-    let instrumentedStore = false;
+    let chartHost;
     let scrollEventCount = 0;
     let rafCount = 0;
 
-    // Instrument the taskStore methods after Gantt mounts
-    const instrumentStore = () => {
-        if (instrumentedStore) return;
-
-        // Find the gantt's internal store via DOM traversal hack
-        // The store methods are the hot paths we need to profile
-        const scrollArea = document.querySelector('.gantt-scroll-area');
-        if (!scrollArea) {
-            console.warn('Cannot find scroll area - store not instrumented');
-            return;
-        }
-
-        // We'll instrument via the global window hook instead
-        // The Gantt component exposes taskStore on window for debugging
-        if (window.__ganttTaskStore) {
-            const store = window.__ganttTaskStore;
-
-            // Instrument hot methods
-            const hotMethods = [
-                'getBarPosition',
-                'getTask',
-                'updateBarPosition',
-            ];
-            for (const method of hotMethods) {
-                if (store[method] && !store[method].__instrumented) {
-                    const original = store[method].bind(store);
-                    store[method] = instrument(original, `taskStore.${method}`);
-                    store[method].__instrumented = true;
-                }
-            }
-            instrumentedStore = true;
-            console.log('TaskStore instrumented:', hotMethods);
-        }
-    };
+    instrumentObject(taskStore, 'taskStore', [
+        'getBarPosition',
+        'getTask',
+        'updateBarPosition',
+    ]);
+    instrumentObject(dateStore, 'dateStore', ['columnWidth']);
+    instrumentObject(resourceStore, 'resourceStore', ['displayResources']);
 
     const frameLoop = useRafLoop();
+    const scrollTestLoop = useRafLoop();
 
     // Start profiling
     const startProfile = () => {
@@ -99,6 +84,7 @@ export function GanttProfiler() {
         stopRecording();
         setRecording(false);
         frameLoop.stop();
+        scrollTestLoop.stop();
 
         setScrollEvents(scrollEventCount);
 
@@ -116,7 +102,7 @@ export function GanttProfiler() {
 
     // Automated scroll test
     const runScrollTest = (direction = 'horizontal') => {
-        const scrollArea = document.querySelector('.gantt-scroll-area');
+        const scrollArea = chartHost?.querySelector('.gantt-scroll-area');
         if (!scrollArea) return;
 
         startProfile();
@@ -129,11 +115,11 @@ export function GanttProfiler() {
                 ? scrollArea.scrollLeft
                 : scrollArea.scrollTop;
 
-        const scroll = () => {
-            const elapsed = performance.now() - startTime;
+        scrollTestLoop.start((timestamp) => {
+            const elapsed = timestamp - startTime;
             if (elapsed > duration) {
                 stopProfile();
-                return;
+                return false;
             }
 
             const delta = dir * (direction === 'horizontal' ? 150 : 80);
@@ -153,38 +139,27 @@ export function GanttProfiler() {
                 else if (pos < 200) dir = 1;
                 scrollArea.scrollTop = pos;
             }
-
-            scrollEventCount++;
-            setTimeout(scroll, 16);
-        };
-
-        scroll();
+        });
     };
 
     // Track scroll events
     useDemoMount(() => {
-        setTasks(calendarData.tasks);
-
-        // Wait for Gantt to render then instrument
-        const instrumentTimer = setTimeout(instrumentStore, 500);
-
-        const scrollArea = document.querySelector('.gantt-scroll-area');
+        const scrollArea = chartHost?.querySelector('.gantt-scroll-area');
         const onScroll = () => {
             if (isRecording()) scrollEventCount++;
         };
         scrollArea?.addEventListener('scroll', onScroll, { passive: true });
 
         return () => {
-            clearTimeout(instrumentTimer);
             scrollArea?.removeEventListener('scroll', onScroll);
+            if (isRecording()) stopRecording();
         };
     });
 
     const options = createMemo(() => ({
+        ...initialOptions,
         viewMode: viewMode(),
-        barHeight: 20,
-        padding: 8,
-        columnWidth: viewMode() === 'Hour' ? 25 : 30,
+        columnWidth: viewMode() === 'Hour' ? initialOptions.columnWidth : 30,
     }));
 
     return (
@@ -215,7 +190,10 @@ export function GanttProfiler() {
 
                 <div style={{ display: 'flex', gap: '8px' }}>
                     <button
-                        onClick={recording() ? stopProfile : startProfile}
+                        onClick={() => {
+                            if (isRecording()) stopProfile();
+                            else startProfile();
+                        }}
                         style={{
                             padding: '6px 14px',
                             background: recording() ? '#ef4444' : '#22c55e',
@@ -285,7 +263,7 @@ export function GanttProfiler() {
                     <span>
                         Tasks:{' '}
                         <strong style={{ color: '#4ade80' }}>
-                            {tasks().length}
+                            {tasks.length}
                         </strong>
                     </span>
                 </div>
@@ -326,13 +304,14 @@ export function GanttProfiler() {
             <div style={{ display: 'flex', flex: 1, 'min-height': 0 }}>
                 {/* Gantt chart */}
                 <div
+                    ref={chartHost}
                     style={{
                         flex: analysisText() ? '0 0 60%' : '1',
                         'min-width': 0,
                         border: '1px solid #e2e8f0',
                     }}
                 >
-                    <Gantt ref={ganttRef} tasks={tasks()} options={options()} />
+                    <Gantt tasks={tasks} options={options()} />
                 </div>
 
                 {/* Analysis panel */}

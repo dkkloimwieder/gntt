@@ -10,17 +10,10 @@ refer to the D1–D13 table in `docs/migration/solid2/PLAN.md`.
 
 ### Changed — BREAKING
 
-- **The runtime is SolidJS 2.0.** `solid-js` and `@solidjs/web` at
-  `2.0.0-rc.6`, compiled by `@solidjs/vite-plugin` 3.0.0-next.39 with
-  `jsxImportSource: '@solidjs/web'`. The library does **not** run on Solid
-  1.x. Both runtimes stay external to the published bundle, so the host app
-  supplies them — dedupe them (`resolve.dedupe: ['solid-js', '@solidjs/web']`)
-  or a nested copy creates a second, disconnected reactive graph. (D2)
-- **ESM-only packaging.** The UMD output and its globals map are dropped;
-  the library build emits `es` only, and `main`/`module` both point at
-  `dist/ganttss.es.js`. Neither Solid 2.0 runtime ships a global build, so a
-  UMD bundle could never have resolved its externals in a browser. (D3)
-- **Node `^20.19 || >=22.12`** (`engines`). (D1)
+- The chart uses `solid-js` and `@solidjs/web` as peer dependencies at `^2.0.4`.
+  The host application supplies both runtimes.
+- The build uses `@solidjs/vite-plugin` 3.0.1 and the JSX types from `@solidjs/web`.
+- The package exports an ES module and TypeScript declarations. It requires Node 22.12 or later.
 - **`GanttConfigStore` setters return `void`.** The twenty `set*` fields move
   from Solid's `Setter<T>` to a new
   `ConfigSetter<T> = (value: Exclude<T, Function> | ((prev: T) => T)) => void`
@@ -54,6 +47,10 @@ refer to the D1–D13 table in `docs/migration/solid2/PLAN.md`.
 
 ### Fixed
 
+- Task edits that keep the same ID now update the visible rows, including after resource reassignment.
+- Changes to tasks, view mode, or column width in the same update now produce matching headers and bars.
+- Each chart measures drag coordinates against its own SVG. Visible-range export works inside `onReady`.
+- Duration-only tasks now set the correct timeline bounds.
 - **Task expansion did nothing.** `ganttConfigStore`'s `toggleTaskExpansion`,
   `expandTask` and `collapseTask` wrote no state and notified no subscriber:
   `expandedTasks` was a `Set` living inside a store, and a `Set` cannot be

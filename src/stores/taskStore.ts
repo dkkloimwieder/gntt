@@ -27,6 +27,8 @@ export interface TaskStore {
     getBarPosition: (id: string) => BarPositionWithIndex | null;
     getAllTasks: () => ProcessedTask[];
     taskCount: () => number;
+    /** Invalidates layout caches after task edits and replacements. */
+    contentRevision: Accessor<number>;
     updateTask: (id: string, taskData: ProcessedTask) => void;
     updateBarPosition: (id: string, position: Partial<BarPosition>) => void;
     setBarYs: (ys: Map<string, number>) => void;
@@ -64,6 +66,10 @@ export function createTaskStore(): TaskStore {
     // Object of task ID to task data (includes position info)
     // Using createStore for fine-grained reactivity (path-level tracking)
     const [tasks, setTasks] = createStore<TaskMap>({});
+    const [contentRevision, setContentRevision] = createSignal(0);
+    const markContentChanged = (): void => {
+        setContentRevision((revision) => revision + 1);
+    };
 
     // Set of collapsed task IDs (tasks whose children are hidden)
     const [collapsedTasks, setCollapsedTasks] = createSignal<Set<string>>(
@@ -109,6 +115,7 @@ export function createTaskStore(): TaskStore {
         setTasks((s) => {
             s[id] = taskData;
         });
+        markContentChanged();
     };
 
     // Update bar position for a task (fine-grained path update)
@@ -135,6 +142,7 @@ export function createTaskStore(): TaskStore {
             tasksObj[task.id] = task;
         });
         setTasks(reconcile(tasksObj));
+        markContentChanged();
     };
 
     /**
@@ -142,10 +150,15 @@ export function createTaskStore(): TaskStore {
      * touched leaves notify. Use `updateTask` when the whole object changes.
      */
     const patchTask = (id: string, patch: Partial<ProcessedTask>): void => {
+        let changed = false;
         setTasks((s) => {
             const task = s[id];
-            if (task) Object.assign(task, patch);
+            if (task) {
+                Object.assign(task, patch);
+                changed = true;
+            }
         });
+        if (changed) markContentChanged();
     };
 
     const setTaskProgress = (id: string, progress: number): void => {
@@ -160,11 +173,13 @@ export function createTaskStore(): TaskStore {
         setTasks((s) => {
             delete s[id];
         });
+        markContentChanged();
     };
 
     // Clear all tasks
     const clear = (): void => {
         setTasks(reconcile({}));
+        markContentChanged();
     };
 
     // Get all tasks as array
@@ -305,6 +320,7 @@ export function createTaskStore(): TaskStore {
         getBarPosition,
         getAllTasks,
         taskCount,
+        contentRevision,
         updateTask,
         updateBarPosition,
         setBarYs,

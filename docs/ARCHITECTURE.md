@@ -44,7 +44,7 @@ The SolidJS implementation lives in `src/` and provides reactive, fine-grained u
 | Grid & Headers | Complete | `src/components/Grid.tsx`, `DateHeaders.tsx` |
 | Resource Column | Complete | `src/components/ResourceColumn.tsx` |
 | Task Layer | Complete | `src/components/TaskLayer.tsx` |
-| Arrow Layer | Complete | `src/components/ArrowLayerBatched.tsx` |
+| Arrow Layer | Performance demo | `src/components/ArrowLayerBatched.tsx` |
 | ExpandedTaskContainer | Complete | `src/components/ExpandedTaskContainer.tsx` |
 | SubtaskBar | Complete | `src/components/SubtaskBar.tsx` |
 
@@ -56,7 +56,7 @@ The SolidJS implementation lives in `src/` and provides reactive, fine-grained u
 
 `src/index.ts` is the whole published surface — nothing else in `src/` is
 reachable by a consumer. Peer runtimes: `solid-js` and `@solidjs/web` at
-`2.0.0-rc.6`, both left external in the bundle and compiled with
+`^2.0.4`, both left external in the bundle and compiled with
 `jsxImportSource: '@solidjs/web'`. Packaging is ESM-only.
 
 ### Main Component
@@ -508,6 +508,9 @@ every other field on that task, which is exactly the fan-out the store exists
 to avoid. `patchTask` merges for the same reason; `updateTask` is the
 explicit "the whole object changed" path.
 
+The task store also tracks changes that affect which bars appear in the viewport.
+Content edits invalidate the row groups. Dragging a bar updates its geometry without rebuilding all groups.
+
 **Fine-Grained Reactivity** (December 2025):
 The store uses SolidJS `createStore` instead of `createSignal(Map)` to enable path-level dependency tracking:
 ```javascript
@@ -528,8 +531,10 @@ Without affecting the other 400+ tasks in the chart.
 
 **Purpose**: Reactive configuration for layout and features.
 
-**Signals**:
-| Signal | Type | Default | Description |
+A Solid store holds the configuration. Each accessor tracks its field.
+The store keeps the set of expanded task IDs in a separate signal.
+
+| Field | Type | Default | Description |
 |--------|------|---------|-------------|
 | `ganttStart` | `Date` | `new Date()` | Chart start date |
 | `ganttEnd` | `Date` | `new Date()` | Chart end date |
@@ -564,7 +569,7 @@ config.setColumnWidth((w) => w + 5);
 config.updateOptions({ barHeight: 40, padding: 20 });
 
 // COMMITTED snapshot — reflects a write from this turn only after a flush
-const snapshot = config.getConfig();
+const currentOptions = config.getConfig();
 ```
 
 **Task expansion** (`isTaskExpanded`, `toggleTaskExpansion`, `expandTask`,
@@ -1210,7 +1215,7 @@ demo pages to clear those.
 ### What's Complete
 
 1. **Core Components**: Bar, Arrow, TaskDataPopup, TaskDataModal fully functional
-2. **Main Gantt Orchestrator**: Grid, headers, scroll handling, task/arrow layers
+2. **Main Gantt Orchestrator**: Grid, headers, scroll handling, and task rendering
 3. **State Management**: Task store, config store, date store, resource store operational
 4. **Interactions**: Drag, resize, progress editing all working
 5. **Constraints**: Full dependency constraint system (FS, SS, FF, SF types)

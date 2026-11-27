@@ -43,17 +43,12 @@ export function TaskLayerMinimal(props: TaskLayerMinimalProps): JSX.Element {
     const startX = (): number => props.startX ?? 0;
     const endX = (): number => props.endX ?? Infinity;
 
-    // Group tasks by resource. Shares `groupTasksByResource` with
-    // `useTaskVirtualization` — this file used to carry a byte-for-byte copy
-    // of it, cached on the task COUNT, which went permanently stale on a
-    // same-tick remove+add. `Object.keys` is TRACKED (the store's `ownKeys`
-    // trap), so the memo re-runs on any key add/remove; the per-task leaf
-    // reads stay untracked inside the helper, so a drag's `_bar.x` writes
-    // never rebuild the grouping.
+    // Rebuild the grouping on task content edits, including same-ID changes.
     const tasksByResource = createMemo((): Map<string, ProcessedTask[]> => {
-        const tasksObj = props.taskStore?.tasks;
-        if (!tasksObj) return new Map();
-        return groupTasksByResource(tasksObj, Object.keys(tasksObj));
+        const store = props.taskStore;
+        if (!store) return new Map();
+        store.contentRevision();
+        return groupTasksByResource(store.tasks);
     });
 
     // EXACTLY like indexTest visibleTasks() pattern:

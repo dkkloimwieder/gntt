@@ -76,6 +76,18 @@ function parseDependencies(
         }));
 }
 
+export function resolveTaskEnd(
+    start: Date,
+    end?: string,
+    duration?: string,
+): Date {
+    if (end) return dateUtils.parse(end);
+    const parsed = duration ? dateUtils.parse_duration(duration) : undefined;
+    return parsed
+        ? dateUtils.add(start, parsed.duration, parsed.scale)
+        : new Date(start);
+}
+
 /**
  * Process a single task - parse dates, validate, normalize.
  * Returns a partially processed task (without _bar position - added in processTasks).
@@ -90,23 +102,7 @@ export function processTask(
     // Parse start date
     const _start = dateUtils.parse(task.start);
 
-    // Parse or calculate end date
-    let _end: Date;
-    if (task.end) {
-        _end = dateUtils.parse(task.end);
-    } else if (task.duration) {
-        // Calculate end from duration
-        const durationResult = dateUtils.parse_duration(task.duration);
-        if (durationResult) {
-            const { duration, scale } = durationResult;
-            _end = dateUtils.add(_start, duration, scale);
-        } else {
-            _end = new Date(_start);
-        }
-    } else {
-        // Default to same day
-        _end = new Date(_start);
-    }
+    const _end = resolveTaskEnd(_start, task.end, task.duration);
 
     // Validate date range (max 10 years)
     const yearDiff = dateUtils.diff(_end, _start, 'year');

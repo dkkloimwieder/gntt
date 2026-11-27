@@ -29,9 +29,8 @@ import { generateArrow, type ArrowPaths } from '../utils/arrowBatchPaths';
  * moved bar repaints its arrows on its own. Scroll/viewport props
  * (`startRow`/`endRow`/`startX`/`endX`) are read by `batchedPaths` only,
  * so scrolling never rebuilds the index. Neither memo keeps mutable state
- * outside itself: the per-arrow path cache rides on the index generation
- * that produced it and the visible-set diff rides on `batchedPaths`' own
- * `prev`, so two mounted instances cannot hand each other stale paths.
+ * outside the component. The per-arrow path cache belongs to the geometry
+ * that produced it, and `batchedPaths` compares its own prior result.
  *
  * There is NO manual invalidation protocol. The `positionVersion` counter
  * prop and `GanttPerfIsolate`'s matching `triggerArrowUpdate()` bump were
@@ -51,6 +50,7 @@ interface ArrowLayerBatchedProps {
     taskStore?: TaskStore;
     startRow?: number;
     endRow?: number;
+    rowHeight?: number;
     startX?: number;
     endX?: number;
     arrowConfig?: ArrowConfig;
@@ -72,26 +72,20 @@ interface StyleGroup {
     stroke?: string;
 }
 
-/**
- * One generation of the spatial index. `pathCache` is carried BY the
- * generation rather than kept in a mutable module variable: a rebuild
- * hands out a fresh empty map, which is what invalidates the per-arrow
- * paths, and two mounted instances can never share one.
- */
 interface SpatialIndex {
     index: Map<number, Set<number>>;
     positions: Map<number, CachedPosition>;
-    pathCache: Map<number, ArrowPaths>;
 }
 
-/**
- * `batchedPaths`' memoised output plus the state its reuse check needs:
- * the index generation it was computed from and the visible relationship
- * set it covers. Kept in the memo's own `prev` value so nothing outside
- * the component can observe or corrupt it.
- */
-interface BatchedPaths {
+interface ArrowGeometry {
     source: SpatialIndex;
+    pathCache: Map<number, ArrowPaths>;
+    curve: number;
+    headSize: number;
+}
+
+interface BatchedPaths {
+    geometry: ArrowGeometry;
     visible: Set<number>;
     groups: StyleGroup[];
 }
@@ -118,7 +112,7 @@ export function ArrowLayerBatched(props: ArrowLayerBatchedProps): JSX.Element {
     // Viewport bounds for filtering (Y-axis)
     const startRow = (): number => props.startRow ?? 0;
     const endRow = (): number => props.endRow ?? Infinity;
-    const rowHeight = (): number => 38;
+    const rowHeight = (): number => props.rowHeight ?? 38;
 
     // Viewport bounds for filtering (X-axis)
     const startX = (): number => props.startX ?? 0;
@@ -140,7 +134,6 @@ export function ArrowLayerBatched(props: ArrowLayerBatchedProps): JSX.Element {
         const empty = (): SpatialIndex => ({
             index: new Map<number, Set<number>>(),
             positions: new Map<number, CachedPosition>(),
-            pathCache: new Map<number, ArrowPaths>(),
         });
 
         const rels = props.relationships || [];
@@ -177,6 +170,7 @@ export function ArrowLayerBatched(props: ArrowLayerBatchedProps): JSX.Element {
 
             const fromRow = Math.floor(fromPos.y / rh);
             const toRow = Math.floor(toPos.y / rh);
+            if (!Number.isFinite(fromRow) || !Number.isFinite(toRow)) continue;
             const minRow = Math.min(fromRow, toRow);
             const maxRow = Math.max(fromRow, toRow);
 
@@ -186,36 +180,56 @@ export function ArrowLayerBatched(props: ArrowLayerBatchedProps): JSX.Element {
             }
         }
 
-        return { index, positions, pathCache: new Map<number, ArrowPaths>() };
+        return { index, positions };
     });
+
+    // Style geometry and endpoint positions jointly determine the cached
+    // paths. Keep the generation stable when only the viewport changes.
+    const arrowGeometry = createMemo(
+        (): ArrowGeometry => ({
+            source: spatialIndex(),
+            pathCache: new Map<number, ArrowPaths>(),
+            curve: curve(),
+            headSize: headSize(),
+        }),
+    );
 
     /**
      * Build batched paths for visible arrows using spatial index.
      * Per-arrow path cache + visible-set diff: only rebuilds when the
-     * visible arrow set actually changes. Both caches live in this memo's
-     * `prev` value / in the index generation, so they are per-instance.
+     * visible arrow set or path geometry changes.
      */
     const batchedPaths = createMemo(
         (prev: BatchedPaths | undefined): BatchedPaths => {
-            const source = spatialIndex();
-            const { index, positions, pathCache } = source;
+            const geometry = arrowGeometry();
+            const {
+                source: { index, positions },
+                pathCache,
+            } = geometry;
             if (positions.size === 0) {
-                return { source, visible: new Set<number>(), groups: [] };
+                return { geometry, visible: new Set<number>(), groups: [] };
             }
 
             const sr = startRow();
             const er = endRow();
             const sx = startX();
             const ex = endX();
-            const c = curve();
-            const hs = headSize();
 
-            // Y-axis filter via spatial index (with 3-row overscan)
+            // An unbounded viewport or a wide sparse range is cheaper to
+            // check against occupied rows than to scan its coordinate space.
+            const firstRow = sr - 3;
+            const lastRow = er + 3;
             const rowFilteredIndices = new Set<number>();
-            for (let row = sr - 3; row <= er + 3; row++) {
-                const rowRels = index.get(row);
-                if (rowRels) {
-                    for (const idx of rowRels) rowFilteredIndices.add(idx);
+            if (lastRow - firstRow >= index.size) {
+                for (const [row, ids] of index) {
+                    if (row < firstRow || row > lastRow) continue;
+                    for (const id of ids) rowFilteredIndices.add(id);
+                }
+            } else {
+                for (let row = firstRow; row <= lastRow; row++) {
+                    for (const id of index.get(row) ?? []) {
+                        rowFilteredIndices.add(id);
+                    }
                 }
             }
 
@@ -237,7 +251,8 @@ export function ArrowLayerBatched(props: ArrowLayerBatchedProps): JSX.Element {
 
             // Reuse the previous output if it came from THIS index
             // generation and covers exactly the same visible set.
-            const reusable = prev && prev.source === source ? prev : undefined;
+            const reusable =
+                prev && prev.geometry === geometry ? prev : undefined;
             const setsEqual =
                 reusable !== undefined &&
                 visibleIndices.size === reusable.visible.size &&
@@ -263,7 +278,13 @@ export function ArrowLayerBatched(props: ArrowLayerBatchedProps): JSX.Element {
 
                 let cached = pathCache.get(idx);
                 if (!cached) {
-                    cached = generateArrow(pos.from, pos.to, pos.type, c, hs);
+                    cached = generateArrow(
+                        pos.from,
+                        pos.to,
+                        pos.type,
+                        geometry.curve,
+                        geometry.headSize,
+                    );
                     pathCache.set(idx, cached);
                 }
 
@@ -292,31 +313,31 @@ export function ArrowLayerBatched(props: ArrowLayerBatchedProps): JSX.Element {
                 });
             }
 
-            return { source, visible: visibleIndices, groups };
+            return { geometry, visible: visibleIndices, groups };
         },
     );
 
     return (
         <g class="arrow-layer-batched">
-            <For each={batchedPaths().groups}>
+            <For each={batchedPaths().groups} keyed={(group) => group.key}>
                 {(group) => (
                     <>
                         {/* Arrow lines for this style group */}
                         <path
-                            d={group.lines}
+                            d={group().lines}
                             fill="none"
-                            stroke={group.stroke || stroke()}
+                            stroke={group().stroke || stroke()}
                             stroke-width={strokeWidth()}
                             stroke-opacity={strokeOpacity()}
                             stroke-linecap="round"
                             stroke-linejoin="round"
-                            stroke-dasharray={group.dasharray || undefined}
+                            stroke-dasharray={group().dasharray || undefined}
                         />
                         {/* Arrow heads for this style group */}
                         <path
-                            d={group.heads}
+                            d={group().heads}
                             fill="none"
-                            stroke={group.stroke || stroke()}
+                            stroke={group().stroke || stroke()}
                             stroke-width={strokeWidth()}
                             stroke-opacity={strokeOpacity()}
                             stroke-linecap="round"

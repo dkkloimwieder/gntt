@@ -555,14 +555,24 @@ describe('progress drag', () => {
         );
         expect(markerRelativeProgress).not.toBe(expectedProgress);
 
-        handleOf(mounted, 't1', 'handle-progress').dispatchEvent(
-            mouse('mousedown', pressX, 20),
-        );
-        settle();
-        document.dispatchEvent(mouse('mousemove', releaseX, 20));
-        settle();
-        document.dispatchEvent(mouse('mouseup', releaseX, 20));
-        settle();
+        // An earlier chart with a different content origin must not affect
+        // the SVG coordinates of this chart's HTML drag handle.
+        const otherChart = document.createElement('div');
+        otherChart.innerHTML = '<svg class="gantt"></svg>';
+        document.body.prepend(otherChart);
+        otherChart.scrollLeft = 500;
+        try {
+            handleOf(mounted, 't1', 'handle-progress').dispatchEvent(
+                mouse('mousedown', pressX, 20),
+            );
+            settle();
+            document.dispatchEvent(mouse('mousemove', releaseX, 20));
+            settle();
+            document.dispatchEvent(mouse('mouseup', releaseX, 20));
+            settle();
+        } finally {
+            otherChart.remove();
+        }
 
         expect(taskStore.tasks['t1']!.progress).toBe(expectedProgress);
         // The report comes from `deps.taskInfo()` — a fresh read of the task

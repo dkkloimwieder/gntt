@@ -5,6 +5,8 @@
  * Supports seeded random for reproducibility.
  */
 
+import type { Dependency } from '../types';
+
 interface ResourceDef {
     id: string;
     name: string;
@@ -34,7 +36,7 @@ interface GeneratedSubtaskTask {
     progress: number;
     subtaskLayout?: 'sequential' | 'parallel' | 'mixed';
     parentId?: string;
-    dependencies?: string;
+    dependencies?: Dependency[];
 }
 
 interface SubtaskDemoResult {
@@ -384,7 +386,7 @@ export function generateSubtaskDemo(
                 if (candidates.length > 0) {
                     // Pick the most recent predecessor
                     const predecessor = candidates[candidates.length - 1]!;
-                    currentTask.dependencies = predecessor.id;
+                    currentTask.dependencies = [{ id: predecessor.id }];
                 }
             }
         }

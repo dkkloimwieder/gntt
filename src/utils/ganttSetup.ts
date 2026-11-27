@@ -5,8 +5,7 @@
  * commit to the task store.
  *
  * Extracted from Gantt.tsx so the orchestrator component focuses on
- * wiring stores together — the setup pipeline is a pure function of
- * the rawTasks + stores.
+ * wiring stores together.
  */
 import { untrack } from 'solid-js';
 import { processTasks } from './taskProcessor';
@@ -14,7 +13,6 @@ import {
     computeDisplayResources,
     computeResourceIndexMap,
     extractResourcesFromTasks,
-    normalizeResources,
 } from './resourceProcessor';
 import {
     buildHierarchy,
@@ -25,7 +23,12 @@ import type { TaskStore } from '../stores/taskStore';
 import type { GanttConfigStore } from '../stores/ganttConfigStore';
 import type { DateWindow, GanttDateStore } from '../stores/ganttDateStore';
 import type { ResourceStore } from '../stores/resourceStore';
-import type { GanttTask, ProcessedTask, Relationship } from '../types';
+import type {
+    GanttTask,
+    ProcessedTask,
+    Relationship,
+    Resource,
+} from '../types';
 
 export interface GanttSetupStores {
     taskStore: TaskStore;
@@ -39,47 +42,28 @@ export interface GanttSetupResult {
     legacyResources: string[];
 }
 
+interface GanttSetupOptions {
+    resources?: Resource[] | false;
+    dateWindow?: DateWindow;
+    geometry?: { barHeight: number; padding: number };
+}
+
 /**
- * Initialize tasks and compute positions. Returns the task relationships
- * and any extracted resource names (for backward-compat consumers that
- * pre-date the resourceStore).
- *
- * Empty input clears the stores; non-empty input runs the full pipeline.
- *
- * @param hasExplicitResources - true when the parent passed an explicit
- *   `resources` prop (so we leave the resource store alone). When false,
- *   resources are re-extracted from `rawTasks` on every call so filter/
- *   add/remove changes the resource set (and the row layout) accordingly.
- * @param dateWindow - a window the CALLER already computed (a view-mode
- *   change gets one back from `changeViewMode`). Supplying it skips the
- *   `setupDates` call: re-running it would recompute the same bounds from
- *   the same tasks and re-stage the same writes, and — since writes are
- *   deferred — would do so against a date store that has not yet committed
- *   the caller's mode change.
+ * Initialize tasks and compute positions. Returns the task relationships and
+ * the resource names for consumers without a resource store.
  */
 export function initializeTasks(
     rawTasks: GanttTask[],
     stores: GanttSetupStores,
-    useResourceStore = true,
-    hasExplicitResources?: boolean,
-    dateWindow?: DateWindow,
+    options: GanttSetupOptions = {},
 ): GanttSetupResult {
     const { taskStore, ganttConfig, dateStore, resourceStore } = stores;
-
-    if (!rawTasks || rawTasks.length === 0) {
-        taskStore.clear();
-        dateStore.setupDates([]);
-        if (!hasExplicitResources) {
-            resourceStore.updateResources([]);
-        }
-        return { relationships: [], legacyResources: [] };
-    }
 
     // Date window: `setupDates` stages the signal writes and RETURNS the
     // window it computed. Nothing below reads the date store back — writes
     // are deferred until the next flush, so a read-back here would still see
     // the previous window.
-    const window = dateWindow ?? dateStore.setupDates(rawTasks);
+    const window = options.dateWindow ?? dateStore.setupDates(rawTasks);
 
     // Mirror the window into the config store in one write.
     ganttConfig.updateOptions({
@@ -90,51 +74,34 @@ export function initializeTasks(
         columnWidth: window.columnWidth,
     });
 
-    // The window fields are plain locals — no reactive read there. The three
-    // config accessors are, and they were not written in this turn, so the
-    // committed values are the right ones. This runs from an effect's apply,
-    // where a bare reactive read is flagged as a strict-read mistake, so
-    // `untrack` states that those three are one-shot.
+    const configured = untrack(resourceStore.configuredResources);
+    const resources =
+        options.resources ?? (configured.length > 0 ? configured : false);
+    const rows = resources || extractResourcesFromTasks(rawTasks);
+    resourceStore.setDisplayResources(rows === configured ? null : rows);
+
+    if (!rawTasks || rawTasks.length === 0) {
+        taskStore.clear();
+        return { relationships: [], legacyResources: [] };
+    }
+
+    const geometry =
+        options.geometry ??
+        untrack(() => ({
+            barHeight: ganttConfig.barHeight(),
+            padding: ganttConfig.padding(),
+        }));
     const config = {
         ganttStart: window.ganttStart,
-        ganttEnd: window.ganttEnd,
         unit: window.unit,
         step: window.step,
         columnWidth: window.columnWidth,
-        ...untrack(() => ({
-            headerHeight: ganttConfig.headerHeight(),
-            barHeight: ganttConfig.barHeight(),
-            padding: ganttConfig.padding(),
-        })),
+        ...geometry,
     };
 
-    // Resource index map: when explicit resources were passed the store was
-    // populated by the caller in an earlier turn, so its memo is current and
-    // respects collapse state. Otherwise the resources are re-extracted from
-    // the task list here, in which case the map is built from the SAME local
-    // list that is published to the store — never read back from the memo
-    // this turn just staged. The flag must come from the caller: checking
-    // `resourceStore.resources().length > 0` is unreliable because we
-    // ourselves populate it during the first run.
-    let resourceIndexMap: Map<string, number> | null = null;
-    // Backward-compat fallback: if caller didn't pass the flag, infer
-    // from current store state (matches pre-flag behavior).
-    const explicit =
-        hasExplicitResources ??
-        untrack(() => resourceStore.resources().length > 0);
-
-    if (explicit && useResourceStore) {
-        resourceIndexMap = untrack(() => resourceStore.resourceIndexMap());
-    } else if (!explicit) {
-        const extracted = extractResourcesFromTasks(rawTasks);
-        resourceStore.updateResources(extracted);
-        resourceIndexMap = computeResourceIndexMap(
-            computeDisplayResources(
-                normalizeResources(extracted),
-                untrack(() => resourceStore.collapsedGroups()),
-            ),
-        );
-    }
+    const resourceIndexMap = computeResourceIndexMap(
+        computeDisplayResources(rows, untrack(resourceStore.collapsedGroups)),
+    );
 
     const {
         tasks: processedTasks,

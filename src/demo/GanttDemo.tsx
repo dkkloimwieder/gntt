@@ -1,13 +1,13 @@
-// @ts-nocheck
 import { createSignal } from 'solid-js';
 import { Gantt } from '../components/Gantt';
+import type { GanttTask } from '../types';
 
 /**
  * GanttDemo - Interactive demo for the main Gantt component.
  */
 export function GanttDemo() {
     // Sample tasks - each on its own row via resource
-    const [tasks, setTasks] = createSignal([
+    const [tasks] = createSignal<GanttTask[]>([
         {
             id: 'task-1',
             name: 'Project Planning',
@@ -26,7 +26,7 @@ export function GanttDemo() {
             start: '2024-01-06',
             end: '2024-01-12',
             progress: 80,
-            dependencies: 'task-1',
+            dependencies: [{ id: 'task-1' }],
             resource: 'Design',
             color: '#8b5cf6',
             colorProgress: '#6d28d9',
@@ -39,7 +39,7 @@ export function GanttDemo() {
             start: '2024-01-13',
             end: '2024-01-25',
             progress: 45,
-            dependencies: 'task-2',
+            dependencies: [{ id: 'task-2' }],
             resource: 'Development',
             color: '#10b981',
             colorProgress: '#059669',
@@ -52,7 +52,7 @@ export function GanttDemo() {
             start: '2024-01-26',
             end: '2024-01-30',
             progress: 20,
-            dependencies: 'task-3',
+            dependencies: [{ id: 'task-3' }],
             resource: 'QA',
             color: '#f59e0b',
             colorProgress: '#d97706',
@@ -63,7 +63,7 @@ export function GanttDemo() {
             start: '2024-01-15',
             end: '2024-01-28',
             progress: 30,
-            dependencies: 'task-2',
+            dependencies: [{ id: 'task-2' }],
             resource: 'Docs',
             color: '#ec4899',
             colorProgress: '#db2777',
@@ -74,7 +74,7 @@ export function GanttDemo() {
             start: '2024-01-31',
             end: '2024-02-02',
             progress: 0,
-            dependencies: 'task-4,task-5',
+            dependencies: [{ id: 'task-4' }, { id: 'task-5' }],
             resource: 'DevOps',
             color: '#ef4444',
             colorProgress: '#dc2626',
@@ -91,18 +91,21 @@ export function GanttDemo() {
         lowerHeaderHeight: 30,
         lines: 'both',
         scrollTo: 'start',
-    });
+    } as const);
 
     // Event handlers
-    const handleDateChange = (taskId, range) => {
+    const handleDateChange = (
+        taskId: string,
+        range: { start: Date; end: Date },
+    ) => {
         console.log('Date changed:', taskId, range);
     };
 
-    const handleProgressChange = (taskId, progress) => {
+    const handleProgressChange = (taskId: string, progress: number) => {
         console.log('Progress changed:', taskId, progress);
     };
 
-    const handleTaskClick = (taskId, event) => {
+    const handleTaskClick = (taskId: string) => {
         console.log('Task clicked:', taskId);
     };
 
@@ -141,8 +144,8 @@ export function GanttDemo() {
                     SolidJS Gantt Chart
                 </h1>
                 <p style={{ margin: 0, color: '#666' }}>
-                    Full Gantt chart with grid, headers, tasks, and dependency
-                    arrows.
+                    Full Gantt chart with grid, headers, and tasks linked by
+                    scheduling dependencies.
                 </p>
             </div>
 
@@ -164,7 +167,7 @@ export function GanttDemo() {
                     <li>Draggable task bars with grid snapping</li>
                     <li>Resizable bars (drag left/right edges)</li>
                     <li>Progress bar adjustment</li>
-                    <li>Dependency arrows with smart routing</li>
+                    <li>Finish-to-start constraints between tasks</li>
                     <li>Horizontal scrolling</li>
                 </ul>
                 <p style={{ margin: '10px 0 0 0' }}>

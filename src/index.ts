@@ -5,7 +5,14 @@
  */
 
 // Main component
-export { Gantt } from './components/Gantt';
+export {
+    Gantt,
+    type GanttAPI,
+    type GanttExportOptions,
+    type GanttOptions,
+    type GanttProps,
+} from './components/Gantt';
+export type { ColumnDef } from './components/ColumnPanel';
 
 // Stores
 export { createTaskStore, type TaskStore } from './stores/taskStore';
@@ -77,6 +84,7 @@ export type {
     NormalizedConstraints,
     LockState,
     GanttTask,
+    ResourceInput,
     ProcessedTask,
     BarPosition,
     Relationship,

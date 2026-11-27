@@ -229,12 +229,11 @@ export function TaskForm(props: TaskFormProps) {
 
     // Reset the form when `props.initial` changes (e.g. a drag-PATCH bumped
     // the parent's start/end in the bundle, or the user selected a different
-    // task). `on(..., { defer: true })` skips the first run since the
-    // signals above already used `init` for their seed values.
+    // task). Skip the first run because the signals already use `init`.
     createEffect(
-        () => props.initial,
+        () => (props.mode === 'edit' ? props.initial : undefined),
         (next) => {
-            if (props.mode !== 'edit' || !next) return;
+            if (!next) return;
             setId(next.id);
             setName(next.name);
             setStart(toLocalInput(next.start));

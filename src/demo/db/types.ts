@@ -18,6 +18,15 @@ export interface TaskApi {
     dependencies?: DepApi[];
 }
 
+/** An explicit null clears the corresponding server field. */
+export type TaskPatchBody = Partial<
+    Omit<TaskApi, 'resource' | 'color' | 'constraints'>
+> & {
+    resource?: string | null;
+    color?: string | null;
+    constraints?: TaskConstraintsApi | null;
+};
+
 export interface DepApi {
     /** Predecessor task id. */
     id: string;

@@ -194,20 +194,20 @@ export function Grid(props: GridProps): JSX.Element {
             />
 
             {/* Row rects - rendered before vertical lines so lines show on top */}
-            <For each={rows()}>
+            <For each={rows()} keyed={(row) => row.index}>
                 {(row) => (
                     <rect
                         x={0}
-                        y={row.y}
+                        y={row().y}
                         width={gridWidth()}
-                        height={row.height}
-                        fill={rowColor(row)}
+                        height={row().height}
+                        fill={rowColor(row())}
                         stroke="var(--g-grid-line-color, #e0e0e0)"
                         stroke-width="0.5"
-                        class={`grid-row ${row.type === 'group' ? 'grid-row-group' : ''}`}
-                        data-row-index={row.index}
-                        data-row-type={row.type}
-                        data-row-id={row.id}
+                        class={`grid-row ${row().type === 'group' ? 'grid-row-group' : ''}`}
+                        data-row-index={row().index}
+                        data-row-type={row().type}
+                        data-row-id={row().id}
                     />
                 )}
             </For>

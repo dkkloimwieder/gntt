@@ -61,10 +61,6 @@
  * re-read nothing and repainted nothing). It existed to make the prop's removal
  * a decision rather than an accident; the prop is gone, so it is too.
  *
- * MANDATORY PROP: finite `endRow`. `endRow()` defaults to `Infinity` (`:120`)
- * and `batchedPaths` loops `for (let row = sr - 3; row <= er + 3; row++)`
- * (`:215`), which never terminates once there are relationships and positioned
- * tasks. Every mount below passes an explicit viewport.
  */
 import { describe, it, expect, afterEach } from 'vitest';
 import { createEffect, createRoot, createSignal, createStore } from 'solid-js';
@@ -155,6 +151,10 @@ interface MountOptions {
     relationships: Relationship[];
     /** Reactive right edge; omitted = a constant 5000. Read by `batchedPaths` only. */
     endX?: () => number;
+    startRow?: number;
+    endRow?: number;
+    rowHeight?: number;
+    headSize?: () => number;
 }
 
 /** Every layer mounted by a test, disposed in `afterEach` (test 7 mounts two). */
@@ -168,8 +168,10 @@ function mountLayer(options: MountOptions): MountedLayer {
                 <ArrowLayerBatched
                     taskStore={options.taskStore}
                     relationships={options.relationships}
-                    startRow={0}
-                    endRow={10}
+                    startRow={options.startRow}
+                    endRow={options.endRow}
+                    rowHeight={options.rowHeight}
+                    arrowConfig={{ headSize: options.headSize?.() }}
                     startX={0}
                     endX={options.endX?.() ?? 5000}
                 />
@@ -601,6 +603,45 @@ describe('ArrowLayerBatched — the visible-set reuse short-circuit', () => {
         settle();
         expect(layer.lines()).toBe(LINE_FROM_100);
         expect(layer.paths()[0]).not.toBe(linesNode);
+    });
+});
+
+describe('ArrowLayerBatched — viewport and geometry', () => {
+    it('uses the caller’s row height when mapping viewport rows', () => {
+        const probe = createProbeStore(
+            seedTasks().map((task) => ({
+                ...task,
+                _bar: { ...task._bar!, y: 560 },
+            })),
+        );
+        const layer = mountLayer({
+            taskStore: probe.store,
+            relationships: RELATIONSHIPS,
+            startRow: 20,
+            endRow: 21,
+            rowHeight: 28,
+        });
+
+        expect(layer.paths()).toHaveLength(2);
+    });
+
+    it('regenerates cached heads after headSize changes', () => {
+        const probe = createProbeStore(seedTasks());
+        const [headSize, setHeadSize] = createSignal(5);
+        const layer = mountLayer({
+            taskStore: probe.store,
+            relationships: RELATIONSHIPS,
+            headSize,
+        });
+        const reads = probe.barPositionReads();
+        expect(layer.heads()).toBe(HEAD);
+
+        setHeadSize(10);
+        settle();
+
+        expect(layer.lines()).toBe(LINE_FROM_100);
+        expect(layer.heads()).not.toBe(HEAD);
+        expect(probe.barPositionReads()).toBe(reads);
     });
 });
 

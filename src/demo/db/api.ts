@@ -9,6 +9,7 @@ import type {
     DepApi,
     ResourceApi,
     TaskApi,
+    TaskPatchBody,
 } from './types';
 
 async function readError(res: Response): Promise<string> {
@@ -48,7 +49,7 @@ export const api = {
             body: JSON.stringify(body),
         }).then((r) => expect(r)) as Promise<TaskApi>,
 
-    patchTask: (id: string, patch: Partial<TaskApi>): Promise<TaskApi> =>
+    patchTask: (id: string, patch: TaskPatchBody): Promise<TaskApi> =>
         fetch(`/api/tasks/${encodeURIComponent(id)}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },

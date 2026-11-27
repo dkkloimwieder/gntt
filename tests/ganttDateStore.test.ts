@@ -36,9 +36,7 @@ import { settle } from './helpers/settle';
 // `dateUtils.add`, which is calendar-based (dateUtils.ts:275-296), so nothing
 // here depends on the runner's timezone or on a DST boundary.
 
-// The store's TaskLike accepts a bare `{ start, end }`. Both must be present:
-// a missing `end` makes `dateUtils.parse('')` an Invalid Date, `maxDate` stays
-// null and `add()` propagates NaN, so `dates()` silently comes back empty.
+// The store's TaskLike accepts a bare `{ start, end }`.
 const NARROW = [{ start: '2025-01-01 08:00', end: '2025-01-10 16:00' }];
 const WIDE = [
     { start: '2025-01-01 08:00', end: '2025-01-10 16:00' },
@@ -85,6 +83,15 @@ const WEEK_END = new Date(2025, 1, 10, 16, 0);
 const WEEK_COLUMNS = 11;
 
 describe('createGanttDateStore.setupDates — the window is committed before generateDates reads it back', () => {
+    it('includes the calculated end of a duration-only task', () => {
+        const store = createGanttDateStore();
+        store.setupDates([{ start: '2025-01-01 08:00', duration: '14d' }]);
+        settle();
+
+        expect(store.ganttEnd()).toEqual(new Date(2025, 0, 22, 8));
+        expect(store.dates()).toHaveLength(29);
+    });
+
     it('derives ganttStart/ganttEnd from the task bounds plus the view mode padding', () => {
         const store = createGanttDateStore({});
         store.setupDates(NARROW);
@@ -523,5 +530,69 @@ describe('createGanttDateStore.extendTimeline — grows the window in place', ()
         expect(store.dates()[WIDE_MONTH_COLUMNS + 1]!.getTime()).toBe(
             new Date(2025, 4, 25).getTime(),
         );
+    });
+});
+
+describe('createGanttDateStore — same-turn timeline commands', () => {
+    it('changes granularity using bounds staged by setupDates', () => {
+        const store = createGanttDateStore();
+        store.setupDates(WIDE);
+        const window = store.changeViewMode('Month');
+        settle();
+
+        expect(window?.ganttStart).toEqual(WIDE_DAY_START);
+        expect(window?.ganttEnd).toEqual(WIDE_DAY_END);
+        expect(store.dates()).toHaveLength(WIDE_MONTH_COLUMNS);
+        expect(store.dates()).toBe(window?.dates);
+    });
+
+    it('accumulates both repeated and opposite-edge extensions', () => {
+        const store = createGanttDateStore();
+        store.setupDates(NARROW);
+        store.extendTimeline('right', 2);
+        store.extendTimeline('right', 3);
+        store.extendTimeline('left', 1);
+        settle();
+
+        expect(store.ganttStart()).toEqual(new Date(2024, 11, 24));
+        expect(store.ganttEnd()).toEqual(new Date(2025, 0, 22, 16, 0));
+        expect(store.dates()).toHaveLength(NARROW_DAY_COLUMNS + 6);
+        expect(store.dates()[0]).toEqual(store.ganttStart());
+    });
+
+    it('generates dates from staged boundary setters', () => {
+        const store = createGanttDateStore();
+        store.setGanttStart(new Date(2025, 0, 1));
+        store.setGanttEnd(new Date(2025, 0, 4));
+        const dates = store.generateDates();
+        settle();
+
+        expect(dates).toEqual([
+            new Date(2025, 0, 1),
+            new Date(2025, 0, 2),
+            new Date(2025, 0, 3),
+        ]);
+        expect(store.dates()).toBe(dates);
+    });
+
+    it('uses the configured custom view mode for its first window', () => {
+        const store = createGanttDateStore({
+            viewMode: 'Two days',
+            viewModes: [
+                {
+                    name: 'Two days',
+                    step: '2d',
+                    columnWidth: 28,
+                    lowerText: 'D',
+                },
+            ],
+        });
+        store.setupDates(NARROW);
+        settle();
+
+        expect(store.viewMode().name).toBe('Two days');
+        expect(store.step()).toBe(2);
+        expect(store.columnWidth()).toBe(28);
+        expect(store.dates()).toHaveLength(NARROW_DAY_COLUMNS / 2);
     });
 });

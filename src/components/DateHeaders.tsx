@@ -210,14 +210,17 @@ export function DateHeaders(props: DateHeadersProps): JSX.Element {
             {/* Upper header (month/year labels) - skip if height is 0 */}
             <Show when={upperHeaderHeight() > 0}>
                 <div class="upper-header" style={upperHeaderStyle()}>
-                    <For each={upperTextEntries()}>
+                    <For
+                        each={upperTextEntries()}
+                        keyed={(entry) => entry.startIndex}
+                    >
                         {(entry) => (
-                            <Show when={entry.text}>
+                            <Show when={entry().text}>
                                 <div
                                     class="upper-text"
-                                    style={upperTextStyle(entry)}
+                                    style={upperTextStyle(entry())}
                                 >
-                                    {entry.text}
+                                    {entry().text}
                                 </div>
                             </Show>
                         )}
@@ -227,15 +230,15 @@ export function DateHeaders(props: DateHeadersProps): JSX.Element {
 
             {/* Lower header (day numbers) */}
             <div class="lower-header" style={lowerHeaderStyle()}>
-                <For each={lowerTextEntries()}>
+                <For each={lowerTextEntries()} keyed={(entry) => entry.index}>
                     {(entry) => (
-                        <Show when={entry.text}>
+                        <Show when={entry().text}>
                             <div
                                 class="lower-text"
-                                style={lowerTextStyle(entry)}
-                                data-date-index={entry.index}
+                                style={lowerTextStyle(entry())}
+                                data-date-index={entry().index}
                             >
-                                {entry.text}
+                                {entry().text}
                             </div>
                         </Show>
                     )}

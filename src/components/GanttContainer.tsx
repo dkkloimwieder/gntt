@@ -16,11 +16,7 @@ interface ContainerAPI {
     getScrollTop: () => number;
     getContainerWidth: () => number;
     getContainerHeight: () => number;
-    /**
-     * Viewport size measured at mount, as plain data. `onContainerReady`
-     * runs inside this component's own mount scope, so a consumer there
-     * cannot rely on reading back the signals the same scope just wrote.
-     */
+    /** Viewport size measured at mount, as plain data. */
     containerWidth: number;
     containerHeight: number;
     scrollLeftSignal: Accessor<number>;
@@ -43,16 +39,7 @@ interface GanttContainerProps {
     barsLayer?: JSX.Element;
     overlay?: JSX.Element;
     onScroll?: (scrollLeft: number, scrollTop: number) => void;
-    /**
-     * Fired once from `onSettled` with the container's imperative API.
-     *
-     * MUST NOT create reactive primitives — no `createSignal`,
-     * `createMemo`, `createEffect` or `onCleanup`, directly or through a
-     * callee: `onSettled`'s body is children-forbidden and throws on
-     * primitive creation.
-     * Derive from the accessors on the API object from an owner that
-     * outlives the callback instead — see `useGanttScroll`.
-     */
+    /** Fired once after the container's initial measurement. */
     onContainerReady?: (api: ContainerAPI) => void;
 }
 
@@ -106,10 +93,14 @@ export function GanttContainer(props: GanttContainerProps): JSX.Element {
         // Throttle reactive updates
         const now = performance.now();
         if (now - lastUpdateTime >= SCROLL_THROTTLE_MS) {
+            if (pendingUpdate !== null) {
+                clearTimeout(pendingUpdate);
+                pendingUpdate = null;
+            }
             lastUpdateTime = now;
             setScrollLeft(sl);
             setScrollTop(st);
-        } else if (!pendingUpdate) {
+        } else if (pendingUpdate === null) {
             pendingUpdate = setTimeout(
                 () => {
                     pendingUpdate = null;
@@ -163,24 +154,29 @@ export function GanttContainer(props: GanttContainerProps): JSX.Element {
             resizeObserver.observe(scrollAreaRef);
         }
 
-        // Expose scroll API and viewport info to parent. The measured
-        // dimensions go across as data, not as a read-back of the signals
-        // this same scope just wrote.
-        props.onContainerReady?.({
-            scrollTo,
-            getScrollLeft: () => scrollLeft(),
-            getScrollTop: () => scrollTop(),
-            getContainerWidth: () => containerWidth(),
-            getContainerHeight: () => viewportHeight(),
-            containerWidth: measuredWidth,
-            containerHeight: measuredHeight,
-            scrollLeftSignal: scrollLeft,
-            scrollTopSignal: scrollTop,
-            containerWidthSignal: containerWidth,
-            containerHeightSignal: viewportHeight,
+        let disposed = false;
+        queueMicrotask(() => {
+            if (disposed) return;
+            props.onContainerReady?.({
+                scrollTo,
+                getScrollLeft: scrollLeft,
+                getScrollTop: scrollTop,
+                getContainerWidth: containerWidth,
+                getContainerHeight: viewportHeight,
+                containerWidth: measuredWidth,
+                containerHeight: measuredHeight,
+                scrollLeftSignal: scrollLeft,
+                scrollTopSignal: scrollTop,
+                containerWidthSignal: containerWidth,
+                containerHeightSignal: viewportHeight,
+            });
         });
 
-        return () => resizeObserver?.disconnect();
+        return () => {
+            disposed = true;
+            resizeObserver?.disconnect();
+            if (pendingUpdate !== null) clearTimeout(pendingUpdate);
+        };
     });
 
     // CSS variables from config

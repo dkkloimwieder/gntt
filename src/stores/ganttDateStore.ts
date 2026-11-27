@@ -1,15 +1,17 @@
-import { Accessor, createMemo, createSignal, Setter, untrack } from 'solid-js';
+import { Accessor, createMemo, createSignal, Setter } from 'solid-js';
 import * as dateUtils from '../utils/dateUtils';
 import type { TimeScale } from '../utils/dateUtils';
 import { DEFAULT_VIEW_MODES } from '../utils/defaults';
 import type { ViewMode, DateInfo } from '../types';
 import { DEFAULT_COLUMN_WIDTH } from '../constants';
+import { resolveTaskEnd } from '../utils/taskProcessor';
 
 interface TaskLike {
     _start?: Date;
     _end?: Date;
     start?: string;
     end?: string;
+    duration?: string;
 }
 
 interface GanttDateStoreOptions {
@@ -22,7 +24,7 @@ interface GanttDateStoreOptions {
 }
 
 /**
- * The timeline window a mutating method computed and committed.
+ * The timeline window a mutating method computed and staged.
  *
  * `setupDates`, `changeViewMode` and `extendTimeline` return this so callers
  * consume the values that were just staged instead of reading the signals
@@ -81,7 +83,11 @@ export interface GanttDateStore {
     getAllDateInfos: Accessor<DateInfo[]>;
 
     // Methods
-    setupDates: (tasks: TaskLike[], infinitePadding?: boolean) => DateWindow;
+    setupDates: (
+        tasks: TaskLike[],
+        infinitePadding?: boolean,
+        mode?: ViewMode,
+    ) => DateWindow;
     generateDates: (
         start?: Date,
         end?: Date,
@@ -90,6 +96,7 @@ export interface GanttDateStore {
     ) => Date[];
     extendTimeline: (direction: 'left' | 'right', units?: number) => DateWindow;
     changeViewMode: (mode: string | ViewMode) => DateWindow | undefined;
+    setColumnWidthOverride: (width: number | undefined) => DateWindow;
     getDateInfo: (
         date: Date,
         index: number,
@@ -106,35 +113,45 @@ export interface GanttDateStore {
 export function createGanttDateStore(
     options: GanttDateStoreOptions = {},
 ): GanttDateStore {
-    // Timeline boundaries
-    const [ganttStart, setGanttStart] = createSignal<Date>(
-        options.ganttStart || new Date(),
-    );
-    const [ganttEnd, setGanttEnd] = createSignal<Date>(
-        options.ganttEnd || new Date(),
-    );
+    const availableModes = options.viewModes ?? DEFAULT_VIEW_MODES;
+    const defaultMode = DEFAULT_VIEW_MODES.find((mode) => mode.name === 'Day')!;
+    const initialMode =
+        availableModes.find((mode) => mode.name === options.viewMode) ??
+        DEFAULT_VIEW_MODES.find((mode) => mode.name === options.viewMode) ??
+        defaultMode;
 
-    // Generated date columns
-    const [dates, setDates] = createSignal<Date[]>([]);
+    // One state lets commands compose against staged bounds and mode in their
+    // functional updates. The field memos still isolate committed readers.
+    const [timeline, setTimeline] = createSignal({
+        ganttStart: options.ganttStart ?? new Date(),
+        ganttEnd: options.ganttEnd ?? new Date(),
+        dates: [] as Date[],
+        viewMode: initialMode,
+        columnWidthOverride: undefined as number | undefined,
+    });
+    const ganttStart = createMemo(() => timeline().ganttStart);
+    const ganttEnd = createMemo(() => timeline().ganttEnd);
+    const dates = createMemo(() => timeline().dates);
+    const viewMode = createMemo(() => timeline().viewMode);
+    const viewModes = () => availableModes;
 
-    // View mode configuration
-    const defaultViewMode =
-        DEFAULT_VIEW_MODES.find((m) => m.name === 'Day') ||
-        DEFAULT_VIEW_MODES[3]!;
+    function setGanttStart<T extends Date>(value: T | ((prev: Date) => T)): T {
+        let next!: T;
+        setTimeline((prev) => {
+            next = typeof value === 'function' ? value(prev.ganttStart) : value;
+            return { ...prev, ganttStart: next };
+        });
+        return next;
+    }
 
-    const initialViewModeName = options.viewMode;
-    const initialViewMode = initialViewModeName
-        ? DEFAULT_VIEW_MODES.find((m) => m.name === initialViewModeName) ||
-          defaultViewMode
-        : defaultViewMode;
-
-    const [viewMode, setViewModeSignal] =
-        createSignal<ViewMode>(initialViewMode);
-
-    // Available view modes
-    const [viewModes] = createSignal<ViewMode[]>(
-        options.viewModes || DEFAULT_VIEW_MODES,
-    );
+    function setGanttEnd<T extends Date>(value: T | ((prev: Date) => T)): T {
+        let next!: T;
+        setTimeline((prev) => {
+            next = typeof value === 'function' ? value(prev.ganttEnd) : value;
+            return { ...prev, ganttEnd: next };
+        });
+        return next;
+    }
 
     // Language for date formatting
     const [language, setLanguage] = createSignal<string>(
@@ -152,196 +169,195 @@ export function createGanttDateStore(
     const step = createMemo(() => modeScale().step);
 
     // Column width - use options override if provided, else view mode default
-    const [columnWidthOverride] = createSignal<number | null>(
-        options.columnWidth ?? null,
-    );
-    const columnWidthOf = (mode: ViewMode): number =>
-        columnWidthOverride() || mode.columnWidth || DEFAULT_COLUMN_WIDTH;
-    const columnWidth = createMemo(() => columnWidthOf(viewMode()));
+    const initialWidth = options.columnWidth;
+    const columnWidthOf = (mode: ViewMode, width?: number): number =>
+        (width ?? initialWidth) || mode.columnWidth || DEFAULT_COLUMN_WIDTH;
+    const columnWidth = createMemo(() => {
+        const state = timeline();
+        return columnWidthOf(state.viewMode, state.columnWidthOverride);
+    });
 
     // Grid width in pixels
     const gridWidth = createMemo(() => dateCount() * columnWidth());
 
+    const calculateDates = (
+        start: Date,
+        end: Date,
+        stepVal: number,
+        unitVal: TimeScale,
+    ): Date[] => {
+        const columns: Date[] = [];
+        if (!Number.isFinite(stepVal) || stepVal <= 0) return columns;
+
+        let current = new Date(start);
+        while (current < end) {
+            columns.push(current);
+            const next = dateUtils.add(current, stepVal, unitVal);
+            if (!(next > current)) break;
+            current = next;
+        }
+
+        return columns;
+    };
+
+    type Timeline = ReturnType<typeof timeline>;
+
+    // Mutators return their calculated window while staging the same values.
+    const updateWindow = (
+        update: (
+            prev: Timeline,
+            mode: ViewMode,
+            scale: ReturnType<typeof scaleOf>,
+        ) => Pick<Timeline, 'ganttStart' | 'ganttEnd'>,
+        mode?: ViewMode,
+    ): DateWindow => {
+        let window!: DateWindow;
+        setTimeline((prev) => {
+            const nextMode = mode ?? prev.viewMode;
+            const scale = scaleOf(nextMode);
+            const bounds = update(prev, nextMode, scale);
+            const { unit, step } = scale;
+            const dates = calculateDates(
+                bounds.ganttStart,
+                bounds.ganttEnd,
+                step,
+                unit,
+            );
+            window = {
+                ...bounds,
+                dates,
+                unit,
+                step,
+                columnWidth: columnWidthOf(nextMode, prev.columnWidthOverride),
+            };
+            return { ...prev, ...bounds, dates, viewMode: nextMode };
+        });
+        return window;
+    };
+
+    const setColumnWidthOverride = (width: number | undefined): DateWindow => {
+        const { ganttStart, ganttEnd, dates, viewMode, columnWidthOverride } =
+            setTimeline((prev) => ({ ...prev, columnWidthOverride: width }));
+        return {
+            ganttStart,
+            ganttEnd,
+            dates,
+            ...scaleOf(viewMode),
+            columnWidth: columnWidthOf(viewMode, columnWidthOverride),
+        };
+    };
+
     /**
-     * Setup dates array from tasks and view mode.
-     * Calculates ganttStart/ganttEnd from task dates and applies padding.
-     *
-     * Computes the whole window into locals first, then commits — and returns
-     * it, so a caller in the same tick never has to read the signals back.
+     * Calculate the window from task dates and apply view mode padding.
      */
     const setupDates = (
         tasks: TaskLike[],
         infinitePadding = false,
-    ): DateWindow => {
-        // One read of the view mode object supplies padding, step, unit and
-        // column width; nothing below reads a signal this call is about to
-        // write. Untracked: this runs from event handlers and effect applies,
-        // where the committed value is exactly what is wanted.
-        const mode = untrack(viewMode);
-        const { unit: unitVal, step: stepVal } = scaleOf(mode);
-        const colWidth = untrack(() => columnWidthOf(mode));
-        const pad = paddingOf(mode);
+        nextMode?: ViewMode,
+    ): DateWindow =>
+        updateWindow((_prev, mode, { unit }) => {
+            const pad = paddingOf(mode);
 
-        let start: Date;
-        let end: Date;
-
-        if (!tasks || tasks.length === 0) {
-            // Default to today +/- padding
-            const today = dateUtils.today();
-
-            start = dateUtils.start_of(
-                dateUtils.add(today, -pad.duration, pad.scale),
-                unitVal,
-            );
-            end = dateUtils.add(today, pad.duration, pad.scale);
-        } else {
-            // Find min/max dates from tasks
             let minDate: Date | null = null;
             let maxDate: Date | null = null;
 
-            for (const task of tasks) {
+            for (const task of tasks ?? []) {
                 const taskStart =
                     task._start || dateUtils.parse(task.start || '');
-                const taskEnd = task._end || dateUtils.parse(task.end || '');
+                const taskEnd =
+                    task._end ||
+                    resolveTaskEnd(taskStart, task.end, task.duration);
 
                 if (!minDate || taskStart < minDate) minDate = taskStart;
                 if (!maxDate || taskEnd > maxDate) maxDate = taskEnd;
             }
 
-            // Apply padding from view mode
-            start = dateUtils.add(minDate!, -pad.duration, pad.scale);
-            end = dateUtils.add(maxDate!, pad.duration, pad.scale);
-
-            // For infinite padding, extend more
-            if (infinitePadding) {
-                const extendUnits = 30;
-                start = dateUtils.add(start, -extendUnits, unitVal);
-                end = dateUtils.add(end, extendUnits, unitVal);
+            if (!minDate || !maxDate) {
+                const today = dateUtils.today();
+                return {
+                    ganttStart: dateUtils.start_of(
+                        dateUtils.add(today, -pad.duration, pad.scale),
+                        unit,
+                    ),
+                    ganttEnd: dateUtils.add(today, pad.duration, pad.scale),
+                };
             }
 
-            // Align to unit start (don't reset hours/minutes for sub-day views)
-            start = dateUtils.start_of(start, unitVal);
-            if (unitVal !== 'hour' && unitVal !== 'minute') {
+            let start = dateUtils.add(minDate, -pad.duration, pad.scale);
+            let end = dateUtils.add(maxDate, pad.duration, pad.scale);
+
+            if (infinitePadding) {
+                start = dateUtils.add(start, -30, unit);
+                end = dateUtils.add(end, 30, unit);
+            }
+
+            start = dateUtils.start_of(start, unit);
+            if (unit !== 'hour' && unit !== 'minute') {
                 start.setHours(0, 0, 0, 0);
             }
-        }
 
-        setGanttStart(start);
-        setGanttEnd(end);
-        const newDates = generateDates(start, end, stepVal, unitVal);
-
-        return {
-            ganttStart: start,
-            ganttEnd: end,
-            unit: unitVal,
-            step: stepVal,
-            columnWidth: colWidth,
-            dates: newDates,
-        };
-    };
+            return { ganttStart: start, ganttEnd: end };
+        }, nextMode);
 
     /**
-     * Generate the dates array from ganttStart to ganttEnd.
-     *
-     * Every parameter defaults to the corresponding signal/memo, so the public
-     * no-arg form is unchanged. Internal callers pass their own locals instead,
-     * because the signals they just wrote are not yet readable under deferred
-     * writes.
+     * Regenerate columns from the supplied values or staged timeline.
      */
     const generateDates = (
-        start: Date = ganttStart(),
-        end: Date = ganttEnd(),
-        stepVal: number = step(),
-        unitVal: TimeScale = unit(),
-    ): Date[] => {
-        const newDates: Date[] = [];
-        let current = new Date(start);
-
-        while (current < end) {
-            newDates.push(new Date(current));
-            current = dateUtils.add(current, stepVal, unitVal);
-        }
-
-        setDates(newDates);
-        return newDates;
-    };
+        start?: Date,
+        end?: Date,
+        stepVal?: number,
+        unitVal?: TimeScale,
+    ): Date[] =>
+        setTimeline((prev) => {
+            const { unit, step } = scaleOf(prev.viewMode);
+            const dates = calculateDates(
+                start ?? prev.ganttStart,
+                end ?? prev.ganttEnd,
+                stepVal ?? step,
+                unitVal ?? unit,
+            );
+            return { ...prev, dates };
+        }).dates;
 
     /**
-     * Extend timeline in a direction (for infinite padding).
+     * Extend the timeline for infinite padding.
      */
     const extendTimeline = (
         direction: 'left' | 'right',
         units = 10,
-    ): DateWindow => {
-        // Captured before any write; the view mode is untouched here, so the
-        // memos are the correct source for step/unit/columnWidth. Untracked
-        // one-shot reads of committed state.
-        const stepVal = untrack(step);
-        const unitVal = untrack(unit);
-        const colWidth = untrack(columnWidth);
-
-        let newStart = untrack(ganttStart);
-        let newEnd = untrack(ganttEnd);
-
-        if (direction === 'left') {
-            newStart = dateUtils.add(newStart, -units * stepVal, unitVal);
-            setGanttStart(newStart);
-        } else {
-            newEnd = dateUtils.add(newEnd, units * stepVal, unitVal);
-            setGanttEnd(newEnd);
-        }
-
-        const newDates = generateDates(newStart, newEnd, stepVal, unitVal);
-
-        return {
-            ganttStart: newStart,
-            ganttEnd: newEnd,
-            unit: unitVal,
-            step: stepVal,
-            columnWidth: colWidth,
-            dates: newDates,
-        };
-    };
+    ): DateWindow =>
+        updateWindow((prev, _mode, { unit, step }) => {
+            return {
+                ganttStart:
+                    direction === 'left'
+                        ? dateUtils.add(prev.ganttStart, -units * step, unit)
+                        : prev.ganttStart,
+                ganttEnd:
+                    direction === 'right'
+                        ? dateUtils.add(prev.ganttEnd, units * step, unit)
+                        : prev.ganttEnd,
+            };
+        });
 
     /**
-     * Change view mode by name or object.
-     *
-     * Returns the regenerated window, or `undefined` for an unknown mode name
-     * (a silent no-op, as before).
+     * Regenerate the existing timeline at the requested granularity.
      */
     const changeViewMode = (
         mode: string | ViewMode,
     ): DateWindow | undefined => {
-        let resolved: ViewMode | undefined;
-        if (typeof mode === 'string') {
-            resolved = untrack(viewModes).find((m) => m.name === mode);
-        } else if (mode && mode.name) {
-            resolved = mode;
-        }
-        if (!resolved) return undefined;
+        const resolved =
+            typeof mode === 'string'
+                ? availableModes.find((m) => m.name === mode)
+                : mode;
+        if (!resolved?.name) return undefined;
 
-        // Derived from the resolved mode OBJECT, never from the
-        // viewMode-derived memos: those still report the OLD mode until the
-        // staged setViewModeSignal write commits.
-        const { unit: unitVal, step: stepVal } = scaleOf(resolved);
-        const colWidth = untrack(() => columnWidthOf(resolved));
-
-        // The window itself is untouched by a mode change — only its
-        // granularity changes. Committed reads, untracked on purpose.
-        const start = untrack(ganttStart);
-        const end = untrack(ganttEnd);
-
-        setViewModeSignal(resolved);
-        const newDates = generateDates(start, end, stepVal, unitVal);
-
-        return {
-            ganttStart: start,
-            ganttEnd: end,
-            unit: unitVal,
-            step: stepVal,
-            columnWidth: colWidth,
-            dates: newDates,
-        };
+        return updateWindow(
+            (prev) => ({
+                ganttStart: prev.ganttStart,
+                ganttEnd: prev.ganttEnd,
+            }),
+            resolved,
+        );
     };
 
     /**
@@ -470,6 +486,7 @@ export function createGanttDateStore(
         generateDates,
         extendTimeline,
         changeViewMode,
+        setColumnWidthOverride,
         getDateInfo,
         dateToX,
         xToDate,

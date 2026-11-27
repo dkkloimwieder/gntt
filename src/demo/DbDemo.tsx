@@ -1,27 +1,12 @@
-import { Show, createMemo, createSignal, flush, onSettled } from 'solid-js';
+import { Show, createMemo, createSignal, onSettled } from 'solid-js';
 import { Gantt } from '../components/Gantt';
+import { GanttProvider, useGanttStores } from '../contexts/GanttStores';
 import { BlockedManager } from './db/BlockedManager';
 import { Modal } from './db/Modal';
 import { ResourceManager } from './db/ResourceManager';
 import { TaskForm } from './db/TaskForm';
-import { api, fromLocalInput } from './db/api';
-import type { BootstrapBundle, TaskApi, TaskConstraintsApi } from './db/types';
-
-/**
- * PATCH body for a task. An explicit `null` CLEARS the column server-side
- * (`TaskPatchInput` in `server/db/adapter.ts` distinguishes null from an
- * absent key), which `Partial<TaskApi>` cannot express — its optional
- * fields only encode "leave alone". Widening `api.patchTask`'s parameter
- * belongs in `src/demo/db/api.ts`; until then the edit path builds this
- * shape and casts once at the call.
- */
-type TaskPatchBody = Partial<
-    Omit<TaskApi, 'resource' | 'color' | 'constraints'>
-> & {
-    resource?: string | null;
-    color?: string | null;
-    constraints?: TaskConstraintsApi | null;
-};
+import { api } from './db/api';
+import type { BootstrapBundle, TaskApi, TaskPatchBody } from './db/types';
 
 /**
  * DbDemo — full CRUD over the Drizzle + SQLite + Hono backend.
@@ -39,30 +24,27 @@ type TaskPatchBody = Partial<
 
 type ModalKind = null | 'add' | 'resources' | 'blocked';
 
+const chartOptions = { viewMode: 'Day', scrollTo: 'start' } as const;
+
 export function DbDemo() {
+    return (
+        <GanttProvider options={chartOptions}>
+            <DbDemoContent />
+        </GanttProvider>
+    );
+}
+
+function DbDemoContent() {
+    const { taskStore, dateStore } = useGanttStores()!;
     const [bundle, setBundle] = createSignal<BootstrapBundle | null>(null);
     const [error, setError] = createSignal<string | null>(null);
     const [status, setStatus] = createSignal<string>('Loading…');
     const [modal, setModal] = createSignal<ModalKind>(null);
     const [selectedId, setSelectedId] = createSignal<string | null>(null);
 
-    /**
-     * Side-tables tracking "what's currently in the DB" + "what x each
-     * bar was at last refetch", keyed by task id.
-     *
-     * Why both: on drag end, the chart only fires onDateChange for the
-     * dragged bar, but it batch-moves dependents internally. We can't
-     * compare new dates against bundle() (we deliberately don't setBundle
-     * on drag — that would re-process the tasks array and flash) AND we
-     * can't ask the chart's xToDate for hour-precision dates (it snaps
-     * to day boundaries in Day mode). So instead:
-     *   1. Track each bar's _bar.x at last refetch (`lastX`)
-     *   2. After drag, deltaX_per_id = chart_x_now - lastX[id]
-     *   3. Convert deltaX → deltaMs via xToDate(deltaX) - xToDate(0)
-     *      (linear so precision is preserved)
-     *   4. newStart_id = parse(dbState[id].start) + deltaMs (full HH:MM
-     *      precision)
-     */
+    // Pair the last persisted dates with the corresponding chart geometry.
+    // Pixel deltas preserve the time of day when the Day view reports dates
+    // rounded to day boundaries. Every dependent moved by a cascade is saved.
     const dbState = new Map<string, { start: string; end: string }>();
     const lastX = new Map<string, number>();
     const lastWidth = new Map<string, number>();
@@ -82,21 +64,10 @@ export function DbDemo() {
 
     /** Snapshot the chart's _bar.x and _bar.width for every known task. */
     const snapshotChartX = () => {
-        const ts = (
-            window as unknown as {
-                __ganttTaskStore?: {
-                    tasks: Record<
-                        string,
-                        { _bar?: { x: number; width: number } } | undefined
-                    >;
-                };
-            }
-        ).__ganttTaskStore;
-        if (!ts) return;
         lastX.clear();
         lastWidth.clear();
-        for (const id of Object.keys(ts.tasks)) {
-            const bar = ts.tasks[id]?._bar;
+        for (const [id, task] of Object.entries(taskStore.tasks)) {
+            const bar = task?._bar;
             if (typeof bar?.x === 'number') lastX.set(id, bar.x);
             if (typeof bar?.width === 'number') lastWidth.set(id, bar.width);
         }
@@ -165,37 +136,8 @@ export function DbDemo() {
     const onDateChange = async (
         parentId: string,
         _range: { start: Date; end: Date },
+        position?: { x: number; width: number },
     ) => {
-        const taskStore = (
-            window as unknown as {
-                __ganttTaskStore?: {
-                    tasks: Record<
-                        string,
-                        { _bar?: { x: number; width: number } } | undefined
-                    >;
-                };
-            }
-        ).__ganttTaskStore;
-        const dateStore = (
-            window as unknown as {
-                __ganttDateStore?: {
-                    unit: () => string;
-                    step: () => number;
-                    columnWidth: () => number;
-                };
-            }
-        ).__ganttDateStore;
-        if (!taskStore || !dateStore) return;
-
-        // Commit the drag's staged bar writes before measuring them.
-        // `onDragEnd` fires from `useDrag`'s mouseup, which processes one
-        // last pending move immediately beforehand; under deferred writes
-        // that final `_bar.x` / `_bar.width` is still staged, so reading it
-        // here without a flush yields the second-to-last frame's geometry
-        // and persists dates a few pixels short of where the bar landed.
-        // Legal site: this is an event handler (decision D9).
-        flush();
-
         // ms-per-pixel — derive directly from the chart's `unit` + `step` +
         // `columnWidth`. Do NOT use xToDate(100)-xToDate(0) — that calls
         // dateUtils.add which truncates fractional days (e.g. add(start,
@@ -234,7 +176,12 @@ export function DbDemo() {
             width: number;
         }> = [];
         for (const id of Object.keys(taskStore.tasks)) {
-            const bar = taskStore.tasks[id]?._bar;
+            // Keyboard writes are still staged when this callback runs.
+            // The gesture supplies the edited bar's final geometry directly.
+            const bar =
+                id === parentId && position
+                    ? position
+                    : taskStore.getBarPosition(id);
             const prevX = lastX.get(id);
             const prevW = lastWidth.get(id);
             const prevDates = dbState.get(id);
@@ -342,7 +289,7 @@ export function DbDemo() {
                 color: t.color ?? null,
                 constraints: t.constraints ?? null,
             };
-            await api.patchTask(t.id, patch as Partial<TaskApi>);
+            await api.patchTask(t.id, patch);
         }
         await api.replaceDeps(t.id, value.dependencies);
         await refetch(`${mode === 'create' ? 'Created' : 'Updated'} ${t.id}`);
@@ -403,17 +350,11 @@ export function DbDemo() {
                 >
                     <Gantt
                         tasks={bundle()!.tasks}
-                        options={{ viewMode: 'Day', scrollTo: 'start' }}
+                        options={chartOptions}
                         onDateChange={onDateChange}
                         onProgressChange={onProgressChange}
                         onTaskClick={(id) => {
                             setSelectedId(id);
-                        }}
-                        onReady={() => {
-                            // Snapshot bar positions once the chart is
-                            // mounted; refetches re-snapshot via
-                            // queueMicrotask in `refetch`.
-                            setTimeout(snapshotChartX, 0);
                         }}
                         disableTaskClickModal
                         disableHoverPopup
@@ -663,7 +604,5 @@ const closeBtn = {
     cursor: 'pointer',
     padding: '4px 8px',
 } as const;
-
-void fromLocalInput; // (re-exported through api; keep import path clean)
 
 export default DbDemo;
