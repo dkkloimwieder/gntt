@@ -1,5 +1,6 @@
 import * as dateUtils from './dateUtils';
-import { computeX, computeY, computeWidth } from './barCalculations';
+import { computeY } from './barCalculations';
+import { createTimelineScale } from './timelineScale';
 import { detectCycles } from './constraintEngine';
 import { diagnosticWarn, diagnosticError } from './diagnostics';
 import type {
@@ -13,7 +14,7 @@ import type {
 
 interface ProcessConfig {
     ganttStart: Date;
-    unit: string;
+    unit: dateUtils.TimeScale;
     step: number;
     columnWidth: number;
     headerHeight?: number;
@@ -233,6 +234,12 @@ export function processTasks(
 
     // Second pass: compute positions and build relationships
     const processedTasks: ProcessedTask[] = [];
+    const { dateToX } = createTimelineScale(
+        config.ganttStart,
+        config.unit,
+        config.step,
+        config.columnWidth,
+    );
     for (const task of partialTasks) {
         // Get row index based on resource (swimlane layout)
         const resource = task.resource || 'Unassigned';
@@ -243,46 +250,20 @@ export function processTasks(
         const effectiveRowIndex = rowIndex !== undefined ? rowIndex : -1;
         const isHidden = effectiveRowIndex < 0;
 
-        // Compute bar position
-        const x = computeX(
-            task._start,
-            config.ganttStart,
-            config.unit,
-            config.step,
-            config.columnWidth,
-        );
+        const x = dateToX(task._start);
+        const width = dateToX(task._end) - x;
 
         // Use negative Y for hidden tasks (won't be rendered by TaskLayer)
         const y = isHidden
             ? -1000
             : computeY(effectiveRowIndex, config.barHeight, config.padding);
 
-        const width = computeWidth(
-            task._start,
-            task._end,
-            config.unit,
-            config.step,
-            config.columnWidth,
-        );
-
-        // Compute baseline bar position (if baseline dates were provided).
         let _baselineBar: { x: number; width: number } | undefined;
         if (task._baselineStart && task._baselineEnd) {
+            const baselineX = dateToX(task._baselineStart);
             _baselineBar = {
-                x: computeX(
-                    task._baselineStart,
-                    config.ganttStart,
-                    config.unit,
-                    config.step,
-                    config.columnWidth,
-                ),
-                width: computeWidth(
-                    task._baselineStart,
-                    task._baselineEnd,
-                    config.unit,
-                    config.step,
-                    config.columnWidth,
-                ),
+                x: baselineX,
+                width: dateToX(task._baselineEnd) - baselineX,
             };
         }
 

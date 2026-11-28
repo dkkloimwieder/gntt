@@ -112,7 +112,7 @@ Use `api.exportSvg()` for SVG text, `api.exportSvgBlob()` for a file, or `await 
 Pass `{ range: 'visible' }` to export the current viewport.
 
 Use the callback arguments for the result of a gesture. A store read in the handler can still return the previously committed value.
-The date conversion can drop a fractional time unit, such as half a day in Day view. For sub-day persistence, the database demo uses the supplied pixel geometry and the active time scale. See [Database architecture](docs/DATABASE.md).
+Save the `start` and `end` dates from `onDateChange` to preserve the time of day. Calendar columns follow local dates. Within each column, pixels represent elapsed time to the nearest millisecond. For example, halfway across February 2025 represents February 15 at midnight in UTC. See [Database architecture](docs/DATABASE.md).
 
 ## Reactivity & timing
 
@@ -172,17 +172,17 @@ The chart container exposes `role="region"` with
 `aria-roledescription="gantt chart"` so screen readers announce it as a
 single landmark.
 
-Keyboard shortcuts on a focused bar:
+A focused regular task bar supports these keyboard shortcuts.
 
 | Key | Action |
 |-----|--------|
 | `Tab` / `Shift+Tab` | Move focus between bars |
 | `←` / `→` | Move bar by one column (one unit of the current view mode) |
-| `Shift+←` / `Shift+→` | Resize bar from the right edge by one column |
+| `Shift+←` / `Shift+→` | Move the right edge by one column, or the left edge if the end is locked |
 | `Enter` / `Space` | Activate the task. The built-in modal opens unless `disableTaskClickModal` is set. |
 
-Arrow-key moves check the task's dependency and date bounds. Shift+arrow resizes the right edge and can push successors.
-`readonly`, `readonlyDates`, and `constraints.locked: true` prevent keyboard date edits.
+Arrow-key moves respect dependency and date bounds. A resize can push successors.
+`readonly`, `readonlyDates`, and `constraints.locked: true` prevent keyboard date edits. For partial locks, see [Locks and date limits](docs/CONSTRAINTS.md#locks-and-date-limits).
 
 ## Advanced usage — `<GanttProvider>`
 

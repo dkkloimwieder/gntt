@@ -34,6 +34,7 @@
 
 import {
     isMovementLocked,
+    isLeftResizeLocked,
     getMinXFromAbsolute,
     getMaxXFromAbsolute,
     getMaxEndFromAbsolute,
@@ -45,7 +46,11 @@ import type {
     TaskConstraints,
     RelationshipIndex,
     DepOffsets,
+    CascadePosition,
+    ConstraintContext,
+    ConstraintResult,
 } from '../types';
+export type { ProjectMoveStart, ProjectMoveWidth } from '../types';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -197,6 +202,7 @@ export function getMinSuccessorX(
     predBar: BarLike,
     succWidth: number,
     gap: number,
+    endToStart?: (end: number) => number,
 ): number {
     const anchor = getPredAnchor(type, predBar);
     const minRef = anchor + gap;
@@ -204,7 +210,7 @@ export function getMinSuccessorX(
     // Convert reference point to X position
     if (constrainsSuccEnd(type)) {
         // FF/SF: reference is successor end
-        return minRef - succWidth;
+        return endToStart?.(minRef) ?? minRef - succWidth;
     } else {
         // FS/SS: reference is successor start
         return minRef;
@@ -220,6 +226,7 @@ export function getMaxSuccessorX(
     predBar: BarLike,
     succWidth: number,
     gap: number,
+    endToStart?: (end: number) => number,
 ): number {
     const anchor = getPredAnchor(type, predBar);
     const maxRef = anchor + gap;
@@ -227,7 +234,7 @@ export function getMaxSuccessorX(
     // Convert reference point to X position
     if (constrainsSuccEnd(type)) {
         // FF/SF: reference is successor end
-        return maxRef - succWidth;
+        return endToStart?.(maxRef) ?? maxRef - succWidth;
     } else {
         // FS/SS: reference is successor start
         return maxRef;
@@ -293,6 +300,7 @@ export function getMinXFromPredecessors(
     getBarPosition: GetBarPosition,
     pixelsPerHour: number,
     taskWidth = 0,
+    endToStart?: (end: number) => number,
 ): number {
     let minX = 0;
 
@@ -308,7 +316,13 @@ export function getMinXFromPredecessors(
         const type = rel.type || DEP_TYPES.FS;
         const { minGap } = getDepOffsets(rel, pixelsPerHour);
 
-        const constraint = getMinSuccessorX(type, predBar, taskWidth, minGap);
+        const constraint = getMinSuccessorX(
+            type,
+            predBar,
+            taskWidth,
+            minGap,
+            endToStart,
+        );
         minX = Math.max(minX, constraint);
     }
 
@@ -324,6 +338,7 @@ export function getMaxXFromPredecessors(
     getBarPosition: GetBarPosition,
     pixelsPerHour: number,
     taskWidth = 0,
+    endToStart?: (end: number) => number,
 ): number {
     let maxX = Infinity;
 
@@ -340,7 +355,13 @@ export function getMaxXFromPredecessors(
         if (isElastic) continue; // Elastic deps don't limit max position
 
         const type = rel.type || DEP_TYPES.FS;
-        const constraint = getMaxSuccessorX(type, predBar, taskWidth, maxGap);
+        const constraint = getMaxSuccessorX(
+            type,
+            predBar,
+            taskWidth,
+            maxGap,
+            endToStart,
+        );
         maxX = Math.min(maxX, constraint);
     }
 
@@ -494,7 +515,7 @@ export function getMaxXFromLockedSuccessors(
 
     for (const rel of successorRels) {
         const succTask = getTask?.(rel.to);
-        const isLocked = succTask?.constraints?.locked;
+        const isLocked = isMovementLocked(succTask?.constraints?.locked);
         if (!isLocked) continue;
 
         const succBar = getBarPosition(rel.to);
@@ -517,15 +538,19 @@ export function getMaxXFromLockedSuccessors(
 // Iterative constraint relaxation for multi-path dependency graphs
 // ═══════════════════════════════════════════════════════════════════════════════
 
-interface ResolveContext {
+export interface LeftResizeProposal {
+    kind: 'resize-left';
+    width: number;
+}
+
+type ResolveContext = Omit<
+    ConstraintContext,
+    'getBarPosition' | 'getTask' | 'relationships'
+> & {
     getBarPosition: GetBarPosition;
     getTask?: GetTask | null;
     relationships?: Relationship[];
-    relationshipIndex?: RelationshipIndex;
-    pixelsPerHour: number;
-    ganttStartDate: Date;
-    dateToX?: (date: Date) => number;
-}
+};
 
 /**
  * Calculate cascade updates for all affected successors using iterative relaxation.
@@ -556,7 +581,7 @@ export function calculateCascadeUpdates(
     taskId: string,
     newX: number,
     context: ResolveContext,
-): Map<string, { x: number }> {
+): Map<string, CascadePosition> {
     const {
         getBarPosition,
         getTask,
@@ -566,9 +591,29 @@ export function calculateCascadeUpdates(
         ganttStartDate,
     } = context;
 
-    const { byPredecessor, bySuccessor } =
+    const index =
         relationshipIndex ?? buildRelationshipIndex(relationships ?? []);
-    const updates = new Map([[taskId, { x: newX }]]);
+    const { byPredecessor } = index;
+    const movedPosition = (
+        id: string,
+        original: Pick<BarPosition, 'x' | 'width'>,
+        x: number,
+    ): CascadePosition => {
+        const width = context.projectMoveWidth?.(id, original, x);
+        return width === undefined || width === original.width
+            ? { x }
+            : { x, width };
+    };
+    const source = getBarPosition(taskId);
+    const updates = new Map([
+        [taskId, source ? movedPosition(taskId, source, newX) : { x: newX }],
+    ]);
+
+    const getUpdatedBarPosition: GetBarPosition = (id) => {
+        const bar = getBarPosition(id);
+        const update = updates.get(id);
+        return bar && update ? { ...bar, ...update } : bar;
+    };
 
     // Step 1: Find all reachable successors (single BFS)
     const reachable = new Set<string>();
@@ -598,34 +643,24 @@ export function calculateCascadeUpdates(
             // Skip locked tasks
             if (isMovementLocked(succTask?.constraints?.locked)) continue;
 
-            // Get current position (with any pending update)
-            let succBar = getBarPosition(succId);
-            if (!succBar) continue;
-            if (updates.has(succId)) {
-                succBar = { ...succBar, ...updates.get(succId) };
-            }
+            const original = getBarPosition(succId);
+            if (!original) continue;
+            const currentX = updates.get(succId)?.x ?? original.x;
+            const projectStart =
+                succTask?.constraints?.locked === 'duration'
+                    ? context.projectMoveStart
+                    : undefined;
 
-            // Calculate minX from ALL predecessors
-            let minX = 0;
-            for (const rel of bySuccessor.get(succId) ?? []) {
-                let predBar = getBarPosition(rel.from);
-                if (!predBar) continue;
-
-                // Use updated position if predecessor was also updated
-                if (updates.has(rel.from)) {
-                    predBar = { ...predBar, ...updates.get(rel.from) };
-                }
-
-                const type = rel.type || DEP_TYPES.FS;
-                const { minGap } = getDepOffsets(rel, pixelsPerHour);
-                const constraint = getMinSuccessorX(
-                    type,
-                    predBar,
-                    succBar.width,
-                    minGap,
-                );
-                minX = Math.max(minX, constraint);
-            }
+            let minX = getMinXFromPredecessors(
+                succId,
+                index,
+                getUpdatedBarPosition,
+                pixelsPerHour,
+                original.width,
+                projectStart
+                    ? (end) => projectStart(succId, original, end)
+                    : undefined,
+            );
 
             // Apply absolute constraints
             const absMinX = getMinXFromAbsolute(
@@ -643,8 +678,8 @@ export function calculateCascadeUpdates(
             minX = Math.max(absMinX, Math.min(minX, absMaxX));
 
             // Update if needs to move right
-            if (minX > succBar.x + EPSILON_PX) {
-                updates.set(succId, { x: minX });
+            if (minX > currentX + EPSILON_PX) {
+                updates.set(succId, movedPosition(succId, original, minX));
                 changed = true;
             }
         }
@@ -679,7 +714,7 @@ export function resolveResizeCascade(
     taskId: string,
     geometry: { x: number; width: number },
     context: ResolveContext,
-): Map<string, { x: number }> {
+): Map<string, CascadePosition> {
     const read = context.getBarPosition;
     const getBarPosition: GetBarPosition = (id) => {
         const bar = read(id);
@@ -697,13 +732,7 @@ export function resolveResizeCascade(
 // Single function to resolve all constraints
 // ═══════════════════════════════════════════════════════════════════════════════
 
-interface ResolveResult {
-    constrainedX: number;
-    constrainedWidth: number;
-    blocked: boolean;
-    blockReason: string | null;
-    cascadeUpdates: Map<string, { x: number }>;
-}
+export type ConstraintOperation = 'move' | 'resize-left';
 
 /**
  * Resolve constraints for a task move/resize operation.
@@ -721,7 +750,8 @@ export function resolveConstraints(
     proposedX: number,
     proposedWidth: number,
     context: ResolveContext,
-): ResolveResult {
+    operation: ConstraintOperation = 'move',
+): ConstraintResult {
     const {
         getBarPosition,
         getTask,
@@ -748,7 +778,12 @@ export function resolveConstraints(
     }
 
     // 1. Check lock constraint
-    if (isMovementLocked(task?.constraints?.locked)) {
+    const locked = task?.constraints?.locked;
+    const lockBlocksOperation =
+        operation === 'resize-left'
+            ? isLeftResizeLocked(locked)
+            : isMovementLocked(locked);
+    if (lockBlocksOperation) {
         return {
             constrainedX: currentBar.x,
             constrainedWidth: currentBar.width,
@@ -778,6 +813,13 @@ export function resolveConstraints(
     let minX = 0;
     let maxX = Infinity;
 
+    const projectStart =
+        locked === 'duration' ? context.projectMoveStart : undefined;
+    const endToStart = (end: number): number =>
+        projectStart
+            ? projectStart(taskId, currentBar, end)
+            : end - proposedWidth;
+
     // 3. Apply absolute constraints
     const absMinX = getMinXFromAbsolute(
         task?.constraints,
@@ -803,16 +845,18 @@ export function resolveConstraints(
         maxX = Math.min(maxX, absMaxX);
     }
     if (absMaxEnd !== Infinity) {
-        maxX = Math.min(maxX, absMaxEnd - proposedWidth);
+        maxX = Math.min(maxX, endToStart(absMaxEnd));
     }
 
-    // 4. Apply predecessor constraints
+    // 4. Convert finish bounds to a start using the task's elapsed duration.
+    const projectPredecessorEnd = projectStart ? endToStart : undefined;
     const predMinX = getMinXFromPredecessors(
         taskId,
         relSource,
         getBarPosition,
         pixelsPerHour,
         proposedWidth,
+        projectPredecessorEnd,
     );
     const predMaxX = getMaxXFromPredecessors(
         taskId,
@@ -820,6 +864,7 @@ export function resolveConstraints(
         getBarPosition,
         pixelsPerHour,
         proposedWidth,
+        projectPredecessorEnd,
     );
 
     minX = Math.max(minX, predMinX);
@@ -840,7 +885,7 @@ export function resolveConstraints(
             currentBar,
         );
         if (downstreamMaxEnd !== Infinity) {
-            maxX = Math.min(maxX, downstreamMaxEnd - proposedWidth);
+            maxX = Math.min(maxX, endToStart(downstreamMaxEnd));
         }
 
         // SS/SF locked successor constraints on start position
@@ -866,14 +911,26 @@ export function resolveConstraints(
     }
 
     // 6. Calculate cascade updates ONLY if position actually changed
-    let cascadeUpdates = new Map<string, { x: number }>();
-    if (!blocked && Math.abs(constrainedX - currentBar.x) > EPSILON_PX) {
+    let cascadeUpdates = new Map<string, CascadePosition>();
+    if (
+        operation === 'move' &&
+        !blocked &&
+        Math.abs(constrainedX - currentBar.x) > EPSILON_PX
+    ) {
         cascadeUpdates = calculateCascadeUpdates(taskId, constrainedX, context);
+    }
+
+    let constrainedWidth = proposedWidth;
+    if (locked === 'duration') {
+        constrainedWidth = blocked
+            ? currentBar.width
+            : (context.projectMoveWidth?.(taskId, currentBar, constrainedX) ??
+              proposedWidth);
     }
 
     return {
         constrainedX,
-        constrainedWidth: proposedWidth,
+        constrainedWidth,
         blocked,
         blockReason: blocked ? 'conflicting_constraints' : null,
         cascadeUpdates,
@@ -961,7 +1018,7 @@ export function collectDependentTasks(
         // Check if this task is locked - if so, don't include it or its dependents
         if (getTask) {
             const task = getTask(currentId);
-            if (task?.constraints?.locked) continue;
+            if (isMovementLocked(task?.constraints?.locked)) continue;
         }
 
         visited.add(currentId);

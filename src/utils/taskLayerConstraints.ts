@@ -6,12 +6,24 @@
  * into bound handlers it passes to <Bar>/<SummaryBar>.
  */
 import {
+    EPSILON_PX,
+    calculateCascadeUpdates,
     resolveConstraints,
     resolveResizeCascade,
     collectDependentTasks,
     clampBatchDeltaX,
 } from './constraintEngine';
+import {
+    getMinXFromAbsolute,
+    getMaxXFromAbsolute,
+    getMaxEndFromAbsolute,
+} from './absoluteConstraints';
 import type { TaskStore } from '../stores/taskStore';
+import type {
+    LeftResizeProposal,
+    ProjectMoveStart,
+    ProjectMoveWidth,
+} from './constraintEngine';
 import type {
     Relationship,
     BarPosition,
@@ -35,6 +47,8 @@ interface ConstraintCtx {
     dateToX: (date: Date) => number;
     relationships: Relationship[];
     relationshipIndex: RelationshipIndex;
+    projectMoveWidth: ProjectMoveWidth;
+    projectMoveStart: ProjectMoveStart;
 }
 
 /** Build the context object resolveConstraints expects. */
@@ -47,6 +61,8 @@ function buildContext(ctx: ConstraintCtx) {
         pixelsPerHour: ctx.pixelsPerHour,
         ganttStartDate: ctx.ganttStartDate,
         dateToX: ctx.dateToX,
+        projectMoveWidth: ctx.projectMoveWidth,
+        projectMoveStart: ctx.projectMoveStart,
     };
 }
 
@@ -60,11 +76,20 @@ export function constrainTaskPosition(
     newX: number,
     newY: number,
     ctx: ConstraintCtx,
+    resize?: LeftResizeProposal,
 ): ConstrainedResult | null {
     const taskBar = ctx.taskStore.getBarPosition?.(taskId);
-    const width = taskBar?.width ?? 100;
+    const width =
+        resize?.width ??
+        (taskBar ? ctx.projectMoveWidth(taskId, taskBar, newX) : 100);
 
-    const result = resolveConstraints(taskId, newX, width, buildContext(ctx));
+    const result = resolveConstraints(
+        taskId,
+        newX,
+        width,
+        buildContext(ctx),
+        resize?.kind,
+    );
 
     if (result.blocked) return null;
 
@@ -144,4 +169,91 @@ export function clampBatchDelta(
             pixelsPerTimeUnit: pixelsPerHour,
         },
     );
+}
+
+/** Move a batch and restabilize its dependencies when duration changes pixel width. */
+export function moveTaskBatch(
+    originals: Parameters<TaskStore['batchMovePositions']>[0],
+    deltaX: number,
+    context: ConstraintCtx,
+): ReturnType<TaskStore['batchMovePositions']> {
+    const { taskStore, projectMoveStart, projectMoveWidth } = context;
+    let minDelta = -Infinity;
+    let maxDelta = Infinity;
+    let projectsDuration = false;
+    const { ganttStartDate, pixelsPerHour, dateToX } = context;
+    for (const [id, { originalX, originalWidth }] of originals) {
+        const task = taskStore.getTask(id);
+        if (
+            task?.constraints?.locked !== 'duration' ||
+            originalWidth === undefined
+        )
+            continue;
+        projectsDuration = true;
+        const constraints = task.constraints;
+        const minX = getMinXFromAbsolute(
+            constraints,
+            ganttStartDate,
+            pixelsPerHour,
+            dateToX,
+        );
+        const maxX = getMaxXFromAbsolute(
+            constraints,
+            ganttStartDate,
+            pixelsPerHour,
+            dateToX,
+        );
+        const maxEnd = getMaxEndFromAbsolute(
+            constraints,
+            ganttStartDate,
+            pixelsPerHour,
+            dateToX,
+        );
+        const limit =
+            maxEnd === Infinity
+                ? Infinity
+                : projectMoveStart(
+                      id,
+                      { x: originalX, width: originalWidth },
+                      maxEnd,
+                  );
+        minDelta = Math.max(minDelta, minX - originalX);
+        maxDelta = Math.min(maxDelta, Math.min(maxX, limit) - originalX);
+    }
+    if (!projectsDuration)
+        return taskStore.batchMovePositions(originals, deltaX);
+    const allowedDelta =
+        minDelta > maxDelta
+            ? 0
+            : Math.min(maxDelta, Math.max(minDelta, deltaX));
+    const applied = taskStore.batchMovePositions(
+        originals,
+        allowedDelta,
+        projectMoveWidth,
+    );
+    const projected = [...applied].filter(
+        ([id, bar]) =>
+            Math.abs(
+                bar.width - (originals.get(id)?.originalWidth ?? bar.width),
+            ) > EPSILON_PX,
+    );
+    // A duration-locked task can gain pixel width when it moves into a
+    // shorter month. A uniform batch delta can then leave a successor
+    // before its predecessor's new end. Relax against the staged batch.
+    for (const [id, bar] of projected) {
+        const updates = calculateCascadeUpdates(id, bar.x, {
+            ...buildContext(context),
+            getBarPosition: (taskId) =>
+                applied.get(taskId) ?? taskStore.getBarPosition(taskId),
+        });
+        for (const [successorId, update] of updates) {
+            const previous =
+                applied.get(successorId) ??
+                taskStore.getBarPosition(successorId);
+            if (!previous) continue;
+            taskStore.updateBarPosition(successorId, update);
+            applied.set(successorId, { ...previous, ...update });
+        }
+    }
+    return applied;
 }

@@ -110,11 +110,9 @@ export interface GanttProps {
     overscanRows?: number;
     overscanX?: number;
     /**
-     * `position` is the bar rect the gesture produced, in pixels — the same
-     * value the dates were derived from. Additive third argument: existing
-     * two-argument consumers are unaffected, and one that needs pixels no
-     * longer has to read them back off the store (the write that produced
-     * them may still be staged).
+     * The range contains both final dates to the nearest millisecond.
+     * The optional position gives the same bar edges in pixels. Both
+     * reflect the gesture even while Solid stages the store update.
      */
     onDateChange?: (
         taskId: string,

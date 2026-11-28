@@ -5,14 +5,9 @@
  * 2.0 (E3) would arrive as a named regression list; the flip landed and every
  * chain below is repaired, so these now assert the shipped contract.
  *
- * Everything geometric is pinned as a MEASURED ABSOLUTE (see `EXPECTED`),
- * never as a re-derivation of the formula the implementation uses. Relative
- * assertions — "t1 is left of t2", "t1 and t3 are the same width" — were
- * tried first and thrown out: `computeX` is linear in `ganttStart` so a
- * window collapsed onto `new Date()` preserves the ordering exactly, and
- * `computeWidth` never reads `ganttStart` at all, so equal-duration bars have
- * equal widths under any window. Those assertions could not fail for the
- * regression this file exists to catch.
+ * The fixture dates have known pixel positions in each view (see EXPECTED).
+ * A wrong date window can preserve bar order and relative widths. Compare the
+ * absolute positions to catch a chart that paints bars outside its window.
  *
  * Chains pinned (see docs/migration/solid2/PLAN.md and digest-t1/digest-t2):
  *
@@ -122,26 +117,10 @@ const TASKS: GanttTask[] = [
 const RESOURCE_ROWS = ['R1', 'R2'] as const;
 
 /**
- * Every number below was MEASURED against a real mount (originally on
- * solid-js 1.9.12, re-verified on 2.0.0-rc.6) — none of it is recomputed
- * here from the formula under test.
- *
- * How each falls out, for the reader who needs to re-derive one by hand after
- * a deliberate fixture change (do NOT put these derivations in an assertion —
- * that is exactly the self-consistency trap this table replaces):
- *   window   Day mode pads `7d` either side of the task bounds and aligns the
- *            start to midnight: 2025-01-01 − 7d → 2024-12-25 00:00, and
- *            2025-01-08 16:00 + 7d → 2025-01-15 16:00. 22 whole-day columns
- *            fit in that half-open window.
- *   x / w    `diff()` rounds to 2 decimals and multiplies by columnWidth 45,
- *            so t1 sits at 7.33 d × 45 = 329.85 and spans 2.33 d × 45
- *            (the trailing `…001` is the IEEE-754 product, pinned as-is).
- *   y        row × (barHeight 30 + padding 18) + padding / 2 → 9 and 57.
- *
- * `diff()` corrects for the timezone offset delta (dateUtils.ts:226-228) and
- * the dates are built with local-time constructors, so this table is
- * timezone- and DST-independent; it is not dependent on today's date either,
- * because the window is derived from the fixture, not from `new Date()`.
+ * These expected positions come from the fixture dates. The Day view pads
+ * the window by seven days and starts at local midnight on December 25.
+ * At 45 pixels per day, January 1 at 08:00 is 330 pixels from the origin.
+ * Task 1 spans 56 hours, or 105 pixels. Rows are 48 pixels apart.
  */
 const EXPECTED = {
     dateCount: 22,
@@ -153,9 +132,9 @@ const EXPECTED = {
     barHeight: 30,
     padding: 18,
     bars: {
-        t1: { row: 0, x: 329.85, y: 9, width: 104.85000000000001 },
-        t2: { row: 1, x: 374.85, y: 57, width: 149.85 },
-        t3: { row: 0, x: 554.85, y: 9, width: 104.85000000000001 },
+        t1: { row: 0, x: 330, y: 9, width: 105 },
+        t2: { row: 1, x: 375, y: 57, width: 150 },
+        t3: { row: 0, x: 555, y: 9, width: 105 },
     } as Record<string, { row: number; x: number; y: number; width: number }>,
 };
 
@@ -171,10 +150,12 @@ const EXPECTED_MONTH = {
     unit: 'month',
     step: 1,
     columnWidth: 120,
-    x: { t1: 244.8, t2: 249.60000000000002, t3: 265.2 } as Record<
-        string,
-        number
-    >,
+    // January begins at 240px. Each hour uses 120 / (31 × 24) pixels.
+    x: {
+        t1: 240 + (8 * 120) / 744,
+        t2: 240 + (32 * 120) / 744,
+        t3: 240 + (128 * 120) / 744,
+    } as Record<string, number>,
 };
 
 let mounted: MountedGantt | undefined;
@@ -226,8 +207,8 @@ const expectChainAHolds = (m: MountedGantt): void => {
     expect(dateStore.step()).toBe(EXPECTED.step);
     expect(dateStore.columnWidth()).toBe(EXPECTED.columnWidth);
 
-    // …and the config store mirrors it, which is what `initializeTasks`
-    // hands to `computeX` as `config` (chain J2). ganttStart/ganttEnd are
+    // The configuration store mirrors the window passed to task processing.
+    // The start and end dates are
     // real tripwires here — the config store defaults them to `new Date()`,
     // so a dropped `setGanttStart` shows up immediately. unit/step/
     // columnWidth are NOT: on the Day fixture both stores default to the
@@ -369,7 +350,7 @@ describe('<Gantt> first paint (chain A, chain I)', () => {
         // The chart still paints, on the provider's timeline.
         expect(paintedIds(mounted.container)).toEqual(['t1', 't2', 't3']);
         for (const task of taskStore.getAllTasks()) {
-            expect(task._bar.x).toBe(EXPECTED_MONTH.x[task.id]);
+            expect(task._bar.x).toBeCloseTo(EXPECTED_MONTH.x[task.id]!, 10);
         }
     });
 

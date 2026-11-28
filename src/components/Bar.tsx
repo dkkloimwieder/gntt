@@ -5,8 +5,18 @@ import {
     computeExpectedProgress,
     computeLabelPosition,
 } from '../utils/barCalculations';
-import { useBarDrag } from '../hooks/useBarDrag';
+import { today } from '../utils/dateUtils';
+import { resizeFromFixedEnd, useBarDrag } from '../hooks/useBarDrag';
 import type { DragGeometry } from '../hooks/useBarDrag';
+import type {
+    LeftResizeProposal,
+    ProjectMoveWidth,
+} from '../utils/constraintEngine';
+import {
+    isLeftResizeLocked,
+    isMovementLocked,
+    isRightResizeLocked,
+} from '../utils/absoluteConstraints';
 import { useBarConfig } from '../hooks/useBarConfig';
 import { useGanttEvents } from '../contexts/GanttEvents';
 import type { TaskStore } from '../stores/taskStore';
@@ -53,8 +63,11 @@ interface BarProps {
     readonlyDates?: boolean;
     readonlyProgress?: boolean;
     showExpectedProgress?: boolean;
+    projectDate?: (date: Date) => number;
     columnWidth?: number;
     ignoredPositions?: number[];
+    projectMoveWidth?: ProjectMoveWidth;
+    moveBatch?: TaskStore['batchMovePositions'];
     onCollectDependents?: (taskId: string) => Set<string>;
     onCollectDescendants?: (taskId: string) => Set<string>;
     onClampBatchDelta?: (
@@ -65,6 +78,7 @@ interface BarProps {
         taskId: string,
         x: number,
         y: number,
+        resize?: LeftResizeProposal,
     ) => ConstrainedResult | null;
     onDateChange?: (taskId: string, position: DragGeometry) => void;
     /** `geometry` is the post-resize rect, handed over as data. */
@@ -194,6 +208,8 @@ export function Bar(props: BarProps): JSX.Element {
     const { dragState, isDragging, startDrag, didDrag, resetDidDrag } =
         useBarDrag({
             taskStore: props.taskStore,
+            projectMoveWidth: props.projectMoveWidth,
+            moveBatch: props.moveBatch,
             handlers: {
                 onCollectDependents: props.onCollectDependents,
                 onCollectDescendants: props.onCollectDescendants,
@@ -205,7 +221,11 @@ export function Bar(props: BarProps): JSX.Element {
                 onProgressChange:
                     props.onProgressChange ?? events.onProgressChange,
             },
-            taskInfo: () => ({ id: t().id, progress: t().progress }),
+            taskInfo: () => ({
+                id: t().id,
+                progress: t().progress,
+                locked: t().locked,
+            }),
             x,
             y,
             width,
@@ -219,7 +239,7 @@ export function Bar(props: BarProps): JSX.Element {
     // ═══════════════════════════════════════════════════════════════════════════
 
     const handleBarMouseDown = (e: MouseEvent): void => {
-        if (readonly() || readonlyDates() || isLocked()) return;
+        if (!canMove()) return;
 
         // Skip if clicking on a handle (its own onMouseDown handles drag)
         const target = e.target as HTMLElement;
@@ -254,19 +274,19 @@ export function Bar(props: BarProps): JSX.Element {
     };
 
     const handleLeftHandleMouseDown = (e: MouseEvent): void => {
-        if (readonly() || readonlyDates() || isLocked()) return;
+        if (!canResizeLeft()) return;
         e.stopPropagation();
         startDrag(e, 'dragging_left', { taskId: t().id });
     };
 
     const handleRightHandleMouseDown = (e: MouseEvent): void => {
-        if (readonly() || readonlyDates() || isLocked()) return;
+        if (!canResizeRight()) return;
         e.stopPropagation();
         startDrag(e, 'dragging_right', { taskId: t().id });
     };
 
     const handleProgressMouseDown = (e: MouseEvent): void => {
-        if (readonly() || readonlyProgress() || isLocked()) return;
+        if (!showProgressHandle()) return;
         e.stopPropagation();
         startDrag(e, 'dragging_progress', { taskId: t().id });
     };
@@ -297,7 +317,8 @@ export function Bar(props: BarProps): JSX.Element {
         }
 
         if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-        if (readonlyDates()) return;
+        if (e.shiftKey ? !canResizeLeft() && !canResizeRight() : !canMove())
+            return;
         e.preventDefault();
 
         const colW = columnWidth();
@@ -310,13 +331,20 @@ export function Bar(props: BarProps): JSX.Element {
             // Resize from the right edge. The new rect travels to both
             // consumers as a value — `width()` would still read the
             // pre-write width until the store write commits.
-            const geometry: DragGeometry = {
-                x: x(),
-                width: Math.max(minWidth(), width() + delta),
-            };
-            props.taskStore?.updateBarPosition(taskId, {
-                width: geometry.width,
-            });
+            const geometry: DragGeometry | null = canResizeRight()
+                ? { x: x(), width: Math.max(minWidth(), width() + delta) }
+                : resizeFromFixedEnd(
+                      { x: x(), width: width() },
+                      x() + delta,
+                      minWidth(),
+                      ({ x, width }) =>
+                          props.onConstrainPosition?.(taskId, x, y(), {
+                              kind: 'resize-left',
+                              width,
+                          }),
+                  );
+            if (!geometry) return;
+            props.taskStore?.updateBarPosition(taskId, geometry);
             onDateChange?.(taskId, geometry);
             onResizeEnd?.(taskId, geometry);
         } else {
@@ -327,8 +355,13 @@ export function Bar(props: BarProps): JSX.Element {
                 if (c === null) return;
                 newX = c.x ?? newX;
             }
-            props.taskStore?.updateBarPosition(taskId, { x: newX });
-            onDateChange?.(taskId, { x: newX, width: width() });
+            const original = { x: x(), width: width() };
+            const newWidth =
+                props.projectMoveWidth?.(taskId, original, newX) ??
+                original.width;
+            const geometry = { x: newX, width: newWidth };
+            props.taskStore?.updateBarPosition(taskId, geometry);
+            onDateChange?.(taskId, geometry);
         }
     };
 
@@ -342,7 +375,9 @@ export function Bar(props: BarProps): JSX.Element {
             : date.toLocaleDateString();
     };
     const ariaLabel = (): string => {
-        const lockSuffix = isLocked() ? ', locked' : '';
+        const locked = t().locked;
+        const lockSuffix =
+            locked === true ? ', locked' : locked ? `, ${locked} locked` : '';
         return `${t().name || 'Task'}, ${fmtDate(t().start)} to ${fmtDate(t().end)}, ${t().progress}% complete${lockSuffix}`;
     };
 
@@ -364,6 +399,12 @@ export function Bar(props: BarProps): JSX.Element {
     // Expected progress width (if enabled)
     const expectedProgressWidth = createMemo(() => {
         if (!showExpectedProgress()) return 0;
+        if (props.projectDate) {
+            return Math.max(
+                0,
+                Math.min(width(), props.projectDate(today()) - x()),
+            );
+        }
 
         const taskStart = t().start;
         const taskEnd = t().end;
@@ -405,14 +446,17 @@ export function Bar(props: BarProps): JSX.Element {
     // Custom class
     const customClass = (): string => t().customClass;
 
-    // Handle visibility (show when not fully readonly)
-    const showHandles = (): boolean => !readonly();
-    const showDateHandles = (): boolean => showHandles() && !readonlyDates();
+    const datesEditable = (): boolean => !readonly() && !readonlyDates();
+    const canMove = (): boolean =>
+        datesEditable() && !isMovementLocked(t().locked);
+    const canResizeLeft = (): boolean =>
+        datesEditable() && !isLeftResizeLocked(t().locked);
+    const canResizeRight = (): boolean =>
+        datesEditable() && !isRightResizeLocked(t().locked);
     const showProgressHandle = (): boolean =>
-        showHandles() && !readonlyProgress();
+        !readonly() && !readonlyProgress() && !isLocked();
 
-    // Locked state (from constraint system)
-    const isLocked = (): boolean => !!t().locked;
+    const isLocked = (): boolean => t().locked === true;
 
     // Drag state class
     const dragClass = (): string =>
@@ -458,11 +502,11 @@ export function Bar(props: BarProps): JSX.Element {
                     : undefined,
                 'outline-offset': props.isSelected ? '2px' : undefined,
                 'border-radius': props.isSelected ? '4px' : undefined,
-                cursor: isLocked()
-                    ? 'not-allowed'
-                    : readonly()
-                      ? 'default'
-                      : 'move',
+                cursor: canMove()
+                    ? 'move'
+                    : isMovementLocked(t().locked)
+                      ? 'not-allowed'
+                      : 'default',
                 visibility: visible() ? 'visible' : 'hidden',
             }}
         >
@@ -590,13 +634,14 @@ export function Bar(props: BarProps): JSX.Element {
 
             {/* Lock icon for locked tasks - CSS display instead of Show to avoid unmount/remount */}
             <div
+                aria-hidden="true"
                 style={{
                     position: 'absolute',
                     top: '2px',
                     right: '4px',
                     'font-size': '10px',
                     'pointer-events': 'none',
-                    display: isLocked() ? 'block' : 'none',
+                    display: t().locked ? 'block' : 'none',
                 }}
             >
                 🔒
@@ -617,10 +662,7 @@ export function Bar(props: BarProps): JSX.Element {
                     'background-color': 'var(--g-handle-color, #ddd)',
                     cursor: 'ew-resize',
                     opacity: 0,
-                    display:
-                        showHandles() && !isLocked() && showDateHandles()
-                            ? 'block'
-                            : 'none',
+                    display: canResizeLeft() ? 'block' : 'none',
                 }}
             />
 
@@ -638,10 +680,7 @@ export function Bar(props: BarProps): JSX.Element {
                     'background-color': 'var(--g-handle-color, #ddd)',
                     cursor: 'ew-resize',
                     opacity: 0,
-                    display:
-                        showHandles() && !isLocked() && showDateHandles()
-                            ? 'block'
-                            : 'none',
+                    display: canResizeRight() ? 'block' : 'none',
                 }}
             />
 
@@ -663,10 +702,7 @@ export function Bar(props: BarProps): JSX.Element {
                     opacity: 0,
                     'box-sizing': 'border-box',
                     display:
-                        showHandles() &&
-                        !isLocked() &&
-                        showProgressHandle() &&
-                        progressWidth() > 0
+                        showProgressHandle() && progressWidth() > 0
                             ? 'block'
                             : 'none',
                 }}

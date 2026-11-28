@@ -57,7 +57,7 @@ stops a cascade on invalid graphs.
 
 ## Locks and date limits
 
-The table describes the lock rules in the constraint helpers. The main chart currently blocks direct edits on a regular bar for every non-false lock value.
+Pointer and keyboard gestures follow the same date locks. The chart shows a resize handle only on an editable edge.
 
 | `constraints.locked` | Move | Resize left edge | Resize right edge |
 | -------------------- | ---- | ---------------- | ----------------- |
@@ -65,6 +65,10 @@ The table describes the lock rules in the constraint helpers. The main chart cur
 | `"start"`            | No   | No               | Yes               |
 | `"end"`              | No   | Yes              | No                |
 | `"duration"`         | Yes  | No               | No                |
+
+On a focused regular task bar, Shift+Left and Shift+Right change the right edge. If the end is locked, they change the left edge. A duration lock preserves elapsed time when the task moves across columns of different lengths. Partial date locks still allow progress edits.
+
+When you drag a summary, children with a locked start or end keep their dates. Fully locked children also stay in place.
 
 Give `minStart`, `maxStart`, and `maxEnd` as local date strings in
 `YYYY-MM-DD HH:MM` format. The direct move resolver uses them to bound the
@@ -86,8 +90,7 @@ needs task limits. You can pass a `relationships` array or a
 `relationshipIndex` built by `buildRelationshipIndex`.
 
 The result gives `constrainedX`, `constrainedWidth`, `blocked`,
-`blockReason`, and the map of `cascadeUpdates`. The caller applies the
-changes. `calculateCascadeUpdates` also returns a map of successor
+`blockReason`, and the map of `cascadeUpdates`. Apply each returned position and any width it includes. A duration-locked task can change width in pixels when it moves into a shorter month. `calculateCascadeUpdates` also returns a map of successor
 positions when you already know the proposed position. Neither map includes
 the edited task.
 

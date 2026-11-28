@@ -1,6 +1,7 @@
 import { Show, createMemo, createSignal, onSettled } from 'solid-js';
 import { Gantt } from '../components/Gantt';
 import { GanttProvider, useGanttStores } from '../contexts/GanttStores';
+import { format } from '../utils/dateUtils';
 import { BlockedManager } from './db/BlockedManager';
 import { Modal } from './db/Modal';
 import { ResourceManager } from './db/ResourceManager';
@@ -15,9 +16,8 @@ import type { BootstrapBundle, TaskApi, TaskPatchBody } from './db/types';
  * selected task. Toolbar opens an Add modal, Resource manager modal,
  * and Blocked-time manager modal. Drag-on-bar still PATCHes start/end.
  *
- * After every mutation we re-fetch the bundle (simple + correct;
- * optimistic updates are a follow-up). The selected task id is
- * preserved across re-fetches so the edit panel stays open.
+ * Form saves reload the bundle. Chart gestures save the affected dates in
+ * place so the chart keeps its current scroll position and selection.
  *
  * Run via `pnpm dev:all`.
  */
@@ -42,48 +42,27 @@ function DbDemoContent() {
     const [modal, setModal] = createSignal<ModalKind>(null);
     const [selectedId, setSelectedId] = createSignal<string | null>(null);
 
-    // Pair the last persisted dates with the corresponding chart geometry.
-    // Pixel deltas preserve the time of day when the Day view reports dates
-    // rounded to day boundaries. Every dependent moved by a cascade is saved.
     const dbState = new Map<string, { start: string; end: string }>();
-    const lastX = new Map<string, number>();
-    const lastWidth = new Map<string, number>();
-    // Bumped on every successful drag-PATCH so the edit panel re-derives
-    // its initial form values from dbState (which has the freshest dates).
-    // We deliberately don't setBundle on drag — that would re-process the
-    // whole tasks array — but the panel needs SOMETHING to invalidate.
+    const savedBars = new Map<string, { x: number; width: number }>();
     const [dragVersion, setDragVersion] = createSignal(0);
-
-    /** Parse the API's "YYYY-MM-DD HH:MM" into a local Date. */
-    const parseDb = (s: string): Date => {
-        const [d, t] = s.split(' ');
-        const [y = 1970, mo = 1, da = 1] = (d ?? '').split('-').map(Number);
-        const [h = 0, mi = 0] = (t ?? '00:00').split(':').map(Number);
-        return new Date(y, mo - 1, da, h, mi);
-    };
-
-    /** Snapshot the chart's _bar.x and _bar.width for every known task. */
-    const snapshotChartX = () => {
-        lastX.clear();
-        lastWidth.clear();
-        for (const [id, task] of Object.entries(taskStore.tasks)) {
-            const bar = task?._bar;
-            if (typeof bar?.x === 'number') lastX.set(id, bar.x);
-            if (typeof bar?.width === 'number') lastWidth.set(id, bar.width);
-        }
-    };
+    let pendingDateSaves = Promise.resolve();
 
     const refetch = async (note?: string) => {
         try {
+            await pendingDateSaves;
             const data = await api.bootstrap();
             setBundle(data);
             dbState.clear();
             for (const t of data.tasks) {
                 dbState.set(t.id, { start: t.start, end: t.end });
             }
-            // Snapshot bar positions on the next tick so processTasks
-            // has finished running on the new bundle.
-            queueMicrotask(snapshotChartX);
+            // Compare gestures with the geometry of the newly mounted chart.
+            queueMicrotask(() => {
+                savedBars.clear();
+                for (const { id, _bar } of taskStore.getAllTasks()) {
+                    savedBars.set(id, { x: _bar.x, width: _bar.width });
+                }
+            });
             setError(null);
             setStatus(
                 `${note ?? 'Loaded'} — ${data.tasks.length} tasks, ${data.resources.length} resources, ${data.blockedTime.length} blocked · ${new Date().toLocaleTimeString()}`,
@@ -114,137 +93,64 @@ function DbDemoContent() {
         return fresh ? { ...base, start: fresh.start, end: fresh.end } : base;
     });
 
-    const fmtDate = (d: Date): string =>
-        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-
-    /**
-     * Drag-driven mutations: PATCH any task whose `_bar.x` drifted from
-     * its last-snapshotted value (the dragged bar + every batch-moved
-     * dependent). Apply the per-task pixel delta as a TIME delta to the
-     * task's *original* dates from `dbState` — that preserves HH:MM
-     * precision instead of going through the chart's day-boundary-snapping
-     * `xToDate(absolute_x)`.
-     *
-     * NO refetch — `setBundle` would re-process the whole tasks array and
-     * snap each bar back to a (slightly rounded) position, causing the
-     * flash + jump the user reported.
-     *
-     * Form-based edits (Save in the panel, Add modal, Delete) still
-     * refetch because the user has an explicit save-and-sync mental
-     * model there.
-     */
-    const onDateChange = async (
-        parentId: string,
-        _range: { start: Date; end: Date },
+    const onDateChange = (
+        taskId: string,
+        range: { start: Date; end: Date },
         position?: { x: number; width: number },
     ) => {
-        // ms-per-pixel — derive directly from the chart's `unit` + `step` +
-        // `columnWidth`. Do NOT use xToDate(100)-xToDate(0) — that calls
-        // dateUtils.add which truncates fractional days (e.g. add(start,
-        // 2.5, 'day') drops the .5), yielding a calibration off by up to
-        // ~25% depending on whether `100 / columnWidth` is an integer.
-        const UNIT_MS: Record<string, number> = {
-            millisecond: 1,
-            second: 1_000,
-            minute: 60_000,
-            hour: 3_600_000,
-            day: 86_400_000,
-            week: 604_800_000,
-            month: 2_629_800_000, // avg (Gregorian year / 12)
-            year: 31_556_952_000, // avg (Gregorian)
-        };
-        const unitMs = UNIT_MS[dateStore.unit()] ?? 86_400_000;
-        const msPerPx = (unitMs * dateStore.step()) / dateStore.columnWidth();
+        // A keyboard resize stages its successor moves after this callback.
+        // Capture all final positions before waiting for an earlier save.
+        const gesture = Promise.resolve().then(() =>
+            taskStore.getAllTasks().map(({ id, _bar }) => {
+                const { x, width } =
+                    id === taskId && position ? position : _bar;
+                return {
+                    id,
+                    x,
+                    width,
+                    start: id === taskId ? range.start : dateStore.xToDate(x),
+                    end:
+                        id === taskId
+                            ? range.end
+                            : dateStore.xToDate(x + width),
+                };
+            }),
+        );
 
-        // Track BOTH x and width so we catch resizes (not just moves):
-        //   move:         Δx ≠ 0, Δwidth = 0   → start += Δx, end += Δx
-        //   resize-end:   Δx = 0, Δwidth ≠ 0   → start unchanged, end += Δwidth
-        //   resize-start: Δx ≠ 0, Δwidth = -Δx → start += Δx, end unchanged
-        // General form: startΔ = Δx, endΔ = Δx + Δwidth.
-        //
-        // Each patch also carries the EXACT `{ x, width }` its deltas were
-        // measured against. Those become the new baseline after the PATCH
-        // resolves — re-reading `_bar` at that point would re-base against
-        // whatever the chart looks like several awaits later (a second drag,
-        // a cascade, a re-render), silently dropping or double-counting the
-        // difference on the next gesture.
-        const patches: Array<{
-            id: string;
-            start: string;
-            end: string;
-            x: number;
-            width: number;
-        }> = [];
-        for (const id of Object.keys(taskStore.tasks)) {
-            // Keyboard writes are still staged when this callback runs.
-            // The gesture supplies the edited bar's final geometry directly.
-            const bar =
-                id === parentId && position
-                    ? position
-                    : taskStore.getBarPosition(id);
-            const prevX = lastX.get(id);
-            const prevW = lastWidth.get(id);
-            const prevDates = dbState.get(id);
-            if (
-                typeof bar?.x !== 'number' ||
-                typeof bar?.width !== 'number' ||
-                typeof prevX !== 'number' ||
-                typeof prevW !== 'number' ||
-                !prevDates
-            )
-                continue;
-            const dxPx = bar.x - prevX;
-            const dwPx = bar.width - prevW;
-            if (Math.abs(dxPx) < 0.5 && Math.abs(dwPx) < 0.5) continue;
-            const startDeltaMs = Math.round(dxPx * msPerPx);
-            const endDeltaMs = Math.round((dxPx + dwPx) * msPerPx);
-            const newStart = new Date(
-                parseDb(prevDates.start).getTime() + startDeltaMs,
-            );
-            const newEnd = new Date(
-                parseDb(prevDates.end).getTime() + endDeltaMs,
-            );
-            patches.push({
-                id,
-                start: fmtDate(newStart),
-                end: fmtDate(newEnd),
-                x: bar.x,
-                width: bar.width,
+        pendingDateSaves = pendingDateSaves
+            .then(async () => {
+                const bars = await gesture;
+                const results = await Promise.allSettled(
+                    bars.map(async ({ id, x, width, start, end }) => {
+                        const previous = savedBars.get(id);
+                        if (previous?.x === x && previous.width === width)
+                            return;
+                        const dates = {
+                            start: format(start, 'YYYY-MM-DD HH:mm'),
+                            end: format(end, 'YYYY-MM-DD HH:mm'),
+                        };
+                        const stored = dbState.get(id);
+                        if (!stored) return;
+                        if (
+                            dates.start !== stored.start ||
+                            dates.end !== stored.end
+                        ) {
+                            await api.patchTask(id, dates);
+                            dbState.set(id, dates);
+                        }
+                        savedBars.set(id, { x, width });
+                    }),
+                );
+                setDragVersion((v) => v + 1);
+                const failed = results.find((r) => r.status === 'rejected');
+                if (failed) throw failed.reason;
+                setStatus(
+                    `Saved dates for ${taskId} · ${new Date().toLocaleTimeString()}`,
+                );
+            })
+            .catch((err: unknown) => {
+                setStatus(`PATCH ${taskId} failed: ${String(err)}`);
             });
-        }
-
-        if (patches.length === 0) {
-            setStatus(`Drag of ${parentId} produced no PATCH (no Δ)`);
-            return;
-        }
-
-        try {
-            await Promise.all(
-                patches.map((p) =>
-                    api.patchTask(p.id, { start: p.start, end: p.end }),
-                ),
-            );
-            for (const p of patches) {
-                // Re-base from the geometry the deltas were computed from,
-                // NOT from a fresh `_bar` read: dates and pixels must stay
-                // the same pair or the next drag's delta is measured against
-                // a baseline the DB never saw.
-                dbState.set(p.id, { start: p.start, end: p.end });
-                lastX.set(p.id, p.x);
-                lastWidth.set(p.id, p.width);
-            }
-            setDragVersion((v) => v + 1);
-            const extra = patches.length - 1;
-            setStatus(
-                `PATCH ${parentId} (drag${
-                    extra > 0
-                        ? ` + ${extra} dependent${extra === 1 ? '' : 's'}`
-                        : ''
-                }) ✓ ${new Date().toLocaleTimeString()}`,
-            );
-        } catch (err) {
-            setStatus(`PATCH ${parentId} failed: ${(err as Error).message}`);
-        }
     };
 
     const onProgressChange = async (id: string, progress: number) => {
@@ -267,6 +173,7 @@ function DbDemoContent() {
             ? V
             : never,
     ) => {
+        await pendingDateSaves;
         const t = value.task;
         if (mode === 'create') {
             await api.createTask({
@@ -303,6 +210,7 @@ function DbDemoContent() {
         const id = selectedId();
         if (!id) return;
         try {
+            await pendingDateSaves;
             await api.deleteTask(id);
             setSelectedId(null);
             await refetch(`Deleted ${id}`);

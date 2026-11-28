@@ -251,6 +251,20 @@ export interface Relationship {
     elastic?: boolean;
 }
 
+export type ProjectMoveWidth = (
+    taskId: string,
+    original: Pick<BarPosition, 'x' | 'width'>,
+    newX: number,
+) => number;
+
+export type ProjectMoveStart = (
+    taskId: string,
+    original: Pick<BarPosition, 'x' | 'width'>,
+    newEnd: number,
+) => number;
+
+export type CascadePosition = { x: number; width?: number };
+
 /**
  * Result of constraint resolution
  */
@@ -263,8 +277,8 @@ export interface ConstraintResult {
     blocked: boolean;
     /** Reason for blocking: 'locked' | 'conflicting_constraints' | null */
     blockReason: string | null;
-    /** Map of successor task IDs to their new positions */
-    cascadeUpdates: Map<string, { x: number }>;
+    /** New position and, when reprojected, width of each successor. */
+    cascadeUpdates: Map<string, CascadePosition>;
 }
 
 /**
@@ -283,6 +297,12 @@ export interface ConstraintContext {
     ganttStartDate: Date;
     /** Project a dated constraint onto the chart calendar. */
     dateToX?: (date: Date) => number;
+    /** Optional precomputed index for relationship lookups. */
+    relationshipIndex?: RelationshipIndex;
+    /** Reproject pixel width as a duration-locked task moves. */
+    projectMoveWidth?: ProjectMoveWidth;
+    /** Find the start of a duration-locked task for a given finish position. */
+    projectMoveStart?: ProjectMoveStart;
 }
 
 /**

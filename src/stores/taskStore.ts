@@ -7,6 +7,8 @@ import {
 } from 'solid-js';
 import { prof } from '../utils/profiler';
 import type { BarPosition, ProcessedTask } from '../types';
+import { isMovementLocked } from '../utils/absoluteConstraints';
+import type { ProjectMoveWidth } from '../utils/constraintEngine';
 
 /** Store's internal task map - keyed by task ID */
 interface TaskMap {
@@ -19,6 +21,7 @@ interface BarPositionWithIndex extends BarPosition {
 
 interface BatchOriginal {
     originalX: number;
+    originalWidth?: number;
 }
 
 export interface TaskStore {
@@ -39,6 +42,7 @@ export interface TaskStore {
     batchMovePositions: (
         taskOriginals: Map<string, BatchOriginal>,
         deltaX: number,
+        projectMoveWidth?: ProjectMoveWidth,
     ) => Map<string, BarPosition>;
     removeTask: (id: string) => void;
     clear: () => void;
@@ -218,13 +222,28 @@ export function createTaskStore(): TaskStore {
     const batchMovePositions = (
         taskOriginals: Map<string, BatchOriginal>,
         deltaX: number,
+        projectMoveWidth?: ProjectMoveWidth,
     ): Map<string, BarPosition> => {
         const applied = new Map<string, BarPosition>();
         setTasks((state) => {
-            for (const [id, { originalX }] of taskOriginals) {
+            for (const [id, { originalX, originalWidth }] of taskOriginals) {
                 const task = state[id];
-                if (task?._bar) {
-                    task._bar.x = originalX + deltaX;
+                if (task?._bar && !isMovementLocked(task.constraints?.locked)) {
+                    const x = originalX + deltaX;
+                    if (
+                        projectMoveWidth &&
+                        task.constraints?.locked === 'duration'
+                    ) {
+                        task._bar.width = projectMoveWidth(
+                            id,
+                            {
+                                x: originalX,
+                                width: originalWidth ?? task._bar.width,
+                            },
+                            x,
+                        );
+                    }
+                    task._bar.x = x;
                     // Read off the DRAFT: it carries this turn's staged
                     // writes, which the outer store proxy does not.
                     applied.set(id, { ...task._bar });

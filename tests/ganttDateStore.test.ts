@@ -596,3 +596,131 @@ describe('createGanttDateStore — same-turn timeline commands', () => {
         expect(store.dates()).toHaveLength(NARROW_DAY_COLUMNS / 2);
     });
 });
+
+function inTimeZone(timeZone: string, run: () => void): void {
+    const previous = process.env['TZ'];
+    process.env['TZ'] = timeZone;
+    try {
+        run();
+    } finally {
+        if (previous === undefined) delete process.env['TZ'];
+        else process.env['TZ'] = previous;
+    }
+}
+
+describe('timeline date/position mapping', () => {
+    it('keeps month-end ticks aligned across short months and before the origin', () => {
+        inTimeZone('UTC', () => {
+            const january = new Date(2025, 0, 31);
+            const store = createGanttDateStore({
+                ganttStart: january,
+                ganttEnd: new Date(2025, 3, 1),
+                viewMode: 'Month',
+                columnWidth: 120,
+            });
+            store.generateDates();
+            settle();
+
+            expect(store.dates()).toEqual([
+                january,
+                new Date(2025, 1, 28),
+                new Date(2025, 2, 31),
+            ]);
+            const ticks = store.getAllDateInfos();
+            expect(ticks.map((tick) => store.dateToX(tick.date))).toEqual([
+                0, 120, 240,
+            ]);
+            expect(store.xToDate(60)).toEqual(new Date(2025, 1, 14));
+            expect(store.dateToX(new Date(2025, 1, 14))).toBe(60);
+            expect(store.xToDate(-60)).toEqual(new Date(2025, 0, 15, 12));
+            expect(store.dateToX(new Date(2025, 0, 15, 12))).toBe(-60);
+        });
+    });
+
+    it('gives each common or leap year one column and interpolates its own elapsed length', () => {
+        inTimeZone('UTC', () => {
+            const store = createGanttDateStore({
+                ganttStart: new Date(2024, 0, 1),
+                ganttEnd: new Date(2026, 0, 2),
+                viewMode: 'Year',
+                columnWidth: 100,
+            });
+            store.generateDates();
+            settle();
+
+            expect(store.dates().map(store.dateToX)).toEqual([0, 100, 200]);
+            expect(store.xToDate(50)).toEqual(new Date(2024, 6, 2));
+            expect(store.xToDate(150)).toEqual(new Date(2025, 6, 2, 12));
+        });
+    });
+
+    it('retains seconds and milliseconds in fractional Day positions', () => {
+        inTimeZone('Asia/Kathmandu', () => {
+            const store = createGanttDateStore({
+                ganttStart: new Date(2025, 0, 1),
+                viewMode: 'Day',
+                columnWidth: 96,
+            });
+            const instant = new Date('2025-01-01T08:24:15.125+05:45');
+            const expected = (8 * 3_600_000 + 24 * 60_000 + 15_125) / 900_000;
+            expect(store.dateToX(instant)).toBeCloseTo(expected, 12);
+            expect(store.xToDate(expected)).toEqual(instant);
+        });
+    });
+
+    it('interpolates a 23-hour day between its local midnights', () => {
+        inTimeZone('America/New_York', () => {
+            const store = createGanttDateStore({
+                ganttStart: new Date('2025-03-09T00:00:00-05:00'),
+                ganttEnd: new Date('2025-03-11T00:00:00-04:00'),
+                viewMode: 'Day',
+                columnWidth: 230,
+            });
+            store.generateDates();
+            settle();
+
+            expect(store.dates().map((date) => date.toISOString())).toEqual([
+                '2025-03-09T05:00:00.000Z',
+                '2025-03-10T04:00:00.000Z',
+            ]);
+            const noon = new Date('2025-03-09T12:00:00-04:00');
+            expect(store.dateToX(noon)).toBe(110);
+            expect(store.xToDate(110)).toEqual(noon);
+            expect(store.xToDate(230)).toEqual(store.dates()[1]);
+        });
+    });
+
+    it('keeps both instances of a repeated hour distinct in Day and Hour modes', () => {
+        inTimeZone('America/New_York', () => {
+            const origin = new Date('2025-11-02T00:00:00-04:00');
+            const first = new Date('2025-11-02T01:30:00-04:00');
+            const second = new Date('2025-11-02T01:30:00-05:00');
+            const dayStore = createGanttDateStore({
+                ganttStart: origin,
+                viewMode: 'Day',
+                columnWidth: 250,
+            });
+            const hourStore = createGanttDateStore({
+                ganttStart: origin,
+                ganttEnd: new Date('2025-11-02T03:00:00-05:00'),
+                viewMode: 'Hour',
+                columnWidth: 10,
+            });
+            hourStore.generateDates();
+            settle();
+
+            expect(hourStore.dates().map((date) => date.getHours())).toEqual([
+                0, 1, 1, 2,
+            ]);
+            for (const store of [dayStore, hourStore]) {
+                expect(store.dateToX(first)).toBe(15);
+                expect(store.dateToX(second)).toBe(25);
+                expect(store.xToDate(15)).toEqual(first);
+                expect(store.xToDate(25)).toEqual(second);
+            }
+            expect(dayStore.xToDate(250)).toEqual(
+                new Date('2025-11-03T00:00:00-05:00'),
+            );
+        });
+    });
+});

@@ -277,15 +277,13 @@ describe('initializeTasks — the date pipeline commits before it is read (chain
         }
 
         // Different start dates really do land on different columns, so the
-        // check above is not vacuously comparing zeroes — and each x is pinned
-        // to a hand-derived literal, so `dateToX` and `computeX` cannot drift
-        // together into agreeing on a wrong value. `dateUtils.diff` rounds to
-        // two decimals, so e.g. EARLY is (7d 8h -> 7.33) * 45 = 329.85.
+        // Each day is 45 px, and 08:00 is one-third of a day. EARLY is
+        // seven days and eight hours past the origin, at 7 × 45 + 15 = 330.
         const xs = tasks.map((task) => task._bar.x);
         expect(new Set(xs).size).toBe(3);
-        expect(taskStore.getTask(EARLY.id)!._bar.x).toBe(329.85);
-        expect(taskStore.getTask(MID.id)!._bar.x).toBe(419.85);
-        expect(taskStore.getTask(LATE.id)!._bar.x).toBe(509.85);
+        expect(taskStore.getTask(EARLY.id)!._bar.x).toBe(330);
+        expect(taskStore.getTask(MID.id)!._bar.x).toBe(420);
+        expect(taskStore.getTask(LATE.id)!._bar.x).toBe(510);
         // Row 0 and row 1 with barHeight 30 / padding 18.
         expect(taskStore.getTask(EARLY.id)!._bar.y).toBe(9);
         expect(taskStore.getTask(LATE.id)!._bar.y).toBe(57);
@@ -302,7 +300,7 @@ describe('initializeTasks — the date pipeline commits before it is read (chain
             new Date(2024, 11, 27).getTime(),
         );
         const lateXBefore = taskStore.getTask(LATE.id)!._bar.x;
-        expect(lateXBefore).toBe(419.85);
+        expect(lateXBefore).toBe(420);
 
         // EARLY starts two days before MID, so the padded window start moves
         // back by exactly two day columns.
@@ -311,7 +309,7 @@ describe('initializeTasks — the date pipeline commits before it is read (chain
 
         expect(dateStore.ganttStart().getTime()).toBe(WINDOW_START.getTime());
         const lateXAfter = taskStore.getTask(LATE.id)!._bar.x;
-        expect(lateXAfter).toBe(509.85);
+        expect(lateXAfter).toBe(510);
         expect(lateXAfter).toBe(lateXBefore + 2 * 45);
         expect(lateXAfter).toBe(
             dateStore.dateToX(taskStore.getTask(LATE.id)!._start),

@@ -9,21 +9,6 @@ import { DEFAULT_COLUMN_WIDTH } from '../constants';
  */
 
 /**
- * Compute bar X position from task start date.
- */
-export function computeX(
-    taskStart: Date,
-    ganttStart: Date,
-    unit: TimeScale | string,
-    step: number,
-    columnWidth: number,
-): number {
-    const diff = dateUtils.diff(taskStart, ganttStart, unit) / step;
-    // Use exact position, no rounding - rounding causes adjacent tasks to overlap
-    return diff * columnWidth;
-}
-
-/**
  * Compute bar Y position from task index.
  * Y position is relative to SVG content area (no header offset).
  * Bar is vertically centered within its row.
@@ -38,21 +23,6 @@ export function computeY(
     // Bar is centered within row, so add padding/2 offset from row start
     const rowHeight = barHeight + padding;
     return taskIndex * rowHeight + padding / 2;
-}
-
-/**
- * Compute bar width from task duration.
- */
-export function computeWidth(
-    taskStart: Date,
-    taskEnd: Date,
-    unit: TimeScale | string,
-    step: number,
-    columnWidth: number,
-): number {
-    const diff = dateUtils.diff(taskEnd, taskStart, unit) / step;
-    // Use exact width, no rounding - rounding causes adjacent tasks to overlap
-    return diff * columnWidth;
 }
 
 interface DurationResult {

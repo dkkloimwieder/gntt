@@ -246,11 +246,9 @@ data/gantt.db                        # gitignored; recreated by db:setup
   shape — many optional fields).
 - `blocked_time` is flat metadata; the chart's constraint engine does
   not consult it. Bars are absolute calendar time.
-- Drag persistence does NOT re-fetch (would snap-back on day-rounded
-  dates). Instead it snapshots each bar's `_bar.x` and `_bar.width`,
-  computes per-task pixel deltas after drag, and PATCHes in parallel.
-  Move/resize-end/resize-start are disambiguated by which delta is
-  non-zero. See `DbDemo.tsx` and `docs/DATABASE.md` for the algorithm.
+- Chart edits save the dates from `onDateChange`. The demo converts the final
+  positions of dependent bars with the same calendar and saves each changed task.
+  See [Database architecture](docs/DATABASE.md#save-chart-edits).
 
 Full schema + REST surface + algorithm details are in
 [`docs/DATABASE.md`](docs/DATABASE.md).

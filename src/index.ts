@@ -90,4 +90,7 @@ export type {
     Relationship,
     ConstraintResult,
     ConstraintContext,
+    CascadePosition,
+    ProjectMoveStart,
+    ProjectMoveWidth,
 } from './types';

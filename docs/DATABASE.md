@@ -71,16 +71,13 @@ type pairs. It rejects self-dependencies and missing predecessors.
 
 ## Save chart edits
 
-On load, the demo fetches `/api/bootstrap`. Forms reload this data after a
-successful save. The chart uses its provider stores to read geometry
-after drag and resize gestures.
+On load, the demo fetches `/api/bootstrap`. Forms reload this data after a successful save.
 
-When a drag changes dependent tasks, the demo sends a PATCH request for
-each changed task. It converts the change in the bar's left edge into a
-start-time difference. It converts the change in the bar's right edge
-into an end-time difference. A resize on one side therefore preserves
-the other date. The requests can succeed independently, so a failure can
-leave some edits saved.
+For a drag or keyboard edit, the demo saves the dates from `onDateChange`. If the edit moves dependent tasks, the demo converts their final bar edges to dates with the chart calendar.
+
+The demo stores local timestamps as `YYYY-MM-DD HH:MM`. This format stores the same text for both occurrences of a minute when the clock moves back.
+
+The demo saves gestures in order. Within each gesture, it sends a PATCH request for each task whose dates changed. If one request fails, the demo reports the error and keeps the successful edits.
 
 ## Code and tests
 
@@ -90,6 +87,7 @@ leave some edits saved.
 | [server/db/adapter.ts](../server/db/adapter.ts) | Converts SQLite rows to the chart format and handles requests to change them. |
 | [server/migrations](../server/migrations)       | Committed SQLite migration SQL and metadata.                                  |
 | [src/demo/DbDemo.tsx](../src/demo/DbDemo.tsx)   | Connects the chart, edit forms, and API.                                      |
+| [tests/dbDemo.test.tsx](../tests/dbDemo.test.tsx) | Exercises a keyboard resize and the dates sent for both affected tasks. |
 | [tests/server](../tests/server)                 | Covers the schema, adapter, HTTP routes, and CRUD operations.                 |
 
 Run `pnpm test --project server` to run the backend suite. The tests apply

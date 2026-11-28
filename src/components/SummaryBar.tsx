@@ -2,6 +2,8 @@ import { createMemo, Accessor } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 import { useDrag } from '../hooks/useDrag';
 import { snapToGrid, computeLabelPosition } from '../utils/barCalculations';
+import { isMovementLocked } from '../utils/absoluteConstraints';
+import type { ProjectMoveWidth } from '../utils/constraintEngine';
 import type { TaskStore } from '../stores/taskStore';
 import type { GanttConfigStore } from '../stores/ganttConfigStore';
 import type { BarPosition, ProcessedTask } from '../types';
@@ -14,6 +16,7 @@ interface TaskPosition {
 
 interface BatchOriginal {
     originalX: number;
+    originalWidth: number;
 }
 
 interface SummaryBarProps {
@@ -21,6 +24,8 @@ interface SummaryBarProps {
     taskStore?: TaskStore;
     ganttConfig?: GanttConfigStore;
     taskPosition?: TaskPosition | Accessor<TaskPosition | undefined>;
+    projectMoveWidth?: ProjectMoveWidth;
+    moveBatch?: TaskStore['batchMovePositions'];
     onCollectDescendants?: (taskId: string) => Set<string>;
     onClampBatchDelta?: (
         batchOriginals: Map<string, BatchOriginal>,
@@ -84,6 +89,10 @@ export function SummaryBar(props: SummaryBarProps): JSX.Element {
         () => props.ganttConfig?.columnWidth?.() ?? DEFAULT_COLUMN_WIDTH,
     );
     const readonly = createMemo(() => props.ganttConfig?.readonly?.() ?? false);
+    const canMove = (): boolean =>
+        !readonly() &&
+        !props.ganttConfig?.readonlyDates() &&
+        !isMovementLocked(task()?.constraints?.locked);
     const cornerRadius = createMemo(
         () => props.ganttConfig?.barCornerRadius?.() ?? 3,
     );
@@ -117,9 +126,18 @@ export function SummaryBar(props: SummaryBarProps): JSX.Element {
 
                 const batchOriginals = new Map<string, BatchOriginal>();
                 for (const id of descendantIds) {
+                    if (
+                        isMovementLocked(
+                            props.taskStore?.getTask(id)?.constraints?.locked,
+                        )
+                    )
+                        continue;
                     const pos = props.taskStore?.getBarPosition(id);
                     if (pos) {
-                        batchOriginals.set(id, { originalX: pos.x });
+                        batchOriginals.set(id, {
+                            originalX: pos.x,
+                            originalWidth: pos.width,
+                        });
                     }
                 }
                 data['batchOriginals'] = batchOriginals;
@@ -147,9 +165,12 @@ export function SummaryBar(props: SummaryBarProps): JSX.Element {
                 if (props.onClampBatchDelta && deltaX < 0) {
                     deltaX = props.onClampBatchDelta(batchOriginals, deltaX);
                 }
-                const applied = props.taskStore.batchMovePositions(
+                const moveBatch =
+                    props.moveBatch ?? props.taskStore.batchMovePositions;
+                const applied = moveBatch(
                     batchOriginals,
                     deltaX,
+                    props.projectMoveWidth,
                 );
                 data['lastGeom'] = applied.get(id);
             }
@@ -175,7 +196,7 @@ export function SummaryBar(props: SummaryBarProps): JSX.Element {
 
     // Handle mousedown on bar for drag
     const handleBarMouseDown = (e: MouseEvent): void => {
-        if (readonly()) return;
+        if (!canMove()) return;
         e.preventDefault();
         e.stopPropagation();
         startDrag(e, 'dragging_bar', { taskId: taskId() });
@@ -192,7 +213,10 @@ export function SummaryBar(props: SummaryBarProps): JSX.Element {
     const ariaLabel = (): string => {
         const tk = task();
         const name = tk?.name ?? 'Summary';
-        return `${name}, ${fmtDate(tk?._start)} to ${fmtDate(tk?._end)}, ${progress()}% complete`;
+        const locked = tk?.constraints?.locked;
+        const lockSuffix =
+            locked === true ? ', locked' : locked ? `, ${locked} locked` : '';
+        return `${name}, ${fmtDate(tk?._start)} to ${fmtDate(tk?._end)}, ${progress()}% complete${lockSuffix}`;
     };
 
     // GPU-accelerated transform for positioning
@@ -206,6 +230,7 @@ export function SummaryBar(props: SummaryBarProps): JSX.Element {
             role="group"
             aria-roledescription="summary task"
             aria-label={ariaLabel()}
+            aria-disabled={!canMove() ? 'true' : 'false'}
             tabindex={readonly() ? -1 : 0}
             onMouseDown={handleBarMouseDown}
             style={{
@@ -213,7 +238,7 @@ export function SummaryBar(props: SummaryBarProps): JSX.Element {
                 transform: barTransform(),
                 width: `${width()}px`,
                 height: `${height()}px`,
-                cursor: readonly() ? 'default' : 'grab',
+                cursor: canMove() ? 'grab' : 'default',
                 'will-change': 'transform',
                 'pointer-events': 'auto',
             }}

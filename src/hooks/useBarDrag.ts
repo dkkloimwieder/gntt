@@ -13,9 +13,16 @@
 import { useDrag, clamp } from './useDrag';
 import { snapToGrid } from '../utils/barCalculations';
 import type { TaskStore } from '../stores/taskStore';
+import { isMovementLocked } from '../utils/absoluteConstraints';
+import type {
+    LeftResizeProposal,
+    ProjectMoveWidth,
+} from '../utils/constraintEngine';
+import type { LockState } from '../types';
 
 interface BatchOriginal {
     originalX: number;
+    originalWidth: number;
 }
 
 interface ConstrainedResult {
@@ -26,6 +33,22 @@ interface ConstrainedResult {
 export interface DragGeometry {
     x: number;
     width: number;
+}
+
+export function resizeFromFixedEnd(
+    original: DragGeometry,
+    proposedX: number,
+    minWidth: number,
+    constrain: (geometry: DragGeometry) => ConstrainedResult | null | undefined,
+): DragGeometry | null {
+    const end = original.x + original.width;
+    const maxX = end - minWidth;
+    const x = Math.min(proposedX, maxX);
+    const constrained = constrain({ x, width: end - x });
+    if (constrained === null) return null;
+    const nextX = constrained?.x ?? x;
+    if (nextX > maxX) return null;
+    return { x: nextX, width: end - nextX };
 }
 
 export interface BarDragHandlers {
@@ -39,6 +62,7 @@ export interface BarDragHandlers {
         taskId: string,
         x: number,
         y: number,
+        resize?: LeftResizeProposal,
     ) => ConstrainedResult | null;
     onDateChange?: (taskId: string, position: DragGeometry) => void;
     /**
@@ -52,9 +76,11 @@ export interface BarDragHandlers {
 
 export interface UseBarDragDeps {
     taskStore?: TaskStore;
+    projectMoveWidth?: ProjectMoveWidth;
+    moveBatch?: TaskStore['batchMovePositions'];
     handlers: BarDragHandlers;
     /** Identifying info + current progress for the bar. */
-    taskInfo: () => { id: string; progress: number };
+    taskInfo: () => { id: string; progress: number; locked?: LockState };
     /** Current bar geometry. */
     x: () => number;
     y: () => number;
@@ -81,6 +107,7 @@ export function useBarDrag(deps: UseBarDragDeps) {
             data['originalY'] = deps.y();
             data['originalWidth'] = deps.width();
             data['originalProgress'] = t.progress;
+            data['fixedEnd'] = t.locked === 'end';
 
             // Defer expensive recalculations while a drag is in progress
             deps.taskStore?.setDraggingTaskId?.(t.id);
@@ -104,9 +131,18 @@ export function useBarDrag(deps: UseBarDragDeps) {
 
                 const dependentOriginals = new Map<string, BatchOriginal>();
                 for (const id of tasksToMove) {
+                    if (
+                        isMovementLocked(
+                            deps.taskStore?.getTask(id)?.constraints?.locked,
+                        )
+                    )
+                        continue;
                     const pos = deps.taskStore?.getBarPosition(id);
                     if (pos) {
-                        dependentOriginals.set(id, { originalX: pos.x });
+                        dependentOriginals.set(id, {
+                            originalX: pos.x,
+                            originalWidth: pos.width,
+                        });
                     }
                 }
                 data['dependentOriginals'] = dependentOriginals;
@@ -160,9 +196,12 @@ export function useBarDrag(deps: UseBarDragDeps) {
                     // The store hands back what it applied, so the gesture
                     // end reports the batch's own numbers instead of
                     // re-reading a store whose write has not committed yet.
-                    const applied = deps.taskStore.batchMovePositions(
+                    const moveBatch =
+                        deps.moveBatch ?? deps.taskStore.batchMovePositions;
+                    const applied = moveBatch(
                         dependentOriginals,
                         deltaX,
+                        deps.projectMoveWidth,
                     );
                     const own = applied?.get(taskId);
                     data['lastGeom'] = own ?? {
@@ -182,12 +221,39 @@ export function useBarDrag(deps: UseBarDragDeps) {
                         if (constrained === null) return;
                         newX = constrained.x ?? newX;
                     }
-                    deps.taskStore.updateBarPosition(taskId, { x: newX });
-                    data['lastGeom'] = { x: newX, width: originalWidth };
+                    const width =
+                        deps.projectMoveWidth?.(
+                            taskId,
+                            { x: originalX, width: originalWidth },
+                            newX,
+                        ) ?? originalWidth;
+                    const geometry = { x: newX, width };
+                    deps.taskStore.updateBarPosition(taskId, geometry);
+                    data['lastGeom'] = geometry;
                 }
             } else if (state === 'dragging_left') {
                 const snappedDelta =
                     Math.round(move.deltaX / colWidth) * colWidth;
+
+                if (data['fixedEnd']) {
+                    const geometry = resizeFromFixedEnd(
+                        { x: originalX, width: originalWidth },
+                        snapToGrid(originalX + snappedDelta, colWidth, ignored),
+                        deps.minWidth(),
+                        ({ x, width }) =>
+                            deps.handlers.onConstrainPosition?.(
+                                taskId,
+                                x,
+                                originalY,
+                                { kind: 'resize-left', width },
+                            ),
+                    );
+                    if (geometry) {
+                        deps.taskStore.updateBarPosition(taskId, geometry);
+                        data['lastGeom'] = geometry;
+                    }
+                    return;
+                }
 
                 let newX = originalX + snappedDelta;
                 let newWidth = originalWidth - snappedDelta;

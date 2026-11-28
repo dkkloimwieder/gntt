@@ -14,7 +14,7 @@ import { Grid } from '../components/Grid';
 import { DateHeaders } from '../components/DateHeaders';
 import { ResourceColumn } from '../components/ResourceColumn';
 import * as dateUtils from '../utils/dateUtils';
-import { computeX, computeWidth } from '../utils/barCalculations.js';
+import { createTimelineScale } from '../utils/timelineScale';
 // import { ArrowLayerBatched } from '../components/ArrowLayerBatched'; // Removed - causes 21% perf regression
 
 /**
@@ -107,20 +107,20 @@ const ganttStart = new Date(
 
 // Pre-process tasks with _bar positions from dates
 const initialTasks = (() => {
+    const { dateToX } = createTimelineScale(
+        ganttStart,
+        UNIT,
+        STEP,
+        COLUMN_WIDTH,
+    );
     const result = {};
     parsedTasks.forEach((task, i) => {
         const row = Math.floor(i / TOTAL_COLS);
         const col = i % TOTAL_COLS;
 
         // Compute x and width from dates
-        const x = computeX(task._start, ganttStart, UNIT, STEP, COLUMN_WIDTH);
-        const width = computeWidth(
-            task._start,
-            task._end,
-            UNIT,
-            STEP,
-            COLUMN_WIDTH,
-        );
+        const x = dateToX(task._start);
+        const width = dateToX(task._end) - x;
 
         result[task.id] = {
             ...task,

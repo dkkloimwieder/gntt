@@ -47,6 +47,8 @@ refer to the D1–D13 table in `docs/migration/solid2/PLAN.md`.
 
 ### Fixed
 
+- Date callbacks preserve fractions of a column to the nearest millisecond. Headers, task bars, and baselines use the same calendar across daylight saving changes and unequal months.
+- Pointer and keyboard controls honor start, end, and duration locks. With a locked end, Shift+Left and Shift+Right resize the left edge.
 - Keyboard activation supplies a click event to `onTaskClick`. Dependency lags use the current timeline scale, and absolute move bounds use the chart calendar.
 - A visible-range export reads the current scroll position even before the next virtualized render.
 - Scrolling during a drag keeps the edit on the original task when a visible row changes.

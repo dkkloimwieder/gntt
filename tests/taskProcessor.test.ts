@@ -32,12 +32,81 @@ afterEach(() => {
 
 const config = {
     ganttStart: new Date('2025-01-01T00:00:00'),
-    unit: 'hour',
+    unit: 'hour' as const,
     step: 1,
     columnWidth: 10,
     barHeight: 30,
     padding: 18,
 };
+
+it.each([
+    {
+        unit: 'hour',
+        step: 1,
+        start: '2025-01-01 00:00',
+        end: '2025-01-01 00:00',
+        x: 0,
+        width: 0,
+    },
+    {
+        unit: 'hour',
+        step: 1,
+        start: '2025-01-01 05:00',
+        end: '2025-01-01 13:00',
+        x: 50,
+        width: 80,
+    },
+    {
+        unit: 'hour',
+        step: 2,
+        start: '2025-01-01 05:00',
+        end: '2025-01-01 13:00',
+        x: 25,
+        width: 40,
+    },
+    {
+        unit: 'day',
+        step: 1,
+        start: '2025-01-04',
+        end: '2025-01-05',
+        x: 30,
+        width: 10,
+    },
+] as const)(
+    'places a bar at $x with width $width in a $step-$unit view',
+    ({ unit, step, start, end, x, width }) => {
+        const { tasks } = processTasks([task({ start, end })], {
+            ...config,
+            unit,
+            step,
+        });
+        expect(tasks[0]!._bar).toMatchObject({ x, width });
+    },
+);
+
+it('projects both endpoints of task and baseline bars on the shared month scale', () => {
+    const { tasks } = processTasks(
+        [
+            task({
+                start: '2025-01-16 12:00',
+                end: '2025-02-15 00:00',
+                baselineStart: '2024-12-16 12:00',
+                baselineEnd: '2025-01-13 12:00',
+            }),
+        ],
+        {
+            ...config,
+            ganttStart: new Date(2025, 0, 1),
+            unit: 'month',
+            columnWidth: 310,
+        },
+    );
+
+    // January and December each have 31 days, so each day is 10 px.
+    // February 15 is halfway through the 28-day February column.
+    expect(tasks[0]?._bar).toMatchObject({ x: 155, width: 310 });
+    expect(tasks[0]?._baselineBar).toEqual({ x: -155, width: 280 });
+});
 
 function task(overrides: Partial<GanttTask> = {}): GanttTask {
     return {

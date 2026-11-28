@@ -15,7 +15,9 @@ The review compared the active guides with the Solid 2 implementation and the co
 
 Vitest uses jsdom for chart tests. Browser checks exercise actual layout, native scroll and resize events, and the compiled package. For the automated commands, see the [architecture guide](ARCHITECTURE.md#development-and-test-gates).
 
-Two open issues affect consumers. Date callbacks can lose fractional time units (`gantt-ghu`). The interactive bar treats partial locks as full locks (`gantt-ycq`). See [Callbacks](../README.md#callbacks) and [Locks and date limits](CONSTRAINTS.md#locks-and-date-limits).
+Follow-up fixes cover fractional date callbacks (`gantt-ghu`) and partial task locks (`gantt-ycq`). The tests compare callback dates with known local times and exercise the gestures allowed by each lock. See [date scale tests](../tests/ganttDateStore.test.ts), [gesture tests](../tests/drag.test.tsx), and [task lock tests](../tests/taskLocks.test.tsx).
+
+The [database demo test](../tests/dbDemo.test.tsx) checks the saved dates for both a resized task and its successor. A Chrome test with SQLite also exercised two rapid keyboard edits and a reload.
 
 ## Code quality audit, May 2026
 

@@ -5,6 +5,7 @@ import { DEFAULT_VIEW_MODES } from '../utils/defaults';
 import type { ViewMode, DateInfo } from '../types';
 import { DEFAULT_COLUMN_WIDTH } from '../constants';
 import { resolveTaskEnd } from '../utils/taskProcessor';
+import { createTimelineScale } from '../utils/timelineScale';
 
 interface TaskLike {
     _start?: Date;
@@ -182,6 +183,10 @@ export function createGanttDateStore(
     // Grid width in pixels
     const gridWidth = createMemo(() => dateCount() * columnWidth());
 
+    const scale = createMemo(() =>
+        createTimelineScale(ganttStart(), unit(), step(), columnWidth()),
+    );
+
     const calculateDates = (
         start: Date,
         end: Date,
@@ -191,10 +196,11 @@ export function createGanttDateStore(
         const columns: Date[] = [];
         if (!Number.isFinite(stepVal) || stepVal <= 0) return columns;
 
-        let current = new Date(start);
+        const { columnDate } = createTimelineScale(start, unitVal, stepVal, 1);
+        let current = columnDate(0);
         while (current < end) {
             columns.push(current);
-            const next = dateUtils.add(current, stepVal, unitVal);
+            const next = columnDate(columns.length);
             if (!(next > current)) break;
             current = next;
         }
@@ -293,12 +299,10 @@ export function createGanttDateStore(
                 end = dateUtils.add(end, 30, unit);
             }
 
-            start = dateUtils.start_of(start, unit);
-            if (unit !== 'hour' && unit !== 'minute') {
-                start.setHours(0, 0, 0, 0);
-            }
-
-            return { ganttStart: start, ganttEnd: end };
+            return {
+                ganttStart: dateUtils.start_of(start, unit),
+                ganttEnd: end,
+            };
         }, nextMode);
 
     /**
@@ -332,11 +336,21 @@ export function createGanttDateStore(
             return {
                 ganttStart:
                     direction === 'left'
-                        ? dateUtils.add(prev.ganttStart, -units * step, unit)
+                        ? createTimelineScale(
+                              prev.ganttStart,
+                              unit,
+                              step,
+                              1,
+                          ).columnDate(-units)
                         : prev.ganttStart,
                 ganttEnd:
                     direction === 'right'
-                        ? dateUtils.add(prev.ganttEnd, units * step, unit)
+                        ? createTimelineScale(
+                              prev.ganttEnd,
+                              unit,
+                              step,
+                              1,
+                          ).columnDate(units)
                         : prev.ganttEnd,
             };
         });
@@ -434,31 +448,8 @@ export function createGanttDateStore(
         return infos;
     });
 
-    /**
-     * Convert a date to X pixel position.
-     */
-    const dateToX = (date: Date): number => {
-        const start = ganttStart();
-        const stepVal = step();
-        const unitVal = unit();
-        const colWidth = columnWidth();
-
-        const diff = dateUtils.diff(date, start, unitVal);
-        return (diff / stepVal) * colWidth;
-    };
-
-    /**
-     * Convert X pixel position to date.
-     */
-    const xToDate = (x: number): Date => {
-        const start = ganttStart();
-        const stepVal = step();
-        const unitVal = unit();
-        const colWidth = columnWidth();
-
-        const units = (x / colWidth) * stepVal;
-        return dateUtils.add(start, units, unitVal);
-    };
+    const dateToX = (date: Date): number => scale().dateToX(date);
+    const xToDate = (x: number): Date => scale().xToDate(x);
 
     return {
         // Signals

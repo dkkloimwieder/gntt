@@ -676,7 +676,7 @@ describe('keyboard gestures', () => {
         });
         settle();
 
-        const { ganttConfig, dateStore } = mounted.stores;
+        const { ganttConfig } = mounted.stores;
         const columnWidth = ganttConfig.columnWidth();
         const before = barPos(mounted, 't1');
 
@@ -692,12 +692,8 @@ describe('keyboard gestures', () => {
         expect(after.width).toBe(before.width);
 
         expect(changes).toHaveLength(1);
-        expect(changes[0]!.start.getTime()).toBe(
-            dateStore.xToDate(after.x).getTime(),
-        );
-        expect(changes[0]!.end.getTime()).toBe(
-            dateStore.xToDate(after.x + after.width).getTime(),
-        );
+        expect(changes[0]!.start).toEqual(new Date(2025, 0, 7, 8));
+        expect(changes[0]!.end).toEqual(new Date(2025, 0, 9, 16));
     });
 
     it('shift+ArrowRight resizes from the right edge and reports the new width', () => {
@@ -714,7 +710,7 @@ describe('keyboard gestures', () => {
         });
         settle();
 
-        const { ganttConfig, dateStore } = mounted.stores;
+        const { ganttConfig } = mounted.stores;
         const columnWidth = ganttConfig.columnWidth();
         const before = barPos(mounted, 't1');
         const successorBefore = barPos(mounted, 't2');
@@ -734,13 +730,39 @@ describe('keyboard gestures', () => {
 
         expect(changes).toHaveLength(1);
         expect(changes[0]!.id).toBe('t1');
-        expect(changes[0]!.start.getTime()).toBe(
-            dateStore.xToDate(before.x).getTime(),
-        );
-        expect(changes[0]!.end.getTime()).toBe(
-            dateStore.xToDate(before.x + after.width).getTime(),
-        );
+        expect(changes[0]!.start).toEqual(new Date(2025, 0, 6, 8));
+        expect(changes[0]!.end).toEqual(new Date(2025, 0, 9, 16));
         expect(resizeEnds).toEqual(['t1']);
+    });
+
+    it('reports exact calendar dates after a one-column resize in Month view', () => {
+        const changes: DateChange[] = [];
+        mounted = mountGantt({
+            tasks: [
+                {
+                    id: 'task',
+                    name: 'Task',
+                    start: '2024-12-20 08:17',
+                    end: '2025-01-16 12:00',
+                },
+            ],
+            options: { viewMode: 'Month' },
+            onDateChange: (id, range) => {
+                changes.push({ id, ...range });
+            },
+        });
+
+        barOf(mounted, 'task').dispatchEvent(key('ArrowRight', true));
+        settle();
+
+        // Midway through a 31-day January advances to midway through a 28-day February.
+        expect(changes).toEqual([
+            {
+                id: 'task',
+                start: new Date(2024, 11, 20, 8, 17),
+                end: new Date(2025, 1, 15),
+            },
+        ]);
     });
 
     // Un-skipped by E2.7 (gantt-b4m.7). Two gates in `resolveConstraints`

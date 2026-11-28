@@ -34,7 +34,9 @@ The setup effect tracks its inputs in its compute function. Solid store inputs b
 
 A nonempty `resources` prop takes precedence over provider resources. If neither supplies rows, setup derives them from the effective tasks. The effective tasks are the input tasks after `options.filter`. A search changes bar emphasis and leaves task geometry in place.
 
-A task or filter change recalculates the date window. A scale change projects existing dates onto the new number of pixels per time unit. Setup passes this window directly to task processing. It also mirrors the window into chart configuration.
+A task or filter change recalculates the date window. Setup passes this window to task processing and copies it into the chart configuration.
+
+Headers, task bars, baselines, and date callbacks use the same timeline scale. Day, week, month, and year columns follow local calendar boundaries. Within each column, the scale converts elapsed time to pixels. Hour and smaller columns have a fixed elapsed length, so the chart can distinguish both occurrences of a repeated hour. See [timelineScale.ts](../src/utils/timelineScale.ts).
 
 The processor assigns resource rows, calculates bar positions, and builds relationships. Setup builds the task hierarchy, recalculates summary bounds, and applies collapse visibility before writing the task store.
 

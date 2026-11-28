@@ -8,6 +8,7 @@ import { buildRelationshipIndex } from '../utils/constraintEngine';
 import { collectDescendants } from '../utils/hierarchyProcessor';
 import {
     constrainTaskPosition,
+    moveTaskBatch,
     resolveResizeConstraints,
     collectDependents,
     clampBatchDelta,
@@ -15,6 +16,11 @@ import {
 import { useTaskVirtualization } from '../hooks/useTaskVirtualization';
 import { useBoxSelect } from '../hooks/useBoxSelect';
 import type { DragGeometry } from '../hooks/useBarDrag';
+import type {
+    LeftResizeProposal,
+    ProjectMoveStart,
+    ProjectMoveWidth,
+} from '../utils/constraintEngine';
 import type { TaskStore } from '../stores/taskStore';
 import type { GanttConfigStore } from '../stores/ganttConfigStore';
 import type { ResourceStore } from '../stores/resourceStore';
@@ -93,6 +99,30 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
         buildRelationshipIndex(relationships()),
     );
 
+    const elapsedDuration = (original: DragGeometry): number => {
+        const { xToDate } = props.dateStore;
+        return (
+            xToDate(original.x + original.width).getTime() -
+            xToDate(original.x).getTime()
+        );
+    };
+    const projectMoveWidth: ProjectMoveWidth = (id, original, newX) => {
+        if (props.taskStore?.getTask(id)?.constraints?.locked !== 'duration') {
+            return original.width;
+        }
+        const { xToDate, dateToX } = props.dateStore;
+        const end = new Date(
+            xToDate(newX).getTime() + elapsedDuration(original),
+        );
+        return dateToX(end) - newX;
+    };
+    const projectMoveStart: ProjectMoveStart = (_id, original, newEnd) => {
+        const { xToDate, dateToX } = props.dateStore;
+        return dateToX(
+            new Date(xToDate(newEnd).getTime() - elapsedDuration(original)),
+        );
+    };
+
     // Build the constraint context once per call. Cheap; values are accessors.
     const buildCtx = () => {
         const store = props.taskStore;
@@ -104,17 +134,25 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
             dateToX: props.dateStore.dateToX,
             relationships: relationships(),
             relationshipIndex: relationshipIndex(),
+            projectMoveWidth,
+            projectMoveStart,
         };
+    };
+
+    const moveBatch: TaskStore['batchMovePositions'] = (originals, deltaX) => {
+        const context = buildCtx();
+        return context ? moveTaskBatch(originals, deltaX, context) : new Map();
     };
 
     const handleConstrainPosition = (
         taskId: string,
         newX: number,
         newY: number,
+        resize?: LeftResizeProposal,
     ): ConstrainedResult | null => {
         const ctx = buildCtx();
         if (!ctx) return { x: newX, y: newY };
-        return constrainTaskPosition(taskId, newX, newY, ctx);
+        return constrainTaskPosition(taskId, newX, newY, ctx, resize);
     };
 
     const handleResizeEnd = (taskId: string, geometry?: DragGeometry): void => {
@@ -283,6 +321,8 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
                                 taskId={taskId as Accessor<string>}
                                 taskStore={props.taskStore}
                                 ganttConfig={props.ganttConfig}
+                                projectMoveWidth={projectMoveWidth}
+                                moveBatch={moveBatch}
                                 onCollectDescendants={handleCollectDescendants}
                                 onClampBatchDelta={handleClampBatchDelta}
                                 onDragEnd={handleSummaryDragEnd}
@@ -334,6 +374,7 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
                                 task={task as Accessor<ProcessedTask>}
                                 taskStore={props.taskStore}
                                 ganttConfig={props.ganttConfig}
+                                projectDate={props.dateStore.dateToX}
                                 isCritical={
                                     !!task() &&
                                     !!props.criticalSet?.has(task()!.id)
@@ -351,6 +392,8 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
                                 }
                                 onConstrainPosition={handleConstrainPosition}
                                 onCollectDependents={handleCollectDependents}
+                                projectMoveWidth={projectMoveWidth}
+                                moveBatch={moveBatch}
                                 onCollectDescendants={handleCollectDescendants}
                                 onClampBatchDelta={handleClampBatchDelta}
                                 onDateChange={handleDateChange}

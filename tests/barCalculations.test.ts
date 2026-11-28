@@ -1,8 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-    computeX,
     computeY,
-    computeWidth,
     computeDuration,
     daysToUnits,
     computeProgressWidth,
@@ -19,31 +17,6 @@ import {
 } from '../src/utils/barCalculations';
 import type { BarPosition } from '../src/types';
 
-const GANTT_START = new Date('2025-01-01T00:00:00');
-
-describe('computeX', () => {
-    it('returns 0 when task starts at gantt start', () => {
-        expect(computeX(GANTT_START, GANTT_START, 'hour', 1, 10)).toBe(0);
-    });
-
-    it('hour scale: 5 hours after start at columnWidth=10 → x=50', () => {
-        const start = new Date('2025-01-01T05:00:00');
-        expect(computeX(start, GANTT_START, 'hour', 1, 10)).toBeCloseTo(50, 1);
-    });
-
-    it('day scale: 3 days after start at columnWidth=40 → x=120', () => {
-        const start = new Date('2025-01-04T00:00:00');
-        expect(computeX(start, GANTT_START, 'day', 1, 40)).toBeCloseTo(120, 1);
-    });
-
-    it('step factor halves x', () => {
-        const start = new Date('2025-01-01T10:00:00');
-        const x1 = computeX(start, GANTT_START, 'hour', 1, 10);
-        const x2 = computeX(start, GANTT_START, 'hour', 2, 10);
-        expect(x2).toBeCloseTo(x1 / 2, 1);
-    });
-});
-
 describe('computeY', () => {
     it('row 0 at y = padding/2', () => {
         expect(computeY(0, 30, 18)).toBe(9);
@@ -58,27 +31,6 @@ describe('computeY', () => {
     it('zero padding centers bar at row top', () => {
         expect(computeY(0, 30, 0)).toBe(0);
         expect(computeY(2, 30, 0)).toBe(60);
-    });
-});
-
-describe('computeWidth', () => {
-    it('hour scale: 8h at columnWidth=10 → width=80', () => {
-        const start = new Date('2025-01-01T08:00:00');
-        const end = new Date('2025-01-01T16:00:00');
-        expect(computeWidth(start, end, 'hour', 1, 10)).toBeCloseTo(80, 1);
-    });
-
-    it('zero-duration task → width=0', () => {
-        const d = new Date('2025-01-01T08:00:00');
-        expect(computeWidth(d, d, 'hour', 1, 10)).toBe(0);
-    });
-
-    it('larger step shrinks width proportionally', () => {
-        const start = new Date('2025-01-01T08:00:00');
-        const end = new Date('2025-01-01T16:00:00');
-        const w1 = computeWidth(start, end, 'hour', 1, 10);
-        const w2 = computeWidth(start, end, 'hour', 4, 10);
-        expect(w2).toBeCloseTo(w1 / 4, 1);
     });
 });
 
