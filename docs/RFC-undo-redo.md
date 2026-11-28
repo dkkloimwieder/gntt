@@ -5,6 +5,8 @@
 **Author:** dkk + Claude
 **Date:** 2026-05-10
 
+The examples below describe the proposed `useHistory` hook and provider options. The current provider accepts `options`, `resources`, and `children`. See the [provider implementation](../src/contexts/GanttStores.tsx).
+
 ## Why an RFC
 
 Undo/redo is a small surface but a load-bearing one: the choices we

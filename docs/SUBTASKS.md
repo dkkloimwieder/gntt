@@ -1,201 +1,131 @@
 # Subtasks
 
-Subtasks allow you to break down parent tasks into smaller, manageable pieces that render inside the parent container. The Gantt chart supports three layout modes that control how subtasks are visually arranged.
+Subtasks are tasks that name another task as their parent. Use the full
+task layer with `options.renderMode: 'detailed'` to draw children within
+an expanded parent. The chart uses the full task layer by default.
 
-## Quick Start
+## Set up a parent and its children
 
-```javascript
+```tsx
+import { Gantt } from 'ganttss';
+
 const tasks = [
-  // Parent task with subtaskLayout
-  {
-    id: 'feature-1',
-    name: 'Feature Development',
-    subtaskLayout: 'sequential',  // or 'parallel' or 'mixed'
-    start: '2024-01-01',
-    end: '2024-01-15',
-    resource: 'alice',
-    color: '#3b82f6',
-  },
-  // Subtasks reference parent via parentId
-  {
-    id: 'sub-1',
-    name: 'Design',
-    parentId: 'feature-1',
-    start: '2024-01-01',
-    end: '2024-01-05',
-    resource: 'alice',
-    color: '#93c5fd',
-  },
-  {
-    id: 'sub-2',
-    name: 'Develop',
-    parentId: 'feature-1',
-    start: '2024-01-06',
-    end: '2024-01-12',
-    resource: 'alice',
-    color: '#93c5fd',
-  },
+    {
+        id: 'feature',
+        name: 'Feature',
+        start: '2025-01-01',
+        end: '2025-01-08',
+        resource: 'alice',
+        subtaskLayout: 'mixed' as const,
+    },
+    {
+        id: 'design',
+        name: 'Design',
+        parentId: 'feature',
+        start: '2025-01-01',
+        end: '2025-01-05',
+        resource: 'alice',
+    },
+    {
+        id: 'build',
+        name: 'Build',
+        parentId: 'feature',
+        start: '2025-01-03',
+        end: '2025-01-08',
+        resource: 'alice',
+    },
 ];
 
-// Expand parent tasks by default
-const options = {
-  expandedTasks: ['feature-1'],
-};
+<Gantt
+    tasks={tasks}
+    options={{
+        renderMode: 'detailed',
+        expandedTasks: ['feature'],
+        subtaskHeightRatio: 0.5,
+    }}
+/>;
 ```
 
-## Layout Types
+Give each task a unique ID. Set a child's `parentId` to the parent's ID.
+Put a parent and its children on the same resource row. If the tasks have
+no resource and the chart derives its rows from tasks, it uses the
+`Unassigned` row.
 
-### Sequential
+If you supply a `resources` list, use each resource's ID in the tasks.
+Keep the entries in display order. A group uses `type: 'group'`.
+Give its member resources a `group` field with that group ID. Collapsing
+the group hides those resource rows and their tasks.
 
-Subtasks render back-to-back in a single row. Use when tasks must be completed in order.
+The chart detects summary parents when their `type` is missing. A summary
+bar spans its children. The chart warns and removes a link when the
+parent is missing or the link would keep a parent cycle. The task and its
+descendants stay in the chart.
 
-```
-┌─────────────────────────────────────────────────┐
-│ [ Design ][ Develop ][ Test ][ Deploy ]         │
-└─────────────────────────────────────────────────┘
-```
+## Choose a layout
 
-- **Behavior**: No time overlap between subtasks
-- **Container height**: Same as regular task bar
-- **Use case**: Waterfall-style task breakdown
+| `subtaskLayout`        | Row placement                                                                               |
+| ---------------------- | ------------------------------------------------------------------------------------------- |
+| `sequential` (default) | All children share one row. Use nonoverlapping dates for this layout.                       |
+| `parallel`             | Each child uses a separate row.                                                             |
+| `mixed`                | Children share the first row where their dates fit. Overlapping children use separate rows. |
 
-### Parallel
+The layout changes how the chart draws the children. It leaves the
+specified dates in place. In a mixed layout, a child can share a row with
+another child that ends at its start.
 
-All subtasks start at the same time and stack vertically. Use when tasks can be done simultaneously.
+`subtaskHeightRatio` sets the height of a subtask bar as a fraction of
+`barHeight`. It defaults to `0.5`. A sequential parent uses the normal
+bar height. Parallel and mixed parents grow to fit their subtask rows.
 
-```
-┌─────────────────────────────────────────────────┐
-│ [ Design──────────── ]                          │
-│ [ Backend Development───────── ]                │
-│ [ Frontend Development──── ]                    │
-│ [ Testing────── ]                               │
-└─────────────────────────────────────────────────┘
-```
+## Expand containers and hide branches
 
-- **Behavior**: Full time overlap, all start together
-- **Container height**: Expands to fit all subtasks stacked
-- **Use case**: Concurrent work streams
+`options.expandedTasks` lists the parents to draw as expanded containers.
+For programmatic control, read `ganttConfig` through `useGanttStores()`
+inside a `GanttProvider`. Call `expandTask(id)`, `collapseTask(id)`,
+`toggleTaskExpansion(id)`, `expandAllTasks(ids)`, or `collapseAllTasks()`.
+Use `isTaskExpanded(id)` to read the committed expansion state.
 
-### Mixed
-
-Some subtasks overlap, others don't. Rows are auto-computed based on time conflicts.
-
-```
-┌─────────────────────────────────────────────────┐
-│ [ Design── ]         [ Testing──── ]            │
-│ [ Development─────────────── ]                  │
-└─────────────────────────────────────────────────┘
-```
-
-- **Behavior**: Partial overlap, auto-computed rows
-- **Container height**: Adapts to number of computed rows
-- **Use case**: Complex scheduling with some parallel work
-
-## Task Data Structure
-
-### Parent Task
-
-```javascript
-{
-  id: string,                    // Unique identifier
-  name: string,                  // Display name
-  subtaskLayout: 'sequential' | 'parallel' | 'mixed',
-  start: string,                 // YYYY-MM-DD
-  end: string,                   // YYYY-MM-DD
-  progress: number,              // 0-100
-  color: string,                 // HEX color for container border
-  resource: string,              // Resource/swimlane ID
-}
-```
-
-### Subtask
-
-```javascript
-{
-  id: string,                    // Unique identifier
-  name: string,                  // Display name
-  parentId: string,              // References parent task ID
-  start: string,                 // YYYY-MM-DD
-  end: string,                   // YYYY-MM-DD
-  progress: number,              // 0-100
-  color: string,                 // HEX color (typically lighter than parent)
-  resource: string,              // Same resource as parent
-}
-```
-
-## Configuration Options
-
-```javascript
-const options = {
-  // Subtask bar height as fraction of normal bar height
-  // Default: 0.5 (subtasks are 50% height)
-  subtaskHeightRatio: 0.5,
-
-  // Array of task IDs that should start expanded
-  // Default: [] (all collapsed)
-  expandedTasks: ['task-1', 'task-2'],
-};
-```
-
-## Programmatic Expansion Control
-
-Access expansion methods via the Gantt config store:
-
-```javascript
-// Check if task is expanded
-ganttConfig.isTaskExpanded('task-1');
-
-// Toggle expansion
-ganttConfig.toggleTaskExpansion('task-1');
-
-// Expand specific task
-ganttConfig.expandTask('task-1');
-
-// Collapse specific task
-ganttConfig.collapseTask('task-1');
-
-// Expand multiple tasks
-ganttConfig.expandAllTasks(['task-1', 'task-2']);
-
-// Collapse all tasks
-ganttConfig.collapseAllTasks();
-```
+The task store has a separate collapse state for ancestor visibility.
+`taskStore.collapseTask(id)` hides the task's descendants.
+`taskStore.expandTask(id)` restores visibility if no other ancestor is
+collapsed. These actions do not change the parent container configuration.
+Solid commits store writes after the current synchronous code finishes.
 
 ## Test Data Generator
 
-For testing and demos, use the `generateSubtaskDemo()` utility:
+For testing and demos, import `generateSubtaskDemo()` from `ganttss`.
 
 ```javascript
-import { generateSubtaskDemo } from './utils/subtaskGenerator.ts';
+import { generateSubtaskDemo } from 'ganttss';
 
 const { tasks, resources, expandedTasks } = generateSubtaskDemo({
-  totalTasks: 100,
-  parentTaskRatio: 1.0,
-  seed: 12345,
+    totalTasks: 100,
+    parentTaskRatio: 1.0,
+    seed: 12345,
 });
 ```
 
 ### Generator Configuration
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `totalTasks` | 100 | Total number of tasks to generate |
-| `parentTaskRatio` | 0.7 | Fraction that are parents (0.0-1.0) |
-| `minSubtasks` | 2 | Minimum subtasks per parent |
-| `maxSubtasks` | 4 | Maximum subtasks per parent |
-| `subtaskLayouts` | `['sequential', 'parallel', 'mixed']` | Available layout types |
-| `startDate` | `'2024-01-01'` | Start date for generation |
-| `taskDurationDays` | `{ min: 7, max: 14 }` | Parent task duration range |
-| `subtaskDurationDays` | `{ min: 2, max: 5 }` | Subtask duration range |
-| `dependencyChance` | 0.3 | Probability of FS dependency (0.0-1.0) |
-| `seed` | 12345 | Random seed for reproducibility |
+| Option                | Default                               | Description                                               |
+| --------------------- | ------------------------------------- | --------------------------------------------------------- |
+| `totalTasks`          | 100                                   | Target number of tasks                                    |
+| `parentTaskRatio`     | 0.7                                   | Target fraction of tasks in parent-child groups (0.0–1.0) |
+| `minSubtasks`         | 2                                     | Minimum subtasks per parent                               |
+| `maxSubtasks`         | 4                                     | Maximum subtasks per parent                               |
+| `subtaskLayouts`      | `['sequential', 'parallel', 'mixed']` | Available layout types                                    |
+| `startDate`           | `'2024-01-01'`                        | Start date for generation                                 |
+| `taskDurationDays`    | `{ min: 7, max: 14 }`                 | Parent task duration range                                |
+| `subtaskDurationDays` | `{ min: 2, max: 5 }`                  | Subtask duration range                                    |
+| `dependencyChance`    | 0.3                                   | Probability of FS dependency (0.0-1.0)                    |
+| `seed`                | 12345                                 | Random seed for reproducibility                           |
 
 ### Generator Output
 
 ```javascript
 {
-  tasks: Task[],           // All tasks (parents + subtasks)
-  resources: Resource[],   // 5 resources: Alice, Bob, Charlie, Diana, Eve
+  tasks: GeneratedSubtaskTask[],           // All tasks (parents + subtasks)
+  resources: ResourceDef[],   // 5 resources: Alice, Bob, Charlie, Diana, Eve
   expandedTasks: string[], // IDs of parent tasks (for expandedTasks option)
 }
 ```
@@ -209,60 +139,9 @@ pnpm dev
 # Open http://localhost:5173/examples/subtask.html
 ```
 
-## Component Architecture
+## Implementation
 
-### ExpandedTaskContainer
-
-Renders the parent container with dashed border and positions subtasks inside.
-
-- **File**: `src/components/ExpandedTaskContainer.tsx`
-- **Props**: `taskId`, `taskStore`, `ganttConfig`, `rowLayout`
-- **Computes**: Container height based on layout and subtask count
-
-### SubtaskBar
-
-Renders individual subtask bars at 50% height.
-
-- **File**: `src/components/SubtaskBar.tsx`
-- **Props**: `task`, `index`, `y`, `layout`, `config`
-- **Features**: Compact labels, outline styling, progress indicator
-
-### rowLayoutCalculator
-
-Computes variable row heights and task positions.
-
-- **File**: `src/utils/rowLayoutCalculator.ts`
-- **Key functions**:
-  - `calculateRowLayouts()` - Main layout computation
-  - `calculateExpandedRowHeight()` - Height for expanded task
-  - `computeSubtaskRows()` - Row assignment based on time overlap
-
-## Internal Algorithm
-
-### Time Overlap Detection
-
-For parallel and mixed layouts, the system detects time conflicts:
-
-```javascript
-// Two tasks overlap if NOT (one ends before other starts)
-const overlaps = !(taskA.end <= taskB.start || taskA.start >= taskB.end);
-```
-
-### Row Packing Algorithm
-
-Subtasks are assigned to rows using a first-fit packing algorithm:
-
-1. Sort subtasks by start time
-2. For each subtask, find the first row where it doesn't overlap
-3. If no row fits, create a new row
-4. Assign subtask to that row
-
-This ensures minimal vertical space while preventing visual overlaps.
-
-### Height Calculation
-
-| Layout | Height Formula |
-|--------|----------------|
-| Sequential | `barHeight + padding` (same as regular task) |
-| Parallel | `verticalPadding * 2 + subtaskCount * subtaskBarHeight + (subtaskCount - 1) * subtaskPadding` |
-| Mixed | Same as parallel, but `subtaskCount` = computed row count |
+[buildHierarchy](../src/utils/hierarchyProcessor.ts) links tasks and
+assigns their depth. [The row layout calculator](../src/utils/rowLayoutCalculator.ts)
+assigns vertical positions. [ExpandedTaskContainer](../src/components/ExpandedTaskContainer.tsx)
+uses those positions to draw child bars with [SubtaskBar](../src/components/SubtaskBar.tsx).

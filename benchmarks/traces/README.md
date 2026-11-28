@@ -1,118 +1,103 @@
-# Performance Profiling
+# Performance profiling
 
-## Quick Start
+Use the built demos for browser timing measurements.
+The build includes `perf.html`, `perf-isolate.html`, and `experiments.html`.
+Use the development server for the other [demo pages](../../docs/DEMOS.md).
+
+## Run a browser benchmark
+
+From the repository root, build the benchmark pages.
 
 ```bash
-# Build and serve the demo
 pnpm build:demo
-npx serve dist-demo -l 5174 &
+```
 
-# Profile with automatic Chrome handling
+Keep Vite preview running in a separate terminal. The matrix scripts use port 5174.
+
+```bash
+pnpm exec vite preview --config config/vite/demo.js --port 5174 --strictPort
+```
+
+Vite preview serves both `/examples/experiments` and `/examples/experiments.html` without a redirect.
+If you use the external `serve` package, use extensionless URLs because its redirects can drop query parameters.
+Python's static server needs the `.html` extension.
+
+For automatic browser traces, install the external `chrome-devtools-cli` tool and Chrome.
+The benchmark scripts expect `perf.mjs` at the path below.
+The project dependencies and build do not install that file.
+Run the tool on a machine with a desktop session for headed Chrome.
+
+```bash
 node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs \
   'http://localhost:5174/examples/perf-isolate?bar=nochildren&test=horizontal' \
-  --iterations 3 --warmup 1 --duration 3000
-
-# Save results to file
-node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs \
-  'http://localhost:5174/examples/perf-isolate?bar=nochildren&headers=1&test=horizontal' \
-  --iterations 3 --output benchmarks/traces/runs/my-test.json
+  --iterations 3 --warmup 1 --duration 3000 --output /tmp/gantt-isolate.json
 ```
 
-> `benchmarks/profiler/**/*.js` is deliberately outside the lint/prettier
-> globs (`package.json` covers `benchmarks/constraint/**/*.ts` only): it is
-> browser-injected instrumentation kept in plain JS. `node --check` it after
-> editing.
+See [the demo reference](../../docs/DEMOS.md#feature-isolation) for the isolation switches.
+See [the Experiments guide](../../docs/EXPERIMENTS.md) for the variant selectors and stress tests.
 
----
+### Benchmark commands
 
-## Important: URL Format
+| Command | Workload |
+|---|---|
+| `pnpm bench:browser` | Four bar patterns, two scroll directions, and five measured runs per case. |
+| `pnpm bench:browser:virt` | `combined` and `xySplit`, two scroll directions, and five measured runs per case. |
+| `pnpm bench:browser:matrix` | Two bar patterns, three filters, two directions, and three measured runs per case. |
+| `pnpm bench` | Constraint engine on a 200-task linear chain. Runs in Node. |
+| `pnpm bench:all` | Constraint engine on all preset datasets. Runs in Node. |
+| `pnpm bench:scaling` | Constraint engine at several dependency counts. Runs in Node. |
 
-**Use clean URLs without `.html` extension.** The `serve` package redirects `.html` to clean URLs, stripping query parameters:
+Each browser matrix case has one warmup run and a 3-second trace per measured run.
+Some versions of the external profiler wait about a minute after saving results while their DevTools command timers expire.
+The matrix scripts write fixed names in `benchmarks/traces/runs/`.
+Use a scratch worktree if you want to keep the tracked results intact.
+The Node benchmarks do not use Vite preview or Chrome.
 
-```bash
-# WRONG - params get stripped via 301 redirect
-http://localhost:5174/examples/perf-isolate.html?bar=nochildren&test=horizontal
+## Compare two builds
 
-# CORRECT - params preserved
-http://localhost:5174/examples/perf-isolate?bar=nochildren&test=horizontal
-```
-
----
-
-## Common Commands
-
-```bash
-# Quick single profile
-node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs <url> --duration 3000
-
-# Benchmark with statistics
-node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs <url> --iterations 5 --warmup 1
-
-# Profile after clicking an element
-node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs <url> --click "#start-btn" --duration 5000
-```
-
----
-
-## Test Harnesses
-
-| URL | Purpose |
-|-----|---------|
-| `/examples/perf-isolate?bar=nochildren&test=horizontal` | Progressive feature testing |
-| `/examples/experiments?variant=baseline&test=horizontal` | Reactive pattern comparison |
-| `/examples/perf` | Full Gantt stress test |
-
-### Perf-Isolate Parameters
-
-| Param | Values | Description |
-|-------|--------|-------------|
-| `bar` | nochildren, combined, minimal, etc. | Bar component variant |
-| `grid` | 0, 1 | Show SVG grid |
-| `headers` | 0, 1 | Show date headers |
-| `resources` | 0, 1 | Show resource column |
-| `test` | horizontal, vertical, both | Auto-scroll direction |
-
----
-
-## See Also
-
-- [ANALYSIS.md](./ANALYSIS.md) - Current best practices and benchmark summaries
-- [HISTORY.md](./HISTORY.md) - Investigation logs and historical data
-- [CLAUDE.md](../CLAUDE.md) - Full Chrome DevTools CLI reference
-
-
-## Paired A/B between two builds (`ab-blocks.sh`)
-
-Used for the 1.9 → 2.0 comparison (see ANALYSIS.md, "SolidJS 2.0.0-rc.6 vs
-1.9.12") and for memo-laziness experiments (E4.5). Build each variant into its
-own output dir, serve both statically, then run blocks that alternate sides:
+The paired runner alternates which build goes first in each round.
+The runner requires Bash, Python 3 for the comparison, and a Linux host for its machine-load log.
+Use a different build directory for each variant.
+If you need the dense fixture, generate the same data in both scratch worktrees before building.
 
 ```bash
-# 10K dense dataset (generated, not tracked — restore the file afterwards)
 pnpm generate:calendar --tasks=10000 --resources=100 --dense
-npx vite build --config config/vite/demo.js --outDir dist-demo-10k   # per variant / worktree
-git checkout -- src/data/generated/calendar.json
-(cd dist-demo-10k && python3 -m http.server 5178 &)                     # side A
-(cd ../variant-worktree/dist-demo-10k && python3 -m http.server 5179 &) # side B
-benchmarks/scripts/ab-blocks.sh lazy-vs-eager 5178 5179 3
-python3 benchmarks/scripts/ab-compare.py benchmarks/traces/runs/ab/lazy-vs-eager eager lazy
+pnpm build:demo
 ```
 
-A scenario is `name|path` or `name|path|click-selector`; the third field is
-passed to `perf.mjs --click`, for pages whose stress test is a button rather
-than a `?test=` parameter (perf.html: `button:nth-of-type(2)` is H-Scroll,
-`button:nth-of-type(1)` is Reload, which re-mounts the 10K set inside the
-trace window):
+Serve each build in a separate terminal. Replace `../variant-worktree` with the path to the other checkout.
+
+```bash
+python3 -m http.server 5178 --bind 127.0.0.1 --directory dist-demo
+python3 -m http.server 5179 --bind 127.0.0.1 --directory ../variant-worktree/dist-demo
+```
+
+Run the comparison in the checkout that will hold the results.
+Choose a new label to collect new traces. The runner skips nonempty result files with the same label.
+
+```bash
+benchmarks/scripts/ab-blocks.sh eager-vs-variant 5178 5179 3
+python3 benchmarks/scripts/ab-compare.py benchmarks/traces/runs/ab/eager-vs-variant eager variant
+```
+
+The default scenarios scroll horizontally in the isolation and Experiments pages.
+Use `SCENARIOS` to override them. Each entry has the form `name|path` or `name|path|click-selector`.
+Separate entries with semicolons. The path starts after `/examples/`.
 
 ```bash
 SCENARIOS='perf-h|perf.html|button:nth-of-type(2);exp-h|experiments.html?variant=baseline&virt=combined&test=horizontal' \
   benchmarks/scripts/ab-blocks.sh perf-pair 5178 5179 3
 ```
 
-Only one `perf.mjs` may run at a time (it owns Chrome's port 9222); the runner
-waits for an idle profiler before starting. `memo-recompute-probe.mjs` and
-`drag-bench.mjs` launch their own Chrome on a private port and are **not**
-covered by that guard — do not run them while an `ab-blocks.sh` round is in
-flight, they would load the machine the blocks are measuring on. Machine load is logged per block;
-under a load average above ~4 the script-time CV was ~30 %, so read the
-`run.log` load column before trusting a small delta.
+In `perf.html`, the second button starts horizontal scrolling. The first button reprocesses the existing fixture.
+Read `run.log` for failures and machine load before comparing the results.
+
+Run one browser profiler at a time.
+The matrix and paired scripts use the profiler's Chrome debugging port.
+The standalone memo and drag scripts use private ports but still compete for CPU and display resources.
+
+## References
+
+- [Analysis and benchmark results](./ANALYSIS.md)
+- [Investigation history](./HISTORY.md)
+- [Repository tooling and testing](../../CLAUDE.md)

@@ -2,10 +2,20 @@
 
 A Gantt chart library built with SolidJS 2.0.
 
-## Install
+## Install from this checkout
+
+Build and pack the library in the repository directory. This creates `ganttss-1.0.3.tgz`.
 
 ```bash
-pnpm add ganttss solid-js@^2.0.4 @solidjs/web@^2.0.4
+pnpm install --frozen-lockfile
+pnpm build
+pnpm pack
+```
+
+In the application directory, replace the example path with the path to that file.
+
+```bash
+pnpm add /path/to/gantt/ganttss-1.0.3.tgz solid-js@^2.0.4 @solidjs/web@^2.0.4
 ```
 
 The chart uses the application's copies of `solid-js` and `@solidjs/web`.
@@ -23,9 +33,11 @@ namespace, so your `tsconfig.json` needs:
 }
 ```
 
-**Vite.** Compile JSX with Solid 2.0's plugin, and dedupe both runtimes so a
-nested copy can never create a second reactive graph — two instances mean
-signals written through one are invisible to effects created by the other:
+For a Vite application, install the Solid compiler plugin and configure Vite to share both runtimes.
+
+```bash
+pnpm add -D vite@^8 @solidjs/vite-plugin@^3
+```
 
 ```js
 import { defineConfig } from 'vite';
@@ -37,16 +49,16 @@ export default defineConfig({
 });
 ```
 
-The package exports an ES module and its TypeScript declarations.
-It requires Node 22.12 or later.
+The package exports a browser ES module and TypeScript declarations. In applications with server rendering, import the chart from a client-only entry.
+The package requires Node 22.12 or later. The repository's development tools have additional [Node requirements](#development).
 
 ## Usage
 
-```jsx
-import { Gantt } from 'ganttss';
+```tsx
+import { Gantt, type GanttTask } from 'ganttss';
 
-function App() {
-    const tasks = [
+export function App() {
+    const tasks: GanttTask[] = [
         { id: '1', name: 'Task 1', start: '2025-01-01', end: '2025-01-05', progress: 50 },
         { id: '2', name: 'Task 2', start: '2025-01-03', end: '2025-01-08', progress: 0,
           dependencies: [{ id: '1' }] },
@@ -58,17 +70,21 @@ function App() {
 
 ## Configuration
 
+Pass these fields in the `options` prop, for example `<Gantt tasks={tasks} options={{ viewMode: 'Week' }} />`.
+
 | Option | Description | Default |
 |--------|-------------|---------|
-| `viewMode` | Timeline view (`Day`, `Week`, `Month`, `Year`) | `Day` |
+| `viewMode` | Timeline view from `Minute` through `Year` | `Day` |
 | `barHeight` | Height of task bars (px) | `30` |
-| `columnWidth` | Width of timeline columns (px) | `45` |
+| `columnWidth` | Override the active view's column width (px) | `45` in Day view |
 | `padding` | Padding around task bars (px) | `18` |
 | `readonly` | Disable all editing | `false` |
 | `readonlyDates` | Disable date editing | `false` |
 | `readonlyProgress` | Disable progress editing | `false` |
-| `scrollTo` | Initial scroll target (`'start'`, `'today'`, or ISO date) | — |
-| `arrowColor` | Dependency arrow color | `'#a3a3ff'` |
+| `scrollTo` | Initial scroll target, either `'start'` or `'today'` | No initial scroll |
+| `criticalPath` | Highlight tasks on the critical path | `false` |
+
+Dependencies constrain gestures and appear in SVG exports. The interactive chart currently displays bars and the grid without dependency arrows.
 
 Per-task fields (on the data shape passed to `tasks`): `id`, `name`,
 `start`, `end`, `progress`, `dependencies`, `color`, `colorProgress`,
@@ -88,12 +104,15 @@ variables.
 | `onDateChange` | `(taskId, { start: Date, end: Date }, position?: { x: number, width: number }) => void` | Task is dragged or resized; `position` is the pixel rect the dates were derived from |
 | `onProgressChange` | `(taskId, progress: number) => void` | Progress handle is dragged |
 | `onResizeEnd` | `(taskId, geometry?: { x: number, width: number }) => void` | Resize gesture finishes; `geometry` is the post-resize pixel rect |
-| `onTaskClick` | `(taskId, event: MouseEvent) => void` | Bar is clicked |
+| `onTaskClick` | `(taskId, event: MouseEvent) => void` | A click, Enter, or Space activates a task bar |
+| `onSelectionChange` | `(selectedIds: Set<string>) => void` | Selection is initialized or changes |
+| `onReady` | `(api: GanttAPI) => void` | The mounted chart has measured its viewport |
 
-Each callback hands you what the gesture produced. Do **not** call back into
-a store from a handler to discover what just happened — reads answer about
-committed state, so inside the handler they still describe the world *before*
-the gesture. See the timing note below.
+Use `api.exportSvg()` for SVG text, `api.exportSvgBlob()` for a file, or `await api.exportPng()` for a PNG file.
+Pass `{ range: 'visible' }` to export the current viewport.
+
+Use the callback arguments for the result of a gesture. A store read in the handler can still return the previously committed value.
+The date conversion can drop a fractional time unit, such as half a day in Day view. For sub-day persistence, the database demo uses the supplied pixel geometry and the active time scale. See [Database architecture](docs/DATABASE.md).
 
 ## Reactivity & timing
 
@@ -146,8 +165,9 @@ primitive from it.
 
 ## Keyboard & accessibility
 
-Each task bar is a focusable button (`role="button"`, `tabindex=0`) with
+In the full task layer, a regular task bar has `role="button"` and
 an `aria-label` describing the task identity, date range, and progress.
+Read-only bars have `tabindex=-1`. Other regular task bars have `tabindex=0`.
 The chart container exposes `role="region"` with
 `aria-roledescription="gantt chart"` so screen readers announce it as a
 single landmark.
@@ -159,12 +179,10 @@ Keyboard shortcuts on a focused bar:
 | `Tab` / `Shift+Tab` | Move focus between bars |
 | `←` / `→` | Move bar by one column (one unit of the current view mode) |
 | `Shift+←` / `Shift+→` | Resize bar from the right edge by one column |
-| `Enter` / `Space` | Open the task modal |
+| `Enter` / `Space` | Activate the task. The built-in modal opens unless `disableTaskClickModal` is set. |
 
-Movement honours the same dependency constraints as drag, so keyboard
-edits cannot violate FS/SS/FF/SF relationships. `readonly`,
-`readonlyDates`, and the per-task `locked` flag suppress keyboard edits
-in the same places they suppress drag.
+Arrow-key moves check the task's dependency and date bounds. Shift+arrow resizes the right edge and can push successors.
+`readonly`, `readonlyDates`, and `constraints.locked: true` prevent keyboard date edits.
 
 ## Advanced usage — `<GanttProvider>`
 
@@ -173,23 +191,23 @@ creates its internal stores on its own. Wrap with `<GanttProvider>` only
 when sibling components need to read or mutate the same state — e.g.
 a custom toolbar, a side panel, or a test harness.
 
-```jsx
-import { GanttProvider, Gantt, useGanttStores } from 'ganttss';
+```tsx
+import { GanttProvider, Gantt, useGanttStores, type GanttTask, type ResourceInput } from 'ganttss';
 
 function Toolbar() {
     const stores = useGanttStores();
     return (
-        <button onClick={() => stores.dateStore.changeViewMode('Week')}>
+        <button onClick={() => { stores?.dateStore.changeViewMode('Week'); }}>
             Week view
         </button>
     );
 }
 
-function App() {
+export function App(props: { tasks: GanttTask[]; resources: ResourceInput[] }) {
     return (
-        <GanttProvider options={{ viewMode: 'Day' }} resources={resources}>
+        <GanttProvider options={{ viewMode: 'Day' }} resources={props.resources}>
             <Toolbar />
-            <Gantt tasks={tasks} />
+            <Gantt tasks={props.tasks} />
         </GanttProvider>
     );
 }
@@ -225,8 +243,7 @@ No public prop, option, or task-data field name changed in this release.
 
 ### camelCase field names
 
-All public option, prop, and task-data field names use **camelCase**.
-Previous snake_case forms were removed in two passes:
+The following options and task fields changed to camelCase.
 
 | Renamed from | To | Issue |
 |---|---|---|
@@ -260,6 +277,9 @@ pnpm dev
 ```
 
 See `docs/ARCHITECTURE.md` for implementation details.
+
+`pnpm test` runs the chart suites in jsdom and the database suites in Node.
+`pnpm typecheck`, `pnpm lint`, and `pnpm prettier-check` run TypeScript, Oxlint, and Prettier.
 
 ## DB-backed demo
 

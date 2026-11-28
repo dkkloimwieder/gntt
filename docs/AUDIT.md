@@ -1,5 +1,24 @@
 # Code Quality & Consistency Audit
 
+## Documentation and test audit, November 2026
+
+The review compared the active guides with the Solid 2 implementation and the commands in `package.json`. It kept the release-candidate reference and earlier timing measurements as historical records.
+
+| What the review exercised | Evidence |
+| --- | --- |
+| Install the built tarball, compile both README examples in a separate TypeScript application, and change views with the provider toolbar. | [Consumer instructions](../README.md#install-from-this-checkout) |
+| Activate a task with the keyboard, apply an hourly lag in Day and Week views, and enforce a date limit in the chart calendar. | [Gesture tests](../tests/drag.test.tsx) |
+| Export the current scroll position, release a selection after scrolling, and dispose a mounted chart during a gesture. | [Chart mount tests](../tests/gantt.mount.test.tsx) and [mount helper tests](../tests/mountGantt.smoke.test.tsx) |
+| Reuse a visible row during an active drag and refresh resource labels without replacing their DOM nodes. | [Chart mount tests](../tests/gantt.mount.test.tsx), [pool tests](../tests/forPooling.test.tsx), and [resource column tests](../tests/resourceColumn.test.tsx) |
+| Process circular or missing parent links and lay out children on an unassigned resource. | [Hierarchy tests](../tests/hierarchyProcessor.test.ts) and [subtask tests](../tests/subtasks.test.tsx) |
+| Reject a task with an invalid dependency, then retry the same ID successfully. | [Database tests](../tests/server/crud.test.ts) |
+
+Vitest uses jsdom for chart tests. Browser checks exercise actual layout, native scroll and resize events, and the compiled package. For the automated commands, see the [architecture guide](ARCHITECTURE.md#development-and-test-gates).
+
+Two open issues affect consumers. Date callbacks can lose fractional time units (`gantt-ghu`). The interactive bar treats partial locks as full locks (`gantt-ycq`). See [Callbacks](../README.md#callbacks) and [Locks and date limits](CONSTRAINTS.md#locks-and-date-limits).
+
+## Code quality audit, May 2026
+
 **Date:** 2026-05-09 (filed) · 2026-05-10 (resolved)
 **Status:** ✅ All 15 children + the parent epic closed. See [Resolutions](#resolutions) below.
 **Scope:** Library source — `src/components/`, `src/stores/`, `src/utils/`, `src/hooks/`, `src/contexts/`, `src/entries/`, `src/scripts/`, `src/index.ts`, top-level configs (`package.json`, `tsconfig.json`, `eslint.config.mjs`, `.prettierrc.json`, vite configs), and `docs/`.

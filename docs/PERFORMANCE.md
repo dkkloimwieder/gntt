@@ -1,8 +1,9 @@
 # Performance Optimization
 
-This document covers performance analysis and optimizations for the SolidJS Gantt chart implementation.
+The measurements below describe earlier versions of the SolidJS Gantt chart.
+The [benchmark runner guide](../benchmarks/traces/README.md) explains how to measure the current build.
 
-## Benchmark Configuration
+## Historical benchmark configuration
 
 - **Tasks**: 1000
 - **View Mode**: Hour (most demanding - creates ~8,700 columns for a year)
@@ -280,7 +281,9 @@ const viewport = createVirtualViewport({
 - Tasks leaving the viewport have their Bar components **destroyed**
 - Visible tasks that remain keep their **existing** components (no re-render)
 
-This ensures smooth visual transitions during scroll - each task bar always displays its own colors and data.
+The production task layer now reuses regular and summary slots with `<For keyed={false}>`.
+It uses task identity for expanded containers.
+The code above records an earlier approach.
 
 **File**: `src/components/TaskLayer.tsx`
 
@@ -294,7 +297,7 @@ comparison see `benchmarks/traces/ANALYSIS.md`, "SolidJS 2.0.0-rc.6 vs
 
 ---
 
-## Current DOM Structure (After Full Virtualization)
+## Historical DOM counts after virtualization
 
 With 10,000 tasks in Hour view:
 
@@ -310,7 +313,7 @@ With 10,000 tasks in Hour view:
 
 ---
 
-## Remaining Bottlenecks (Resolved)
+## Historical DOM bottlenecks
 
 ### Task Bar Elements
 
@@ -399,48 +402,16 @@ const batchedPaths = createMemo(() => {
 
 **Impact**: Scales linearly with visible rows, not total arrows. 50K arrows performs same as 200 arrows.
 
-### 11. Reactivity Fixes for Drag Performance
+### 11. Reactivity fixes for drag performance
 
-> **Historical**: all three `untrack()` workarounds were removed in the
-> SolidJS 2.0 migration, and fix 3's shape is no longer legal — a store
-> write inside `untrack` inside a memo body throws
-> `REACTIVE_WRITE_IN_OWNED_SCOPE`, because `untrack` does not clear the
-> owner. Today the Y-sync path writes `taskStore.setBarYs(ys)` from a
-> split effect's *apply* (`Gantt.tsx`), and `TaskLayer` and
-> `ArrowLayerBatched` track their `_bar` / `getBarPosition` reads normally
-> — `ArrowLayerBatched` documents that dependency deliberately, and the
-> `positionVersion` protocol the arrow layer used instead is gone. The
-> code below is kept as a record of the 1.x fix, not as a pattern to copy.
+The SolidJS 1.x implementation used `untrack()` to suppress several reads and writes during a drag.
+In that historical workload, the change improved frame rate from about 15 to 60 FPS.
 
-**Problem**: During drag, reactive cascades caused all arrows to re-render on every frame.
-
-**Files**:
-- `src/components/ArrowLayer.tsx`
-- `src/components/TaskLayer.tsx`
-- `src/components/Gantt.tsx`
-
-**Fixes**:
-1. **ArrowLayer positionMap**: Use `untrack()` around position reads to prevent cascade
-2. **TaskLayer visibleTaskIds**: Use `untrack()` for `_bar` access during X filtering
-3. **Gantt Y-sync effect**: Wrap position updates in `untrack()` to avoid feedback loop
-
-```jsx
-// ArrowLayer.tsx - Prevent cascade on position changes
-const positionMap = createMemo(() => {
-    untrack(() => {
-        for (const taskId in tasks) {
-            positions.set(taskId, { x: task._bar.x, y: task._bar.y, ... });
-        }
-    });
-    return positions;
-});
-
-// TaskLayer.tsx - Untrack during X filtering
-const bar = untrack(() => task._bar);
-if (bar && (bar.x + bar.width < sx - 200 || bar.x > ex + 200)) continue;
-```
-
-**Impact**: Drag performance improved from ~15 FPS to ~60 FPS.
+The SolidJS 2.0 migration removed those workarounds.
+`TaskLayer` tracks the bar positions that determine visibility.
+`ArrowLayerBatched` tracks the positions that determine arrow geometry.
+The vertical synchronization effect calls `taskStore.setBarYs(ys)` in its apply phase in `Gantt.tsx`.
+A memo cannot use `untrack()` to make a reactive write legal.
 
 ### 12. Simple vs Detailed View Modes
 
@@ -516,7 +487,7 @@ if (simpleMode) {
 
 ---
 
-## Future Optimizations
+## Earlier optimization proposals
 
 ### Row-to-Row Drag
 
@@ -548,22 +519,21 @@ Cache generated path strings and only regenerate when visible row set changes si
 
 **Note**: Hour view now renders only ~64 header divs instead of 8,700 (viewport + buffer).
 
-**Recommendation**: Default to Day view for large datasets. Hour view is now usable for full year timelines.
+Day view used fewer columns than Hour view in this run. Measure the current workload before selecting a default.
 
 ---
 
-## Testing Performance
+## Measure the current chart
 
-```bash
-# Start dev server
-pnpm dev
+Start `pnpm dev` and open [perf.html](http://localhost:5173/examples/perf.html).
+The page loads `src/data/generated/calendar.json`.
+Select **Hour** from the View menu and click **Reload** to measure fixture processing again.
+The Render readout includes the delay for two animation frames and a timer.
+Use a trace of the built page to measure script and layout time separately.
 
-# Open performance test page
-# http://localhost:5173/examples/perf.html
-
-# Select "JSON (1000)" source and "Hour" view
-# Observe render time in header
-```
+Use **H-Scroll** or **V-Scroll** to run a 30-second workload.
+For a fixture with more tasks, run the calendar generator in a scratch checkout.
+See the [demo reference](./DEMOS.md#full-chart-performance) for the controls and the [runner guide](../benchmarks/traces/README.md) for comparable traces.
 
 ## Files Modified
 
@@ -575,7 +545,5 @@ pnpm dev
 | `src/components/Gantt.tsx` | Uses createVirtualViewport; Y-sync is a split effect whose apply writes `taskStore.setBarYs(ys)` in one draft |
 | `src/components/DateHeaders.tsx` | Column virtualization |
 | `src/components/TaskLayer.tsx` | Row/X filtering (the untrack() over `_bar` was removed in the SolidJS 2.0 migration) |
-| `src/components/ArrowLayerBatched.tsx` | 2D-virtualized batched paths; tracked position reads (no `untrack`, no version counter); per-instance path cache |
-| `src/components/ArrowLayerBatched.tsx` | **ENHANCED** - Spatial row indexing for O(visible_rows) lookup |
-| `src/demo/GanttPerfDemo.tsx` | Default to 'batched' arrow renderer |
+| `src/components/ArrowLayerBatched.tsx` | Batched SVG paths, tracked geometry reads, and a row index. Use `arrows=1` in the isolation demo to measure it. |
 | `src/utils/dateUtils.ts` | Cached Intl.DateTimeFormat instances |

@@ -1,13 +1,17 @@
-# GanttMinimalTest - Performance-First Rendering Engine
+# GanttMinimalTest
 
-> **⚠️ Historical Document**
->
-> This documents an earlier experimental harness using **slot-based grids**. For current best practices with **timeline-based positioning**, see:
-> - [benchmarks/traces/ANALYSIS.md](../benchmarks/traces/ANALYSIS.md) - Current benchmarks and recommendations
-> - [docs/EXPERIMENTS.md](./EXPERIMENTS.md) - GanttExperiments reactive pattern testing
-> - `GanttPerfIsolate.tsx` - Progressive feature testing harness
->
-> The component `GanttMinimalTest.tsx` still exists for reference but active development uses the newer harnesses.
+The [Minimal Test demo](../examples/minimal-test.html) is a historical harness for measuring scroll and render costs.
+Start `pnpm dev` and open [the page](http://localhost:5173/examples/minimal-test.html).
+It imports the tracked calendar fixture and arranges the tasks in a grid with 100 columns.
+With 200 tasks, the grid has two rows. A larger fixture gives the vertical test more rows to scroll through.
+Use **Horizontal** or **Vertical** to start a 10-second scroll test.
+
+The harness uses `<For keyed={false}>` to reuse bar components by position in the visible list.
+Each callback receives an accessor for the current item in its slot.
+Keep reactive reads inside JSX or a tracked memo so that each slot updates when its task changes.
+
+Use the [demo guide](./DEMOS.md) for the timeline-based harnesses.
+The design notes below describe the original experiment. Its targets and suggestions do not describe current library behavior.
 
 ---
 
@@ -194,28 +198,16 @@ const visibleTasks = createMemo(() => {
 
 **At 10K scale:** Timeline layout may iterate all tasks to filter by X-range, creating 10K subscriptions.
 
-### 3.4 untrack() Usage
+### 3.4 Historical untrack() usage
 
-**Pattern:** Use `untrack()` to prevent subscriptions during read-only operations.
-
-```javascript
-// BAD: Creates subscription to every task
-for (const id of Object.keys(tasks)) { ... }
-
-// GOOD: No subscriptions created
-const taskKeys = untrack(() => Object.keys(tasks));
-```
-
-**Locations in TaskLayer.tsx:**
-- Line 196: `untrack()` for tasksByResource grouping
-- Line 247: `untrack()` for X-range filtering
-- Line 287: `untrack()` for splitTaskIds
+The original task layer used `untrack()` during grouping, filtering, and splitting of task IDs.
+The SolidJS 2.0 implementation tracks position reads in viewport filters so dragging a task can update visibility.
 
 ---
 
 ## 4. Performance Characteristics
 
-### 4.1 Current Benchmarks
+### 4.1 Historical measurements and targets
 
 | Metric | 200 tasks | Target (10K) |
 |--------|-----------|--------------|

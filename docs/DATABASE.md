@@ -1,184 +1,101 @@
-# DB-backed Demo
+# Database demo
 
-`examples/db.html` is the only demo that fetches its data from a backend
-instead of inline fixtures. The backend is a small Node + SQLite + Drizzle
-service exposed over a Hono REST API. The chart library itself is
-storage-agnostic — none of the server code ships in the npm bundle.
+The [database demo](../examples/db.html) gets chart data from a Hono API.
+The API uses Drizzle ORM to read and write SQLite. The published chart
+library accepts task and resource data from the caller.
 
-## Architecture
+## Start the demo
 
-```
-  Browser ──fetch /api/*──► Vite :5173 ──proxy──► Hono :3001 ──► SQLite (data/gantt.db)
-   (Solid)                                          │
-                                                    └── Drizzle ORM
-```
+Run `pnpm db:setup` the first time. It creates `data/gantt.db`, applies
+the committed migrations, and loads the calendar fixture. The SQLite
+file is ignored by Git.
 
-Two dev processes:
-- **Vite** on `:5173` serves the demo bundle. `config/vite/solid.js` proxies
-  `/api/*` to `:3001` so the browser sees same-origin requests (no CORS).
-- **Hono** on `:3001` is the API server. One shared `better-sqlite3`
-  connection, mounted under `/api`.
+Run `pnpm dev:all` and open
+[the database demo](http://localhost:5173/examples/db.html). Vite serves
+the demo on port 5173 and forwards `/api` requests to Hono on port 3001.
+You can also use `pnpm dev` and `pnpm dev:server` in separate terminals.
 
-Run both at once with `pnpm dev:all`, or each in its own terminal
-(`pnpm dev` + `pnpm dev:server`).
+## Manage the database
 
-## Repository layout
+| Command            | Behavior                                                                                             |
+| ------------------ | ---------------------------------------------------------------------------------------------------- |
+| `pnpm db:generate` | Writes a migration after changes to `server/db/schema.ts`. Commit the SQL and its metadata together. |
+| `pnpm db:migrate`  | Applies pending migrations. You can run it again after it succeeds.                                  |
+| `pnpm db:seed`     | Deletes existing demo records and loads `src/data/generated/calendar.json`.                          |
+| `pnpm db:setup`    | Runs both the migration and seed commands.                                                           |
 
-```
-server/
-├── index.ts              # Hono entry, mounts routes, listens on :3001
-├── db/
-│   ├── schema.ts         # Drizzle table definitions
-│   ├── client.ts         # better-sqlite3 → drizzle() wrapper
-│   ├── adapter.ts        # Row ↔ GanttTask shape translation; CRUD helpers
-│   ├── migrate.ts        # Applies migrations from server/migrations/
-│   └── seed.ts           # Wipes + reloads tables from calendar.json
-├── routes/
-│   ├── bootstrap.ts      # GET  /api/bootstrap
-│   ├── tasks.ts          # PATCH/POST/DELETE/PUT (deps) on tasks
-│   ├── resources.ts      # POST/DELETE on resources
-│   └── blocked.ts        # POST/DELETE on blocked time
-└── migrations/           # drizzle-kit output (committed)
+Keep a copy of local changes before you reseed. You can generate the
+calendar fixture with `pnpm generate:calendar`. The seed assigns
+resource ordering metadata alphabetically.
 
-data/gantt.db             # SQLite file (gitignored; recreated by db:setup)
-
-src/demo/
-├── DbDemo.tsx            # Demo: chart + side panel + drag-PATCH
-└── db/                   # Demo-only API client, modal, managers, forms
-```
-
-The **adapter** is the single seam: routes and tests use it; the demo
-never imports anything from `server/`.
+The migration and seed scripts accept `GANTT_DB_PATH` for a separate
+SQLite file. The demo API opens `./data/gantt.db` by default.
 
 ## Schema
 
-Four tables. Dates are stored as ISO strings (`YYYY-MM-DD HH:MM`) to
-match the chart's `GanttTask` contract — no Date round-tripping at the
-API boundary.
+The demo sends and stores dates as text in `YYYY-MM-DD HH:MM` format.
 
-| Table | Key columns | Notes |
-|---|---|---|
-| `resources` | `id`, `name`, `group_name?`, `sort_order` | Group used for collapsible swimlanes |
-| `tasks` | `id`, `name`, `start`, `end`, `progress`, `resource_id?`, `parent_id?`, `type?`, `color?`, `color_progress?`, `baseline_start?`, `baseline_end?`, `constraints?`, `updated_at` | `constraints` is a JSON blob — flexible for the frontend's `TaskConstraints` shape |
-| `dependencies` | autoinc `id`, `from_task_id`, `to_task_id`, `type` (FS/SS/FF/SF), `lag` (hours), `max_gap?` (hours; null = elastic) | FK cascade on task delete |
-| `blocked_time` | autoinc `id`, `resource_id`, `start`, `end`, `reason?` | Flat metadata — **not** consulted by the constraint engine |
+| Table          | Key columns                                                                                 | Notes                                                                                  |
+| -------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `resources`    | `id`, `name`, `group_name`, `sort_order`                                                    | Optional group name and order metadata.                                                |
+| `tasks`        | `id`, `name`, `start`, `end`, `progress`, `resource_id`, `parent_id`, `type`, `constraints` | `constraints` stores the chart constraint fields as JSON.                              |
+| `dependencies` | `id`, `from_task_id`, `to_task_id`, `type`, `lag`, `max_gap`                                | Lag and maximum gap offsets are in hours. Deleting either task deletes the dependency. |
+| `blocked_time` | `id`, `resource_id`, `start`, `end`, `reason`                                               | Availability metadata for the demo.                                                    |
 
-Indexes: `tasks.resource_id`, `tasks.parent_id`, `dependencies.from_task_id`,
-`dependencies.to_task_id`, `blocked_time.resource_id`.
-
-`blocked_time` exists so a future "resource unavailability" UI has a
-home, but the chart treats every bar as absolute calendar time. See
-[the relevant bd memory](#related) for context.
+Deleting a resource clears its ID from tasks and deletes its blocked
+time records. The chart schedules tasks in calendar time without using
+blocked time as a constraint.
 
 ## REST API
 
-All routes return JSON; errors are `{ error: string }` with an
-appropriate status. The adapter raises typed errors (`PatchValidationError`,
-`TaskNotFoundError`, `DuplicateTaskError`, `DuplicateResourceError`,
-`ResourceNotFoundError`, `BlockedNotFoundError`) that the route layer
-maps to HTTP codes.
+API routes return JSON. Handled validation, missing-record, and duplicate
+errors use `{ error: string }` with status 400, 404, or 409. The health route
+returns plain text.
 
-| Method | Path | Body | Returns |
-|---|---|---|---|
-| GET | `/api/bootstrap` | — | `{ tasks, resources, blockedTime }` (chart-ready shape) |
-| PATCH | `/api/tasks/:id` | `{ name?, start?, end?, progress?, resource?, color?, colorProgress?, baselineStart?, baselineEnd?, constraints? }` | Updated task |
-| POST | `/api/tasks` | `GanttTaskInput` (optionally with inline `dependencies`) | Created task, 201 |
-| DELETE | `/api/tasks/:id` | — | `{ ok: true }` |
-| PUT | `/api/tasks/:id/dependencies` | `Array<{ id, type?, lag?, max? }>` — `id` is the predecessor task id; `max` is the max gap in hours (null/omitted = elastic) | Replaces the task's predecessor list (dedupes on `(id, type)`, rejects self-deps and unknown predecessors) |
-| POST | `/api/resources` | `{ id, name, group?, order? }` | Created resource, 201 |
-| DELETE | `/api/resources/:id` | — | `{ ok: true }` |
-| POST | `/api/blocked` | `{ resource, start, end, reason? }` — `resource` is the resource id | Created slot |
-| DELETE | `/api/blocked/:id` | — | `{ ok: true }` |
-| GET | `/healthz` | — | `"ok"` (plain text, no `/api` prefix) |
+| Method | Path                          | Body                                                                                                                | Returns                                                                 |
+| ------ | ----------------------------- | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| GET    | `/api/bootstrap`              | None                                                                                                                | `{ tasks, resources, blockedTime }`                                     |
+| POST   | `/api/tasks`                  | `{ id, name, start, end, progress?, resource?, color?, colorProgress?, type?, constraints?, dependencies? }`        | Created task, 201. Invalid inline dependencies reject the whole create. |
+| PATCH  | `/api/tasks/:id`              | `{ name?, start?, end?, progress?, resource?, color?, colorProgress?, baselineStart?, baselineEnd?, constraints? }` | Updated task. Unknown fields and progress outside 0–100 return 400.     |
+| DELETE | `/api/tasks/:id`              | None                                                                                                                | `{ ok: true }`                                                          |
+| PUT    | `/api/tasks/:id/dependencies` | `Array<{ id, type?, lag?, max? }>`                                                                                  | Updated task. The array replaces its entire predecessor list.           |
+| POST   | `/api/resources`              | `{ id, name, group?, order? }`                                                                                      | Created resource, 201                                                   |
+| DELETE | `/api/resources/:id`          | None                                                                                                                | `{ ok: true }`                                                          |
+| POST   | `/api/blocked`                | `{ resource, start, end, reason? }`                                                                                 | Created slot, 201                                                       |
+| DELETE | `/api/blocked/:id`            | None                                                                                                                | `{ ok: true }`                                                          |
+| GET    | `/healthz`                    | None                                                                                                                | `ok`                                                                    |
 
-`PATCH /api/tasks/:id` allowlists keys — unknown keys return 400, so
-clients can't accidentally write to columns the demo doesn't intend to
-expose. `progress` is range-checked to 0–100.
+In a dependency, `id` names the predecessor. Omit `max` or pass `null` to
+leave the maximum gap unbounded. The API skips duplicate predecessor and
+type pairs. It rejects self-dependencies and missing predecessors.
 
-## Scripts
+## Save chart edits
 
-```bash
-# One-time setup (creates data/gantt.db, applies migrations, loads seed)
-pnpm db:setup
+On load, the demo fetches `/api/bootstrap`. Forms reload this data after a
+successful save. The chart uses its provider stores to read geometry
+after drag and resize gestures.
 
-# Run both processes
-pnpm dev:all
+When a drag changes dependent tasks, the demo sends a PATCH request for
+each changed task. It converts the change in the bar's left edge into a
+start-time difference. It converts the change in the bar's right edge
+into an end-time difference. A resize on one side therefore preserves
+the other date. The requests can succeed independently, so a failure can
+leave some edits saved.
 
-# Or in two terminals
-pnpm dev          # Vite on :5173
-pnpm dev:server   # Hono on :3001
+## Code and tests
 
-# Regenerate migration after schema.ts changes
-pnpm db:generate
+| Path                                            | Purpose                                                                       |
+| ----------------------------------------------- | ----------------------------------------------------------------------------- |
+| [server/index.ts](../server/index.ts)           | Starts Hono and mounts the API routes.                                        |
+| [server/db/adapter.ts](../server/db/adapter.ts) | Converts SQLite rows to the chart format and handles requests to change them. |
+| [server/migrations](../server/migrations)       | Committed SQLite migration SQL and metadata.                                  |
+| [src/demo/DbDemo.tsx](../src/demo/DbDemo.tsx)   | Connects the chart, edit forms, and API.                                      |
+| [tests/server](../tests/server)                 | Covers the schema, adapter, HTTP routes, and CRUD operations.                 |
 
-# Reapply migrations / reseed individually
-pnpm db:migrate
-pnpm db:seed
-```
+Run `pnpm test --project server` to run the backend suite. The tests apply
+the committed migrations to in-memory SQLite databases. HTTP tests send
+requests directly to the Hono app.
 
-The seed reads `src/data/generated/calendar.json` (the same fixture
-`pnpm generate:calendar` produces). Resources are sorted alphabetically
-before `sort_order` is assigned, so swimlane order is deterministic
-across reseeds.
-
-## Demo behaviour
-
-`examples/db.html` mounts `DbDemo.tsx`. On load it `GET`s
-`/api/bootstrap`; the side panel acts as a single source of actions
-(add / edit / delete tasks, manage resources, manage blocked slots,
-reload).
-
-A drag can also move dependent tasks. `DbDemo` reads the task and date stores from its chart provider.
-
-1. After loading tasks, the demo records their dates and bar positions.
-2. For the edited task, `onDateChange` receives the final position and width from the gesture.
-3. For dependent tasks, the demo reads the positions that the drag handler committed on mouseup.
-4. The demo converts each change in position and width to a time difference. This preserves the time of day.
-5. It sends a PATCH for each changed task. After the requests succeed, it records the new dates and positions.
-
-Move vs. resize is disambiguated by both deltas:
-
-| Gesture | Δx | Δwidth | Persisted change |
-|---|---|---|---|
-| Move | ≠ 0 | ≈ 0 | start += Δx, end += Δx |
-| Resize end | ≈ 0 | ≠ 0 | start unchanged, end += Δwidth |
-| Resize start | ≠ 0 | ≈ −Δx | start += Δx, end unchanged |
-
-The general form is `startΔ = Δx`, `endΔ = Δx + Δwidth`.
-
-Form-driven mutations (Save in the panel, Add modal, Delete) use a
-normal re-fetch — the user has an explicit save-and-sync mental model
-there, so a brief settle is acceptable.
-
-## Tests
-
-Hermetic — every test creates a fresh `Database(':memory:')`, applies
-migrations via `drizzle-orm/better-sqlite3/migrator`, and exercises
-the route handlers via `app.fetch(new Request(...))`. No real file I/O.
-
-```
-tests/server/
-├── schema.test.ts     # Migrations apply; CRUD round-trip per table; FK cascades
-├── adapter.test.ts    # loadBootstrap shape; constraints JSON parse; allowlist
-├── routes.test.ts     # Hono fetch — bootstrap 200; PATCH success/reject
-└── crud.test.ts       # POST/DELETE/PUT-deps end-to-end
-```
-
-## Out of scope
-
-- Auth / multi-user (single-user demo).
-- Optimistic UI with revert-on-error (Solid's reactive store updates
-  locally before fetch resolves; failure surface is a status chip).
-- Postgres / non-SQLite drivers — Drizzle's portability is the point;
-  the swap is a config change later.
-- WebSocket live updates.
-- Working calendars / per-resource availability scheduling. See
-  [related context](#related).
-
-## Related
-
-- The bd memory `bars-represent-absolute-calendar-time-the-chart-does`
-  documents why working-calendar scheduling is explicitly out of scope.
-- [`docs/DEMOS.md`](./DEMOS.md) — the demo index, including `db.html`.
-- [`docs/ARCHITECTURE.md`](./ARCHITECTURE.md) — library architecture
-  (the demo + server are layered on top of, not into, that surface).
+The demo supports local edits by one user. Authentication, live updates,
+and working calendars are outside its scope. See the
+[demo index](./DEMOS.md) and [constraint guide](./CONSTRAINTS.md).

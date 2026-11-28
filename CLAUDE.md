@@ -30,7 +30,12 @@ The RC migration plan and its measurements are in `docs/migration/solid2/PLAN.md
 11. **Block bodies.** Every callback handed to `onSettled` or to an effect's apply, or crossing a component boundary, gets a block body. Grep for candidates with `grep -rnE '=> set[A-Z]|=> props\.on[A-Z]' src` — most hits are inline JSX event handlers, which rule 2 declares legal write sites; only the ones handed to a lifecycle primitive or across a component boundary are violations.
 12. **Data flow.** Producers return their computed values; consumers never read back state they just wrote; store existence guards move inside the draft. Do **not** "fix" what the audit verified safe: functional updaters within one tick (`selectionStore`, the `useBoxSelect` hit loop), `batchMovePositions` reading the draft, and per-frame rAF drag loops (each frame is a separate task).
 
-**Diagnostics gate.** The 2.0 dev build reports these mistakes as console diagnostics rather than as failures, so a green `pnpm test` does not clear them — a browser does. Two codes matter here: `REACTIVE_WRITE_IN_OWNED_SCOPE` (error; rule 2) and `STRICT_READ_UNTRACKED` (warn — a reactive read in a component body, an effect apply or an `onSettled` body). The library path is clean and every demo page loads console-clean apart from the app's own fixture-validation warnings; **adding a diagnostic is a regression**. Fix a strict read either by moving it where it should track (JSX, a memo, an effect compute) or, when it is a deliberate one-shot, by wrapping it in `untrack(() => ...)`, which clears the label. `src/utils/diagnostics.ts` and `setDiagnosticHandler()` are a separate, app-level channel for data-validation messages and are unrelated to the runtime's own diagnostics.
+**Diagnostics gate.** `tests/diagnostics.gate.test.tsx` captures Solid dev warnings and errors through `OBSERVE.diagnostics.capture()` in jsdom.
+It covers chart mounts, a drag, expand and collapse, a view-mode change, and disposal.
+It includes a deliberately invalid read to make sure that the test can observe diagnostics.
+For demo changes, also exercise the affected pages in a browser and look for runtime warnings and errors.
+A deliberate one-shot read can use `untrack`. Move an ongoing reactive read to JSX, a memo, or an effect's compute phase.
+`src/utils/diagnostics.ts` reports application data validation separately.
 
 ## Essential Commands
 
@@ -41,32 +46,14 @@ The RC migration plan and its measurements are in `docs/migration/solid2/PLAN.md
 - `pnpm generate:calendar` - Generate test calendar data (see Performance Testing below)
 - `pnpm generate:topology` - Generate topology test data
 
-### Serving Built Demos for Benchmarking
+### Serving built demos
 
-When benchmarking with built demos (not dev server), use `npx serve dist-demo`:
-
-```bash
-pnpm build:demo
-npx serve dist-demo -l 5174 &
-```
-
-**IMPORTANT: URL format issue with `serve`**
-
-The `serve` package redirects `.html` URLs to clean URLs, **stripping query parameters** in the process:
-
-```bash
-# ❌ WRONG - serve redirects and loses query params
-http://localhost:5174/examples/perf-isolate.html?bar=nochildren&test=horizontal
-# → 301 redirects to /examples/perf-isolate (params lost!)
-
-# ✅ CORRECT - use clean URLs without .html
-http://localhost:5174/examples/perf-isolate?bar=nochildren&test=horizontal
-```
-
-This affects all benchmark URLs. Always omit the `.html` extension when using `serve`.
+`pnpm build:demo` builds the three browser benchmark pages into `dist-demo/`.
+`pnpm preview:demo` serves them at port 4173.
+The automated browser scripts expect port 5174. See the [benchmark runner guide](benchmarks/traces/README.md).
 
 ### Code Quality
-- `pnpm typecheck` - `tsc --noEmit` over `src/`, `tests/`, `benchmarks/constraint/`
+- `pnpm typecheck` - Run `tsc --noEmit` on the files in `tsconfig.json`
 - `pnpm lint` - Oxlint over source, tests, server, constraint benchmarks, and Vite/Vitest configs
 - `pnpm prettier` - Format code
 - `pnpm prettier-check` - Check formatting without modifying
@@ -90,13 +77,11 @@ Helpers live in `tests/helpers/`: `settle()` re-exports Solid 2.0's `flush`
 (call it after every write — see rule 10), and `mountGantt()` mounts a real
 `<Gantt>` with the layout jsdom does not model.
 
-Run one project with `pnpm exec vitest run --project client`. Do **not**
-write `pnpm test -- --project client`: the extra `--` makes vitest ignore the
-flag and silently run both projects.
+Run the jsdom suites with `pnpm exec vitest run --project client`.
+For the SQLite API suites, use `pnpm exec vitest run --project server`.
 
-**The full gate is** `pnpm typecheck && pnpm lint && pnpm prettier-check &&
-pnpm test && pnpm build && pnpm build:demo`. It does not cover the runtime
-diagnostics gate above — that needs a browser.
+Run `pnpm typecheck && pnpm lint && pnpm prettier-check && pnpm test && pnpm build && pnpm build:demo`.
+The tests include a jsdom diagnostics check. Use a real browser for affected demo routes and browser layout behavior.
 
 ## Architecture
 
@@ -157,7 +142,7 @@ The SolidJS implementation uses reactive stores for state management:
 - `resourceStore.ts` - Resource groups with collapse/expand state
 - `selectionStore.ts` - Multi-select state
 
-**Performance Note:** The `taskStore` uses SolidJS `createStore({})` instead of `createSignal(Map)` to enable path-level dependency tracking. This allows dragging a task to only update that specific task's Bar component and connected Arrows, achieving 60 FPS with 10K+ tasks. Under Solid 2.0 that tracking only survives **leaf mutation**: write `task._bar.x = n` inside a draft, never replace the task object, or every subscriber to every other field of that task re-runs (rule 6).
+The task store tracks fields within each task. Update `task._bar.x` inside a draft to preserve the task's identity and avoid invalidating unrelated field reads. See rule 6.
 
 **Components:**
 - `Gantt.tsx` - Main container component
@@ -195,99 +180,28 @@ The SolidJS implementation uses reactive stores for state management:
 
 See `docs/ARCHITECTURE.md` for detailed documentation.
 
-## Performance Testing
+## Performance testing
 
-The SolidJS implementation includes a task generator for performance testing with realistic calendar data.
+Start `pnpm dev` and open [perf.html](http://localhost:5173/examples/perf.html) to exercise the full chart.
+The page loads the tracked fixture at `src/data/generated/calendar.json`.
+Use [the demo guide](docs/DEMOS.md) for the other harnesses and supported URL parameters.
+Use [the benchmark runner guide](benchmarks/traces/README.md) for production builds and repeatable browser traces.
 
-### Quick Start
-```bash
-pnpm generate:calendar          # Generate 200 tasks
-pnpm dev                        # Start dev server
-# Open http://localhost:5173/examples/perf.html
-```
+### Generate a calendar fixture
 
-### Task Generator
-
-Located at `src/scripts/generateCalendar.ts`, generates `src/data/generated/calendar.json`.
-It is TypeScript, so run it through `tsx` (or the `pnpm generate:calendar` script)
-rather than bare `node`.
-
-**Features:**
-- Cross-resource dependency chains (tasks in a group span different resources A-Z)
-- No overlap per resource (concurrency = 1)
-- Workday-aware scheduling (08:00-17:00, rolls over to next day)
-- Mixed FS/SS dependencies with configurable lag
-- Seeded random for reproducible results
-
-**CLI Options:**
-```bash
-pnpm exec tsx src/scripts/generateCalendar.ts --help
-pnpm exec tsx src/scripts/generateCalendar.ts --tasks=300 --seed=54321 --ss=30
-pnpm exec tsx src/scripts/generateCalendar.ts --tasks=10000 --resources=100 --dense  # Stress test
-```
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--tasks=N` | 200 | Total number of tasks |
-| `--seed=N` | 12345 | Random seed for reproducibility |
-| `--ss=N` | 20 | Percentage of SS (Start-to-Start) dependencies |
-| `--minGroup=N` | 5 | Minimum tasks per dependency group |
-| `--maxGroup=N` | 20 | Maximum tasks per dependency group |
-| `--start=DATE` | 2025-01-01 | Start date (YYYY-MM-DD) |
-| `--resources=N` | 26 | Number of resources (A-Z, AA, AB, etc.) |
-| `--dense` | false | Dense mode: tightly packed tasks for stress testing |
-| `--arrowDensity=N` | 20 | Percentage of tasks with dependencies (dense mode) |
-| `--maxRowDistance=N` | 2 | Max row distance for dependencies (dense mode) |
-
-**Generated Data Structure:**
-```javascript
-{
-  id: "task-1",
-  name: "G1-1",              // Group 1, Task 1
-  start: "2025-01-01 08:00", // Workday-aware
-  end: "2025-01-01 16:00",
-  progress: 87,
-  color: "#3b82f6",
-  color_progress: "#3b82f6cc",
-  dependencies: "task-0" | { id, type: "SS", lag: 2 },
-  resource: "E"              // A-Z, no overlap on same resource
-}
-```
-
-**Key Files:**
-- `src/utils/taskGenerator.ts` - Shared generation logic
-- `src/scripts/generateCalendar.ts` - CLI script
-- `src/data/generated/calendar.json` - Generated test data
-- `src/demo/GanttPerfDemo.tsx` - Performance test UI
-
-### Perf-Isolate (Feature Isolation Testing)
-
-For progressive performance testing, use the perf-isolate harness:
+The generator replaces `src/data/generated/calendar.json`.
+Use a scratch checkout if you need to keep the tracked fixture intact.
 
 ```bash
-pnpm dev
-# Open http://localhost:5173/examples/perf-isolate.html?bar=nochildren&test=horizontal
+pnpm generate:calendar --help
+pnpm generate:calendar --tasks=300 --seed=54321 --ss=30
+pnpm generate:calendar --tasks=10000 --resources=100 --dense
 ```
 
-**URL Parameters:**
-| Param | Values | Description |
-|-------|--------|-------------|
-| `bar` | nochildren, combined, minimal, etc. | Bar component variant |
-| `grid` | 0, 1 | Show SVG grid |
-| `headers` | 0, 1 | Show date headers |
-| `resources` | 0, 1 | Show resource column |
-| `test` | horizontal, vertical, both | Auto-scroll stress test |
-
-**Example:** Test headers overhead:
-```bash
-# Baseline (no headers)
-?bar=nochildren&test=horizontal
-
-# With headers
-?bar=nochildren&headers=1&test=horizontal
-```
-
-See `benchmarks/traces/ANALYSIS.md` for current best practices and benchmark results.
+The default fixture uses workday scheduling and mixed finish-to-start and start-to-start dependencies.
+Dense mode packs tasks onto resource rows and supports `--arrowDensity=N` and `--maxRowDistance=N`.
+Dependencies are arrays of objects with a predecessor ID, a type, and an optional lag in hours.
+See [generateCalendar.ts](src/scripts/generateCalendar.ts) for the accepted options.
 
 ## DB-backed Demo
 
@@ -343,12 +257,11 @@ Full schema + REST surface + algorithm details are in
 
 ## Development Workflow
 
-1. Clone and run `pnpm i` (Node `>=22.12.0`)
+1. Install the Node and pnpm versions in the [contributor prerequisites](README.md#development), then run `pnpm install`
 2. Run `pnpm dev` to start the development server
 3. Open http://localhost:5173/examples/ to see the demo hub
 4. Edit source files in `src/` - Vite automatically reloads
-5. Keep the browser console open — the Solid 2.0 dev build reports
-   reactivity mistakes there, not in `pnpm test` (see the diagnostics gate)
+5. Keep the browser console open when exercising a changed demo. The jsdom tests cover a subset of runtime diagnostics.
 
 ## Code Style
 
@@ -361,264 +274,21 @@ Full schema + REST surface + algorithm details are in
 
 ---
 
-## Browser Automation & Performance Profiling
+## Browser automation and performance profiling
 
-> **🚨 CRITICAL: NEVER KILL CHROME**
->
-> **NEVER run `pkill chrome`, `pkill -f chrome`, or any command that kills Chrome processes.**
-> The user may have important work open in their browser. Browser conflicts should be resolved by:
-> 1. Using `--browserUrl=http://127.0.0.1:9222` to connect to existing browser
-> 2. Using `--isolated` flag to run a separate browser instance
-> 3. Asking the user to close Chrome manually if needed
+Keep the user's Chrome processes open. Use an isolated browser profile for automation.
+A dev-server browser session is suitable for testing interactions and diagnostics.
+For timing comparisons, build the benchmark pages and use the same browser mode, viewport, fixture, and controls for every run.
 
-This project uses the `chrome-devtools-cli` skill for browser automation and performance analysis.
-
-**Skill location:** `~/.claude/skills/chrome-devtools-cli/`
-
----
-
-## Quick Reference
-
-| Task | Command |
-|------|---------|
-| Performance profile | `node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs <url>` |
-| Benchmark (5 runs) | `node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs <url> --iterations 5` |
-| Click then profile | `node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs <url> --click "#btn"` |
-| Multi-step workflow | `node ~/.claude/skills/chrome-devtools-cli/scripts/workflow.mjs <workflow.json>` |
-
----
-
-## Performance Profiling
-
-**Always use `perf.mjs` for performance work.** It handles Chrome automatically.
-
-### Single Profile
+The shell benchmark scripts use the external `chrome-devtools-cli` tool.
+The project does not install it. If it is available, its commands live in `~/.claude/skills/chrome-devtools-cli/scripts/`.
+`perf.mjs` starts or connects to a headed Chrome session for measurements.
+Run one profiler at a time because the matrix and paired scripts share its debugging port.
 
 ```bash
-# Basic profile (5 seconds)
-node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs https://example.com
-
-# Longer duration
-node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs https://example.com --duration 10000
-
-# Click element first, then profile
-node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs https://example.com --click "#load-button" --duration 5000
-
-# Save results to file
-node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs https://example.com --output /tmp/perf.json
+node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs --help
+node ~/.claude/skills/chrome-devtools-cli/scripts/workflow.mjs --help
 ```
 
-### Benchmarking (Multiple Iterations)
-
-```bash
-# Run 5 iterations, report mean/median/min/max/stddev
-node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs https://example.com --iterations 5
-
-# With warmup runs (discarded before measuring)
-node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs https://example.com --iterations 10 --warmup 2
-
-# Benchmark a user interaction
-node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs https://example.com --click "#submit-btn" --iterations 5 --duration 3000
-
-# Save full benchmark data
-node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs https://example.com --iterations 5 --output /tmp/benchmark.json
-```
-
-### What perf.mjs Does
-
-1. Starts Chrome in **normal mode** (not headless) — required for accurate rendering
-2. Navigates to URL and waits for load
-3. Clicks element if `--click` specified
-4. Captures CPU profile, rendering stats, metrics
-5. For benchmarks: reloads page between iterations
-6. Reports statistics (mean, median, stddev, etc.)
-
----
-
-## Multi-Step Workflows
-
-For navigate → interact → screenshot flows, use `workflow.mjs`:
-
-```bash
-cat > /tmp/workflow.json << 'EOF'
-{
-  "url": "https://example.com",
-  "headless": false,
-  "steps": [
-    { "action": "snapshot" },
-    { "action": "click", "uid": "login-btn" },
-    { "action": "fill", "uid": "email-input", "value": "user@example.com" },
-    { "action": "fill", "uid": "password-input", "value": "password123" },
-    { "action": "click", "uid": "submit-btn" },
-    { "action": "wait", "text": "Dashboard" },
-    { "action": "screenshot", "path": "/tmp/logged-in.png" }
-  ]
-}
-EOF
-
-node ~/.claude/skills/chrome-devtools-cli/scripts/workflow.mjs /tmp/workflow.json
-```
-
-### Workflow Actions
-
-| Action | Parameters | Example |
-|--------|------------|---------|
-| `navigate` | `url` | `{ "action": "navigate", "url": "https://..." }` |
-| `snapshot` | `verbose` (optional) | `{ "action": "snapshot" }` |
-| `click` | `uid` | `{ "action": "click", "uid": "btn-id" }` |
-| `fill` | `uid`, `value` | `{ "action": "fill", "uid": "input-id", "value": "text" }` |
-| `hover` | `uid` | `{ "action": "hover", "uid": "menu-id" }` |
-| `press-key` | `key` | `{ "action": "press-key", "key": "Enter" }` |
-| `screenshot` | `path`, `fullPage` | `{ "action": "screenshot", "path": "/tmp/shot.png" }` |
-| `wait` | `text`, `timeout` | `{ "action": "wait", "text": "Success" }` |
-| `eval` | `expression` | `{ "action": "eval", "expression": "document.title" }` |
-| `sleep` | `duration` (ms) | `{ "action": "sleep", "duration": 2000 }` |
-| `perf-trace` | `duration` | `{ "action": "perf-trace", "duration": 5000 }` |
-
-### Getting Element UIDs
-
-First run snapshot to see available element UIDs:
-
-```bash
-# Start Chrome if not running
-node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs https://example.com --duration 1000
-
-# Then get snapshot (Chrome stays open on port 9222)
-node ~/.claude/skills/chrome-devtools-cli/scripts/devtools.mjs --browserUrl=http://127.0.0.1:9222 snapshot
-```
-
----
-
-## Common Mistakes — DO NOT DO THESE
-
-### ❌ WRONG: Killing Chrome processes
-
-```bash
-# WRONG - NEVER DO THIS - destroys user's browser session
-pkill chrome
-pkill -f chrome
-pkill -9 -f "chrome.*remote-debugging"
-```
-
-**✅ RIGHT:** Handle browser conflicts properly:
-
-```bash
-# Option A: Connect to existing browser
-node scripts/devtools.mjs --browserUrl=http://127.0.0.1:9222 navigate https://example.com
-
-# Option B: Use isolated instance
-node scripts/workflow.mjs workflow.json --isolated
-
-# Option C: Ask user to close Chrome manually
-```
-
----
-
-### ❌ WRONG: Using headless mode for performance
-
-```bash
-# WRONG - headless has no real rendering, metrics are meaningless
-node scripts/devtools.mjs --headless navigate https://example.com
-node scripts/devtools.mjs --headless perf-start
-```
-
-**✅ RIGHT:** Use `perf.mjs` which runs Chrome in normal mode automatically.
-
----
-
-### ❌ WRONG: Multiple devtools.mjs commands without --browserUrl
-
-```bash
-# WRONG - each command spawns a NEW browser instance
-node scripts/devtools.mjs navigate https://example.com   # Browser 1
-node scripts/devtools.mjs click btn-submit               # Browser 2 (blank!)
-node scripts/devtools.mjs screenshot                      # Browser 3 (blank!)
-```
-
-**✅ RIGHT:** Use `workflow.mjs` for multi-step, or `--browserUrl`:
-
-```bash
-# Option A: workflow.mjs (preferred)
-node scripts/workflow.mjs /tmp/my-workflow.json
-
-# Option B: persistent browser
-node scripts/perf.mjs https://example.com --duration 1000  # starts Chrome
-node scripts/devtools.mjs --browserUrl=http://127.0.0.1:9222 click btn-submit
-node scripts/devtools.mjs --browserUrl=http://127.0.0.1:9222 screenshot
-```
-
----
-
-### ❌ WRONG: Manually starting Chrome for perf.mjs
-
-```bash
-# WRONG - unnecessary, perf.mjs handles this
-google-chrome --remote-debugging-port=9222 &
-node scripts/perf.mjs https://example.com
-```
-
-**✅ RIGHT:** Just run perf.mjs, it starts Chrome automatically:
-
-```bash
-node scripts/perf.mjs https://example.com
-```
-
----
-
-### ❌ WRONG: Using profile.mjs for simple traces
-
-```bash
-# WRONG - profile.mjs is low-level and requires manual Chrome setup
-node scripts/profile.mjs capture --url https://example.com
-```
-
-**✅ RIGHT:** Use perf.mjs:
-
-```bash
-node scripts/perf.mjs https://example.com
-```
-
----
-
-## Files in the Skill
-
-| Script | Purpose | When to Use |
-|--------|---------|-------------|
-| `perf.mjs` | Performance profiling & benchmarking | **Any performance work** |
-| `workflow.mjs` | Multi-step browser automation | Navigate → interact → screenshot flows |
-| `devtools.mjs` | Single browser commands | Only with `--browserUrl` for one-off commands |
-| `profile.mjs` | Low-level CDP profiling | Advanced use only |
-
----
-
-## Troubleshooting
-
-| Error | Cause | Fix |
-|-------|-------|-----|
-| "Chrome not found" | Chrome not installed | `apt install google-chrome-stable` |
-| "ECONNREFUSED 9222" | Chrome not running | Let `perf.mjs` handle it, or start manually |
-| "Cannot find module" | npm install not run | `cd ~/.claude/skills/chrome-devtools-cli && npm install` |
-| Blank screenshots | Commands used separate browsers | Use `workflow.mjs` or `--browserUrl` |
-| No rendering metrics | Used `--headless` | Use `perf.mjs` (never headless for perf) |
-
----
-
-## Example: Full Performance Audit
-
-```bash
-# 1. Single profile to identify issues
-node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs https://myapp.com --duration 10000
-
-# 2. Benchmark to get stable measurements
-node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs https://myapp.com --iterations 5 --warmup 1
-
-# 3. Profile a specific interaction
-node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs https://myapp.com --click "#load-data" --iterations 5
-
-# 4. Save results for comparison
-node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs https://myapp.com --iterations 5 --output /tmp/baseline.json
-
-# ... make changes ...
-
-node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs https://myapp.com --iterations 5 --output /tmp/after-fix.json
-```
+See the [benchmark runner guide](benchmarks/traces/README.md) for exact URLs and commands.
+See the [benchmark archive](benchmarks/traces/ANALYSIS.md) for the recorded results and their original workloads.

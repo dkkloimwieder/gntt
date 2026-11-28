@@ -1,29 +1,28 @@
 # Performance Analysis
 
-Current best practices and benchmark summaries for the Gantt chart performance. For historical investigation details, see [HISTORY.md](./HISTORY.md).
+These results describe the workloads and SolidJS versions recorded in the archive.
+Use the [runner guide](./README.md) to measure the current build.
+See [HISTORY.md](./HISTORY.md) for the original investigations.
 
 ---
 
-## Quick Reference
+## Selected results from earlier builds
 
-| Category | Best Choice | Improvement |
+| Category | Earlier result | Measured difference |
 |----------|-------------|-------------|
 | Bar pattern | `nochildren` | 8.5% faster than `combined` |
 | Reactive pattern | `baseline` (createMemo) | 5.5% faster than `noMemos` |
 | Virtualization | `combined` (single memo) | 3% faster than `xySplit` |
 | Arrows | `ArrowLayerBatched` + 2D virt | ~2.5% overhead (fixed from 21%) |
 | Headers | Original `DateHeaders` | "Optimizations" were slower |
-| Profiling tool | `perf.mjs` | Handles Chrome automatically |
-
-**Critical:** Use clean URLs without `.html` extension when benchmarking with `serve`.
 
 ---
 
-## Current Best Practices
+## Patterns measured in earlier builds
 
 ### Bar Component Pattern
 
-Use the `nochildren` pattern - detect resize zones from click position instead of child divs:
+The `nochildren` variant detects resize zones from the pointer position.
 
 ```javascript
 const handleMouseDown = (e) => {
@@ -39,7 +38,7 @@ const handleMouseDown = (e) => {
 
 ### Reactive Pattern
 
-Use single `createMemo` batching all props:
+The `baseline` variant collects bar fields in one `createMemo`.
 
 ```javascript
 const t = createMemo(() => {
@@ -59,7 +58,7 @@ const t = createMemo(() => {
 
 ### Pre-computed Values
 
-Generate derived values at data creation time:
+The benchmark fixture stored derived colors before rendering.
 
 ```javascript
 // In task generator
@@ -74,7 +73,7 @@ Generate derived values at data creation time:
 
 ### Virtualization
 
-Use combined single-pass filtering:
+The `combined` filter checks the row and horizontal bounds in one pass.
 
 ```javascript
 const visibleTasks = createMemo(() => {
@@ -84,7 +83,7 @@ const visibleTasks = createMemo(() => {
 });
 ```
 
-**Why:** Split memos (xySplit) add overhead that outweighs caching benefit.
+The December 2025 run measured more overhead for `xySplit` on that workload.
 
 ### Scroll Performance
 
@@ -103,9 +102,9 @@ const visibleTasks = createMemo(() => {
 
 ### Headers
 
-- Use original `DateHeaders` (not DateHeadersOptimized)
-- Day-only mode: `upperHeaderHeight={0}`
-- Use `??` not `||` to allow 0 values: `props.upperHeaderHeight ?? 45`
+- The December 2025 run compared `DateHeaders` with an experimental slot-based variant.
+- Set `upperHeaderHeight={0}` to hide the upper row.
+- Use `props.upperHeaderHeight ?? 45` to preserve a value of zero.
 
 **Why:** "Optimized" versions using spread operators or Index were 4-10% slower.
 
@@ -113,63 +112,9 @@ const visibleTasks = createMemo(() => {
 
 ## Methodology
 
-### Benchmarking Protocol
-
-Single profile:
-
-```bash
-# Build + serve (port 5174 — note URL must omit `.html`)
-pnpm build:demo
-npx serve dist-demo -l 5174 &
-
-# Run a single profile against perf-isolate
-node ~/.claude/skills/chrome-devtools-cli/scripts/perf.mjs \
-  'http://localhost:5174/examples/perf-isolate?bar=nochildren&test=horizontal' \
-  --iterations 3 --warmup 1 --duration 3000 \
-  --output benchmarks/traces/runs/my-test.json
-```
-
-Matrix benchmarks (npm aliases):
-
-| Script | Purpose | Cost |
-|---|---|---|
-| `pnpm bench:browser` | 4 reactive variants × 2 dirs × 5 iter | ~3 min |
-| `pnpm bench:browser:virt` | combined vs xySplit, 5 iter | ~80 s |
-| `pnpm bench:browser:matrix` | 2 bars × 3 virts × 2 dirs × 3 iter | ~4 min |
-| `pnpm bench` | Constraint engine, default linear-200 | ~2 s |
-| `pnpm bench:all` | Constraint engine, all 13 datasets | ~30 s |
-
-Each matrix script writes per-combo JSON to `benchmarks/traces/runs/`
-and prints `Script Duration` / `Layout Duration` / `FPS` summaries.
-All require `serve` running on port 5174 first.
-
-| Parameter | Recommended | Notes |
-|-----------|-------------|-------|
-| iterations | 3-5 | More for noisy systems |
-| warmup | 1-2 | Discarded before measuring |
-| duration | 3000ms | Per iteration |
-
-### Serve URL Gotcha
-
-The `serve` package redirects `.html` URLs to clean URLs, **stripping query parameters**:
-
-```bash
-# WRONG - params get stripped
-http://localhost:5174/examples/perf-isolate.html?bar=nochildren&test=horizontal
-
-# CORRECT - params preserved
-http://localhost:5174/examples/perf-isolate?bar=nochildren&test=horizontal
-```
-
-### Test Harnesses
-
-| Harness | Purpose | URL |
-|---------|---------|-----|
-| perf-isolate | Progressive feature testing | `/examples/perf-isolate?bar=...&grid=1&headers=1` |
-| experiments | Reactive pattern comparison | `/examples/experiments?variant=baseline` |
-| perf | Full Gantt stress test | `/examples/perf` |
-
----
+The [runner guide](./README.md) lists the current commands and their dependencies.
+The archived browser comparisons generally use three to five measured runs, one or two warmup runs, and a 3-second trace per run.
+Each result section records its workload where available.
 
 ## Benchmark Results Summary
 
@@ -202,8 +147,8 @@ perf-isolate workload measures:
 | `nochildren&test=horizontal` | 607 ms | 176 ms | 118 | 0 |
 | `nochildren&grid=1&headers=1&resources=1&arrows=1&test=horizontal` | 944 ms | 412 ms | 115 | 0 |
 
-−47 % script, −60 % layout vs Dec 2025 on bar-only. Treat these as the
-new baseline. Traces in `runs/baseline-2026-05-10-*.json`. See
+The bar-only workload used 47% less script time and 60% less layout time than the December 2025 run.
+The May baseline traces are in `runs/baseline-2026-05-10-*.json`. See
 [HISTORY.md](./HISTORY.md#2026-05-10-post-audit-baseline-refresh) for
 methodology and attribution.
 
@@ -607,50 +552,44 @@ today. The
 invalidation path (`<For keyed={false}>` pool + row-signal rewrite), which
 is E4.7/E5.1 territory, not a laziness question.
 
-**Reproduce.**
+### Repeat the memo workload
+
+Use the recorded revision and dependency versions if you need to reproduce the historical comparison.
+In a scratch checkout, generate the dense fixture and build the three benchmark pages.
 
 ```bash
-# 1. 10K dense build of the current tree (carries the probe instrumentation)
-pnpm generate:calendar --tasks=10000 --resources=100 --dense   # pnpm forwards the flags to tsx
-npx vite build --config config/vite/demo.js --outDir dist-demo-10k
-# (restore src/data/generated/calendar.json only after step 3 has copied it)
-# 2. recompute counts, both arms from that one build (needs window.__memoStats
-#    and ?lazy=1, i.e. src/demo/GanttExperiments.tsx as of the E4.5 commit)
-node benchmarks/scripts/memo-recompute-probe.mjs dist-demo-10k memo-recompute-probe.json
-# 3. a variant = a git worktree with `{ lazy: true }` added to the memos under
-#    test (lazy-ALL: every createMemo( / createMemo<T>( outside src/demo/,
-#    merging into any existing options object), built the same way
-git worktree add ../gantt-lazy main && (cd ../gantt-lazy && <edit memos> && pnpm install --offline && \
-  cp ../gantt/src/data/generated/calendar.json src/data/generated/ && npx vite build --config config/vite/demo.js --outDir dist-demo-10k)
-git checkout -- src/data/generated/calendar.json           # now restore the 200-task fixture
-(cd dist-demo-10k && python3 -m http.server 5178 --bind 127.0.0.1 &)               # eager
-(cd ../gantt-lazy/dist-demo-10k && python3 -m http.server 5179 --bind 127.0.0.1 &) # variant
-# 4. paired blocks (nothing else may drive Chrome meanwhile — not the probe, not drag-bench)
-SCENARIOS='exp-h|experiments.html?variant=baseline&virt=combined&test=horizontal;perf-h|perf.html|button:nth-of-type(2)' \
-  benchmarks/scripts/ab-blocks.sh eager-vs-variant 5178 5179 3
-python3 benchmarks/scripts/ab-compare.py benchmarks/traces/runs/ab/eager-vs-variant eager variant
-# 5. drag gestures on the real Bar (perf.html), one run per side, after the blocks
-node benchmarks/scripts/drag-bench.mjs http://localhost:5178/examples/perf.html --drags 12 --out drag-eager.json
-node benchmarks/scripts/drag-bench.mjs http://localhost:5179/examples/perf.html --drags 12 --out drag-variant.json
-pkill -f 'http.server 5178'; pkill -f 'http.server 5179'      # the two static servers (never pkill chrome)
-# 6. the semantics, pinned
-pnpm exec vitest run tests/memoLaziness.test.ts --project client
+pnpm generate:calendar --tasks=10000 --resources=100 --dense
+pnpm build:demo
+node benchmarks/scripts/memo-recompute-probe.mjs dist-demo /tmp/gantt-memo-recompute.json
 ```
 
-## Performance Floor
+The memo probe compares both settings of `lazy` from the same build.
+For a library comparison, follow the [paired runner guide](./README.md#compare-two-builds).
+Generate the same fixture in each checkout before building.
+The historical A/B scenarios used horizontal scrolling in `experiments.html` and the second button in `perf.html`.
 
-Unavoidable browser costs (~26% of total):
+If the paired builds are running on ports 5178 and 5179, use these commands for the drag workload.
+Run them after the scroll measurements finish.
+
+```bash
+node benchmarks/scripts/drag-bench.mjs http://localhost:5178/examples/perf.html --drags 12 --out /tmp/gantt-drag-a.json
+node benchmarks/scripts/drag-bench.mjs http://localhost:5179/examples/perf.html --drags 12 --out /tmp/gantt-drag-b.json
+```
+
+Use `pnpm exec vitest run tests/memoLaziness.test.ts --project client` to run the current memo behavior tests.
+
+## Browser costs in the historical profile
+
+The profile attributed these costs to DOM operations.
 
 | Operation | Time | % |
 |-----------|------|---|
 | set scrollLeft | ~838ms | 26% |
 | setProperty | ~251ms | 8% |
 
-These are DOM operations that cannot be optimized away.
-
 ---
 
-## Future Optimization Targets
+## Ideas from the earlier investigations
 
 ### Not Yet Tested
 
@@ -660,29 +599,9 @@ These are DOM operations that cannot be optimized away.
 | Grid: Canvas rendering | Draw lines on canvas instead of SVG | Low |
 | Custom equality everywhere | Prevent cascades from new object refs | Medium |
 
-### Known Regressions
+## Perf-isolate URL parameters
 
-| Feature | Overhead | Status |
-|---------|----------|--------|
-| Arrows (ArrowLayerBatched) | ~2.5% | Fixed with 2D virtualization (Dec 23) |
-| Debug effects in Bar.jsx | Creates subscriptions | Should be removed |
-
----
-
-## Perf-Isolate URL Parameters
-
-| Param | Values | Default | Description |
-|-------|--------|---------|-------------|
-| `bar` | minimal, text, handles, reactive, drag, events, full, experiments, nochildren, contained, willchange, combined | minimal | Bar variant |
-| `grid` | 0, 1 | 0 | Show SVG grid |
-| `headers` | 0, 1 | 0 | Show date headers |
-| `headerOpt` | 0, 1 | 0 | Use DateHeadersOptimized |
-| `resources` | 0, 1 | 0 | Show resource column |
-| `arrows` | 0, 1 | 0 | Show dependency arrows (2D virtualized) |
-| `test` | horizontal, vertical, both | - | Auto-scroll direction |
-| `memos` | 1 | 0 | Enable dummy memos |
-
----
+See the [demo reference](../../docs/DEMOS.md#feature-isolation) for the current options.
 
 ## Key Files
 
@@ -691,8 +610,8 @@ These are DOM operations that cannot be optimized away.
 | `src/demo/GanttPerfIsolate.tsx` | Feature isolation harness |
 | `src/demo/GanttExperiments.tsx` | Reactive pattern comparison |
 | `src/components/ArrowLayerBatched.tsx` | 2D virtualized arrow rendering |
-| `src/components/DateHeaders.tsx` | Original headers (optimal) |
-| `src/demo/DateHeadersOptimized.tsx` | Index-based headers (slower) |
+| `src/components/DateHeaders.tsx` | Chart date headers |
+| `src/demo/DateHeadersOptimized.tsx` | Experimental position-based header slots |
 | `benchmarks/traces/runs/` | Benchmark JSON outputs |
 
 ---

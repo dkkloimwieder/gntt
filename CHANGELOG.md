@@ -47,6 +47,11 @@ refer to the D1–D13 table in `docs/migration/solid2/PLAN.md`.
 
 ### Fixed
 
+- Keyboard activation supplies a click event to `onTaskClick`. Dependency lags use the current timeline scale, and absolute move bounds use the chart calendar.
+- A visible-range export reads the current scroll position even before the next virtualized render.
+- Scrolling during a drag keeps the edit on the original task when a visible row changes.
+- Expanded subtasks now paint inside an SVG layer. Circular and missing parent links no longer freeze chart setup.
+- A task create with an invalid dependency rolls back. The caller can correct the request and retry the same task ID.
 - Task edits that keep the same ID now update the visible rows, including after resource reassignment.
 - Changes to tasks, view mode, or column width in the same update now produce matching headers and bars.
 - Each chart measures drag coordinates against its own SVG. Visible-range export works inside `onReady`.

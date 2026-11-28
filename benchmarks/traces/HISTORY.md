@@ -1,6 +1,6 @@
 # Performance Investigation History
 
-This document archives detailed investigation logs and historical benchmark data. For current best practices, see [ANALYSIS.md](./ANALYSIS.md).
+This document archives detailed investigation logs and historical benchmark data. See [ANALYSIS.md](./ANALYSIS.md) for comparisons and the [runner guide](./README.md) for current commands.
 
 ---
 

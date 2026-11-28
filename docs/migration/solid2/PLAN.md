@@ -1,5 +1,7 @@
 # Plan: migrate `ganttss` to SolidJS 2.0 (rc.6) — as a tree of beads epics/issues
 
+This is a historical plan. For the stable release on `main`, see the [architecture guide](../../ARCHITECTURE.md).
+
 > **Status (2026-09-05).** E0–E7 have been executed; the work sits on
 > `solid-2`, awaiting the E7.5 merge. The repo now runs `solid-js` and
 > `@solidjs/web` at 2.0.0-rc.6 with `@solidjs/vite-plugin` 3.0.0-next.39.

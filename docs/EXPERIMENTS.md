@@ -1,102 +1,58 @@
-# Gantt Experiments - Reactive Pattern Testing
+# Gantt Experiments
 
-## Purpose
+The Experiments demo compares bar reactivity and task filtering in SolidJS.
+A memo caches the result of a reactive calculation.
+Virtualization limits rendering to the visible area and a surrounding buffer.
 
-The Experiments demo (`examples/experiments.html`) is a performance testing harness for evaluating different SolidJS reactive patterns. The goal is to find optimal patterns for rendering 10,000+ tasks at 60fps.
+## Run the demo
 
-**Core Principle: MEASURE EVERYTHING**
+Start `pnpm dev` and open [experiments.html](http://localhost:5173/examples/experiments.html).
+Choose a bar pattern and a visible-task filter in the two menus.
+Click **V-Scroll**, **H-Scroll**, or **Both** to start a 10-second test.
 
-For benchmark results and current best practices, see [benchmarks/traces/ANALYSIS.md](../benchmarks/traces/ANALYSIS.md).
+Use [the benchmark runner guide](../benchmarks/traces/README.md) to compare built pages with browser traces.
+Keep the data, window size, run length, and scroll direction fixed when comparing variants.
+The [benchmark archive](../benchmarks/traces/ANALYSIS.md) records earlier results.
 
----
+## URL parameters
 
-## Quick Start
+Use [this example](http://localhost:5173/examples/experiments.html?variant=baseline&virt=combined&test=horizontal) to open the default variants and start a horizontal scroll.
 
-```bash
-pnpm dev
-# Open http://localhost:5173/examples/experiments.html
-```
+| Parameter | Behavior |
+|---|---|
+| `variant` | Selects the bar pattern. Defaults to `baseline`. |
+| `virt` | Selects the visible-task filter. Defaults to `combined`. |
+| `test` | Accepts `horizontal`, `vertical`, or `both`. The page starts about 500 ms after mount. |
+| `lazy` | Set to `1` to compare a lazy baseline bar memo. The demo exposes recompute counts on `window.__memoStats`. |
 
-1. Select a **Bar variant** (TestBar reactive pattern)
-2. Select a **Visible variant** (task filtering strategy)
-3. Click **V-Scroll**, **H-Scroll**, or **Both** to run stress test
-4. Compare FPS/frame times across variants
+## Bar patterns
 
----
+| Pattern | Behavior |
+|---|---|
+| `baseline` | Collects bar data in one memo. |
+| `noMemos` | Reads the store directly. |
+| `splitMemo` | Uses separate memos for static and changing data. |
+| `minimal` | Draws bars without drag handlers. |
 
-## Available Variants
+## Visible-task filters
 
-### Bar Variants
+| Filter | Behavior |
+|---|---|
+| `combined` | Filters rows and horizontal bounds in one memo. |
+| `xySplit` | Filters rows first, then filters by horizontal bounds. |
+| `smartCache` | Reuses the row results while the row range stays the same. |
+| `splitEquals` | Uses task ID lists with custom equality. |
+| `untracked` | Reads tasks without subscriptions during the filtering pass. |
+| `plainLookup` | Filters against the initial task objects. |
+| `xBucket` | Looks up tasks by horizontal bucket and removes duplicates. |
+| `xBucketStart` | Looks up tasks by their starting horizontal bucket. |
+| `2D` | Looks up tasks by row and horizontal bucket. |
 
-| Variant | Description | Result |
-|---------|-------------|--------|
-| **baseline** | Single createMemo batching all props | **Winner** (5.5% faster) |
-| noMemos | Direct store access, no memos | 2.6x more effect runs |
-| splitMemo | Separate static/dynamic memos | Extra overhead |
-| minimal | No memos, no handlers | Baseline measurement |
+Some filters use precomputed data or skip subscriptions. Measure their scroll behavior separately from their response to task edits.
 
-### Visible Tasks Variants
+## Add an experiment
 
-| Variant | Description | Result |
-|---------|-------------|--------|
-| **combined** | Single memo for X+Y filtering | **Winner** |
-| xySplit | Separate X and Y memos | 3% slower |
-| spatialIndex | Pre-computed row->taskIds map | Good for 10K+ |
-
----
-
-## Stress Test Modes
-
-| Mode | Description | What It Tests |
-|------|-------------|---------------|
-| V-Scroll | Auto-scroll vertically at 100px/frame | Row filtering, Y-axis memos |
-| H-Scroll | Auto-scroll horizontally at 150px/frame | Column filtering, X-axis memos |
-| Both | Diagonal scrolling both axes | Combined filtering |
-
----
-
-## Adding New Variants
-
-### TestBar Variant
-
-1. Add component to `src/demo/GanttExperiments.tsx`:
-```javascript
-function TestBarNewPattern(props) {
-    // ... your pattern implementation
-}
-```
-
-2. Register in `BAR_VARIANTS`:
-```javascript
-const BAR_VARIANTS = {
-    newPattern: {
-        component: TestBarNewPattern,
-        description: 'Brief hypothesis'
-    },
-};
-```
-
-### Visible Tasks Variant
-
-1. Add hook function:
-```javascript
-function useVisibleTasksNewPattern(tasks, allTaskIds, rowOffset, colOffset, visibleRows, visibleCols) {
-    return createMemo(() => {
-        // ... your filtering pattern
-    });
-}
-```
-
-2. Register in `VISIBLE_VARIANTS`.
-
----
-
-## Key Files
-
-| File | Purpose |
-|------|---------|
-| `src/demo/GanttExperiments.tsx` | Main component |
-| `src/entries/experiments.tsx` | Entry point |
-| `examples/experiments.html` | Demo page |
-| `benchmarks/traces/ANALYSIS.md` | Benchmark results |
-| `benchmarks/traces/HISTORY.md` | Investigation logs |
+Edit [GanttExperiments.tsx](../src/demo/GanttExperiments.tsx).
+For a bar pattern, add its component to `BAR_VARIANTS` and add an option to the bar selector.
+For a task filter, add its memo to the visible-task dispatcher and add an option to the filter selector.
+Test the menu option and its matching query parameter before recording a comparison.

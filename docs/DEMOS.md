@@ -1,244 +1,84 @@
-# Gantt Demos Reference
-
-Comprehensive reference for all demo pages. Last updated: 2026-09-05.
-
----
-
-## Quick Start
-
-```bash
-# Development
-pnpm dev
-# Open http://localhost:5173/examples/
-
-# Production (for benchmarking)
-pnpm build:demo && npx serve dist-demo -l 5174
-# Use clean URLs without .html extension (e.g., /examples/perf-isolate?bar=nochildren)
-```
-
-**Important:** When benchmarking with `serve`, use clean URLs. The `.html` extension causes redirects that strip query parameters.
-
----
-
-## Demo Categories
-
-### Feature Demos
-
-| Demo | Component | Description |
-|------|-----------|-------------|
-| [gantt.html](../examples/gantt.html) | GanttDemo.tsx | Main interactive demo with full features |
-| [subtask.html](../examples/subtask.html) | GanttProjectDemo.tsx | Parent/child task hierarchy (100 tasks) |
-| [resource-groups.html](../examples/resource-groups.html) | GanttResourceGroupsDemo.tsx | Collapsible team resource groups |
-| [constraint.html](../examples/constraint.html) | ConstraintDemo.tsx | FS/SS/FF/SF dependency constraints |
-| [showcase.html](../examples/showcase.html) | ShowcaseDemo.tsx | Props and configuration showcase |
-| [db.html](../examples/db.html) | DbDemo.tsx | DB-backed CRUD over Drizzle + SQLite + Hono (needs `pnpm dev:all`; see [DATABASE.md](./DATABASE.md)) |
-| [multi-select.html](../examples/multi-select.html) | MultiSelectDemo.tsx | Click/Ctrl-click/Shift-click selection and bulk drag |
-| [box-select.html](../examples/box-select.html) | BoxSelectDemo.tsx | Rubber-band selection dragged from empty grid space |
-| [critical-path.html](../examples/critical-path.html) | CriticalPathDemo.tsx | Critical chain highlighted in red; slack branches stay themed |
-| [custom-columns.html](../examples/custom-columns.html) | CustomColumnsDemo.tsx | `columns` prop: name / owner / progress with a custom renderer |
-| [filter-search.html](../examples/filter-search.html) | FilterSearchDemo.tsx | Live name search plus preset filter predicates |
-| [export.html](../examples/export.html) | ExportDemo.tsx | SVG (full / visible) and 2x PNG download |
-
-### Component Demos
-
-| Demo | Component | Description |
-|------|-----------|-------------|
-| [bar.html](../examples/bar.html) | BarDemo.tsx | Task bar with drag handles, progress, resize |
-| [arrow.html](../examples/arrow.html) | ArrowDemo.tsx | Dependency arrow rendering |
-
-### Performance Testing
-
-| Demo | Component | Created | Status |
-|------|-----------|---------|--------|
-| [perf-isolate.html](../examples/perf-isolate.html) | GanttPerfIsolate.tsx | Dec 22, 2025 | **Best-in-class** |
-| [experiments.html](../examples/experiments.html) | GanttExperiments.tsx | Dec 21, 2025 | Active |
-| [perf.html](../examples/perf.html) | GanttPerfDemo.tsx | Dec 10, 2025 | Foundational |
-| [profiler.html](../examples/profiler.html) | GanttProfiler.tsx | ~Dec 17, 2025 | Supporting |
-
-### Historical/Test
-
-| Demo | Component | Created | Status |
-|------|-----------|---------|--------|
-| [minimal-test.html](../examples/minimal-test.html) | GanttMinimalTest.tsx | Dec 20, 2025 | Historical |
-| [index-test.html](../examples/index-test.html) | IndexTest | - | Test harness |
-
----
-
-## Performance Testing Demos
-
-### perf-isolate.html - Best-in-class
-
-**Created:** Dec 22, 2025 | **Component:** GanttPerfIsolate.tsx
-
-Progressive feature isolation to find overhead sources. Start minimal, add features until performance degrades.
-
-#### URL Parameters
-
-| Param | Values | Default | Description |
-|-------|--------|---------|-------------|
-| `bar` | minimal, text, handles, reactive, drag, events, full, experiments, nochildren, contained, willchange, combined | minimal | Bar variant |
-| `grid` | 0, 1 | 0 | Show SVG grid |
-| `headers` | 0, 1 | 0 | Show date headers |
-| `headerOpt` | 0, 1 | 0 | Use DateHeadersOptimized |
-| `resources` | 0, 1 | 0 | Show resource column |
-| `arrows` | 0, 1 | 0 | Show dependency arrows (2D virtualized) |
-| `test` | horizontal, vertical, both | - | Auto-scroll direction |
-
-#### Bar Variants (12)
-
-| # | Variant | Description |
-|---|---------|-------------|
-| 1 | minimal | Baseline div with inline position |
-| 2 | text | + task name text |
-| 3 | handles | + left/right resize divs |
-| 4 | reactive | Reactive getters instead of direct props |
-| 5 | drag | + useDrag hook |
-| 6 | events | + context-based event handlers |
-| 7 | full | + progress gradient background |
-| 8 | experiments | createMemo pattern (GanttExperiments style) |
-| 9 | **nochildren** | Click-position detection, no child divs **WINNER: 8.5% faster** |
-| 10 | contained | + CSS containment |
-| 11 | willchange | + will-change: transform |
-| 12 | combined | nochildren + contain + will-change |
-
-#### Example URLs
-
-```
-?bar=minimal                              # Baseline measurement
-?bar=nochildren&grid=1&headers=1          # With features
-?bar=nochildren&headers=1&arrows=1        # With arrows
-?bar=nochildren&test=horizontal           # Auto-scroll benchmark
-```
-
-#### Results
-
-See [benchmarks/traces/ANALYSIS.md](../benchmarks/traces/ANALYSIS.md) for benchmark data.
-
----
-
-### experiments.html
-
-**Created:** Dec 21, 2025 | **Component:** GanttExperiments.tsx
-
-Reactive pattern and virtualization strategy comparison with interactive UI.
-
-#### Bar Patterns (4)
-
-| Pattern | Description | Result |
-|---------|-------------|--------|
-| **baseline** | Single createMemo batching all props | **WINNER: 5.5% faster** |
-| noMemos | Direct store access, no memos | 2.6x more effect runs |
-| splitMemo | Separate static/dynamic memos | Extra overhead |
-| minimal | No handlers, no memos | Baseline measurement |
-
-#### Virtualization Modes (9+)
-
-| Mode | Description | Result |
-|------|-------------|--------|
-| **combined** | Single memo for X+Y filtering | **WINNER: 3% faster** |
-| xySplit | Two-stage: row filter then X filter | 3% slower |
-| smartCache | Cache row tasks, refill on Y change | - |
-| splitEquals | Custom equality on ID arrays | - |
-| untracked | Uses `untrack()` to prevent subscriptions | - |
-| plainLookup | Access plain object instead of store | - |
-| xBucket | Spatial index with X_BUCKET_SIZE | - |
-| xBucketStart | Tasks only in START bucket | - |
-| 2D | Row-first + bucket lookup | - |
-
-#### Results
-
-See [benchmarks/traces/ANALYSIS.md](../benchmarks/traces/ANALYSIS.md) and [docs/EXPERIMENTS.md](./EXPERIMENTS.md).
-
----
-
-### perf.html
-
-**Created:** Dec 10, 2025 | **Component:** GanttPerfDemo.tsx
-
-Full-featured stress test with all UI layers and real dependencies.
-
-#### Features
-
-- Real-time FPS, frame timing, heap tracking
-- 30-second stress tests (horizontal/vertical scroll)
-- Configurable overscan, view modes
-- Uses calendar.json data (200+ tasks)
-
-#### Metrics Tracked
-
-- FPS (RAF-based counter)
-- Frame timing (worst frame, average in 60-frame window)
-- Scroll events/sec
-- Heap size (Chrome DevTools memory API)
-- DOM stats (task bar count, arrow count)
-
----
-
-### profiler.html
-
-**Created:** ~Dec 17, 2025 | **Component:** GanttProfiler.tsx
-
-Function-level call instrumentation and profiling.
-
-#### Features
-
-- Function timing instrumentation
-- Call tree analysis (first 5 levels)
-- Split-pane UI (Gantt + analysis panel)
-- Automated H/V scroll tests with profiling
-
----
-
-## Timeline
-
-| Date | Milestone |
-|------|-----------|
-| Dec 10, 2025 | perf.html created - Initial performance testing |
-| ~Dec 17, 2025 | profiler.html - Function instrumentation |
-| Dec 20, 2025 | minimal-test.html - Slot-based baseline |
-| Dec 21, 2025 | experiments.html - Major benchmarking (reactive patterns) |
-| Dec 22, 2025 | perf-isolate.html - "perf-isolate success" |
-| Dec 23, 2025 | Header optimization investigations |
-
----
-
-## Current Best Practices
-
-Based on benchmarking results:
-
-| Category | Best Choice | Improvement |
-|----------|-------------|-------------|
-| Bar pattern | `nochildren` | 8.5% faster than `combined` |
-| Reactive pattern | `baseline` (createMemo) | 5.5% faster than `noMemos` |
-| Virtualization | `combined` (single memo) | 3% faster than `xySplit` |
-| Headers | Original `DateHeaders` | "Optimizations" were slower |
-
-See [benchmarks/traces/ANALYSIS.md](../benchmarks/traces/ANALYSIS.md) for details.
-
----
-
-## Future Work
-
-### Not Yet Benchmarked
-
-| Target | Hypothesis | Priority |
-|--------|------------|----------|
-| Headers: Fixed slot pool | CSS transforms instead of DOM add/remove | Medium |
-| Grid: Canvas rendering | Draw lines on canvas instead of SVG | Low |
-| Custom equality everywhere | Prevent cascades from new object refs | Medium |
-
-### Known Issues
-
-| Issue | Status |
-|-------|--------|
-| ArrowLayerBatched | Disabled (21% regression), needs batching fix |
-| Debug effects in Bar.tsx | Creates subscriptions, should be removed |
-
----
-
-## Related Documentation
-
-- [benchmarks/traces/ANALYSIS.md](../benchmarks/traces/ANALYSIS.md) - Current best practices and benchmarks
-- [benchmarks/traces/HISTORY.md](../benchmarks/traces/HISTORY.md) - Investigation logs
-- [docs/EXPERIMENTS.md](./EXPERIMENTS.md) - GanttExperiments details
-- [docs/MINIMAL_TEST.md](./MINIMAL_TEST.md) - Historical slot-based approach
+# Gantt demos
+
+Start Vite with `pnpm dev`, then open [the demo hub](http://localhost:5173/examples/).
+If you want to run the database demo, run `pnpm db:setup` and use `pnpm dev:all` to start both servers.
+See the [database guide](./DATABASE.md) for setup and data details.
+
+`pnpm build:demo` builds the three browser benchmark pages into `dist-demo/`.
+Use `pnpm preview:demo` to serve that build at port 4173.
+For the automated benchmark commands that use port 5174, follow the [benchmark runner guide](../benchmarks/traces/README.md).
+
+## Feature demos
+
+| Page | What to try |
+|---|---|
+| [gantt.html](../examples/gantt.html) | Move or resize tasks with finish-to-start scheduling constraints. |
+| [subtask.html](../examples/subtask.html) | Expand parent tasks and compare sequential, parallel, and mixed layouts. |
+| [resource-groups.html](../examples/resource-groups.html) | Collapse teams and expand their resource rows. |
+| [constraint.html](../examples/constraint.html) | Compare dependency types and absolute constraints. |
+| [showcase.html](../examples/showcase.html) | Change task bar, connector, and constraint options. |
+| [db.html](../examples/db.html) | Create, edit, and delete events. Drag a bar to save new dates. |
+| [multi-select.html](../examples/multi-select.html) | Use Ctrl or Command to toggle a task, Shift to select a range, and drag the selection. |
+| [box-select.html](../examples/box-select.html) | Drag a selection box from empty grid space. |
+| [critical-path.html](../examples/critical-path.html) | Toggle highlighting on the longest dependency chain. |
+| [custom-columns.html](../examples/custom-columns.html) | Inspect custom name, owner, and progress columns. |
+| [filter-search.html](../examples/filter-search.html) | Search for task names and apply preset filters. |
+| [export.html](../examples/export.html) | Download all or part of the chart as SVG or 2× PNG. |
+| [bar.html](../examples/bar.html) | Drag and resize standalone task bars. |
+| [arrow.html](../examples/arrow.html) | Compare dependency connector shapes and routing. |
+
+## Performance demos
+
+| Page | What it measures |
+|---|---|
+| [perf.html](../examples/perf.html) | Full chart rendering, scrolling, and task-layer modes. |
+| [perf-isolate.html](../examples/perf-isolate.html) | Rendering cost of individual chart features. |
+| [experiments.html](../examples/experiments.html) | [Bar reactivity and visible-task filtering variants](./EXPERIMENTS.md). |
+| [profiler.html](../examples/profiler.html) | Function calls and timings during manual recording or automated scrolling. |
+| [minimal-test.html](../examples/minimal-test.html) | [A fixed-slot grid](./MINIMAL_TEST.md) that uses real browser scrolling. |
+| [index-test.html](../examples/index-test.html) | Reuse of bar components as different tasks enter fixed slots. |
+
+### Full chart performance
+
+`perf.html` loads the tracked calendar fixture.
+Use **Reload** to reprocess it, or **H-Scroll** and **V-Scroll** to run a 30-second scroll test.
+The **Benchmark** button starts a separate recording. Stop it before using **Export JSON**.
+
+The Render readout measures from the fixture update until a timer after two animation frames.
+Its value includes scheduling time. Look at a browser trace for script, layout, and paint costs.
+The heap readout requires a browser that exposes `performance.memory`.
+
+The Arrows selector and arrow count do not measure an on-screen arrow renderer in the current full chart.
+Use the isolation harness with `arrows=1` for that comparison.
+The full chart captures overscan settings at mount. The buffer sliders do not change a running chart's viewport.
+
+### Feature isolation
+
+Open [perf-isolate.html with horizontal scrolling](http://localhost:5173/examples/perf-isolate.html?bar=nochildren&test=horizontal).
+Add `grid=1`, `headers=1`, `resources=1`, or `arrows=1` to measure the cost of each feature.
+
+| Parameter | Values and behavior |
+|---|---|
+| `bar` | `minimal` by default. See the variants below. |
+| `grid`, `resources`, `arrows` | Set to `1` to enable the feature. |
+| `headers` | Set to `1` to show date headers. The constraint fixture also turns them on. |
+| `headerOpt` | Set to `1` to use `DateHeadersOptimized` when headers are visible. |
+| `context` | Set to `1` to add the event context. The `events` and `full` bar variants always use it. |
+| `test` | `horizontal`, `vertical`, or `both`. The page scrolls until you leave it. |
+| `data` | `calendar` by default. Use `constraint` for a fixture with scheduling constraints. |
+| `topology` | `breadth`, `depth`, `balanced`, or `debug`. Takes precedence over `data`. |
+| `hours` | Timeline hours to fit horizontally. The page selects a scale from average task duration by default. |
+
+The isolation harness uses its row and day lookup for virtualization.
+Use [the Experiments demo](./EXPERIMENTS.md) to compare virtualization modes.
+
+| Bar variants | What they add |
+|---|---|
+| `minimal`, `text`, `handles` | Inline position, task text, and resize handle elements. |
+| `reactive`, `drag`, `events`, `full` | Reactive getters, drag hook, event context, and the progress gradient. |
+| `experiments` | A single memo for bar data. |
+| `nochildren`, `contained`, `willchange`, `combined` | Pointer-position hit areas with optional CSS containment and `will-change`. |
+| `hoverpopup`, `clickmodal` | Hover and click detail surfaces. |
+| `dragbase`, `dragfunc`, `dragconst` | No drag handlers, drag that changes positions, and drag with constraints. |
+
+Compare runs under the same workload. The [benchmark archive](../benchmarks/traces/ANALYSIS.md) records measurements from earlier builds.
