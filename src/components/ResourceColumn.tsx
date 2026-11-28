@@ -173,35 +173,39 @@ export function ResourceColumn(props: ResourceColumnProps): JSX.Element {
 
     return (
         <div class="resource-column" style={containerStyle()}>
-            <For each={visibleResources()}>
+            <For
+                each={visibleResources()}
+                keyed={(item) => `${item.type}:${item.id}`}
+            >
                 {(item) => (
                     <div
-                        class={`resource-cell ${item.type === 'group' ? 'resource-group' : ''} ${item.type === 'project' ? 'resource-project' : ''}`}
-                        style={cellStyle(item)}
-                        data-resource={item.id}
-                        data-type={item.type}
-                        onClick={
-                            item.type === 'group'
-                                ? (e) => handleGroupClick(item.id, e)
-                                : undefined
-                        }
+                        class={`resource-cell ${item().type === 'group' ? 'resource-group' : ''} ${item().type === 'project' ? 'resource-project' : ''}`}
+                        style={cellStyle(item())}
+                        data-resource={item().id}
+                        data-type={item().type}
+                        onClick={(event) => {
+                            const row = item();
+                            if (row.type === 'group') {
+                                handleGroupClick(row.id, event);
+                            }
+                        }}
                     >
                         {/* Chevron for collapsible groups */}
-                        <Show when={item.type === 'group'}>
-                            <ChevronIcon collapsed={item.isCollapsed} />
+                        <Show when={item().type === 'group'}>
+                            <ChevronIcon collapsed={item().isCollapsed} />
                         </Show>
 
                         {/* Color swatch for projects */}
-                        <Show when={item.type === 'project' && item.color}>
+                        <Show when={item().type === 'project' && item().color}>
                             <span
                                 class="color-swatch"
-                                style={colorSwatchStyle(item.color)}
+                                style={colorSwatchStyle(item().color)}
                             />
                         </Show>
 
                         {/* Resource/project name */}
                         <span class="resource-name">
-                            {item.name || item.id}
+                            {item().name || item().id}
                         </span>
                     </div>
                 )}

@@ -44,7 +44,10 @@ export function ExpandedTaskContainer(
 
         return t._children
             .map((childId) => tasksObj[childId] as ProcessedTask | undefined)
-            .filter((child): child is ProcessedTask => child != null);
+            .filter(
+                (child): child is ProcessedTask =>
+                    child != null && !child._isHidden,
+            );
     };
 
     // Layout mode

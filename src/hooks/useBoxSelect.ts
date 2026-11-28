@@ -28,6 +28,7 @@ export interface BoxOverlay {
 export interface UseBoxSelectDeps {
     taskStore?: TaskStore;
     selectionStore?: SelectionStore;
+    includeTask?: (task: ProcessedTask) => boolean;
     /** Returns the task-layer DOM node — used to translate client → content coords. */
     getLayerEl: () => HTMLElement | undefined;
 }
@@ -65,6 +66,7 @@ export interface BoxRect {
 export function findBoxHits(
     box: BoxRect,
     tasks: Record<string, ProcessedTask | undefined>,
+    includeTask?: (task: ProcessedTask) => boolean,
 ): string[] {
     const hits: string[] = [];
     const x1 = box.x;
@@ -80,7 +82,13 @@ export function findBoxHits(
         const by1 = bar.y;
         const bx2 = bar.x + bar.width;
         const by2 = bar.y + bar.height;
-        if (x1 < bx2 && x2 > bx1 && y1 < by2 && y2 > by1) {
+        if (
+            x1 < bx2 &&
+            x2 > bx1 &&
+            y1 < by2 &&
+            y2 > by1 &&
+            (includeTask?.(t) ?? true)
+        ) {
             hits.push(id);
         }
     }
@@ -96,15 +104,7 @@ export function useBoxSelect(deps: UseBoxSelectDeps): UseBoxSelectResult {
     let startY = 0;
     let startShift = false;
     let startCtrl = false;
-    /**
-     * The gesture's own record of what it drew. `overlay` is a signal, so
-     * reading it back on mouseup answers with COMMITTED state — the last
-     * mousemove's write may still be staged, and on a fast drag-and-release
-     * inside one task it always is. These two locals are the truth; the
-     * signal exists only to render the rectangle.
-     */
     let passedThreshold = false;
-    let box: BoxRect = { x: 0, y: 0, width: 0, height: 0 };
 
     const layerCoords = (e: MouseEvent): { x: number; y: number } | null => {
         const el = deps.getLayerEl();
@@ -113,26 +113,24 @@ export function useBoxSelect(deps: UseBoxSelectDeps): UseBoxSelectResult {
         return { x: e.clientX - rect.left, y: e.clientY - rect.top };
     };
 
+    const boxAt = (pt: { x: number; y: number }): BoxRect => ({
+        x: Math.min(startX, pt.x),
+        y: Math.min(startY, pt.y),
+        width: Math.abs(pt.x - startX),
+        height: Math.abs(pt.y - startY),
+    });
+
+    const exceedsThreshold = (box: BoxRect): boolean =>
+        box.width > DRAG_THRESHOLD_PX || box.height > DRAG_THRESHOLD_PX;
+
     const handleMouseMove = (e: MouseEvent): void => {
         if (!active) return;
         const pt = layerCoords(e);
         if (!pt) return;
 
-        const dx = Math.abs(pt.x - startX);
-        const dy = Math.abs(pt.y - startY);
-
-        if (dx <= DRAG_THRESHOLD_PX && dy <= DRAG_THRESHOLD_PX) {
-            // Stay invisible until the user actually moves enough to box-select.
-            return;
-        }
-
+        const box = boxAt(pt);
+        if (!passedThreshold && !exceedsThreshold(box)) return;
         passedThreshold = true;
-        box = {
-            x: Math.min(startX, pt.x),
-            y: Math.min(startY, pt.y),
-            width: dx,
-            height: dy,
-        };
         setOverlay({ visible: true, ...box });
     };
 
@@ -142,36 +140,29 @@ export function useBoxSelect(deps: UseBoxSelectDeps): UseBoxSelectResult {
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
 
-        const wasDragged = passedThreshold;
-        const current = box;
         setOverlay(HIDDEN);
 
         const sel = deps.selectionStore;
         const store = deps.taskStore;
-        if (!sel || !store) return;
+        const pt = layerCoords(e);
+        if (!sel || !store || !pt) return;
 
+        // Scrolling can change the layer's origin between move and release.
+        const current = boxAt(pt);
         // Click-not-drag: clear selection. Honor shift/ctrl as "no-op"
         // so a user mid-modifier-clicking doesn't lose state by jitter.
-        if (!wasDragged) {
+        if (!passedThreshold && !exceedsThreshold(current)) {
             if (!startShift && !startCtrl) sel.clear();
             return;
         }
 
-        const hits = findBoxHits(
-            current,
-            store.tasks as Record<string, ProcessedTask>,
-        );
+        const hits = findBoxHits(current, store.tasks, deps.includeTask);
 
         if (startShift || startCtrl) {
             for (const id of hits) sel.add(id);
         } else {
             sel.replace(hits);
         }
-
-        // Best-effort: capture the modifier state at gesture START (the
-        // handlers were on the original mousedown). Don't read e here —
-        // its keys may have been released mid-gesture.
-        void e;
     };
 
     const handleMouseDown = (e: MouseEvent): void => {
@@ -187,7 +178,6 @@ export function useBoxSelect(deps: UseBoxSelectDeps): UseBoxSelectResult {
         startShift = e.shiftKey;
         startCtrl = e.ctrlKey || e.metaKey;
         passedThreshold = false;
-        box = { x: pt.x, y: pt.y, width: 0, height: 0 };
         setOverlay(HIDDEN);
 
         document.addEventListener('mousemove', handleMouseMove);

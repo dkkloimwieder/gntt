@@ -27,7 +27,8 @@ function getTaskFromMap<T>(
 
 /**
  * Build parent-child hierarchy from flat task array.
- * Mutates tasks in place to add _children, _depth, and auto-detect summary type.
+ * Mutates tasks to remove invalid parent links, assign children and depth,
+ * and detect summary tasks.
  * Generic to preserve input task type.
  */
 export function buildHierarchy<T extends HierarchyTask>(
@@ -42,50 +43,49 @@ export function buildHierarchy<T extends HierarchyTask>(
         taskMap.set(task.id, task);
     }
 
-    // Build parent-child links
-    for (const task of tasks) {
-        if (task.parentId) {
-            const parent = taskMap.get(task.parentId);
-            if (parent) {
-                parent._children!.push(task.id);
-                // Auto-detect summary type if not explicitly set
-                if (!parent.type) {
-                    parent.type = 'summary';
-                }
+    // Remove invalid links before building the tree so every parent walk
+    // terminates and descendants of an orphan still receive their depths.
+    const visited = new Set<string>();
+    const clearParent = (task: T): void => {
+        diagnosticWarn(
+            `Circular or orphaned parent reference detected for task ${task.id}`,
+        );
+        delete task.parentId;
+    };
+    for (const task of taskMap.values()) {
+        if (!task.parentId || visited.has(task.id)) continue;
+        const path = new Set<string>();
+        let current: T | undefined = task;
+        while (current?.parentId && !visited.has(current.id)) {
+            if (path.has(current.id)) {
+                clearParent(current);
+                break;
             }
-            // If parent doesn't exist, treat as orphan (root task)
+            path.add(current.id);
+            const parent: T | undefined = taskMap.get(current.parentId);
+            if (!parent) clearParent(current);
+            current = parent;
+        }
+        for (const id of path) visited.add(id);
+    }
+
+    const queue: T[] = [];
+    for (const task of taskMap.values()) {
+        const parent = task.parentId ? taskMap.get(task.parentId) : undefined;
+        if (parent) {
+            parent._children!.push(task.id);
+            parent.type ||= 'summary';
+        } else {
+            queue.push(task);
         }
     }
 
-    // Compute depths via BFS from roots
-    const roots = tasks.filter((t) => !t.parentId);
-    const queue: { task: T; depth: number }[] = roots.map((t) => ({
-        task: t,
-        depth: 0,
-    }));
-
-    while (queue.length > 0) {
-        const item = queue.shift();
-        if (!item) break;
-        const { task, depth } = item;
-        task._depth = depth;
-
-        for (const childId of task._children || []) {
-            const child = taskMap.get(childId);
-            if (child) {
-                queue.push({ task: child, depth: depth + 1 });
-            }
-        }
-    }
-
-    // Detect circular references (tasks with parentId but no depth assigned)
-    for (const task of tasks) {
-        if (task.parentId && task._depth === 0 && !roots.includes(task)) {
-            diagnosticWarn(
-                `Circular or orphaned parent reference detected for task ${task.id}`,
-            );
-            // Treat as root
-            task._depth = 0;
+    for (let i = 0; i < queue.length; i += 1) {
+        const task = queue[i]!;
+        for (const childId of task._children!) {
+            const child = taskMap.get(childId)!;
+            child._depth = task._depth! + 1;
+            queue.push(child);
         }
     }
 
@@ -110,7 +110,7 @@ export function collectDescendants<T extends HierarchyTask>(
         const task = getTask(currentId);
 
         for (const childId of task?._children || []) {
-            if (!descendants.has(childId)) {
+            if (childId !== taskId && !descendants.has(childId)) {
                 descendants.add(childId);
                 queue.push(childId);
             }
@@ -128,10 +128,14 @@ export function isHiddenByCollapsedAncestor<T extends HierarchyTask>(
     tasksObj: TaskMapLike<T>,
     collapsedSet: Set<string>,
 ): boolean {
+    if (collapsedSet.size === 0) return false;
+
     const getTask = (id: string) => getTaskFromMap(tasksObj, id);
     let task = getTask(taskId);
+    const visited = new Set([taskId]);
 
-    while (task?.parentId) {
+    while (task?.parentId && !visited.has(task.parentId)) {
+        visited.add(task.parentId);
         if (collapsedSet.has(task.parentId)) {
             return true;
         }
@@ -151,8 +155,10 @@ export function getAncestors<T extends HierarchyTask>(
     const getTask = (id: string) => getTaskFromMap(tasksObj, id);
     const ancestors: string[] = [];
     let task = getTask(taskId);
+    const visited = new Set([taskId]);
 
-    while (task?.parentId) {
+    while (task?.parentId && !visited.has(task.parentId)) {
+        visited.add(task.parentId);
         ancestors.push(task.parentId);
         task = getTask(task.parentId);
     }

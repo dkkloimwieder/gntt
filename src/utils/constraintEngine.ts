@@ -517,13 +517,14 @@ export function getMaxXFromLockedSuccessors(
 // Iterative constraint relaxation for multi-path dependency graphs
 // ═══════════════════════════════════════════════════════════════════════════════
 
-interface CascadeContext {
+interface ResolveContext {
     getBarPosition: GetBarPosition;
     getTask?: GetTask | null;
     relationships?: Relationship[];
     relationshipIndex?: RelationshipIndex;
     pixelsPerHour: number;
     ganttStartDate: Date;
+    dateToX?: (date: Date) => number;
 }
 
 /**
@@ -554,7 +555,7 @@ interface CascadeContext {
 export function calculateCascadeUpdates(
     taskId: string,
     newX: number,
-    context: CascadeContext,
+    context: ResolveContext,
 ): Map<string, { x: number }> {
     const {
         getBarPosition,
@@ -565,47 +566,16 @@ export function calculateCascadeUpdates(
         ganttStartDate,
     } = context;
 
-    const updates = new Map<string, { x: number }>();
-    updates.set(taskId, { x: newX });
-
-    // Build successor lookup
-    let getSuccessorRels: (id: string) => Relationship[];
-    if (relationshipIndex?.byPredecessor) {
-        getSuccessorRels = (id) =>
-            relationshipIndex.byPredecessor.get(id) || [];
-    } else if (relationships) {
-        const successorRels = new Map<string, Relationship[]>();
-        for (const rel of relationships) {
-            if (!successorRels.has(rel.from)) successorRels.set(rel.from, []);
-            successorRels.get(rel.from)!.push(rel);
-        }
-        getSuccessorRels = (id) => successorRels.get(id) || [];
-    } else {
-        return updates;
-    }
-
-    // Build predecessor lookup
-    let getPredecessorRels: (id: string) => Relationship[];
-    if (relationshipIndex?.bySuccessor) {
-        getPredecessorRels = (id) =>
-            relationshipIndex.bySuccessor.get(id) || [];
-    } else if (relationships) {
-        const predecessorRels = new Map<string, Relationship[]>();
-        for (const rel of relationships) {
-            if (!predecessorRels.has(rel.to)) predecessorRels.set(rel.to, []);
-            predecessorRels.get(rel.to)!.push(rel);
-        }
-        getPredecessorRels = (id) => predecessorRels.get(id) || [];
-    } else {
-        return updates;
-    }
+    const { byPredecessor, bySuccessor } =
+        relationshipIndex ?? buildRelationshipIndex(relationships ?? []);
+    const updates = new Map([[taskId, { x: newX }]]);
 
     // Step 1: Find all reachable successors (single BFS)
     const reachable = new Set<string>();
     const bfsQueue: string[] = [taskId];
     while (bfsQueue.length > 0) {
         const current = bfsQueue.shift()!;
-        for (const rel of getSuccessorRels(current)) {
+        for (const rel of byPredecessor.get(current) ?? []) {
             if (!reachable.has(rel.to)) {
                 reachable.add(rel.to);
                 bfsQueue.push(rel.to);
@@ -637,7 +607,7 @@ export function calculateCascadeUpdates(
 
             // Calculate minX from ALL predecessors
             let minX = 0;
-            for (const rel of getPredecessorRels(succId)) {
+            for (const rel of bySuccessor.get(succId) ?? []) {
                 let predBar = getBarPosition(rel.from);
                 if (!predBar) continue;
 
@@ -662,11 +632,13 @@ export function calculateCascadeUpdates(
                 succTask?.constraints,
                 ganttStartDate,
                 pixelsPerHour,
+                context.dateToX,
             );
             const absMaxX = getMaxXFromAbsolute(
                 succTask?.constraints,
                 ganttStartDate,
                 pixelsPerHour,
+                context.dateToX,
             );
             minX = Math.max(absMinX, Math.min(minX, absMaxX));
 
@@ -706,7 +678,7 @@ export function calculateCascadeUpdates(
 export function resolveResizeCascade(
     taskId: string,
     geometry: { x: number; width: number },
-    context: CascadeContext,
+    context: ResolveContext,
 ): Map<string, { x: number }> {
     const read = context.getBarPosition;
     const getBarPosition: GetBarPosition = (id) => {
@@ -724,15 +696,6 @@ export function resolveResizeCascade(
 // MAIN ENTRY POINT
 // Single function to resolve all constraints
 // ═══════════════════════════════════════════════════════════════════════════════
-
-interface ResolveContext {
-    getBarPosition: GetBarPosition;
-    getTask?: GetTask | null;
-    relationships?: Relationship[];
-    relationshipIndex?: RelationshipIndex;
-    pixelsPerHour: number;
-    ganttStartDate: Date;
-}
 
 interface ResolveResult {
     constrainedX: number;
@@ -820,16 +783,19 @@ export function resolveConstraints(
         task?.constraints,
         ganttStartDate,
         pixelsPerHour,
+        context.dateToX,
     );
     const absMaxX = getMaxXFromAbsolute(
         task?.constraints,
         ganttStartDate,
         pixelsPerHour,
+        context.dateToX,
     );
     const absMaxEnd = getMaxEndFromAbsolute(
         task?.constraints,
         ganttStartDate,
         pixelsPerHour,
+        context.dateToX,
     );
 
     minX = Math.max(minX, absMinX);

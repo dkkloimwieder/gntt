@@ -1,4 +1,4 @@
-import { createMemo, For, Show } from 'solid-js';
+import { createMemo, createUniqueId, For, Show } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 import type { DateInfo } from '../types';
 import type { ResourceStore } from '../stores/resourceStore';
@@ -141,8 +141,9 @@ export function Grid(props: GridProps): JSX.Element {
         return 'var(--g-grid-row-color, #fff)';
     };
 
-    // Generate unique pattern ID for this grid instance
-    const patternId = () => `grid-pattern-${props.id || 'default'}`;
+    // SVG fragment references share the page's ID namespace.
+    const gridId = createUniqueId();
+    const patternId = () => `grid-pattern-${props.id || gridId}`;
 
     // Build single path for thick lines only (month/week boundaries)
     const thickLinesPath = createMemo(() => {

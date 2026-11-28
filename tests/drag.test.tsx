@@ -584,6 +584,88 @@ describe('progress drag', () => {
 });
 
 describe('keyboard gestures', () => {
+    it.each(['Enter', ' '])(
+        'activates a bar with a click event for %j',
+        (button) => {
+            const clicks: MouseEvent[] = [];
+            mounted = mountGantt({
+                tasks: TASKS,
+                onTaskClick: (_id, event) => {
+                    clicks.push(event);
+                },
+            });
+            const bar = barOf(mounted, 't1');
+            bar.dispatchEvent(key(button));
+            settle();
+            expect(clicks).toHaveLength(1);
+            expect(clicks[0]).toBeInstanceOf(MouseEvent);
+            expect(clicks[0]?.type).toBe('click');
+            expect(clicks[0]?.target).toBe(bar);
+        },
+    );
+
+    it.each([
+        ['Day', 24],
+        ['Week', 168],
+    ] as const)(
+        'converts a 12-hour dependency lag to pixels in %s view',
+        (viewMode, hoursPerColumn) => {
+            mounted = mountGantt({
+                tasks: [
+                    {
+                        id: 'pred',
+                        name: 'Predecessor',
+                        start: '2025-01-06',
+                        end: '2025-01-07',
+                    },
+                    {
+                        id: 'succ',
+                        name: 'Successor',
+                        start: '2025-01-07',
+                        end: '2025-01-08',
+                        dependencies: [{ id: 'pred', lag: 12 }],
+                    },
+                ],
+                options: { viewMode },
+            });
+            const pred = barPos(mounted, 'pred');
+            const lag =
+                (mounted.stores.dateStore.columnWidth() * 12) / hoursPerColumn;
+            barOf(mounted, 'succ').dispatchEvent(key('ArrowLeft'));
+            settle();
+            expect(barPos(mounted, 'succ').x).toBeCloseTo(
+                pred.x + pred.width + lag,
+                8,
+            );
+        },
+    );
+
+    it.each([
+        ['Day', '2025-01-06 12:00', new Date(2025, 0, 6, 12)],
+        ['Month', '2025-01-06 12:00', new Date(2025, 0, 6, 12)],
+        ['Week', '2025-01-07', new Date(2025, 0, 7)],
+    ] as const)(
+        'uses the chart window in %s view for the move limit %s',
+        (viewMode, maxStart, localLimit) => {
+            mounted = mountGantt({
+                tasks: [
+                    {
+                        id: 'task',
+                        name: 'Task',
+                        start: '2025-01-06',
+                        end: '2025-01-08',
+                        constraints: { maxStart },
+                    },
+                ],
+                options: { viewMode },
+            });
+            const expected = mounted.stores.dateStore.dateToX(localLimit);
+            barOf(mounted, 'task').dispatchEvent(key('ArrowRight'));
+            settle();
+            expect(barPos(mounted, 'task').x).toBeCloseTo(expected, 8);
+        },
+    );
+
     it('ArrowRight moves the bar one column and reports the new x unsnapped', () => {
         const changes: DateChange[] = [];
         mounted = mountGantt({

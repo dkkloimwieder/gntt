@@ -7,10 +7,10 @@
  * the constraint resolution algorithm.
  *
  * Usage:
- *   node src/scripts/generateTopology.js --topology=breadth
- *   node src/scripts/generateTopology.js --topology=depth
- *   node src/scripts/generateTopology.js --topology=balanced
- *   node src/scripts/generateTopology.js --topology=all
+ *   pnpm generate:topology --topology=breadth
+ *   pnpm generate:topology --topology=depth
+ *   pnpm generate:topology --topology=balanced
+ *   pnpm generate:topology --topology=all
  *
  * Options:
  *   --topology=TYPE  breadth|depth|balanced|all (default: balanced)
@@ -718,7 +718,7 @@ function parseArgs(args) {
 Topology Generator for Constraint System Benchmarking
 
 Usage:
-  node src/scripts/generateTopology.js [options]
+  pnpm generate:topology [options]
 
 Options:
   --topology=TYPE  breadth|depth|balanced|all (default: balanced)

@@ -302,24 +302,13 @@ export function createTask(db: DB, input: CreateTaskInput): GanttTaskApi {
             : null,
         updatedAt: new Date().toISOString(),
     };
-    db.insert(tasksTable).values(row).run();
-
-    if (input.dependencies && input.dependencies.length > 0) {
-        replaceDependencies(db, input.id, input.dependencies);
-    }
-
-    const reread = db
-        .select()
-        .from(tasksTable)
-        .where(eq(tasksTable.id, input.id))
-        .all()[0];
-    if (!reread) throw new TaskNotFoundError(input.id);
-    const deps = db
-        .select()
-        .from(depsTable)
-        .where(eq(depsTable.toTaskId, input.id))
-        .all();
-    return rowToTask(reread, deps);
+    return db.transaction((tx) => {
+        const inserted = tx.insert(tasksTable).values(row).returning().get();
+        if (input.dependencies !== undefined) {
+            return replaceDependencies(tx, input.id, input.dependencies);
+        }
+        return rowToTask(inserted, []);
+    });
 }
 
 /** Delete a task. FK cascade removes any dependencies it participates in. */
@@ -355,11 +344,15 @@ export function replaceDependencies(
         .all()[0];
     if (!successor) throw new TaskNotFoundError(`No task with id '${taskId}'`);
 
+    if (!Array.isArray(deps)) {
+        throw new PatchValidationError('dependencies must be an array');
+    }
+
     // Validate predecessors all exist and aren't self.
     const seen = new Set<string>();
     const sanitized: DependencyInsert[] = [];
     for (const d of deps) {
-        if (!d.id) {
+        if (typeof d?.id !== 'string' || !d.id) {
             throw new PatchValidationError('dependency missing predecessor id');
         }
         if (d.id === taskId) {
@@ -392,22 +385,18 @@ export function replaceDependencies(
         });
     }
 
-    db.delete(depsTable).where(eq(depsTable.toTaskId, taskId)).run();
-    if (sanitized.length > 0) {
-        db.insert(depsTable).values(sanitized).run();
-    }
-
-    const reread = db
-        .select()
-        .from(tasksTable)
-        .where(eq(tasksTable.id, taskId))
-        .all()[0]!;
-    const reloaded = db
-        .select()
-        .from(depsTable)
-        .where(eq(depsTable.toTaskId, taskId))
-        .all();
-    return rowToTask(reread, reloaded);
+    return db.transaction((tx) => {
+        tx.delete(depsTable).where(eq(depsTable.toTaskId, taskId)).run();
+        if (sanitized.length > 0) {
+            tx.insert(depsTable).values(sanitized).run();
+        }
+        const reloaded = tx
+            .select()
+            .from(depsTable)
+            .where(eq(depsTable.toTaskId, taskId))
+            .all();
+        return rowToTask(successor, reloaded);
+    });
 }
 
 // ──────────────────────────────────────────────────────────────────────

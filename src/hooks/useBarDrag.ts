@@ -75,6 +75,8 @@ export function useBarDrag(deps: UseBarDragDeps) {
             didDragFlag = false;
 
             const t = deps.taskInfo();
+            // A pooled DOM slot can represent a different task after a scroll.
+            data['taskId'] = t.id;
             data['originalX'] = deps.x();
             data['originalY'] = deps.y();
             data['originalWidth'] = deps.width();
@@ -112,8 +114,8 @@ export function useBarDrag(deps: UseBarDragDeps) {
         },
 
         onDragMove: (move, data, state) => {
-            const t = deps.taskInfo();
-            if (!deps.taskStore || !t.id) return;
+            const taskId = data['taskId'] as string;
+            if (!deps.taskStore || !taskId) return;
 
             // Only count this as a drag (suppressing the subsequent click)
             // if the pointer moved past a small threshold. Without this,
@@ -128,10 +130,11 @@ export function useBarDrag(deps: UseBarDragDeps) {
 
             const colWidth = deps.columnWidth();
             const ignored = deps.ignoredPositions();
+            const originalX = data['originalX'] as number;
+            const originalY = data['originalY'] as number;
             const originalWidth = data['originalWidth'] as number;
 
             if (state === 'dragging_bar') {
-                const originalX = data['originalX'] as number;
                 let newX = snapToGrid(
                     originalX + move.deltaX,
                     colWidth,
@@ -161,10 +164,10 @@ export function useBarDrag(deps: UseBarDragDeps) {
                         dependentOriginals,
                         deltaX,
                     );
-                    const own = applied?.get(t.id);
+                    const own = applied?.get(taskId);
                     data['lastGeom'] = own ?? {
                         x:
-                            (dependentOriginals.get(t.id)?.originalX ??
+                            (dependentOriginals.get(taskId)?.originalX ??
                                 originalX) + deltaX,
                         width: originalWidth,
                     };
@@ -172,18 +175,17 @@ export function useBarDrag(deps: UseBarDragDeps) {
                     // Fallback: per-task constraint resolution
                     if (deps.handlers.onConstrainPosition) {
                         const constrained = deps.handlers.onConstrainPosition(
-                            t.id,
+                            taskId,
                             newX,
-                            deps.y(),
+                            originalY,
                         );
                         if (constrained === null) return;
                         newX = constrained.x ?? newX;
                     }
-                    deps.taskStore.updateBarPosition(t.id, { x: newX });
+                    deps.taskStore.updateBarPosition(taskId, { x: newX });
                     data['lastGeom'] = { x: newX, width: originalWidth };
                 }
             } else if (state === 'dragging_left') {
-                const originalX = data['originalX'] as number;
                 const snappedDelta =
                     Math.round(move.deltaX / colWidth) * colWidth;
 
@@ -200,9 +202,9 @@ export function useBarDrag(deps: UseBarDragDeps) {
                 // Constraints: prevent moving start before predecessor's end
                 if (deps.handlers.onConstrainPosition) {
                     const constrained = deps.handlers.onConstrainPosition(
-                        t.id,
+                        taskId,
                         newX,
-                        deps.y(),
+                        originalY,
                     );
                     if (constrained === null) return;
                     if (constrained.x !== undefined && constrained.x > newX) {
@@ -211,7 +213,7 @@ export function useBarDrag(deps: UseBarDragDeps) {
                     }
                 }
 
-                deps.taskStore.updateBarPosition(t.id, {
+                deps.taskStore.updateBarPosition(taskId, {
                     x: newX,
                     width: newWidth,
                 });
@@ -223,15 +225,15 @@ export function useBarDrag(deps: UseBarDragDeps) {
                     deps.minWidth(),
                     originalWidth + snappedDelta,
                 );
-                deps.taskStore.updateBarPosition(t.id, { width: newWidth });
+                deps.taskStore.updateBarPosition(taskId, { width: newWidth });
                 // A right-edge resize never moves the left edge.
                 data['lastGeom'] = {
-                    x: data['originalX'] as number,
+                    x: originalX,
                     width: newWidth,
                 };
             } else if (state === 'dragging_progress') {
-                const barX = deps.x();
-                const barWidth = deps.width();
+                const barX = originalX;
+                const barWidth = originalWidth;
                 const ignoredPos = deps.ignoredPositions();
                 const colW = deps.columnWidth();
                 const startSvgX = data['startSvgX'] as number;
@@ -270,15 +272,16 @@ export function useBarDrag(deps: UseBarDragDeps) {
                           )
                         : 0;
 
-                deps.taskStore.setTaskProgress(t.id, newProgress);
+                deps.taskStore.setTaskProgress(taskId, newProgress);
                 data['finalProgress'] = newProgress;
             }
         },
 
         onDragEnd: (_move, data, state) => {
-            const t = deps.taskInfo();
+            const taskId = data['taskId'] as string;
             // Allow deferred recalculations to resume
             deps.taskStore?.setDraggingTaskId?.(null);
+            if (!taskId) return;
 
             if (
                 state === 'dragging_bar' ||
@@ -291,22 +294,22 @@ export function useBarDrag(deps: UseBarDragDeps) {
                 // threshold) staged nothing, so the committed geometry is
                 // the right answer and is the only one available.
                 const moved = data['lastGeom'] as DragGeometry | undefined;
-                const pos = moved ?? deps.taskStore?.getBarPosition(t.id);
+                const pos = moved ?? deps.taskStore?.getBarPosition(taskId);
                 const geometry: DragGeometry = {
-                    x: pos?.x ?? deps.x(),
-                    width: pos?.width ?? deps.width(),
+                    x: pos?.x ?? (data['originalX'] as number),
+                    width: pos?.width ?? (data['originalWidth'] as number),
                 };
-                deps.handlers.onDateChange?.(t.id, geometry);
+                deps.handlers.onDateChange?.(taskId, geometry);
 
                 if (state === 'dragging_left' || state === 'dragging_right') {
-                    deps.handlers.onResizeEnd?.(t.id, geometry);
+                    deps.handlers.onResizeEnd?.(taskId, geometry);
                 }
             } else if (state === 'dragging_progress') {
                 const finalProgress = data['finalProgress'] as
                     number | undefined;
                 deps.handlers.onProgressChange?.(
-                    t.id,
-                    finalProgress ?? t.progress,
+                    taskId,
+                    finalProgress ?? (data['originalProgress'] as number),
                 );
             }
         },

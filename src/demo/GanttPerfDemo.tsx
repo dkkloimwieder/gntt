@@ -318,7 +318,7 @@ export function GanttPerfDemo() {
     // Load tasks and measure render time
     const loadTasks = () => {
         const startTime = performance.now();
-        setTasks(calendarData.tasks);
+        setTasks(calendarData.tasks.slice());
 
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {

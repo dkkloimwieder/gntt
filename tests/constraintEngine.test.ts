@@ -546,10 +546,7 @@ describe('calculateCascadeUpdates', () => {
         expect(updates).toBeInstanceOf(Map);
     });
 
-    it('early-returns when neither relationships nor index provided', () => {
-        // When no graph data is supplied, cascade can't compute successors;
-        // the initial seed entry is returned untouched (caller cleanup is skipped
-        // on the early-return path).
+    it('returns no successor updates when the context has no relationship data', () => {
         const ctx = {
             getBarPosition: () => null,
             getTask: () => null,
@@ -557,8 +554,7 @@ describe('calculateCascadeUpdates', () => {
             ganttStartDate: GANTT_START,
         };
         const updates = calculateCascadeUpdates('a', 200, ctx);
-        expect(updates.has('a')).toBe(true);
-        expect(updates.get('a')?.x).toBe(200);
+        expect(updates.size).toBe(0);
     });
 });
 
@@ -757,6 +753,28 @@ describe('resolveConstraints', () => {
         });
         expect(result.constrainedX).toBe(300); // unbounded forward
         expect(result.cascadeUpdates.get('b')?.x).toBe(350);
+    });
+
+    it('uses max when moving a successor but does not pull it on a predecessor move', () => {
+        const tasks = makeTasks([
+            { id: 'a', x: 100, width: 50 },
+            { id: 'b', x: 150, width: 50 },
+        ]);
+        const context = {
+            getBarPosition: (id: string) => tasks[id]?._bar,
+            getTask: (id: string) => tasks[id],
+            relationships: [
+                { from: 'a', to: 'b', type: 'FS' as const, lag: 0, max: 0 },
+            ],
+            pixelsPerHour: PPH,
+            ganttStartDate: GANTT_START,
+        };
+        expect(resolveConstraints('b', 200, 50, context).constrainedX).toBe(
+            150,
+        );
+        expect(
+            resolveConstraints('a', 50, 50, context).cascadeUpdates.size,
+        ).toBe(0);
     });
 
     it('returns proposed values gracefully when task has no bar', () => {

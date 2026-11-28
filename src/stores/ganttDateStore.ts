@@ -79,6 +79,8 @@ export interface GanttDateStore {
     unit: Accessor<TimeScale>;
     step: Accessor<number>;
     columnWidth: Accessor<number>;
+    /** Pixel length of an hour at the active view's duration scale. */
+    pixelsPerHour: Accessor<number>;
     gridWidth: Accessor<number>;
     getAllDateInfos: Accessor<DateInfo[]>;
 
@@ -478,6 +480,8 @@ export function createGanttDateStore(
         unit,
         step,
         columnWidth,
+        pixelsPerHour: () =>
+            (dateUtils.convertScales('1h', unit()) * columnWidth()) / step(),
         gridWidth,
         getAllDateInfos,
 

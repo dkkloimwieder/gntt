@@ -16,11 +16,19 @@ function constraintToPixels(
     constraint: string | Date | null | undefined,
     ganttStart: Date,
     pixelsPerHour: number,
+    dateToX?: (date: Date) => number,
 ): number | null {
     if (!constraint) return null;
-    const date =
-        typeof constraint === 'string' ? new Date(constraint) : constraint;
+    let value = constraint;
+    if (dateToX && typeof value === 'string') {
+        // The chart interprets date-only task inputs as local midnight.
+        value = /^\d{4}-\d{2}-\d{2}$/.test(value)
+            ? value + 'T00:00:00'
+            : value.replace(/^(\d{4}-\d{2}-\d{2}) /, '$1T');
+    }
+    const date = typeof value === 'string' ? new Date(value) : value;
     if (isNaN(date.getTime())) return null;
+    if (dateToX) return dateToX(date);
     const hours = (date.getTime() - ganttStart.getTime()) / (1000 * 60 * 60);
     return hours * pixelsPerHour;
 }
@@ -62,12 +70,14 @@ export function getMinXFromAbsolute(
     constraints: TaskConstraints | null | undefined,
     ganttStart: Date,
     pixelsPerHour: number,
+    dateToX?: (date: Date) => number,
 ): number {
     if (!constraints?.minStart) return 0;
     const minX = constraintToPixels(
         constraints.minStart,
         ganttStart,
         pixelsPerHour,
+        dateToX,
     );
     return minX ?? 0;
 }
@@ -79,12 +89,14 @@ export function getMaxXFromAbsolute(
     constraints: TaskConstraints | null | undefined,
     ganttStart: Date,
     pixelsPerHour: number,
+    dateToX?: (date: Date) => number,
 ): number {
     if (!constraints?.maxStart) return Infinity;
     const maxX = constraintToPixels(
         constraints.maxStart,
         ganttStart,
         pixelsPerHour,
+        dateToX,
     );
     return maxX ?? Infinity;
 }
@@ -113,12 +125,14 @@ export function getMaxEndFromAbsolute(
     constraints: TaskConstraints | null | undefined,
     ganttStart: Date,
     pixelsPerHour: number,
+    dateToX?: (date: Date) => number,
 ): number {
     if (!constraints?.maxEnd) return Infinity;
     const maxEnd = constraintToPixels(
         constraints.maxEnd,
         ganttStart,
         pixelsPerHour,
+        dateToX,
     );
     return maxEnd ?? Infinity;
 }

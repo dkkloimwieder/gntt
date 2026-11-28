@@ -126,6 +126,33 @@ describe('POST /api/tasks', () => {
         expect(body.dependencies).toEqual([{ id: 'a', type: 'FS', lag: 4 }]);
         close();
     });
+
+    it.each([
+        { dependencies: [{ id: 'missing' }] },
+        { dependencies: [null] },
+        { dependencies: 'invalid' },
+    ])(
+        'rolls back a task when its inline dependencies are invalid (%j)',
+        async ({ dependencies }) => {
+            const task = {
+                id: 't1',
+                name: 'Task One',
+                start: '2025-01-01 09:00',
+                end: '2025-01-01 17:00',
+            };
+            try {
+                const rejected = await post(app, '/api/tasks', {
+                    ...task,
+                    dependencies,
+                });
+                expect(rejected.status).toBe(400);
+                expect((await getBootstrap(app)).tasks).toEqual([]);
+                expect((await post(app, '/api/tasks', task)).status).toBe(201);
+            } finally {
+                close();
+            }
+        },
+    );
 });
 
 describe('DELETE /api/tasks/:id', () => {

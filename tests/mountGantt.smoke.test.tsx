@@ -1,17 +1,11 @@
 /**
- * Smoke test for the `mountGantt` helper itself (E0.4).
- *
- * The E1 characterization suites all build on this helper, so it has to be
- * exercised by `pnpm test` rather than merely typecheck. Everything asserted
- * here is a property of the HELPER — that a real `<Gantt>` mounts under jsdom
- * and paints bars, that the viewport the component measures is the inset
- * scroll area rather than the mount box, that the SVG coordinate stubs carry
- * a real drag end to end, and that dispose puts the DOM back. The chart's own
- * behaviour (positions, dates, hidden flags) belongs to E1.1.
+ * Exercise the DOM stubs through a real chart mount. These tests cover the
+ * inset viewport, scroll timing, SVG drag coordinates, and stub cleanup.
  */
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { mountGantt, type MountedGantt } from './helpers/mountGantt';
 import { settle } from './helpers/settle';
+import type { GanttAPI } from '../src/components/Gantt';
 import type { BarPosition, GanttTask } from '../src/types';
 
 /**
@@ -228,6 +222,43 @@ describe('mountGantt', () => {
             .map((b) => b.id)
             .sort();
         expect(painted).toEqual(expected);
+    });
+
+    it('exports the visible bars before the scroll throttle publishes its update', async () => {
+        let api: GanttAPI | undefined;
+        mounted = mountGantt(
+            {
+                tasks: TASKS,
+                onReady: (ready) => {
+                    api = ready;
+                },
+            },
+            { clientWidth: 280, clientHeight: 100 },
+        );
+        await Promise.resolve();
+        settle();
+        expect(api).toBeDefined();
+
+        const scrollArea = elementOf(mounted, '.gantt-scroll-area');
+        const lastBar = mounted.stores.taskStore.getBarPosition('t3')!;
+        expect(api!.exportSvg({ range: 'visible' })).not.toContain('Task 3');
+
+        const now = vi.spyOn(performance, 'now').mockReturnValue(0);
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+        try {
+            scrollArea.scrollLeft = lastBar.x;
+            scrollArea.scrollTop = lastBar.y;
+            scrollArea.dispatchEvent(new Event('scroll'));
+
+            const svg = api!.exportSvg({ range: 'visible' });
+            expect(svg).toContain('Task 3');
+            expect(svg).not.toContain('Task 1');
+            expect(svg).not.toContain('Task 2');
+        } finally {
+            mounted.dispose();
+            vi.useRealTimers();
+            now.mockRestore();
+        }
     });
 
     it('carries a real bar drag through the SVG coordinate stubs', () => {

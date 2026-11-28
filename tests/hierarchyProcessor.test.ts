@@ -88,12 +88,15 @@ describe('buildHierarchy', () => {
     });
 
     it('treats orphan tasks (parentId points to missing) as roots', () => {
-        const tasks = [t('orphan', 'ghost'), t('real')];
-        buildHierarchy(tasks);
+        const tasks = [t('orphan', 'ghost'), t('child', 'orphan')];
+        const map = buildHierarchy(tasks);
         expect(tasks[0]?._depth).toBe(0);
-        expect(tasks[0]?._children).toEqual([]);
-        // Note: an orphan triggers the "Circular or orphaned" warn since it
-        // has parentId but no depth was assigned via BFS from a real root.
+        expect(tasks[0]?.parentId).toBeUndefined();
+        expect(tasks[0]?._children).toEqual(['child']);
+        expect(tasks[1]?._depth).toBe(1);
+        expect(
+            isHiddenByCollapsedAncestor('child', map, new Set(['ghost'])),
+        ).toBe(false);
         expect(captured.some((e) => /orphaned|Circular/.test(e.message))).toBe(
             true,
         );
@@ -113,11 +116,20 @@ describe('buildHierarchy', () => {
         expect(tasks[6]?._depth).toBe(6);
     });
 
-    it('warns on circular parent references', () => {
-        // cycle: a → b → a (each names the other as parentId)
-        const tasks = [t('a', 'b'), t('b', 'a')];
-        buildHierarchy(tasks);
-        // Both rooted-via-cycle: depth stays 0, warn fires for one.
+    it('breaks circular parent references while retaining the descendants', () => {
+        const tasks = [
+            t('a', 'b'),
+            t('b', 'a'),
+            t('child', 'b'),
+            t('self', 'self'),
+        ];
+        const map = buildHierarchy(tasks);
+        expect(getAncestors('child', map)).toEqual(['b', 'a']);
+        expect(collectDescendants('a', map)).toEqual(new Set(['b', 'child']));
+        expect(getAncestors('self', map)).toEqual([]);
+        expect(isHiddenByCollapsedAncestor('child', map, new Set())).toBe(
+            false,
+        );
         expect(
             captured.some((e) =>
                 /Circular or orphaned parent reference/.test(e.message),
@@ -238,11 +250,10 @@ describe('getAncestors', () => {
         expect(getAncestors('missing', map)).toEqual([]);
     });
 
-    it('stops at the first ancestor whose parent does not exist', () => {
+    it('stops at the root when its missing parent was removed', () => {
         const tasks = [t('a', 'ghost'), t('b', 'a')];
         buildHierarchy(tasks);
         const map = new Map(tasks.map((task) => [task.id, task]));
-        // b → a → ghost (not in map, walk terminates).
-        expect(getAncestors('b', map)).toEqual(['a', 'ghost']);
+        expect(getAncestors('b', map)).toEqual(['a']);
     });
 });

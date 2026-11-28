@@ -219,7 +219,10 @@ export function ColumnPanel(props: ColumnPanelProps): JSX.Element {
                 height: `${totalHeight()}px`,
             }}
         >
-            <For each={visibleResources()}>
+            <For
+                each={visibleResources()}
+                keyed={(item) => `${item.type}:${item.id}`}
+            >
                 {(item) => {
                     // Row-level memo: the store scan runs once per row and
                     // re-runs only when the task set changes. Reading the
@@ -227,13 +230,13 @@ export function ColumnPanel(props: ColumnPanelProps): JSX.Element {
                     // one-shot (strict-read) read that never updated — the
                     // cells used to be non-reactive for exactly that reason.
                     const task = createMemo(() =>
-                        firstTaskForResource(item.id),
+                        firstTaskForResource(item().id),
                     );
                     return (
                         <div
                             class="column-panel-row"
-                            data-resource={item.id}
-                            style={rowStyle(item)}
+                            data-resource={item().id}
+                            style={rowStyle(item())}
                         >
                             <For each={props.columns}>
                                 {(col) => (
@@ -242,7 +245,7 @@ export function ColumnPanel(props: ColumnPanelProps): JSX.Element {
                                         data-col-key={col.key}
                                         style={cellStyle(col)}
                                     >
-                                        {cellValue(col, task(), item.id)}
+                                        {cellValue(col, task(), item().id)}
                                     </div>
                                 )}
                             </For>

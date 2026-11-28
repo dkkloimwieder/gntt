@@ -81,12 +81,9 @@ export function calculateRowLayouts(
 
     const tasksByResource = new Map<string, TaskLike[]>();
     for (const [_taskId, task] of iterateTasks(taskMap)) {
-        if (task.resource) {
-            if (!tasksByResource.has(task.resource)) {
-                tasksByResource.set(task.resource, []);
-            }
-            tasksByResource.get(task.resource)!.push(task);
-        }
+        const resource = task.resource || 'Unassigned';
+        if (!tasksByResource.has(resource)) tasksByResource.set(resource, []);
+        tasksByResource.get(resource)!.push(task);
     }
 
     for (const row of displayRows) {
@@ -204,7 +201,7 @@ export function calculateRowLayouts(
 
                 if (task._children) {
                     const rowAssignments =
-                        layout === 'mixed' || layout === 'parallel'
+                        layout === 'mixed'
                             ? computeSubtaskRows(task._children, taskMap)
                             : null;
 

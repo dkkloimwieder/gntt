@@ -281,6 +281,8 @@ export interface ConstraintContext {
     pixelsPerHour: number;
     /** Gantt chart start date */
     ganttStartDate: Date;
+    /** Project a dated constraint onto the chart calendar. */
+    dateToX?: (date: Date) => number;
 }
 
 /**

@@ -75,6 +75,8 @@ export interface GanttOptions {
     arrow_head_size?: number;
     lines?: 'horizontal' | 'vertical' | 'both' | 'none';
     readonly?: boolean;
+    readonlyDates?: boolean;
+    readonlyProgress?: boolean;
     barHeight?: number;
     padding?: number;
     columnWidth?: number;
@@ -475,16 +477,14 @@ export function Gantt(props: GanttProps): JSX.Element {
         },
     );
 
-    // Critical-path overlay: empty set when feature is off so downstream
-    // components can read it unconditionally. Uses columnWidth as the
-    // pixels-per-time-unit factor (same convention as taskLayerConstraints).
+    // Critical-path lags and interactive dependency bounds share the same scale.
     const criticalSet = createMemo((): Set<string> => {
         if (!props.options?.criticalPath) return new Set();
         const tasks = taskStore.tasks;
         const rels = relationships();
         if (!tasks || rels.length === 0) return new Set();
-        const pph = dateStore.columnWidth();
-        return computeCriticalPath(tasks, rels, pph).critical;
+        return computeCriticalPath(tasks, rels, dateStore.pixelsPerHour())
+            .critical;
     });
 
     // Search overlay: matches set is empty when search is off; otherwise
@@ -721,6 +721,7 @@ export function Gantt(props: GanttProps): JSX.Element {
                         />
                     ) : (
                         <TaskLayer
+                            dateStore={dateStore}
                             taskStore={taskStore}
                             ganttConfig={ganttConfig}
                             relationships={relationships()}

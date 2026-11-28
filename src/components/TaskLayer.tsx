@@ -3,7 +3,7 @@ import type { JSX } from '@solidjs/web';
 import { Bar } from './Bar';
 import { SummaryBar } from './SummaryBar';
 import { ExpandedTaskContainer } from './ExpandedTaskContainer';
-import { DEFAULT_COLUMN_WIDTH } from '../constants';
+import type { GanttDateStore } from '../stores/ganttDateStore';
 import { buildRelationshipIndex } from '../utils/constraintEngine';
 import { collectDescendants } from '../utils/hierarchyProcessor';
 import {
@@ -32,6 +32,7 @@ interface ConstrainedResult {
 }
 
 interface TaskLayerProps {
+    dateStore: GanttDateStore;
     taskStore?: TaskStore;
     ganttConfig?: GanttConfigStore;
     resourceStore?: ResourceStore;
@@ -93,16 +94,16 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
     );
 
     // Build the constraint context once per call. Cheap; values are accessors.
-    const buildCtx = (taskId: string) => {
+    const buildCtx = () => {
         const store = props.taskStore;
         if (!store) return null;
         return {
             taskStore: store,
-            columnWidth:
-                props.ganttConfig?.columnWidth?.() ?? DEFAULT_COLUMN_WIDTH,
+            pixelsPerHour: props.dateStore.pixelsPerHour(),
+            ganttStartDate: props.dateStore.ganttStart(),
+            dateToX: props.dateStore.dateToX,
             relationships: relationships(),
             relationshipIndex: relationshipIndex(),
-            taskId,
         };
     };
 
@@ -111,13 +112,13 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
         newX: number,
         newY: number,
     ): ConstrainedResult | null => {
-        const ctx = buildCtx(taskId);
+        const ctx = buildCtx();
         if (!ctx) return { x: newX, y: newY };
         return constrainTaskPosition(taskId, newX, newY, ctx);
     };
 
     const handleResizeEnd = (taskId: string, geometry?: DragGeometry): void => {
-        const ctx = buildCtx(taskId);
+        const ctx = buildCtx();
         if (ctx) resolveResizeConstraints(taskId, ctx, geometry);
         props.onResizeEnd?.(taskId, geometry);
     };
@@ -203,14 +204,12 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
         proposedDeltaX: number,
     ): number => {
         if (!props.taskStore) return proposedDeltaX;
-        const columnWidth =
-            props.ganttConfig?.columnWidth?.() ?? DEFAULT_COLUMN_WIDTH;
         return clampBatchDelta(
             batchOriginals,
             proposedDeltaX,
             relationships(),
             props.taskStore,
-            columnWidth,
+            props.dateStore.pixelsPerHour(),
         );
     };
 
@@ -247,12 +246,8 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
 
     // Virtualization: tasks-by-resource grouping, viewport filtering,
     // pooled <For keyed={false}> arrays, per-task position lookup.
-    const {
-        splitTaskIds,
-        pooledRegularTasks,
-        pooledSummaryIds,
-        getTaskPosition,
-    } = useTaskVirtualization(props);
+    const { splitTaskIds, pooledRegularTasks, pooledSummaryIds } =
+        useTaskVirtualization(props);
 
     // Box-select: pointer-down on empty grid space draws a translucent
     // rect; on release, intersected bars become the selection (replace,
@@ -261,6 +256,8 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
     const boxSelect = useBoxSelect({
         taskStore: props.taskStore,
         selectionStore: props.selectionStore,
+        includeTask: (task) =>
+            !task.parentId || props.ganttConfig?.renderMode() !== 'simple',
         getLayerEl: () => layerRef,
     });
 
@@ -295,19 +292,33 @@ export function TaskLayer(props: TaskLayerProps): JSX.Element {
                 </For>
             </div>
 
-            {/* Expanded task containers (parent + subtasks) */}
-            <div class="expanded-layer" style={{ contain: 'layout style' }}>
+            {/* Paint expanded containers between the summary and regular bars. */}
+            <svg
+                class="expanded-layer"
+                width="100%"
+                height="100%"
+                style={{
+                    display: 'block',
+                    position: 'absolute',
+                    top: '0',
+                    left: '0',
+                    'pointer-events': 'none',
+                }}
+            >
                 <For each={splitTaskIds().expandedIds}>
                     {(taskId) => (
                         <ExpandedTaskContainer
                             taskId={taskId}
                             taskStore={props.taskStore}
                             ganttConfig={props.ganttConfig}
-                            rowLayout={getTaskPosition(taskId) ?? undefined}
+                            rowLayout={props.rowLayouts?.get(
+                                props.taskStore?.getTask(taskId)?.resource ||
+                                    'Unassigned',
+                            )}
                         />
                     )}
                 </For>
-            </div>
+            </svg>
 
             {/* Regular task bars render ON TOP */}
             <div class="task-bars-layer" style={{ contain: 'layout style' }}>

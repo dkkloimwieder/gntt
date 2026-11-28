@@ -136,6 +136,8 @@ describe('useTaskVirtualization — pool contents', () => {
         // 2 regular tasks + 5 buffer slots; no summaries, so 0 + 5.
         expect(virt.pooledRegularTasks()).toHaveLength(7);
         expect(virt.pooledSummaryIds()).toHaveLength(5);
+        expect(Object.keys(virt.pooledRegularTasks())).toEqual(['0', '1']);
+        expect(Object.keys(virt.pooledSummaryIds())).toEqual([]);
     });
 
     it('grows the pool to the high-water mark and never shrinks it', () => {

@@ -242,7 +242,7 @@ describe('calculateRowLayouts — simple cases', () => {
         expect(c1y).toBeGreaterThan(py);
     });
 
-    it('expanded parallel parent: children stack vertically', () => {
+    it('stacks parallel children even when their dates do not overlap', () => {
         const tasks: Record<string, TaskLike> = {
             p: {
                 id: 'p',
@@ -252,9 +252,9 @@ describe('calculateRowLayouts — simple cases', () => {
                 _children: ['c1', 'c2', 'c3'],
                 subtaskLayout: 'parallel',
             },
-            c1: { id: 'c1', parentId: 'p' },
-            c2: { id: 'c2', parentId: 'p' },
-            c3: { id: 'c3', parentId: 'p' },
+            c1: { id: 'c1', parentId: 'p', _start: 0, _end: 20 },
+            c2: { id: 'c2', parentId: 'p', _start: 20, _end: 40 },
+            c3: { id: 'c3', parentId: 'p', _start: 40, _end: 60 },
         };
         const layouts = calculateRowLayouts(
             [{ id: 'R1' }],

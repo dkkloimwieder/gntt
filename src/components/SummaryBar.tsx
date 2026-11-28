@@ -107,12 +107,13 @@ export function SummaryBar(props: SummaryBarProps): JSX.Element {
     // DRAG SETUP
     const { dragState, isDragging, startDrag } = useDrag({
         onDragStart: (data, state) => {
+            const id = data['taskId'] as string;
             data['originalX'] = x();
             data['originalY'] = y();
 
             if (state === 'dragging_bar' && props.onCollectDescendants) {
-                const descendantIds = props.onCollectDescendants(taskId());
-                descendantIds.add(taskId());
+                const descendantIds = props.onCollectDescendants(id);
+                descendantIds.add(id);
 
                 const batchOriginals = new Map<string, BatchOriginal>();
                 for (const id of descendantIds) {
@@ -126,7 +127,8 @@ export function SummaryBar(props: SummaryBarProps): JSX.Element {
         },
 
         onDragMove: (move, data, state) => {
-            if (!props.taskStore || !taskId() || state !== 'dragging_bar') {
+            const id = data['taskId'] as string;
+            if (!props.taskStore || !id || state !== 'dragging_bar') {
                 return;
             }
 
@@ -149,14 +151,14 @@ export function SummaryBar(props: SummaryBarProps): JSX.Element {
                     batchOriginals,
                     deltaX,
                 );
-                data['lastGeom'] = applied.get(taskId());
+                data['lastGeom'] = applied.get(id);
             }
         },
 
         onDragEnd: (_move, data, state) => {
             if (state === 'dragging_bar') {
                 props.onDragEnd?.(
-                    taskId(),
+                    data['taskId'] as string,
                     data['lastGeom'] as
                         { x: number; width: number } | undefined,
                 );
@@ -176,7 +178,7 @@ export function SummaryBar(props: SummaryBarProps): JSX.Element {
         if (readonly()) return;
         e.preventDefault();
         e.stopPropagation();
-        startDrag(e, 'dragging_bar');
+        startDrag(e, 'dragging_bar', { taskId: taskId() });
     };
 
     // Aria label: parent bar identity + date range + rolled-up progress.

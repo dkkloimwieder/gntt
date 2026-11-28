@@ -30,7 +30,9 @@ interface ConstrainedResult {
 
 interface ConstraintCtx {
     taskStore: TaskStore;
-    columnWidth: number;
+    pixelsPerHour: number;
+    ganttStartDate: Date;
+    dateToX: (date: Date) => number;
     relationships: Relationship[];
     relationshipIndex: RelationshipIndex;
 }
@@ -42,8 +44,9 @@ function buildContext(ctx: ConstraintCtx) {
         getTask: ctx.taskStore.getTask?.bind(ctx.taskStore),
         relationships: ctx.relationships,
         relationshipIndex: ctx.relationshipIndex,
-        pixelsPerHour: ctx.columnWidth, // columnWidth doubles as pixels-per-time-unit
-        ganttStartDate: new Date(), // placeholder — pixel-based calcs ignore this
+        pixelsPerHour: ctx.pixelsPerHour,
+        ganttStartDate: ctx.ganttStartDate,
+        dateToX: ctx.dateToX,
     };
 }
 
@@ -127,7 +130,7 @@ export function clampBatchDelta(
     proposedDeltaX: number,
     relationships: Relationship[],
     taskStore: TaskStore,
-    columnWidth: number,
+    pixelsPerHour: number,
 ): number {
     const getTask =
         taskStore.getTask?.bind(taskStore) ??
@@ -138,7 +141,7 @@ export function clampBatchDelta(
         relationships,
         getTask,
         {
-            pixelsPerTimeUnit: columnWidth,
+            pixelsPerTimeUnit: pixelsPerHour,
         },
     );
 }

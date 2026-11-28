@@ -85,10 +85,8 @@
  *  3. No real layout: `getBoundingClientRect`, `offsetWidth`, `scrollWidth`
  *     and friends are still jsdom's zeros. Only the properties listed above
  *     are modelled.
- *  4. The post-mount check below only proves that `<Gantt>` ran its component
- *     body — the globals are published there, synchronously, before any DOM
- *     exists. It catches "the component threw before publishing", not "the
- *     chart mounted but rendered nothing". Assert on rendered nodes for that.
+ *  4. The presence of the debug stores means the mount hook ran. Assert on
+ *     rendered nodes to show that the chart actually painted its content.
  *
  * `render` comes from `@solidjs/web` under SolidJS 2.0 — `solid-js` no
  * longer exports it.
@@ -533,10 +531,8 @@ export function mountGantt(
 ): MountedGantt {
     if (mountLive) {
         throw new Error(
-            'mountGantt: a previous mount is still live. <Gantt> publishes its ' +
-                'stores on window.__gantt* and useDrag resolves the drag svg with a ' +
-                'document-wide querySelector("svg.gantt"), so two live charts ' +
-                'interfere. Dispose the first mount before mounting another.',
+            'mountGantt: a previous mount is still live. ' +
+                'Dispose the first mount before reusing the shared DOM stubs.',
         );
     }
 
@@ -584,12 +580,11 @@ export function mountGantt(
                 </GanttProvider>
             );
         }, container);
+        settle();
     } catch (error) {
         dispose();
         throw error;
     }
-
-    settle();
 
     const taskStore = window.__ganttTaskStore;
     const ganttConfig = window.__ganttConfig;
@@ -597,8 +592,7 @@ export function mountGantt(
     if (!taskStore || !ganttConfig || !dateStore) {
         dispose();
         throw new Error(
-            'mountGantt: <Gantt> did not publish its stores on window — ' +
-                'the component body threw before reaching the publish site.',
+            'mountGantt: <Gantt> did not publish its development stores on mount.',
         );
     }
 

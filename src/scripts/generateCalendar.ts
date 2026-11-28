@@ -4,10 +4,10 @@
  * CLI script to generate calendar.json for Gantt performance testing.
  *
  * Usage:
- *   node src/scripts/generateCalendar.js
- *   node src/scripts/generateCalendar.js --tasks=300 --seed=54321 --ss=30
- *   node src/scripts/generateCalendar.js --tasks=10000 --resources=130
- *   node src/scripts/generateCalendar.js --tasks=10000 --realistic
+ *   pnpm generate:calendar
+ *   pnpm generate:calendar --tasks=300 --seed=54321 --ss=30
+ *   pnpm generate:calendar --tasks=10000 --resources=130
+ *   pnpm generate:calendar --tasks=10000 --realistic
  *
  * Options:
  *   --tasks=N     Total number of tasks (default: 200)
@@ -88,7 +88,7 @@ function parseArgs(args) {
 Calendar Generator for Gantt Performance Testing
 
 Usage:
-  node src/scripts/generateCalendar.js [options]
+  pnpm generate:calendar [options]
 
 Options:
   --tasks=N     Total number of tasks (default: 200)
@@ -100,6 +100,10 @@ Options:
   --resources=N Number of resources/rows (default: 26, A-Z)
   --dense       Pack tasks tightly (back-to-back, 1-5h, for stress testing)
   --realistic   Realistic arrow patterns (75% same-row, 20% adjacent, 5% none)
+  --minDuration=N    Minimum task duration in hours (default: 1)
+  --maxDuration=N    Maximum task duration in hours (default: 8, capped at 5 in dense mode)
+  --arrowDensity=N   Percent of tasks with dependencies in dense mode (default: 20)
+  --maxRowDistance=N Maximum dependency distance in rows in dense mode (default: 2)
   --help        Show this help message
 `);
                 process.exit(0);

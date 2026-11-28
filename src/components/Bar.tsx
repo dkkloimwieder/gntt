@@ -274,14 +274,25 @@ export function Bar(props: BarProps): JSX.Element {
     // Keyboard interaction: arrow keys move; Shift+arrow resizes;
     // Enter/Space opens the modal. Mirrors the constraint+update path
     // that drag uses so screen-reader / keyboard users stay in sync.
-    const handleKeyDown = (e: KeyboardEvent): void => {
+    const handleKeyDown = (
+        e: KeyboardEvent & { currentTarget: HTMLDivElement },
+    ): void => {
         if (readonly() || isLocked()) return;
         const taskId = t().id;
 
         if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            const onTaskClick = props.onTaskClick ?? events.onTaskClick;
-            onTaskClick?.(taskId, e as unknown as MouseEvent);
+            resetDidDrag();
+            e.currentTarget.dispatchEvent(
+                new MouseEvent('click', {
+                    bubbles: true,
+                    cancelable: true,
+                    altKey: e.altKey,
+                    ctrlKey: e.ctrlKey,
+                    metaKey: e.metaKey,
+                    shiftKey: e.shiftKey,
+                }),
+            );
             return;
         }
 

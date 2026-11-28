@@ -432,7 +432,7 @@ describe('<Gantt> consumer callbacks at first paint', () => {
         mounted = mountGantt({ tasks: TASKS, onSelectionChange });
         settle();
 
-        // Fired from the compute half of Gantt.tsx's selection effect, before
+        // Fired from the apply half of Gantt.tsx's selection effect, before
         // any interaction. Consumers see an empty Set first, always.
         expect(onSelectionChange).toHaveBeenCalledTimes(1);
         const first = onSelectionChange.mock.calls[0]![0];
@@ -440,7 +440,7 @@ describe('<Gantt> consumer callbacks at first paint', () => {
         expect(first.size).toBe(0);
     });
 
-    it('reports a clicked task through onSelectionChange, synchronously', () => {
+    it('reports a clicked task through onSelectionChange after the update commits', () => {
         const onSelectionChange = vi.fn<(ids: Set<string>) => void>();
         mounted = mountGantt({ tasks: TASKS, onSelectionChange });
         settle();
@@ -465,6 +465,101 @@ describe('<Gantt> consumer callbacks at first paint', () => {
             wrapperFor(mounted.container, 't1').getAttribute('aria-selected'),
         ).toBe(null);
     });
+
+    it('uses the release coordinates for box selection after the chart scrolls', () => {
+        const onSelectionChange = vi.fn<(ids: Set<string>) => void>();
+        mounted = mountGantt(
+            { tasks: TASKS, onSelectionChange },
+            { clientHeight: 125 },
+        );
+        const layer =
+            mounted.container.querySelector<HTMLElement>('.task-layer')!;
+        const scrollArea =
+            mounted.container.querySelector<HTMLElement>('.gantt-scroll-area')!;
+        const layerBounds = vi
+            .spyOn(layer, 'getBoundingClientRect')
+            .mockImplementation(() => new DOMRect(0, -scrollArea.scrollTop));
+        const mouse = (type: string, x: number, y: number): MouseEvent =>
+            new MouseEvent(type, {
+                bubbles: true,
+                cancelable: true,
+                clientX: x,
+                clientY: y,
+            });
+        try {
+            layer.dispatchEvent(mouse('mousedown', 300, 0));
+            document.dispatchEvent(mouse('mousemove', 450, 45));
+            settle();
+            expect(layer.querySelector('.box-select-overlay')).not.toBeNull();
+
+            // Scrolling changes the endpoint in content coordinates even
+            // when client coordinates stay the same.
+            scrollArea.scrollTop = 40;
+            document.dispatchEvent(mouse('mouseup', 450, 45));
+            settle();
+
+            expect(onSelectionChange).toHaveBeenLastCalledWith(
+                new Set(['t1', 't2']),
+            );
+            expect(layer.querySelector('.box-select-overlay')).toBeNull();
+        } finally {
+            layerBounds.mockRestore();
+        }
+    });
+
+    it.each([
+        { renderMode: 'simple', showsChild: false },
+        { renderMode: 'detailed', showsChild: true },
+    ])(
+        'box-selects displayed tasks in $renderMode mode',
+        ({ renderMode, showsChild }) => {
+            const onSelectionChange = vi.fn<(ids: Set<string>) => void>();
+            const parent: GanttTask = {
+                ...TASKS[0]!,
+                id: 'parent',
+                type: 'summary',
+            };
+            const child: GanttTask = {
+                ...TASKS[0]!,
+                id: 'child',
+                parentId: 'parent',
+            };
+            mounted = mountGantt({
+                tasks: [parent, child],
+                options: { renderMode },
+                onSelectionChange,
+            });
+            const { container, stores } = mounted;
+            const layer = container.querySelector('.task-layer')!;
+            expect(layer.querySelector('[data-id="parent"]')).not.toBeNull();
+            expect(layer.querySelector('[data-id="child"]') !== null).toBe(
+                showsChild,
+            );
+            expect(stores.taskStore.getTask('child')?._isHidden).toBe(false);
+            const bar = stores.taskStore.getBarPosition('child')!;
+            const mouse = (
+                type: string,
+                clientX: number,
+                clientY: number,
+            ): MouseEvent =>
+                new MouseEvent(type, {
+                    bubbles: true,
+                    cancelable: true,
+                    clientX,
+                    clientY,
+                });
+            const releaseX = bar.x + bar.width + 10;
+            const releaseY = bar.y + bar.height + 10;
+            layer.dispatchEvent(mouse('mousedown', bar.x - 10, bar.y - 5));
+            document.dispatchEvent(mouse('mousemove', releaseX, releaseY));
+            document.dispatchEvent(mouse('mouseup', releaseX, releaseY));
+            settle();
+
+            expect(onSelectionChange).toHaveBeenLastCalledWith(
+                new Set(showsChild ? ['parent', 'child'] : ['parent']),
+            );
+        },
+    );
 
     it('fires onReady one microtask after mount, exactly once, with the export api', async () => {
         const onReady = vi.fn<(api: GanttAPI) => void>();
@@ -498,4 +593,108 @@ describe('<Gantt> consumer callbacks at first paint', () => {
         await Promise.resolve();
         expect(onReady).not.toHaveBeenCalled();
     });
+
+    it('removes document listeners when the chart is disposed during a drag', () => {
+        mounted = mountGantt({ tasks: TASKS });
+        const add = vi.spyOn(document, 'addEventListener');
+        const remove = vi.spyOn(document, 'removeEventListener');
+        try {
+            wrapperFor(mounted.container, 't1').dispatchEvent(
+                new MouseEvent('mousedown', {
+                    bubbles: true,
+                    cancelable: true,
+                    clientX: 350,
+                    clientY: 20,
+                }),
+            );
+            const listeners = add.mock.calls.filter(
+                ([type]) => type === 'mousemove' || type === 'mouseup',
+            );
+            expect(listeners.map(([type]) => type)).toEqual([
+                'mousemove',
+                'mouseup',
+            ]);
+
+            mounted.dispose();
+
+            for (const [type, listener] of listeners) {
+                expect(remove).toHaveBeenCalledWith(type, listener);
+            }
+        } finally {
+            add.mockRestore();
+            remove.mockRestore();
+        }
+    });
+
+    it.each(['resize', 'summary move'] as const)(
+        'keeps a %s on its original task after the viewport recycles the DOM slot',
+        async (gesture) => {
+            const onResizeEnd = vi.fn();
+            const isSummary = gesture === 'summary move';
+            const tasks: GanttTask[] = isSummary
+                ? TASKS.map((task) => ({ ...task, type: 'summary' }))
+                : TASKS;
+            mounted = mountGantt(
+                { tasks, overscanRows: 0, onResizeEnd },
+                { clientHeight: 105 },
+            );
+            await Promise.resolve();
+            settle();
+
+            const { container, stores } = mounted;
+            const task1 = stores.taskStore.getBarPosition('t1')!;
+            const task2 = stores.taskStore.getBarPosition('t2')!;
+            const slot = wrapperFor(container, 't1');
+            const handle = isSummary
+                ? slot
+                : slot.querySelector('.handle-right')!;
+            const scrollArea =
+                container.querySelector<HTMLElement>('.gantt-scroll-area')!;
+            const now = vi.spyOn(performance, 'now').mockReturnValue(1000);
+            const startX = task1.x + task1.width * (isSummary ? 0.5 : 1);
+            const mouse = (type: string, clientX: number): MouseEvent =>
+                new MouseEvent(type, {
+                    bubbles: true,
+                    cancelable: true,
+                    clientX,
+                    clientY: 20,
+                });
+            try {
+                handle.dispatchEvent(mouse('mousedown', startX));
+                scrollArea.scrollTop = 50;
+                scrollArea.dispatchEvent(new Event('scroll'));
+                settle();
+
+                expect(wrapperFor(container, 't2')).toBe(slot);
+                document.dispatchEvent(
+                    mouse('mousemove', startX + EXPECTED.columnWidth),
+                );
+                document.dispatchEvent(
+                    mouse('mouseup', startX + EXPECTED.columnWidth),
+                );
+                settle();
+
+                const result = stores.taskStore.getBarPosition('t1')!;
+                if (isSummary) {
+                    expect(result.x).toBeGreaterThan(task1.x);
+                    expect(result.width).toBe(task1.width);
+                } else {
+                    expect(result.x).toBe(task1.x);
+                    expect(result.width).toBeCloseTo(
+                        task1.width + EXPECTED.columnWidth,
+                    );
+                }
+                expect(stores.taskStore.getBarPosition('t2')).toEqual(task2);
+                expect(onResizeEnd).toHaveBeenCalledExactlyOnceWith(
+                    't1',
+                    expect.objectContaining({
+                        x: result.x,
+                        width: result.width,
+                    }),
+                );
+            } finally {
+                now.mockRestore();
+            }
+        },
+    );
 });

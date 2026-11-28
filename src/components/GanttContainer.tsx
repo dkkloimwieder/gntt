@@ -159,10 +159,12 @@ export function GanttContainer(props: GanttContainerProps): JSX.Element {
             if (disposed) return;
             props.onContainerReady?.({
                 scrollTo,
-                getScrollLeft: scrollLeft,
-                getScrollTop: scrollTop,
-                getContainerWidth: containerWidth,
-                getContainerHeight: viewportHeight,
+                // Imperative consumers need the current visible rectangle even
+                // while viewport signals wait for a scroll or resize update.
+                getScrollLeft: () => scrollAreaRef?.scrollLeft ?? 0,
+                getScrollTop: () => scrollAreaRef?.scrollTop ?? 0,
+                getContainerWidth: () => scrollAreaRef?.clientWidth ?? 0,
+                getContainerHeight: () => scrollAreaRef?.clientHeight ?? 0,
                 containerWidth: measuredWidth,
                 containerHeight: measuredHeight,
                 scrollLeftSignal: scrollLeft,

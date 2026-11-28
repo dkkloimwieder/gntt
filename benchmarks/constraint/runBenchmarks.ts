@@ -4,11 +4,11 @@
  * Constraint Resolution Benchmark CLI
  *
  * Usage:
- *   node src/benchmarks/runBenchmarks.js
- *   node src/benchmarks/runBenchmarks.js --tasks=500
- *   node src/benchmarks/runBenchmarks.js --topology=dense --tasks=200
- *   node src/benchmarks/runBenchmarks.js --all
- *   node src/benchmarks/runBenchmarks.js --output=results.json
+ *   pnpm bench
+ *   pnpm bench --tasks=500
+ *   pnpm bench --topology=dense --tasks=200
+ *   pnpm bench:all
+ *   pnpm bench --output=results.json
  */
 
 import {
@@ -108,18 +108,16 @@ function printHelp() {
 Constraint Resolution Benchmark CLI
 
 Usage:
-  node src/benchmarks/runBenchmarks.js [options]
+  pnpm bench [options]
 
 Options:
-  --tasks=N, -t=N       Number of tasks (default: 200)
-  --topology=TYPE       Graph topology: linear, fanout, fanin, random, dense, mixed
-                        (default: linear)
-  --runs=N, -r=N        Number of measured runs (default: 100)
-  --warmup=N, -w=N      Number of warmup runs (default: 5)
-  --all, -a             Run all preset benchmarks
-  --output=FILE, -o     Save results to JSON file
-  --verbose, -v         Print detailed timing data
-  --help, -h            Show this help
+  --tasks=N       Number of tasks (default: 200)
+  --topology=TYPE Graph topology (default: linear)
+  --runs=N        Number of measured runs (default: 100)
+  --warmup=N      Number of warmup runs (default: 5)
+  --all           Run all preset benchmarks
+  --output=FILE   Save results to JSON file
+  --help          Show this help
 
 Topologies:
   linear    Linear chain: task-0 → task-1 → task-2 → ...
@@ -128,11 +126,12 @@ Topologies:
   random    Random graph with ~10% edge density
   dense     Dense graph with ~4 relationships per task
   mixed     Linear chain with mixed FS/SS/FF/SF types
+  locked-end Linear chain with the last task locked
 
 Examples:
-  node src/benchmarks/runBenchmarks.js --tasks=500
-  node src/benchmarks/runBenchmarks.js --topology=dense --tasks=200
-  node src/benchmarks/runBenchmarks.js --all --output=baseline.json
+  pnpm bench --tasks=500
+  pnpm bench --topology=dense --tasks=200
+  pnpm bench:all --output=baseline.json
 `);
 }
 
